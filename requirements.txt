@@ -1,0 +1,42 @@
+========================================================================
+ KRÉTA Adatlekérő és Webes Áttekintő – Telepítési Útmutató és Függőségek
+========================================================================
+
+1. MINIMÁLIS RENDSZERKÖVETELMÉNYEK
+----------------------------------
+- Operációs rendszer: Windows 10/11, Linux, vagy macOS
+- Python verzió: Python 3.10 vagy újabb (Python 3.14-gyel tesztelve)
+- Git (verziókövetéshez és projekt letöltéséhez)
+
+2. TELEPÍTENDŐ PYTHON CSOMAGOK (PIP)
+------------------------------------
+Az alkalmazás futtatásához az alábbi Python könyvtárakra van szükség:
+
+- playwright : A böngésző-automatizációhoz és a Kendo Grid adatok kinyeréséhez
+- flask      : A webes dashboard háttérszerveréhez és az élő konzol-streameléshez (SSE)
+
+Telepítő parancs (futtasd a Parancssorban / Terminalban):
+
+    pip install playwright flask
+
+3. PLAYWRIGHT BÖNGÉSZŐMOTOR TELEPÍTÉSE
+---------------------------------------
+A Playwright csomag telepítése után le kell tölteni a Chromium böngészőmotort is:
+
+    playwright install chromium
+
+4. TELEPÍTÉS ÖSSZEFOGLALÓ PARANCS (EGYBEN MÁSOLHATÓ)
+--------------------------------------------------
+Megnyitott Parancssorban (cmd) futtasd az alábbi két sort egymás után:
+
+    pip install playwright flask
+    playwright install chromium
+
+5. ALKALMAZÁS INDÍTÁSA A TELEPÍTÉS UTÁN
+----------------------------------------
+a) Webes felület és háttérszerver indítása:
+    python app.py
+
+b) Megnyitás böngészőben:
+    http://127.0.0.1:5000
+========================================================================

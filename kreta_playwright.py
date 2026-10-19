@@ -307,7 +307,7 @@ async def process_student(page, student):
     js_szamonkeres_extractor = """
     () => {
         let lista = [];
-        let gridEl = document.querySelector('.k-grid');
+        let gridEl = document.querySelector('#BejelentettSzamonkeresekGrid') || document.querySelector('.k-grid');
         if (!gridEl) return lista;
         let grid = $(gridEl).data("kendoGrid");
         if (grid) {
@@ -325,12 +325,12 @@ async def process_student(page, student):
 
                 lista.push({
                     esemeny_tipus: 'Bejelentett számonkérés',
-                    tantargy: item.TantargyNev || item.Tantargy || "",
-                    ertekelo: item.TanarNeve || item.Tanar || "",
-                    mod: item.SzamonkeresModja || item.Mod || "",
-                    tema: item.SzamonkeresTemaja || item.Tema || "",
-                    hatarido: formatDate(item.Datum || item.SzamonkeresDatuma),
-                    bej_datum: formatDate(item.BejelenteseDatuma || item.BejelentesDatuma)
+                    tantargy: item.TargyNev || "",
+                    ertekelo: item.TanarNev || "",
+                    mod: item.ErtekelesModNev || "",
+                    tema: item.SzamonkeresMegnevezes || "",
+                    hatarido: formatDate(item.SzamonkeresDatuma),
+                    bej_datum: formatDate(item.BejelentesDatuma)
                 });
             });
         }
