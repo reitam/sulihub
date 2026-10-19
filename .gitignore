@@ -1,0 +1,14 @@
+# Adatbázisok kizárása
+*.db
+*.sqlite3
+
+# Bizalmas adatok (felhasználónevek/jelszavak) kizárása
+config.json
+
+# Python gyorsítótárak és virtuális környezetek
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.idea/
+.vscode/
