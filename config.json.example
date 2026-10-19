@@ -1,30 +1,55 @@
 {
   "HEADLESS": true,
   "SCRAPE_MESSAGES": true,
+  "ENABLE_REWARDS": true,
+  "REWARDS": {
+    "jegy_5": 500,
+    "jegy_4": 200,
+    "jegy_3": 0,
+    "jegy_2": -200,
+    "jegy_1": -500,
+    "dicseret": 500,
+    "megrovas": -500,
+    "lecke_hiany": -300,
+    "felszereles_hiany": -300
+  },
+  "KEYWORDS": {
+    "dicseret": [
+      "dicséret",
+      "dicséretben",
+      "kiemelkedő",
+      "dicséretet"
+    ],
+    "megrovas": [
+      "intő",
+      "megrovás",
+      "figyelmeztetés",
+      "elmarasztalás"
+    ],
+    "lecke_hiany": [
+      "házi feladat hiány",
+      "házi hiány",
+      "lecke hiány",
+      "nem készített házi",
+      "hianyzo hazi"
+    ],
+    "felszereles_hiany": [
+      "felszerelés hiány",
+      "felszerelése hiányzott",
+      "felszereléshiány",
+      "felszerelés hiánya",
+      "felszerelés nélkül"
+    ]
+  },
   "STUDENTS": [
     {
-      "diak_nev": "Név1",
-      "institute_code": "iskolakod",
-      "username": "felhasznalonev",
-      "password": "balazs_jelszo",
+      "diak_nev": "Teszt Elek",
+      "institute_code": "sztmargittatabanya",
+      "username": "FELHASZNÁLÓNÉV",
+      "password": "JELSZÓ",
+      "active": true,
       "scrape_messages": true,
-	  "active": true
-    },
-    {
-      "diak_nev": "Név2",
-      "institute_code": "masikiskolakod1",
-      "username": "felhasznalonev",
-      "password": "jelszo",
-      "scrape_messages": true,
-	  "active": true
-    },
-    {
-      "diak_nev": "Név3",
-      "institute_code": "masikiskolakod2",
-      "username": "felhasznalonev",
-      "password": "jelszo",
-      "scrape_messages": true,
-	  "active": true
+      "enable_rewards": true
     }
   ]
 }
