@@ -1,5 +1,26 @@
 {
-  "INSTITUTE_CODE": "sztmargittatabanya",
-  "USERNAME": "felhasznalonev",
-  "PASSWORD": "jelszo"
+  "HEADLESS": true,
+  "STUDENTS": [
+    {
+      "diak_nev": "Teszt Elek",
+      "institute_code": "sztmargittatabanya",
+      "username": "balazs_felhasznalonev",
+      "password": "balazs_jelszo",
+      "active": true
+    },
+    {
+      "diak_nev": "Reiner Máté",
+      "institute_code": "masikiskolakod1",
+      "username": "mate_felhasznalonev",
+      "password": "mate_jelszo",
+      "active": true
+    },
+    {
+      "diak_nev": "Reiner Anna",
+      "institute_code": "masikiskolakod2",
+      "username": "anna_felhasznalonev",
+      "password": "anna_jelszo",
+      "active": true
+    }
+  ]
 }
