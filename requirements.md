@@ -6,6 +6,17 @@
 * **Webes keretrendszer:** **Flask** (Python) háttérszerver a REST API-k és a webes felület kiszolgálásához.
 * **Verziókövetés:** Git használata **GitHub** tárhellyel (`reitam/kreta_adatlekero`), szigorú `.gitignore` szűréssel (adatbázis és jelszavak kizárása).
 * **Konfigurációkezelés:** Központi `config.json` fájl használata az érzékeny adatok, diákfiókok és beállítások kezelésére.
+* **Python Függőségek és Telepítési Követelmények:**
+  * **Python verzió:** Python 3.10+ (a projekt Python 3.14 környezetben lett tesztelve).
+  * **Telepítendő Python csomagok (`pip`):**
+    * `playwright`: A böngésző-automatizációhoz és adatlekéréshez.
+    * `flask`: A webes dashboard háttérszerveréhez és a Server-Sent Events (SSE) streameléshez.
+  * **Böngésző binárisok:** Playwright Chromium böngészőmotor telepítése (`playwright install chromium`).
+  * **Telepítő parancsok összefoglalva:**
+    ```cmd
+    pip install playwright flask
+    playwright install chromium
+    ```
 
 ---
 
@@ -43,3 +54,12 @@
   3. **Tantárgy:** Dinamikusan feltöltött dropdown menü a meglévő tantárgyakból.
   4. **Státusz / Határidő (Aktív / Lejárt):** Szűrési lehetőség a házi feladatoknál és számonkéréseknél arra, hogy a határidő **🟢 Aktív** (mai / jövőbeli) vagy **⚪ Lejárt** (múltbéli).
   5. **Azonnali Keresőmező:** Szabad-szöveges keresés a teljes táblázatban (tanár, téma, leírás).
+
+---
+
+## 5. Webes Szinkronizálás és Élő Konzol (Live Logging)
+* **Indítás Webfelületről:** Egy kattintásos **„Adatok frissítése a KRÉTA-ból”** gomb a webes felületen.
+* **Élő Konzol Nézet (Server-Sent Events – SSE):** A szinkronizálás elindításakor megjelenő, valós idejű parancssori log ablak, ami mutatja a `kreta_playwright.py` futási állapotát.
+* **Harmonika (Accordion) & Bezárhatóság:** 
+  * A konzol panel a szinkronizálás végén gombnyomásra felcsukható/kinyitható (Accordion).
+  * Egy külön **$\times$ (Bezárás) gombbal** a konzol panel teljesen elrejthető a képernyőről, ha már nincs rá szükség.
