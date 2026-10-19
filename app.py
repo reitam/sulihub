@@ -3,10 +3,21 @@ import sqlite3
 import os
 import subprocess
 import json
+import threading
+import time
 
 app = Flask(__name__)
 DB_FILE = "kreta_adatok.db"
 CONFIG_FILE = "config.json"
+
+# Globális állapot a háttérben futó szinkronizáláshoz
+sync_state = {
+    "running": False,
+    "process": None,
+    "logs": [],
+    "status": "idle"  # idle, running, done, error, stopped
+}
+sync_lock = threading.Lock()
 
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
@@ -18,6 +29,57 @@ def load_config():
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
+
+def run_scraper_thread():
+    """Háttérszálban futó scraper feladat."""
+    global sync_state
+    
+    with sync_lock:
+        sync_state["running"] = True
+        sync_state["logs"] = ["> Szinkronizáció indítása a háttérben..."]
+        sync_state["status"] = "running"
+
+    try:
+        process = subprocess.Popen(
+            ["python", "-u", "kreta_playwright.py"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        
+        with sync_lock:
+            sync_state["process"] = process
+
+        for line in iter(process.stdout.readline, ''):
+            if line:
+                cleaned_line = line.strip()
+                with sync_lock:
+                    sync_state["logs"].append(cleaned_line)
+                    # Maximum 500 sort őrzünk meg a memóriában
+                    if len(sync_state["logs"]) > 500:
+                        sync_state["logs"].pop(0)
+
+        process.stdout.close()
+        process.wait()
+
+        with sync_lock:
+            if sync_state["status"] != "stopped":
+                if process.returncode == 0:
+                    sync_state["status"] = "done"
+                    sync_state["logs"].append("> SZINKRONIZÁCIÓ SIKERESEN BEFEJEZŐDÖTT!")
+                else:
+                    sync_state["status"] = "error"
+                    sync_state["logs"].append("> HIBA TÖRTÉNT A SZINKRONIZÁCIÓ SORÁN!")
+
+    except Exception as e:
+        with sync_lock:
+            sync_state["status"] = "error"
+            sync_state["logs"].append(f"> Kivétel történt: {str(e)}")
+    finally:
+        with sync_lock:
+            sync_state["running"] = False
+            sync_state["process"] = None
 
 @app.route("/")
 def index():
@@ -143,7 +205,6 @@ def api_uzenetek():
 
 @app.route("/api/statisztika")
 def api_statisztika():
-    """Havi jegy-, feljegyzés- és zsebpénz-statisztika API."""
     config = load_config()
     global_enable = config.get("ENABLE_REWARDS", True)
     
@@ -151,9 +212,8 @@ def api_statisztika():
         return jsonify({"enabled": False})
 
     diak = request.args.get("diak", "")
-    honap = request.args.get("honap", "")  # pl: "2026-10" vagy "2026. 10."
+    honap = request.args.get("honap", "")
 
-    # Diákonkénti engedélyezés ellenőrzése
     student_enable = True
     students = config.get("STUDENTS", [])
     for s in students:
@@ -179,7 +239,6 @@ def api_statisztika():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 1. ÉRDEMJEGYEK LEKÉRDEZÉSE
     jegy_query = "SELECT szam_ertek, bej_datum FROM esemenyek WHERE esemeny_tipus = 'Értékelés'"
     params = []
     if diak:
@@ -195,7 +254,6 @@ def api_statisztika():
 
     for r in jegy_rows:
         datum_str = r["bej_datum"] or ""
-        # Szűrés hónapra (ha meg van adva)
         if honap and honap not in datum_str.replace(". ", "-").replace(".", ""):
             continue
 
@@ -207,7 +265,6 @@ def api_statisztika():
 
     atlag = round(jegy_sum / jegy_total_count, 2) if jegy_total_count > 0 else 0.0
 
-    # 2. FELJEGYZÉSEK SZÖVEGELEMZÉSE
     felj_query = "SELECT cim, tartalom, bej_datum FROM esemenyek WHERE esemeny_tipus = 'Feljegyzés'"
     f_params = []
     if diak:
@@ -237,7 +294,6 @@ def api_statisztika():
 
     conn.close()
 
-    # 3. PÉNZÜGYI KISZÁMÍTÁS (EGALIZÁLÁS)
     jegy_osszeg = (
         jegy_counts[5] * rewards.get("jegy_5", 0) +
         jegy_counts[4] * rewards.get("jegy_4", 0) +
@@ -267,35 +323,50 @@ def api_statisztika():
         "vegosszeg": vegosszeg
     })
 
+# --- SZINKRONIZÁCIÓS API ENDPOINT-OK (INDÍTÁS, LEÁLLÍTÁS, STÁTUSZ STREAM) ---
+
+@app.route("/api/sync/start", methods=["POST"])
+def api_sync_start():
+    """Szinkronizálás indítása háttérszálban."""
+    global sync_state
+    with sync_lock:
+        if sync_state["running"]:
+            return jsonify({"status": "already_running", "message": "A szinkronizáció már fut!"})
+        
+        # Szál indítása
+        t = threading.Thread(target=run_scraper_thread, daemon=True)
+        t.start()
+        return jsonify({"status": "started", "message": "Szinkronizáció elindítva."})
+
+@app.route("/api/sync/stop", methods=["POST"])
+def api_sync_stop():
+    """Folyamatban lévő szinkronizálás megszakítása."""
+    global sync_state
+    with sync_lock:
+        if not sync_state["running"] or not sync_state["process"]:
+            return jsonify({"status": "not_running", "message": "Nincs futó folyamat."})
+
+        try:
+            sync_state["process"].kill()
+            sync_state["status"] = "stopped"
+            sync_state["logs"].append("> SZINKRONIZÁLÁS A FELHASZNÁLÓ ÁLTAL LEÁLLÍTVA!")
+            return jsonify({"status": "stopped", "message": "Folyamat leállítva."})
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"Hiba a leállításkor: {str(e)}"})
+
+@app.route("/api/sync/status")
+def api_sync_status():
+    """Élő állapot és logok kérése az oldalfrissítésekhez / fülváltáshoz."""
+    with sync_lock:
+        return jsonify({
+            "running": sync_state["running"],
+            "status": sync_state["status"],
+            "logs": sync_state["logs"]
+        })
+
 @app.route("/static/csatolmanyok/<path:filename>")
 def download_csatolmany(filename):
     return send_from_directory("static/csatolmanyok", filename)
-
-@app.route("/api/sync_stream")
-def api_sync_stream():
-    """Valós idejű konzol-stream a szinkronizáláshoz."""
-    def generate():
-        process = subprocess.Popen(
-            ["python", "-u", "kreta_playwright.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1
-        )
-        
-        for line in iter(process.stdout.readline, ''):
-            if line:
-                yield f"data: {json.dumps({'msg': line.strip()})}\n\n"
-        
-        process.stdout.close()
-        process.wait()
-        
-        if process.returncode == 0:
-            yield f"data: {json.dumps({'status': 'done', 'msg': 'Sikeres szinkronizálás!'})}\n\n"
-        else:
-            yield f"data: {json.dumps({'status': 'error', 'msg': 'Hiba történt a futtatás során!'})}\n\n"
-
-    return Response(generate(), mimetype="text/event-stream")
 
 if __name__ == "__main__":
     print("Flask web szerver indítása: http://127.0.0.1:5000")

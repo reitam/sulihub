@@ -37,6 +37,39 @@
         .reward-badge-1 { background-color: #dc3545; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
         .balance-card-positive { background: linear-gradient(135deg, #198754, #146c43); color: white; }
         .balance-card-negative { background: linear-gradient(135deg, #dc3545, #b02a37); color: white; }
+
+        /* DINAMIKUS TÁBLÁZAT ÉS EGYSÉGES SORMAGASSÁG STÍLUSOK */
+        table.dataTable { table-layout: fixed !important; }
+        table.dataTable tbody tr { height: 42px !important; }
+        table.dataTable tbody td { 
+            white-space: nowrap !important; 
+            overflow: hidden !important; 
+            text-overflow: ellipsis !important;
+            vertical-align: middle !important;
+        }
+        th { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .resizer {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            width: 8px;
+            background: transparent;
+            cursor: col-resize;
+            user-select: none;
+            z-index: 10;
+        }
+        .resizer:hover, .resizing {
+            border-right: 3px solid #0d6efd;
+        }
+        .cell-truncate {
+            display: inline-block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -53,7 +86,7 @@
         </button>
     </div>
 
-    <!-- ÉLŐ SZINKRONIZÁCIÓS KONZOL -->
+    <!-- ÉLŐ SZINKRONIZÁCIÓS KONZOL (HÁTTÉRFOLYAMAT KEZELÉSSEL) -->
     <div id="syncLogContainer" class="card p-0 mb-3 card-stat bg-white d-none overflow-hidden border">
         <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center p-2 px-3" style="cursor: pointer;" id="syncHeader">
             <div class="d-flex align-items-center">
@@ -61,7 +94,11 @@
                 <span id="syncStatusTitle" class="fw-bold small">Szinkronizálás folyamatban...</span>
                 <span id="syncSpinner" class="spinner-border spinner-border-sm text-light ms-2"></span>
             </div>
-            <div>
+            <div class="d-flex align-items-center">
+                <!-- LEÁLLÍTÁS GOMB -->
+                <button id="btnStopSync" class="btn btn-sm btn-warning text-dark fw-bold me-3 py-0 px-2" title="Szinkronizálás leállítása">
+                    <i class="fa-solid fa-hand me-1"></i>Folyamat leállítása
+                </button>
                 <button class="btn btn-sm btn-outline-light me-1 py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTerminal">
                     <i class="fa-solid fa-chevron-up" id="collapseIcon"></i>
                 </button>
@@ -176,17 +213,17 @@
     <div class="tab-content" id="mainTabContent">
         <!-- 1. FÜL: ISKOLAI ESEMÉNYEK -->
         <div class="tab-pane fade show active" id="esemenyek-pane" role="tabpanel">
-            <div class="table-container">
+            <div class="table-container overflow-auto">
                 <table id="esemenyekTable" class="table table-striped table-hover w-100">
                     <thead>
                         <tr>
-                            <th>Diák</th>
-                            <th>Típus</th>
-                            <th>Tantárgy</th>
-                            <th>Érték / Mód</th>
-                            <th>Bejegyzés dátuma</th>
-                            <th>Határidő / Nap</th>
-                            <th>Értékelő / Tanár</th>
+                            <th style="width: 120px;">Diák</th>
+                            <th style="width: 130px;">Típus</th>
+                            <th style="width: 140px;">Tantárgy</th>
+                            <th style="width: 130px;">Érték / Mód</th>
+                            <th style="width: 120px;">Bejegyzés dátuma</th>
+                            <th style="width: 130px;">Határidő / Nap</th>
+                            <th style="width: 150px;">Értékelő / Tanár</th>
                             <th>Részletek / Leírás</th>
                         </tr>
                     </thead>
@@ -197,16 +234,16 @@
 
         <!-- 2. FÜL: BEÉRKEZETT ÜZENETEK -->
         <div class="tab-pane fade" id="uzenetek-pane" role="tabpanel">
-            <div class="table-container">
+            <div class="table-container overflow-auto">
                 <table id="uzenetekTable" class="table table-striped table-hover w-100">
                     <thead>
                         <tr>
-                            <th>Diák</th>
-                            <th>Feladó</th>
+                            <th style="width: 130px;">Diák</th>
+                            <th style="width: 180px;">Feladó</th>
                             <th>Tárgy</th>
-                            <th>Időpont</th>
-                            <th>Csatolmány</th>
-                            <th>Művelet</th>
+                            <th style="width: 140px;">Időpont</th>
+                            <th style="width: 150px;">Csatolmány</th>
+                            <th style="width: 90px;">Művelet</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -323,22 +360,26 @@
                     </div>
                 </div>
 
-                <!-- JOBB RA IGAZÍTOTT RÉSZLETEZŐ KÁRTYA (EGALIZÁLÁS) -->
-                <div class="card card-stat p-3 balance-card-positive" id="cardVegosszegContainer">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h5 class="m-0 fw-bold"><i class="fa-solid fa-wallet me-2"></i>Havi Zsebpénz / Jutalomegyenleg</h5>
-                            <small id="rewardDiakNevText" class="opacity-75">Elszámolás részletei</small>
-                        </div>
-                        <div class="text-end">
-                            <h2 class="fw-bold m-0" id="txtVegosszeg">0 Ft</h2>
+                <!-- ELEGÁNS ELEMZŐ KÁRTYA VILÁGOSSZÜRKE ALSÓ SÁVVAL -->
+                <div class="card card-stat overflow-hidden border-0 shadow-sm" id="cardVegosszegContainer">
+                    <div class="p-3 balance-card-positive" id="cardHeaderBg">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="m-0 fw-bold"><i class="fa-solid fa-wallet me-2"></i>Havi Zsebpénz / Jutalomegyenleg</h5>
+                                <small id="rewardDiakNevText" class="opacity-75">Elszámolás részletei</small>
+                            </div>
+                            <div class="text-end">
+                                <h2 class="fw-bold m-0" id="txtVegosszeg">0 Ft</h2>
+                            </div>
                         </div>
                     </div>
-                    <hr class="my-2" style="opacity: 0.2;">
-                    <div class="d-flex justify-content-end text-end small opacity-90">
-                        <div>
-                            <div>Jegyekből származó egyenleg: <strong id="txtJegyOsszeg" class="ms-1">+0 Ft</strong></div>
-                            <div class="mt-1">Feljegyzések / Hiányok egyenlege: <strong id="txtFeljegyzesOsszeg" class="ms-1">-0 Ft</strong></div>
+                    <!-- VILÁGOSSZÜRKE HÁTTÉR A VONAL ALATTI ELSSZÁMOLÁSHOZ -->
+                    <div class="card-footer bg-light border-top p-2 px-3">
+                        <div class="d-flex justify-content-end text-end small">
+                            <div>
+                                <div>Jegyekből származó egyenleg: <strong id="txtJegyOsszeg" class="ms-1 text-success">+0 Ft</strong></div>
+                                <div class="mt-1">Feljegyzések / Hiányok egyenlege: <strong id="txtFeljegyzesOsszeg" class="ms-1 text-danger">-0 Ft</strong></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -380,6 +421,24 @@
   </div>
 </div>
 
+<!-- MODAL ESEMÉNY LEÍRÁS RÉSZLETES OLVASÁSÁHOZ -->
+<div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white p-2 px-3">
+        <h6 class="modal-title m-0" id="detailsModalTitle"><i class="fa-solid fa-circle-info me-2"></i>Esemény részletei</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="detailsModalBody" class="p-2 bg-light rounded border" style="white-space: pre-wrap; word-break: break-word;"></div>
+      </div>
+      <div class="modal-footer p-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bezárás</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- JS könyvtárak -->
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -387,9 +446,40 @@
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 
 <script>
+function enableResizableTable(tableId) {
+    let $table =$('#' + tableId);
+    let $headers =$table.find('thead th');
+
+    $headers.each(function() {
+        let $th =$(this);
+        if ($th.find('.resizer').length === 0) {
+            let $resizer =$('<div class="resizer"></div>');
+            $th.append($resizer);
+
+            $resizer.on('mousedown', function(e) {
+                e.preventDefault();
+                let startX = e.pageX;
+                let startWidth = $th.width();$resizer.addClass('resizing');
+
+                $(document).on('mousemove.colResize', function(e) {
+                    let newWidth = startWidth + (e.pageX - startX);
+                    if (newWidth > 50) {
+                        $th.css('width', newWidth + 'px');
+                    }
+                });
+
+                $(document).on('mouseup.colResize', function() {
+                    $(document).off('.colResize');$resizer.removeClass('resizing');
+                });
+            });
+        }
+    });
+}
+
 $(document).ready(function() {
     let rawData = [];
     let rawUzenetek = [];
+    let syncInterval = null;
 
     function getTodayNum() {
         let now = new Date();
@@ -410,6 +500,7 @@ $(document).ready(function() {
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/hu.json' },
         pageLength: 25,
         order: [[4, 'desc']],
+        autoWidth: false,
         columns: [
             { data: 'diak_nev' },
             { 
@@ -457,29 +548,51 @@ $(document).ready(function() {
                 data: null,
                 render: function(data) {
                     let reszletek = [];
-                    if (data.tema && data.tema !== '-') reszletek.push(`<b>Téma:</b> ${data.tema}`);
-                    if (data.cim && data.cim !== '-') reszletek.push(`<b>Cím:</b> ${data.cim}`);
+                    if (data.tema && data.tema !== '-') reszletek.push(`Téma: ${data.tema}`);
+                    if (data.cim && data.cim !== '-') reszletek.push(`Cím: ${data.cim}`);
                     if (data.tartalom && data.tartalom !== '-') reszletek.push(`${data.tartalom}`);
-                    return reszletek.join('<br>') || '-';
+                    
+                    let fullText = reszletek.join(' | ') || '-';
+                    let safeTitle = fullText.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+                    if (fullText.length > 50) {
+                        return `<div class="d-flex align-items-center justify-content-between">
+                            <span class="cell-truncate me-1" title="${safeTitle}">${fullText}</span>
+                            <button class="btn btn-xs btn-outline-primary py-0 px-1 btn-show-details" data-text="${safeTitle}" title="Részletek megtekintése">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </button>
+                        </div>`;
+                    }
+                    return `<span class="cell-truncate" title="${safeTitle}">${fullText}</span>`;
                 }
             }
-        ]
+        ],
+        drawCallback: function() {
+            enableResizableTable('esemenyekTable');
+        }
     });
 
     let uzenetekTable = $('#uzenetekTable').DataTable({
         language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/hu.json' },
         pageLength: 25,
         order: [[3, 'desc']],
+        autoWidth: false,
         columns: [
             { data: 'diak_nev' },
             { data: 'felado' },
-            { data: 'targy' },
+            { 
+                data: 'targy',
+                render: function(data) {
+                    let safeText = (data || '').replace(/"/g, '&quot;');
+                    return `<span class="cell-truncate" title="${safeText}">${data || '-'}</span>`;
+                }
+            },
             { data: 'idopont' },
             { 
                 data: null,
                 render: function(data) {
                     if (data.csatolmany_nev) {
-                        return `<span class="badge bg-primary"><i class="fa-solid fa-paperclip me-1"></i>${data.csatolmany_nev}</span>`;
+                        return `<span class="badge bg-primary cell-truncate" title="${data.csatolmany_nev}"><i class="fa-solid fa-paperclip me-1"></i>${data.csatolmany_nev}</span>`;
                     }
                     return '-';
                 }
@@ -492,7 +605,17 @@ $(document).ready(function() {
                     </button>`;
                 }
             }
-        ]
+        ],
+        drawCallback: function() {
+            enableResizableTable('uzenetekTable');
+        }
+    });
+
+    $('#esemenyekTable').on('click', '.btn-show-details', function(e) {
+        e.stopPropagation();
+        let fullText = $(this).data('text');$('#detailsModalBody').text(fullText);
+        let detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
+        detailsModal.show();
     });
 
     function applyFilters() {
@@ -560,17 +683,35 @@ $(document).ready(function() {
             let fmtFt = (num) => (num > 0 ? '+' : '') + num.toLocaleString('hu-HU') + ' Ft';
 
             $('#txtVegosszeg').text(fmtFt(res.vegosszeg));
-            $('#txtJegyOsszeg').text(fmtFt(res.jegy_osszeg));
-            $('#txtFeljegyzesOsszeg').text(fmtFt(res.feljegyzes_osszeg));
+
+            // JEGYEK BŐL SZÁRMAZÓ ÖSSZEG SZÍNEZÉSE
+            let $jegyElem = $('#txtJegyOsszeg');
+            $jegyElem.text(fmtFt(res.jegy_osszeg));
+            if (res.jegy_osszeg > 0) {
+                $jegyElem.removeClass().addClass('ms-1 fw-bold text-success');
+            } else {
+                $jegyElem.removeClass().addClass('ms-1 fw-bold text-dark');
+            }
+
+            // FELJEGYZÉSEK/HIÁNYOK ÖSSZEG SZÍNEZÉSE
+            let $feljElem = $('#txtFeljegyzesOsszeg');
+            $feljElem.text(fmtFt(res.feljegyzes_osszeg));
+            if (res.feljegyzes_osszeg < 0) {
+                $feljElem.removeClass().addClass('ms-1 fw-bold text-danger');
+            } else if (res.feljegyzes_osszeg > 0) {
+                $feljElem.removeClass().addClass('ms-1 fw-bold text-success');
+            } else {
+                $feljElem.removeClass().addClass('ms-1 fw-bold text-dark');
+            }
 
             let hName = $('#filterHonap option:selected').text();
             $('#rewardDiakNevText').text(`${diak} elszámolása - ${hName}`);
 
-            let card = $('#cardVegosszegContainer');
+            let cardBg = $('#cardHeaderBg');
             if (res.vegosszeg >= 0) {
-                card.removeClass('balance-card-negative').addClass('balance-card-positive');
+                cardBg.removeClass('balance-card-negative').addClass('balance-card-positive');
             } else {
-                card.removeClass('balance-card-positive').addClass('balance-card-negative');
+                cardBg.removeClass('balance-card-positive').addClass('balance-card-negative');
             }
         });
     }
@@ -596,7 +737,57 @@ $(document).ready(function() {
         }
     }
 
+    function checkSyncStatus() {
+        $.getJSON('/api/sync/status', function(res) {
+            let logTerminal = $('#logTerminal');
+            let logContainer = $('#syncLogContainer');
+            let btn = $('#btnSync');
+            let spinner = $('#syncSpinner');
+            let title = $('#syncStatusTitle');
+            let btnStop = $('#btnStopSync');
+
+            if (res.running || res.logs.length > 0) {
+                logContainer.removeClass('d-none');
+                logTerminal.empty();
+                res.logs.forEach(function(line) {
+                    logTerminal.append(`<div>> ${line}</div>`);
+                });
+                logTerminal.scrollTop(logTerminal[0].scrollHeight);
+            }
+
+            if (res.running) {
+                btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-2"></i>Szinkronizálás...');
+                spinner.removeClass('d-none');
+                title.text('Szinkronizálás folyamatban a háttérben...');
+                btnStop.removeClass('d-none');
+
+                if (!syncInterval) {
+                    syncInterval = setInterval(checkSyncStatus, 1500);
+                }
+            } else {
+                btn.prop('disabled', false).html('<i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból');
+                spinner.addClass('d-none');
+                btnStop.addClass('d-none');
+
+                if (res.status === 'done') {
+                    title.text('Szinkronizáció kész!');
+                } else if (res.status === 'stopped') {
+                    title.text('Szinkronizáció leállítva!');
+                } else if (res.status === 'error') {
+                    title.text('Szinkronizálási hiba!');
+                }
+
+                if (syncInterval) {
+                    clearInterval(syncInterval);
+                    syncInterval = null;
+                    loadData();
+                }
+            }
+        });
+    }
+
     loadData();
+    checkSyncStatus();
 
     $('#filterDiak').change(function() {
         let selectedDiak = $(this).val();
@@ -661,54 +852,20 @@ $(document).ready(function() {
     });
 
     $('#btnSync').click(function() {
-        let btn = $(this);
-        let logContainer = $('#syncLogContainer');
-        let logTerminal = $('#logTerminal');
-        let spinner = $('#syncSpinner');
-        let title = $('#syncStatusTitle');
-
-        btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-2"></i>Szinkronizálás...');
-        
-        logContainer.removeClass('d-none');
-        $('#collapseTerminal').collapse('show');
-        
-        title.text('Szinkronizálás folyamatban...');
-        logTerminal.empty().append('<div>> Szinkronizáció indítása...</div>');
-        spinner.removeClass('d-none');
-
-        let eventSource = new EventSource('/api/sync_stream');
-
-        eventSource.onmessage = function(e) {
-            let data = JSON.parse(e.data);
-
-            if (data.msg) {
-                logTerminal.append(`<div>> ${data.msg}</div>`);
-                logTerminal.scrollTop(logTerminal[0].scrollHeight);
+        $.post('/api/sync/start', function(res) {
+            if (res.status === 'started' || res.status === 'already_running') {
+                checkSyncStatus();
             }
+        });
+    });
 
-            if (data.status === 'done' || data.status === 'error') {
-                eventSource.close();
-                spinner.addClass('d-none');
-                btn.prop('disabled', false).html('<i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból');
-
-                if (data.status === 'done') {
-                    title.text('Szinkronizáció kész!');
-                    logTerminal.append('<div class="text-success fw-bold">> SZINKRONIZÁCIÓ SIKERESEN BEFEJEZŐDÖTT!</div>');
-                    loadData();
-                } else {
-                    title.text('Szinkronizálási hiba!');
-                    logTerminal.append('<div class="text-danger fw-bold">> HIBA TÖRTÉNT A SZINKRONIZÁCIÓ SORÁN!</div>');
-                }
-            }
-        };
-
-        eventSource.onerror = function() {
-            eventSource.close();
-            spinner.addClass('d-none');
-            btn.prop('disabled', false).html('<i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból');
-            title.text('Hálózati hiba!');
-            logTerminal.append('<div class="text-danger fw-bold">> A kapcsolat megszakadt a szerverrel.</div>');
-        };
+    $('#btnStopSync').click(function(e) {
+        e.stopPropagation();
+        if (confirm('Biztosan le akarod állítani a KRÉTA szinkronizálást?')) {
+            $.post('/api/sync/stop', function(res) {
+                checkSyncStatus();
+            });
+        }
     });
 });
 </script>
