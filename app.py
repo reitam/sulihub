@@ -56,7 +56,6 @@ def run_scraper_thread():
                 cleaned_line = line.strip()
                 with sync_lock:
                     sync_state["logs"].append(cleaned_line)
-                    # Maximum 500 sort őrzünk meg a memóriában
                     if len(sync_state["logs"]) > 500:
                         sync_state["logs"].pop(0)
 
@@ -87,7 +86,7 @@ def index():
     global_enable_rewards = config.get("ENABLE_REWARDS", True)
 
     if not os.path.exists(DB_FILE):
-        diakok, tipusok, tantargyak = [], [], []
+        diakok, tipusok, tantargyak, honapok = [], [], [], []
     else:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -101,6 +100,33 @@ def index():
         cursor.execute("SELECT DISTINCT tantargy FROM esemenyek WHERE tantargy IS NOT NULL AND tantargy != '' ORDER BY tantargy")
         tantargyak = [row["tantargy"] for row in cursor.fetchall()]
 
+        # DINAMIKUS HÓNAPOK LEKÉRDEZÉSE AZ ADATBÁZISBÓL (bej_datum alapján)
+        cursor.execute("SELECT DISTINCT bej_datum FROM esemenyek WHERE bej_datum IS NOT NULL AND bej_datum != '-' AND bej_datum != ''")
+        datum_rows = cursor.fetchall()
+
+        honap_nevek = {
+            "01": "Január", "02": "Február", "03": "Március", "04": "Április",
+            "05": "Május", "06": "Június", "07": "Július", "08": "Augusztus",
+            "09": "Szeptember", "10": "Október", "11": "November", "12": "December"
+        }
+
+        honap_set = set()
+        for r in datum_rows:
+            d_str = r["bej_datum"] or ""
+            # Várható formátumok: "2026. 10. 15." vagy "2026-10-15"
+            clean = d_str.replace(". ", "-").replace(".", "-")
+            parts = clean.split("-")
+            if len(parts) >= 2 and len(parts[0]) == 4 and len(parts[1]) == 2:
+                ev = parts[0]
+                h_kod = parts[1]
+                if h_kod in honap_nevek:
+                    val = f"{ev}-{h_kod}"
+                    label = f"{ev}. {honap_nevek[h_kod]}"
+                    honap_set.add((val, label))
+
+        # Rendezés csökkenő sorrendben (legújabb hónap legelöl)
+        honapok = sorted(list(honap_set), key=lambda x: x[0], reverse=True)
+
         conn.close()
 
     return render_template(
@@ -108,6 +134,7 @@ def index():
         diakok=diakok, 
         tipusok=tipusok, 
         tantargyak=tantargyak,
+        honapok=honapok,
         global_enable_rewards=global_enable_rewards
     )
 
@@ -323,24 +350,19 @@ def api_statisztika():
         "vegosszeg": vegosszeg
     })
 
-# --- SZINKRONIZÁCIÓS API ENDPOINT-OK (INDÍTÁS, LEÁLLÍTÁS, STÁTUSZ STREAM) ---
-
 @app.route("/api/sync/start", methods=["POST"])
 def api_sync_start():
-    """Szinkronizálás indítása háttérszálban."""
     global sync_state
     with sync_lock:
         if sync_state["running"]:
             return jsonify({"status": "already_running", "message": "A szinkronizáció már fut!"})
         
-        # Szál indítása
         t = threading.Thread(target=run_scraper_thread, daemon=True)
         t.start()
         return jsonify({"status": "started", "message": "Szinkronizáció elindítva."})
 
 @app.route("/api/sync/stop", methods=["POST"])
 def api_sync_stop():
-    """Folyamatban lévő szinkronizálás megszakítása."""
     global sync_state
     with sync_lock:
         if not sync_state["running"] or not sync_state["process"]:
@@ -356,7 +378,6 @@ def api_sync_stop():
 
 @app.route("/api/sync/status")
 def api_sync_status():
-    """Élő állapot és logok kérése az oldalfrissítésekhez / fülváltáshoz."""
     with sync_lock:
         return jsonify({
             "running": sync_state["running"],
