@@ -2,24 +2,24 @@
   "HEADLESS": true,
   "STUDENTS": [
     {
-      "diak_nev": "Teszt Elek",
-      "institute_code": "sztmargittatabanya",
-      "username": "balazs_felhasznalonev",
+      "diak_nev": "Név1",
+      "institute_code": "iskolakod",
+      "username": "felhasznalonev",
       "password": "balazs_jelszo",
       "active": true
     },
     {
-      "diak_nev": "Reiner Máté",
+      "diak_nev": "Név2",
       "institute_code": "masikiskolakod1",
-      "username": "mate_felhasznalonev",
-      "password": "mate_jelszo",
+      "username": "felhasznalonev",
+      "password": "jelszo",
       "active": true
     },
     {
-      "diak_nev": "Reiner Anna",
+      "diak_nev": "Név3",
       "institute_code": "masikiskolakod2",
-      "username": "anna_felhasznalonev",
-      "password": "anna_jelszo",
+      "username": "felhasznalonev",
+      "password": "jelszo",
       "active": true
     }
   ]
