@@ -269,7 +269,6 @@
                     <div class="col-md-5">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-light"><i class="fa-solid fa-calendar-days text-success"></i></span>
-                            <!-- DINAMIKUS HÓNAPVÁLASZTÓ AZ ADATBÁZISBAN LÉTEZŐ HÓNAPOKBÓL -->
                             <select id="filterHonap" class="form-select">
                                 <option value="">-- Teljes Tanév Összesítve --</option>
                                 {% for val, label in honapok %}
@@ -353,21 +352,21 @@
                     </div>
                 </div>
 
-                <!-- ELEGÁNS ELEMZŐ KÁRTYA VILÁGOSSZÜRKE ALSÓ SÁVVAL -->
+                <!-- KOMPAKT, FINOMÍTOTT ELEMZŐ KÁRTYA -->
                 <div class="card card-stat overflow-hidden border-0 shadow-sm" id="cardVegosszegContainer">
-                    <div class="p-3 balance-card-positive" id="cardHeaderBg">
+                    <div class="p-2 px-3 balance-card-positive" id="cardHeaderBg">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h5 class="m-0 fw-bold"><i class="fa-solid fa-wallet me-2"></i>Havi Zsebpénz / Jutalomegyenleg</h5>
-                                <small id="rewardDiakNevText" class="opacity-75">Elszámolás részletei</small>
+                                <h6 class="m-0 fw-bold fs-6"><i class="fa-solid fa-wallet me-2"></i>Havi Zsebpénz / Jutalomegyenleg</h6>
+                                <small id="rewardDiakNevText" class="opacity-75" style="font-size: 0.75rem;">Elszámolás részletei</small>
                             </div>
                             <div class="text-end">
-                                <h2 class="fw-bold m-0" id="txtVegosszeg">0 Ft</h2>
+                                <h4 class="fw-bold m-0 fs-4" id="txtVegosszeg">0 Ft</h4>
                             </div>
                         </div>
                     </div>
                     <div class="card-footer bg-light border-top p-2 px-3">
-                        <div class="d-flex justify-content-end text-end small">
+                        <div class="d-flex justify-content-end text-end small" style="font-size: 0.8rem;">
                             <div>
                                 <div>Jegyekből származó egyenleg: <strong id="txtJegyOsszeg" class="ms-1 text-success">+0 Ft</strong></div>
                                 <div class="mt-1">Feljegyzések / Hiányok egyenlege: <strong id="txtFeljegyzesOsszeg" class="ms-1 text-danger">-0 Ft</strong></div>
@@ -676,8 +675,7 @@ $(document).ready(function() {
 
             $('#txtVegosszeg').text(fmtFt(res.vegosszeg));
 
-            // JEGYEK BŐL SZÁRMAZÓ ÖSSZEG SZÍNEZÉSE
-            let $jegyElem = $('#txtJegyOsszeg');
+            let $jegyElem =$('#txtJegyOsszeg');
             $jegyElem.text(fmtFt(res.jegy_osszeg));
             if (res.jegy_osszeg > 0) {
                 $jegyElem.removeClass().addClass('ms-1 fw-bold text-success');
@@ -685,8 +683,7 @@ $(document).ready(function() {
                 $jegyElem.removeClass().addClass('ms-1 fw-bold text-dark');
             }
 
-            // FELJEGYZÉSEK/HIÁNYOK ÖSSZEG SZÍNEZÉSE
-            let $feljElem = $('#txtFeljegyzesOsszeg');
+            let $feljElem =$('#txtFeljegyzesOsszeg');
             $feljElem.text(fmtFt(res.feljegyzes_osszeg));
             if (res.feljegyzes_osszeg < 0) {
                 $feljElem.removeClass().addClass('ms-1 fw-bold text-danger');
