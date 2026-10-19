@@ -1,26 +1,30 @@
 {
   "HEADLESS": true,
+  "SCRAPE_MESSAGES": true,
   "STUDENTS": [
     {
       "diak_nev": "Név1",
       "institute_code": "iskolakod",
       "username": "felhasznalonev",
       "password": "balazs_jelszo",
-      "active": true
+      "scrape_messages": true,
+	  "active": true
     },
     {
       "diak_nev": "Név2",
       "institute_code": "masikiskolakod1",
       "username": "felhasznalonev",
       "password": "jelszo",
-      "active": true
+      "scrape_messages": true,
+	  "active": true
     },
     {
       "diak_nev": "Név3",
       "institute_code": "masikiskolakod2",
       "username": "felhasznalonev",
       "password": "jelszo",
-      "active": true
+      "scrape_messages": true,
+	  "active": true
     }
   ]
 }

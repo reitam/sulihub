@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, send_from_directory
 import sqlite3
 import os
 import subprocess
@@ -20,7 +20,7 @@ def index():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT DISTINCT diak_nev FROM esemenyek ORDER BY diak_nev")
+        cursor.execute("SELECT DISTINCT diak_nev FROM esemenyek UNION SELECT DISTINCT diak_nev FROM uzenetek ORDER BY diak_nev")
         diakok = [row["diak_nev"] for row in cursor.fetchall() if row["diak_nev"]]
 
         cursor.execute("SELECT DISTINCT esemeny_tipus FROM esemenyek ORDER BY esemeny_tipus")
@@ -84,6 +84,52 @@ def api_esemenyek():
 
     conn.close()
     return jsonify(esemenyek)
+
+@app.route("/api/uzenetek")
+def api_uzenetek():
+    if not os.path.exists(DB_FILE):
+        return jsonify([])
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    diak = request.args.get("diak", "")
+    query = "SELECT * FROM uzenetek WHERE 1=1"
+    params = []
+
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+
+    query += " ORDER BY id DESC"
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    uzenetek = []
+    for r in rows:
+        # Rugalmas kulcskezelés a sémától függően
+        keys = r.keys()
+        cs_nev = r["csatolmany_nev"] if "csatolmany_nev" in keys else ""
+        cs_ut = r["csatolmany_utvonal"] if "csatolmany_utvonal" in keys else ""
+
+        uzenetek.append({
+            "id": r["id"],
+            "diak_nev": r["diak_nev"] if "diak_nev" in keys else "",
+            "felado": r["felado"] if "felado" in keys else "-",
+            "targy": r["targy"] if "targy" in keys else "-",
+            "idopont": r["idopont"] if "idopont" in keys else "-",
+            "szoveg": r["szoveg"] if "szoveg" in keys else "",
+            "csatolmany_nev": cs_nev or "",
+            "csatolmany_utvonal": cs_ut or ""
+        })
+
+    conn.close()
+    return jsonify(uzenetek)
+
+# CSATOLMÁNYOK KISZOLGÁLÁSA
+@app.route("/static/csatolmanyok/<path:filename>")
+def download_csatolmany(filename):
+    return send_from_directory("static/csatolmanyok", filename)
 
 @app.route("/api/sync_stream")
 def api_sync_stream():

@@ -6,6 +6,8 @@ from playwright.async_api import async_playwright
 
 # --- KONFIGURÁCIÓ BEOLVASÁSA ---
 CONFIG_FILE = "config.json"
+DB_FILE = "kreta_adatok.db"
+CSATOLMANYOK_DIR = os.path.join("static", "csatolmanyok")
 
 if not os.path.exists(CONFIG_FILE):
     print(f"HIBA: A {CONFIG_FILE} fájl nem található!")
@@ -16,20 +18,22 @@ with open(CONFIG_FILE, "r", encoding="utf-8") as f:
 
 HEADLESS_MODE = config.get("HEADLESS", True)
 STUDENTS = config.get("STUDENTS", [])
+GLOBAL_SCRAPE_MESSAGES = config.get("SCRAPE_MESSAGES", True)
 
 if not STUDENTS:
     print("HIBA: A config.json nem tartalmaz 'STUDENTS' listát!")
     exit(1)
 
 def init_db():
-    """Létrehozza a táblát, ha még nem létezik (NEM törli az egész táblát!)."""
-    conn = sqlite3.connect("kreta_adatok.db")
+    """Létrehozza az események és az üzenetek táblát az adatbázisban, és kezeli a sémafrissítéseket."""
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS esemenyek (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             diak_nev TEXT,
-            esemeny_tipus TEXT,   -- 'Értékelés', 'Feljegyzés', 'Házi feladat', 'Bejelentett számonkérés'
+            esemeny_tipus TEXT,
             tantargy TEXT,
             ertek TEXT,
             szam_ertek INTEGER,
@@ -43,12 +47,49 @@ def init_db():
             tartalom TEXT
         )
     ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS uzenetek (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            diak_nev TEXT,
+            uzenet_id TEXT,
+            felado TEXT,
+            targy TEXT,
+            idopont TEXT,
+            szoveg TEXT,
+            csatolmany_nev TEXT,
+            csatolmany_utvonal TEXT
+        )
+    ''')
+    
+    cursor.execute("PRAGMA table_info(uzenetek)")
+    existing_columns = [row[1] for row in cursor.fetchall()]
+    
+    required_columns = {
+        "diak_nev": "TEXT",
+        "uzenet_id": "TEXT",
+        "felado": "TEXT",
+        "targy": "TEXT",
+        "idopont": "TEXT",
+        "szoveg": "TEXT",
+        "csatolmany_nev": "TEXT",
+        "csatolmany_utvonal": "TEXT"
+    }
+    
+    for col_name, col_type in required_columns.items():
+        if col_name not in existing_columns:
+            try:
+                cursor.execute(f"ALTER TABLE uzenetek ADD COLUMN {col_name} {col_type}")
+                print(f"  [Adatbázis séma frissítve]: '{col_name}' oszlop hozzáadva az 'uzenetek' táblához.")
+            except Exception as ex:
+                print(f"  [Sémafrissítési figyelmeztetés ({col_name})]: {ex}")
+
     conn.commit()
     conn.close()
 
 def clear_student_data(diak_nev):
-    """Csak az adott diák korábbi adatait törli az adatbázisból a frissítés előtt."""
-    conn = sqlite3.connect("kreta_adatok.db")
+    """Csak az adott diák korábbi eseményeit törli az adatbázisból (az üzeneteket megőrizzük!)."""
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM esemenyek WHERE diak_nev = ?", (diak_nev,))
     conn.commit()
@@ -56,7 +97,7 @@ def clear_student_data(diak_nev):
 
 def save_esemenyek_to_db(diak_nev, esemenyek):
     """Menti az adott diák kinyert eseményeit az adatbázisba."""
-    conn = sqlite3.connect("kreta_adatok.db")
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
     for e in esemenyek:
@@ -83,11 +124,160 @@ def save_esemenyek_to_db(diak_nev, esemenyek):
     conn.commit()
     conn.close()
 
+def is_uzenet_saved(diak_nev, felado, targy, idopont):
+    """Ellenőrzi, hogy egy adott üzenet el van-e már mentve az SQLite adatbázisba."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id FROM uzenetek 
+        WHERE diak_nev = ? AND felado = ? AND targy = ? AND idopont = ?
+    ''', (diak_nev, felado, targy, idopont))
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="", csatolmany_utvonal=""):
+    """Menti a beolvasott új üzenetet az adatbázisba."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO uzenetek 
+            (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal))
+        conn.commit()
+    except Exception as ex:
+        print(f"      [Hiba az üzenet mentésekor]: {ex}")
+    finally:
+        conn.close()
+
+async def scrape_uzenetek(page, diak_nev):
+    """Be- és letölti az e-Ügyintézés felületről az új üzeneteket és csatolmányokat."""
+    print("\n6. Navigáció az e-Ügyintézés (Üzenetek) oldalra...")
+    
+    try:
+        eugy_page = page
+        
+        eugy_link = await page.query_selector('a[href*="Eugyintezes"], a[href*="eugyintezes"]')
+        
+        if eugy_link:
+            async with page.context.expect_page() as new_page_info:
+                await eugy_link.click()
+            eugy_page = await new_page_info.value
+            await eugy_page.wait_for_load_state("networkidle")
+            print("  -> e-Ügyintézés megnyitva új fülön!")
+        else:
+            await page.goto("https://eugyintezes.e-kreta.hu/uzenetek")
+            await page.wait_for_load_state("networkidle")
+
+        if "uzenetek" not in eugy_page.url:
+            await eugy_page.goto("https://eugyintezes.e-kreta.hu/uzenetek")
+            await eugy_page.wait_for_load_state("networkidle")
+
+        await asyncio.sleep(4)
+
+        await eugy_page.wait_for_selector('table tbody tr, kozelkep-app-root', timeout=20000)
+        await asyncio.sleep(2)
+
+        rows = await eugy_page.query_selector_all('table tbody tr')
+        print(f"  -> {len(rows)} db beérkezett üzenet található a listában.")
+
+        uj_cnt = 0
+        
+        for i in range(len(rows)):
+            current_rows = await eugy_page.query_selector_all('table tbody tr')
+            if i >= len(current_rows):
+                break
+                
+            row = current_rows[i]
+            cols = await row.query_selector_all('td')
+            
+            if len(cols) >= 3:
+                felado = (await cols[-3].inner_text()).strip()
+                targy = (await cols[-2].inner_text()).strip()
+                idopont = (await cols[-1].inner_text()).strip()
+
+                if is_uzenet_saved(diak_nev, felado, targy, idopont):
+                    continue
+
+                print(f"    [ÚJ ÜZENET]: {felado} | {targy} ({idopont})")
+                
+                await row.click()
+                await eugy_page.wait_for_load_state("networkidle")
+                await asyncio.sleep(2)
+
+                # Üzenet szöveg kiolvasása
+                szoveg = ""
+                szoveg_el = await eugy_page.query_selector('.message-body, .message-content, [class*="message-body"], .szoveg-container')
+                if szoveg_el:
+                    szoveg = (await szoveg_el.inner_text()).strip()
+                else:
+                    try:
+                        szoveg = await eugy_page.evaluate('''() => {
+                            let labels = Array.from(document.querySelectorAll('label, div, span, h6'));
+                            let szovegLabel = labels.find(el => el.textContent.trim() === 'Szöveg');
+                            if (szovegLabel && szovegLabel.nextElementSibling) {
+                                return szovegLabel.nextElementSibling.innerText.trim();
+                            }
+                            return "";
+                        }''')
+                    except Exception:
+                        szoveg = ""
+
+                # Csatolmány kezelése
+                csatolmany_nev = ""
+                csatolmany_utvonal = ""
+
+                csatolmany_btn = await eugy_page.query_selector('a[href*="download"], button:has-text(".jpg"), button:has-text(".pdf"), .attachment-link, a:has(.fa-paperclip), [class*="attachment"]')
+                if csatolmany_btn:
+                    try:
+                        target_dir = os.path.join(CSATOLMANYOK_DIR, diak_nev.replace(" ", "_"))
+                        os.makedirs(target_dir, exist_ok=True)
+
+                        async with eugy_page.expect_download(timeout=10000) as download_info:
+                            await csatolmany_btn.click()
+                        
+                        download = await download_info.value
+                        save_path = os.path.join(target_dir, download.suggested_filename)
+                        await download.save_as(save_path)
+                        
+                        csatolmany_nev = download.suggested_filename
+                        csatolmany_utvonal = save_path.replace("\\", "/")
+                        print(f"      -> Csatolmány letöltve: {csatolmany_nev}")
+                    except Exception as ex_dl:
+                        print(f"      [Csatolmány letöltési hiba]: {ex_dl}")
+
+                save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal)
+                uj_cnt += 1
+
+                vissza_btn = await eugy_page.query_selector('button:has-text("Vissza"), a:has-text("Vissza")')
+                if vissza_btn:
+                    await vissza_btn.click()
+                    await eugy_page.wait_for_load_state("networkidle")
+                    await asyncio.sleep(2)
+                else:
+                    await eugy_page.goto("https://eugyintezes.e-kreta.hu/uzenetek")
+                    await eugy_page.wait_for_load_state("networkidle")
+                    await asyncio.sleep(2)
+
+        print(f"Siker! {uj_cnt} db új üzenet lett elmentve az adatbázisba.")
+
+        if eugy_page != page:
+            await eugy_page.close()
+
+    except Exception as ex:
+        print(f"Figyelmeztetés az üzenetek lekérésekor: {ex}")
+
 async def process_student(page, student):
     diak_nev = student.get("diak_nev", "Ismeretlen")
     institute_code = student.get("institute_code", "")
     username = student.get("username", "")
     password = student.get("password", "")
+
+    # DIÁKONKÉNTI ÚZENETLEKÉRÉS KAPCSOLÓ:
+    # Ha van egyéni 'scrape_messages', azt használja, különben a globális 'SCRAPE_MESSAGES'-t
+    student_scrape_messages = student.get("scrape_messages", GLOBAL_SCRAPE_MESSAGES)
 
     print("\n" + "=" * 70)
     print(f"  FELDOLGOZÁS: {diak_nev.upper()} (Iskola: {institute_code})")
@@ -340,7 +530,7 @@ async def process_student(page, student):
     szamonkeresek = await page.evaluate(js_szamonkeres_extractor)
     print(f"Siker! Beolvasva {len(szamonkeresek)} db bejelentett számonkérés.")
 
-    # --- 6. MENTÉS AZ ADATBÁZISBA ---
+    # Mentés az adatbázisba (események)
     clear_student_data(diak_nev)
     osszes_esemeny = jegyek + feljegyzesek + hazifeladatok + szamonkeresek
 
@@ -348,10 +538,16 @@ async def process_student(page, student):
         save_esemenyek_to_db(diak_nev, osszes_esemeny)
         print(f"\n{diak_nev} adataiból {len(osszes_esemeny)} db esemény sikeresen elmentve!")
     else:
-        print(f"Figyelem: {diak_nev} fiókjából nem sikerült adatot kinyerni.")
+        print(f"Figyelem: {diak_nev} fiókjából nem sikerült eseményadatot kinyerni.")
+
+    # --- 6. E-ÜGYINTÉZÉS ÜZENETEK KINYERÉSE (DIÁKONKÉNTI ELLENŐRZÉSSEL) ---
+    if student_scrape_messages:
+        await scrape_uzenetek(page, diak_nev)
+    else:
+        print(f"\n6. Üzenetek lekérése KI VAN KAPCSIOLVA ennel a diaknal ({diak_nev}).")
 
     # --- 7. KIJELENTKEZÉS A FIÓKBÓL ---
-    print(f"Kijelentkezés ({diak_nev})...")
+    print(f"\nKijelentkezés ({diak_nev})...")
     try:
         await page.goto(f"https://{institute_code}.e-kreta.hu/Home/LogOut")
         await page.wait_for_load_state("networkidle")
@@ -365,6 +561,7 @@ async def main():
     active_students = [s for s in STUDENTS if s.get("active", True)]
     print(f"Készülődés {len(active_students)} diák adatainak lekérésére...")
     print(f"Böngésző üzemmód: {'Háttérben (Headless)' if HEADLESS_MODE else 'Látható (Headed)'}")
+    print(f"Globális üzenet-szinkronizálás: {'BE' if GLOBAL_SCRAPE_MESSAGES else 'KI'}")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=HEADLESS_MODE)

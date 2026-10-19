@@ -1,14 +1,16 @@
-# Adatbázisok kizárása
+# SQLite adatbázis és érzékeny konfigurációk
 *.db
-*.sqlite3
-
-# Bizalmas adatok (felhasználónevek/jelszavak) kizárása
+kreta_adatok.db
 config.json
 
-# Python gyorsítótárak és virtuális környezetek
+# Csatolmányok és letöltött dokumentumok kizárása
+static/csatolmanyok/*
+!static/csatolmanyok/.gitkeep
+
+# Python futtatási és gyorsítótár fájlok
 __pycache__/
 *.py[cod]
+*$py.class
 .venv/
+env/
 venv/
-.idea/
-.vscode/
