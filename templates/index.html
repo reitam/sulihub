@@ -46,9 +46,9 @@
         </button>
     </div>
 
-    <!-- ÉLŐ SZINKRONIZÁCIÓS KONZOL (ACCORDION / ELREJTHETŐ PANELS) -->
+    <!-- ÉLŐ SZINKRONIZÁCIÓS KONZOL -->
     <div id="syncLogContainer" class="card p-0 mb-4 card-stat bg-white d-none overflow-hidden border">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center role-button p-3" style="cursor: pointer;" id="syncHeader">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center p-3" style="cursor: pointer;" id="syncHeader">
             <div class="d-flex align-items-center">
                 <i class="fa-solid fa-terminal me-2 text-warning"></i>
                 <span id="syncStatusTitle" class="fw-bold">Szinkronizálás folyamatban...</span>
@@ -98,6 +98,12 @@
 
     <!-- SZŰRŐ PANEL -->
     <div class="card p-3 mb-4 card-stat bg-white">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="m-0 text-secondary fw-bold"><i class="fa-solid fa-filter me-2"></i>Szűrőfeltételek</h6>
+            <button id="btnResetFilters" class="btn btn-sm btn-outline-danger">
+                <i class="fa-solid fa-filter-circle-xmark me-1"></i>Szűrők törlése
+            </button>
+        </div>
         <div class="row g-3">
             <div class="col-md-3">
                 <label class="form-label fw-bold"><i class="fa-solid fa-user me-1"></i>Gyermek (Diák):</label>
@@ -167,17 +173,21 @@
 $(document).ready(function() {
     let rawData = [];
 
-    function getTodayStr() {
+    // Mai dátum YYYYMMDD számmá alakítva
+    function getTodayNum() {
         let now = new Date();
         let y = now.getFullYear();
         let m = String(now.getMonth() + 1).padStart(2, '0');
         let d = String(now.getDate()).padStart(2, '0');
-        return `${y}.${m}.${d}`;
+        return parseInt(`${y}${m}${d}`, 10);
     }
 
-    function cleanDate(dStr) {
-        if (!dStr || dStr === '-') return '';
-        return dStr.replace(/[^0-9.]/g, '');
+    // "2026. 10. 20." -> 20261020 számmá alakítás
+    function dateToNum(dStr) {
+        if (!dStr || dStr === '-') return null;
+        let clean = dStr.replace(/[^0-9]/g, '');
+        if (clean.length < 8) return null;
+        return parseInt(clean.substring(0, 8), 10);
     }
 
     let dataTable = $('#esemenyekTable').DataTable({
@@ -215,11 +225,11 @@ $(document).ready(function() {
                     let hDate = data.hatarido;
                     if (!hDate || hDate === '-') return '-';
                     
-                    let todayStr = cleanDate(getTodayStr());
-                    let cleanHDate = cleanDate(hDate);
+                    let todayNum = getTodayNum();
+                    let hNum = dateToNum(hDate);
 
-                    if (data.esemeny_tipus === 'Házi feladat' || data.esemeny_tipus === 'Bejelentett számonkérés') {
-                        if (cleanHDate >= todayStr) {
+                    if ((data.esemeny_tipus === 'Házi feladat' || data.esemeny_tipus === 'Bejelentett számonkérés') && hNum) {
+                        if (hNum >= todayNum) {
                             return `${hDate} <span class="badge badge-aktiv ms-1">Aktív</span>`;
                         } else {
                             return `${hDate} <span class="badge badge-lejart ms-1">Lejárt</span>`;
@@ -244,18 +254,20 @@ $(document).ready(function() {
 
     function applyFilters() {
         let statusFilter = $('#filterStatus').val();
-        let todayStr = cleanDate(getTodayStr());
+        let todayNum = getTodayNum();
 
         let filteredData = rawData.filter(item => {
             if (!statusFilter) return true;
 
-            let hDate = cleanDate(item.hatarido);
-            if (!hDate) return true;
+            let hNum = dateToNum(item.hatarido);
+            
+            // Ha aktívra vagy lejártra szűrünk, a határidő nélküli elemeket kizárjuk!
+            if (!hNum) return false;
 
             if (statusFilter === 'aktiv') {
-                return hDate >= todayStr;
+                return hNum >= todayNum;
             } else if (statusFilter === 'lejart') {
-                return hDate < todayStr;
+                return hNum < todayNum;
             }
             return true;
         });
@@ -297,14 +309,22 @@ $(document).ready(function() {
         applyFilters();
     });
 
-    // ACCORDION NYITÁS / ZÁRÁS IKON VÁLTÁSA
+    // SZŰRŐK TÖRLÉSE GOMB
+    $('#btnResetFilters').click(function() {
+        $('#filterDiak').val('');
+        $('#filterTipus').val('');
+        $('#filterTantargy').val('');
+        $('#filterStatus').val('');
+        loadData();
+    });
+
+    // ACCORDION
     $('#collapseTerminal').on('show.bs.collapse', function () {
         $('#collapseIcon').removeClass('fa-chevron-down').addClass('fa-chevron-up');
     }).on('hide.bs.collapse', function () {
         $('#collapseIcon').removeClass('fa-chevron-up').addClass('fa-chevron-down');
     });
 
-    // PANEL TELJES BEZÁRÁSA
     $('#btnCloseLog').click(function(e) {
         e.stopPropagation();
         $('#syncLogContainer').addClass('d-none');
@@ -320,7 +340,6 @@ $(document).ready(function() {
 
         btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-2"></i>Szinkronizálás...');
         
-        // Panel megjelenítése és kinyitása
         logContainer.removeClass('d-none');
         $('#collapseTerminal').collapse('show');
         
