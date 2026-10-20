@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KRÉTA Adatbázis Áttekintő</title>
+    
+    <!-- FAVICON (SVG ikon a static mappából) -->
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- DataTables CSS -->
@@ -38,7 +42,24 @@
         .balance-card-positive { background: linear-gradient(135deg, #198754, #146c43); color: white; }
         .balance-card-negative { background: linear-gradient(135deg, #dc3545, #b02a37); color: white; }
 
-        /* DINAMIKUS TÁBLÁZAT ÉS EGYSÉGES SORMAGASSÁG STÍLUSOK */
+        /* MAI NAPON KELETKEZETT EGÉSZ SOROK PASZTELLSÁRGA KIEMELÉSE */
+        table.dataTable tbody tr.today-row td,
+        table.dataTable.table-striped tbody tr.today-row td {
+            background-color: #fff9c4 !important; /* Jól látható, kellemes pasztellsárga */
+        }
+        table.dataTable tbody tr.today-row:hover td,
+        table.dataTable.table-striped tbody tr.today-row:hover td {
+            background-color: #fff59d !important; /* Kicsit karakteresebb sárga hover esetén */
+        }
+        
+        /* ZÖLD MAI BADGE */
+        .badge-mai {
+            background-color: #198754 !important;
+            color: white !important;
+            font-size: 0.7rem;
+            margin-left: 4px;
+        }
+
         table.dataTable { table-layout: fixed !important; }
         table.dataTable tbody tr { height: 42px !important; }
         table.dataTable tbody td { 
@@ -75,6 +96,19 @@
 <body>
 
 <div class="container-fluid py-3 px-4">
+
+    <!-- AUTOMATIKUS SZINKRONIZÁLÁSI WARNING SÁV -->
+    <div id="autoSyncAlert" class="alert alert-warning alert-dismissible fade show d-none mb-3 py-2 px-3 border-warning shadow-sm" role="alert">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <i class="fa-solid fa-triangle-exclamation text-warning me-2 fs-5"></i>
+                <strong>Automatikus KRÉTA szinkronizálás van folyamatban...</strong>
+                <span class="text-muted ms-2">(Kézi indítás átmenetileg letiltva)</span>
+            </div>
+            <span class="spinner-border spinner-border-sm text-warning ms-2"></span>
+        </div>
+    </div>
+
     <!-- FEJLÉC ÉS SZINKRONIZÁLÓ GOMB -->
     <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm">
         <div>
@@ -86,7 +120,7 @@
         </button>
     </div>
 
-    <!-- ÉLŐ SZINKRONIZÁCIÓS KONZOL (HÁTTÉRFOLYAMAT KEZELÉSSEL) -->
+    <!-- ÉLŐ SZINKRONIZÁCIÓS KONZOL -->
     <div id="syncLogContainer" class="card p-0 mb-3 card-stat bg-white d-none overflow-hidden border">
         <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center p-2 px-3" style="cursor: pointer;" id="syncHeader">
             <div class="d-flex align-items-center">
@@ -253,10 +287,10 @@
         <!-- 3. FÜL: STATISZTIKA & ZSEBPÉNZ -->
         {% if global_enable_rewards %}
         <div class="tab-pane fade" id="rewards-pane" role="tabpanel">
-            <!-- KOMPAKT SZŰRŐSÁV -->
+            <!-- -TÓL -IG DÁTUMS SZŰRŐSÁV -->
             <div class="card p-2 px-3 mb-3 card-stat bg-white">
                 <div class="row align-items-center g-2">
-                    <div class="col-md-5">
+                    <div class="col-md-3">
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-light"><i class="fa-solid fa-user-graduate text-success"></i></span>
                             <select id="rewardFilterDiak" class="form-select fw-bold">
@@ -266,19 +300,21 @@
                             </select>
                         </div>
                     </div>
-                    <div class="col-md-5">
+                    <div class="col-md-3">
                         <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-light"><i class="fa-solid fa-calendar-days text-success"></i></span>
-                            <select id="filterHonap" class="form-select">
-                                <option value="">-- Teljes Tanév Összesítve --</option>
-                                {% for val, label in honapok %}
-                                <option value="{{ val }}" {% if loop.first %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
+                            <span class="input-group-text bg-light fw-bold" style="font-size: 0.75rem;">-tól</span>
+                            <input type="date" id="rewardKezdoDatum" class="form-control">
                         </div>
                     </div>
-                    <div class="col-md-2 text-end">
-                        <small class="text-muted" style="font-size: 0.75rem;">Config alapú elszámolás</small>
+                    <div class="col-md-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light fw-bold" style="font-size: 0.75rem;">-ig</span>
+                            <input type="date" id="rewardZaroDatum" class="form-control">
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-end d-flex align-items-center justify-content-end">
+                        <button id="btnQuickThisMonth" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1" style="font-size: 0.75rem;">Aktuális hónap</button>
+                        <button id="btnQuickLastMonth" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;">Előző hónap</button>
                     </div>
                 </div>
             </div>
@@ -288,7 +324,7 @@
                     <!-- HAVI JEGY MÁTRIX -->
                     <div class="col-md-6">
                         <div class="card card-stat bg-white p-3 h-100">
-                            <h6 class="fw-bold mb-2 text-secondary"><i class="fa-solid fa-chart-simple me-2"></i>Havi Osztályzat Eloszlás</h6>
+                            <h6 class="fw-bold mb-2 text-secondary"><i class="fa-solid fa-chart-simple me-2"></i>Osztályzat Eloszlás</h6>
                             <div class="d-flex justify-content-around align-items-center mb-2 p-2 bg-light rounded">
                                 <div class="text-center">
                                     <span class="reward-badge-5">5</span>
@@ -352,12 +388,12 @@
                     </div>
                 </div>
 
-                <!-- KOMPAKT, FINOMÍTOTT ELEMZŐ KÁRTYA -->
+                <!-- KOMPAKT ELEMZŐ KÁRTYA + KIFIZETVE CHECKBOX -->
                 <div class="card card-stat overflow-hidden border-0 shadow-sm" id="cardVegosszegContainer">
                     <div class="p-2 px-3 balance-card-positive" id="cardHeaderBg">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="m-0 fw-bold fs-6"><i class="fa-solid fa-wallet me-2"></i>Havi Zsebpénz / Jutalomegyenleg</h6>
+                                <h6 class="m-0 fw-bold fs-6"><i class="fa-solid fa-wallet me-2"></i>Zsebpénz / Jutalomegyenleg</h6>
                                 <small id="rewardDiakNevText" class="opacity-75" style="font-size: 0.75rem;">Elszámolás részletei</small>
                             </div>
                             <div class="text-end">
@@ -365,12 +401,17 @@
                             </div>
                         </div>
                     </div>
-                    <div class="card-footer bg-light border-top p-2 px-3">
-                        <div class="d-flex justify-content-end text-end small" style="font-size: 0.8rem;">
-                            <div>
-                                <div>Jegyekből származó egyenleg: <strong id="txtJegyOsszeg" class="ms-1 text-success">+0 Ft</strong></div>
-                                <div class="mt-1">Feljegyzések / Hiányok egyenlege: <strong id="txtFeljegyzesOsszeg" class="ms-1 text-danger">-0 Ft</strong></div>
-                            </div>
+                    <div class="card-footer bg-light border-top p-2 px-3 d-flex justify-content-between align-items-center">
+                        <div class="form-check form-switch m-0 d-flex align-items-center">
+                            <input class="form-check-input me-2" type="checkbox" role="switch" id="chkKifizetve" style="cursor: pointer; width: 2.2em; height: 1.2em;">
+                            <label class="form-check-label fw-bold text-dark" for="chkKifizetve" style="cursor: pointer; font-size: 0.85rem;" id="lblKifizetve">
+                                ⚪ Zsebpénz kifizetése erre az időszakra
+                            </label>
+                        </div>
+
+                        <div class="text-end small" style="font-size: 0.8rem;">
+                            <div>Jegyekből származó egyenleg: <strong id="txtJegyOsszeg" class="ms-1 text-success">+0 Ft</strong></div>
+                            <div class="mt-1">Feljegyzések / Hiányok egyenlege: <strong id="txtFeljegyzesOsszeg" class="ms-1 text-danger">-0 Ft</strong></div>
                         </div>
                     </div>
                 </div>
@@ -471,6 +512,32 @@ $(document).ready(function() {
     let rawData = [];
     let rawUzenetek = [];
     let syncInterval = null;
+    let currentVegosszeg = 0;
+
+    function setDefaultDates() {
+        let now = new Date();
+        let y = now.getFullYear();
+        let m = now.getMonth();
+        
+        let firstDay = new Date(y, m, 1);
+        let lastDay = new Date(y, m + 1, 0);
+
+        let fmtDate = (d) => {
+            let year = d.getFullYear();
+            let month = String(d.getMonth() + 1).padStart(2, '0');
+            let day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        if (!$('#rewardKezdoDatum').val()) {
+            $('#rewardKezdoDatum').val(fmtDate(firstDay));
+        }
+        if (!$('#rewardZaroDatum').val()) {
+            $('#rewardZaroDatum').val(fmtDate(lastDay));
+        }
+    }
+
+    setDefaultDates();
 
     function getTodayNum() {
         let now = new Date();
@@ -492,6 +559,14 @@ $(document).ready(function() {
         pageLength: 25,
         order: [[4, 'desc']],
         autoWidth: false,
+        /* MAI NAPON KELETKEZETT EGÉSZ SOROK PASZTELLSÁRGA KIEMELÉSE */
+        createdRow: function(row, data, dataIndex) {
+            let todayNum = getTodayNum();
+            let bejNum = dateToNum(data.bej_datum);
+            if (bejNum && bejNum === todayNum) {
+                $(row).addClass('today-row');
+            }
+        },
         columns: [
             { data: 'diak_nev' },
             { 
@@ -514,7 +589,19 @@ $(document).ready(function() {
                     return '-';
                 }
             },
-            { data: 'bej_datum' },
+            { 
+                /* BEJEGYZÉS DÁTUMA: MAI NAPTÁRI NAPNÁL ZÖLD "MA" BADGE MEGJELENÍTÉSE */
+                data: 'bej_datum',
+                render: function(data) {
+                    if (!data || data === '-') return '-';
+                    let todayNum = getTodayNum();
+                    let bejNum = dateToNum(data);
+                    if (bejNum && bejNum === todayNum) {
+                        return `<strong class="text-success">${data}</strong> <span class="badge badge-mai">MA</span>`;
+                    }
+                    return data;
+                }
+            },
             { 
                 data: null,
                 render: function(data) {
@@ -568,6 +655,14 @@ $(document).ready(function() {
         pageLength: 25,
         order: [[3, 'desc']],
         autoWidth: false,
+        /* MAI NAPON ÉRKEZETT ÜZENETEK EGÉSZ SORÁNAK KIEMELÉSE (PASZTELLSÁRGA HÁTTÉR) */
+        createdRow: function(row, data, dataIndex) {
+            let todayNum = getTodayNum();
+            let msgNum = dateToNum(data.idopont);
+            if (msgNum && msgNum === todayNum) {
+                $(row).addClass('today-row');
+            }
+        },
         columns: [
             { data: 'diak_nev' },
             { data: 'felado' },
@@ -578,7 +673,19 @@ $(document).ready(function() {
                     return `<span class="cell-truncate" title="${safeText}">${data || '-'}</span>`;
                 }
             },
-            { data: 'idopont' },
+            { 
+                /* IDŐPONT: HA MAI ÜZENET, KAP EGY ZÖLD "MA" BADGE-ET */
+                data: 'idopont',
+                render: function(data) {
+                    if (!data || data === '-') return '-';
+                    let todayNum = getTodayNum();
+                    let msgNum = dateToNum(data);
+                    if (msgNum && msgNum === todayNum) {
+                        return `<strong class="text-success">${data}</strong> <span class="badge badge-mai">MA</span>`;
+                    }
+                    return data;
+                }
+            },
             { 
                 data: null,
                 render: function(data) {
@@ -604,7 +711,8 @@ $(document).ready(function() {
 
     $('#esemenyekTable').on('click', '.btn-show-details', function(e) {
         e.stopPropagation();
-        let fullText = $(this).data('text');$('#detailsModalBody').text(fullText);
+        let fullText = $(this).data('text');
+        $('#detailsModalBody').text(fullText);
         let detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
         detailsModal.show();
     });
@@ -640,14 +748,24 @@ $(document).ready(function() {
 
     function loadRewardsData() {
         let diak = $('#rewardFilterDiak').val();
-        let honap = $('#filterHonap').val();
+        let kezdo = $('#rewardKezdoDatum').val();
+        let zaro = $('#rewardZaroDatum').val();
+
+        if (!diak) {
+            diak = $('#rewardFilterDiak option:first').val();
+            if (diak) {
+                $('#rewardFilterDiak').val(diak);
+            }
+        }
 
         if (!diak) {
             $('#rewardContainer').addClass('d-none');
             return;
         }
 
-        $.getJSON(`/api/statisztika?diak=${encodeURIComponent(diak)}&honap=${encodeURIComponent(honap)}`, function(res) {
+        let url = `/api/statisztika?diak=${encodeURIComponent(diak)}&kezdo_datum=${encodeURIComponent(kezdo)}&zaro_datum=${encodeURIComponent(zaro)}`;
+
+        $.getJSON(url, function(res) {
             if (!res.enabled) {
                 $('#rewardContainer').addClass('d-none');
                 $('#rewardDisabledAlert').removeClass('d-none');
@@ -673,9 +791,10 @@ $(document).ready(function() {
 
             let fmtFt = (num) => (num > 0 ? '+' : '') + num.toLocaleString('hu-HU') + ' Ft';
 
+            currentVegosszeg = res.vegosszeg;
             $('#txtVegosszeg').text(fmtFt(res.vegosszeg));
 
-            let $jegyElem =$('#txtJegyOsszeg');
+            let $jegyElem = $('#txtJegyOsszeg');
             $jegyElem.text(fmtFt(res.jegy_osszeg));
             if (res.jegy_osszeg > 0) {
                 $jegyElem.removeClass().addClass('ms-1 fw-bold text-success');
@@ -683,7 +802,7 @@ $(document).ready(function() {
                 $jegyElem.removeClass().addClass('ms-1 fw-bold text-dark');
             }
 
-            let $feljElem =$('#txtFeljegyzesOsszeg');
+            let $feljElem = $('#txtFeljegyzesOsszeg');
             $feljElem.text(fmtFt(res.feljegyzes_osszeg));
             if (res.feljegyzes_osszeg < 0) {
                 $feljElem.removeClass().addClass('ms-1 fw-bold text-danger');
@@ -693,8 +812,8 @@ $(document).ready(function() {
                 $feljElem.removeClass().addClass('ms-1 fw-bold text-dark');
             }
 
-            let hName = $('#filterHonap option:selected').text();
-            $('#rewardDiakNevText').text(`${diak} elszámolása - ${hName}`);
+            let dText = `${kezdo || 'Kezdet'} - ${zaro || 'Mai nap'}`;
+            $('#rewardDiakNevText').text(`${diak} elszámolása (${dText})`);
 
             let cardBg = $('#cardHeaderBg');
             if (res.vegosszeg >= 0) {
@@ -702,8 +821,70 @@ $(document).ready(function() {
             } else {
                 cardBg.removeClass('balance-card-positive').addClass('balance-card-negative');
             }
+
+            $('#chkKifizetve').prop('checked', res.kifizetve);
+            updateKifizetveLabel(res.kifizetve);
         });
     }
+
+    function updateKifizetveLabel(isPaid) {
+        if (isPaid) {
+            $('#lblKifizetve').html('🟢 <strong>KIFIZETVE</strong> erre az időszakra').addClass('text-success');
+        } else {
+            $('#lblKifizetve').html('⚪ Zsebpénz kifizetése erre az időszakra').removeClass('text-success');
+        }
+    }
+
+    $('#chkKifizetve').change(function() {
+        let isChecked = $(this).is(':checked');
+        let diak = $('#rewardFilterDiak').val();
+        let kezdo = $('#rewardKezdoDatum').val();
+        let zaro = $('#rewardZaroDatum').val();
+
+        if (!diak || !kezdo || !zaro) return;
+
+        updateKifizetveLabel(isChecked);
+
+        $.ajax({
+            url: '/api/kifizetes',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                diak: diak,
+                kezdo_datum: kezdo,
+                zaro_datum: zaro,
+                kifizetve: isChecked,
+                osszeg: currentVegosszeg
+            })
+        });
+    });
+
+    $('#btnQuickThisMonth').click(function() {
+        let now = new Date();
+        let y = now.getFullYear();
+        let m = now.getMonth();
+        let firstDay = new Date(y, m, 1);
+        let lastDay = new Date(y, m + 1, 0);
+
+        let fmt = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        $('#rewardKezdoDatum').val(fmt(firstDay));
+        $('#rewardZaroDatum').val(fmt(lastDay));
+        loadRewardsData();
+    });
+
+    $('#btnQuickLastMonth').click(function() {
+        let now = new Date();
+        let y = now.getFullYear();
+        let m = now.getMonth() - 1;
+        if (m < 0) { m = 11; y--; }
+        let firstDay = new Date(y, m, 1);
+        let lastDay = new Date(y, m + 1, 0);
+
+        let fmt = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        $('#rewardKezdoDatum').val(fmt(firstDay));
+        $('#rewardZaroDatum').val(fmt(lastDay));
+        loadRewardsData();
+    });
 
     function loadData() {
         let diak = $('#filterDiak').val();
@@ -734,26 +915,29 @@ $(document).ready(function() {
             let spinner = $('#syncSpinner');
             let title = $('#syncStatusTitle');
             let btnStop = $('#btnStopSync');
-
-            if (res.running || res.logs.length > 0) {
-                logContainer.removeClass('d-none');
-                logTerminal.empty();
-                res.logs.forEach(function(line) {
-                    logTerminal.append(`<div>> ${line}</div>`);
-                });
-                logTerminal.scrollTop(logTerminal[0].scrollHeight);
-            }
+            let autoAlert = $('#autoSyncAlert');
 
             if (res.running) {
+                autoAlert.addClass('d-none');
                 btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-2"></i>Szinkronizálás...');
+                logContainer.removeClass('d-none');
                 spinner.removeClass('d-none');
                 title.text('Szinkronizálás folyamatban a háttérben...');
                 btnStop.removeClass('d-none');
+
+                if (res.logs.length > 0) {
+                    logTerminal.empty();
+                    res.logs.forEach(function(line) {
+                        logTerminal.append(`<div>> ${line}</div>`);
+                    });
+                    logTerminal.scrollTop(logTerminal[0].scrollHeight);
+                }
 
                 if (!syncInterval) {
                     syncInterval = setInterval(checkSyncStatus, 1500);
                 }
             } else {
+                autoAlert.addClass('d-none');
                 btn.prop('disabled', false).html('<i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból');
                 spinner.addClass('d-none');
                 btnStop.addClass('d-none');
@@ -778,6 +962,12 @@ $(document).ready(function() {
     loadData();
     checkSyncStatus();
 
+    $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+        if (e.target.id === 'rewards-tab') {
+            loadRewardsData();
+        }
+    });
+
     $('#filterDiak').change(function() {
         let selectedDiak = $(this).val();
         if (selectedDiak) {
@@ -790,7 +980,7 @@ $(document).ready(function() {
         loadData();
     });
 
-    $('#rewardFilterDiak, #filterHonap').change(function() {
+    $('#rewardFilterDiak, #rewardKezdoDatum, #rewardZaroDatum').change(function() {
         loadRewardsData();
     });
 
@@ -803,6 +993,8 @@ $(document).ready(function() {
         $('#filterTipus').val('');
         $('#filterTantargy').val('');
         $('#filterStatus').val('');
+
+        setDefaultDates();
         loadData();
     });
 

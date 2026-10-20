@@ -43,8 +43,17 @@
   },
   "STUDENTS": [
     {
-      "diak_nev": "Teszt Elek",
-      "institute_code": "sztmargittatabanya",
+      "diak_nev": "Teszt Elemér",
+      "institute_code": "mintaiskola",
+      "username": "FELHASZNÁLÓNÉV",
+      "password": "JELSZÓ",
+      "active": true,
+      "scrape_messages": true,
+      "enable_rewards": true
+    }
+	{
+      "diak_nev": "Esti Tesztike",
+      "institute_code": "mintaiskola",
       "username": "FELHASZNÁLÓNÉV",
       "password": "JELSZÓ",
       "active": true,
