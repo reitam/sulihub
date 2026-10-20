@@ -1,21 +1,21 @@
-from flask import Flask, render_template, request, jsonify, Response, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import sqlite3
 import os
 import subprocess
 import json
 import threading
-import time
+from datetime import datetime
+from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 DB_FILE = "kreta_adatok.db"
 CONFIG_FILE = "config.json"
 
-# Globális állapot a háttérben futó szinkronizáláshoz
 sync_state = {
     "running": False,
     "process": None,
     "logs": [],
-    "status": "idle"  # idle, running, done, error, stopped
+    "status": "idle"
 }
 sync_lock = threading.Lock()
 
@@ -24,6 +24,27 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def init_kifizetesek_db():
+    if os.path.exists(DB_FILE):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS kifizetesek (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                diak_nev TEXT NOT NULL,
+                kezdo_datum TEXT NOT NULL,
+                zaro_datum TEXT NOT NULL,
+                kifizetve INTEGER DEFAULT 0,
+                osszeg INTEGER DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(diak_nev, kezdo_datum, zaro_datum)
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+init_kifizetesek_db()
+
 def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -31,7 +52,6 @@ def load_config():
     return {}
 
 def run_scraper_thread():
-    """Háttérszálban futó scraper feladat."""
     global sync_state
     
     with sync_lock:
@@ -86,7 +106,7 @@ def index():
     global_enable_rewards = config.get("ENABLE_REWARDS", True)
 
     if not os.path.exists(DB_FILE):
-        diakok, tipusok, tantargyak, honapok = [], [], [], []
+        diakok, tipusok, tantargyak = [], [], []
     else:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -100,33 +120,6 @@ def index():
         cursor.execute("SELECT DISTINCT tantargy FROM esemenyek WHERE tantargy IS NOT NULL AND tantargy != '' ORDER BY tantargy")
         tantargyak = [row["tantargy"] for row in cursor.fetchall()]
 
-        # DINAMIKUS HÓNAPOK LEKÉRDEZÉSE AZ ADATBÁZISBÓL (bej_datum alapján)
-        cursor.execute("SELECT DISTINCT bej_datum FROM esemenyek WHERE bej_datum IS NOT NULL AND bej_datum != '-' AND bej_datum != ''")
-        datum_rows = cursor.fetchall()
-
-        honap_nevek = {
-            "01": "Január", "02": "Február", "03": "Március", "04": "Április",
-            "05": "Május", "06": "Június", "07": "Július", "08": "Augusztus",
-            "09": "Szeptember", "10": "Október", "11": "November", "12": "December"
-        }
-
-        honap_set = set()
-        for r in datum_rows:
-            d_str = r["bej_datum"] or ""
-            # Várható formátumok: "2026. 10. 15." vagy "2026-10-15"
-            clean = d_str.replace(". ", "-").replace(".", "-")
-            parts = clean.split("-")
-            if len(parts) >= 2 and len(parts[0]) == 4 and len(parts[1]) == 2:
-                ev = parts[0]
-                h_kod = parts[1]
-                if h_kod in honap_nevek:
-                    val = f"{ev}-{h_kod}"
-                    label = f"{ev}. {honap_nevek[h_kod]}"
-                    honap_set.add((val, label))
-
-        # Rendezés csökkenő sorrendben (legújabb hónap legelöl)
-        honapok = sorted(list(honap_set), key=lambda x: x[0], reverse=True)
-
         conn.close()
 
     return render_template(
@@ -134,7 +127,6 @@ def index():
         diakok=diakok, 
         tipusok=tipusok, 
         tantargyak=tantargyak,
-        honapok=honapok,
         global_enable_rewards=global_enable_rewards
     )
 
@@ -230,6 +222,18 @@ def api_uzenetek():
     conn.close()
     return jsonify(uzenetek)
 
+def normalize_date(d_str):
+    if not d_str or d_str == "-":
+        return None
+    clean = d_str.replace(". ", "-").replace(".", "-").strip()
+    parts = [p for p in clean.split("-") if p]
+    if len(parts) >= 3:
+        try:
+            return f"{int(parts[0]):04d}-{int(parts[1]):02d}-{int(parts[2]):02d}"
+        except ValueError:
+            return None
+    return None
+
 @app.route("/api/statisztika")
 def api_statisztika():
     config = load_config()
@@ -239,7 +243,8 @@ def api_statisztika():
         return jsonify({"enabled": False})
 
     diak = request.args.get("diak", "")
-    honap = request.args.get("honap", "")
+    kezdo_datum = request.args.get("kezdo_datum", "")
+    zaro_datum = request.args.get("zaro_datum", "")
 
     student_enable = True
     students = config.get("STUDENTS", [])
@@ -280,9 +285,12 @@ def api_statisztika():
     jegy_total_count = 0
 
     for r in jegy_rows:
-        datum_str = r["bej_datum"] or ""
-        if honap and honap not in datum_str.replace(". ", "-").replace(".", ""):
-            continue
+        norm_d = normalize_date(r["bej_datum"])
+        if norm_d:
+            if kezdo_datum and norm_d < kezdo_datum:
+                continue
+            if zaro_datum and norm_d > zaro_datum:
+                continue
 
         val = r["szam_ertek"]
         if val in jegy_counts:
@@ -309,15 +317,29 @@ def api_statisztika():
     }
 
     for r in felj_rows:
-        datum_str = r["bej_datum"] or ""
-        if honap and honap not in datum_str.replace(". ", "-").replace(".", ""):
-            continue
+        norm_d = normalize_date(r["bej_datum"])
+        if norm_d:
+            if kezdo_datum and norm_d < kezdo_datum:
+                continue
+            if zaro_datum and norm_d > zaro_datum:
+                continue
 
         text = f"{r['cim'] or ''} {r['tartalom'] or ''}".lower()
 
         for cat, kw_list in keywords.items():
             if any(kw in text for kw in kw_list):
                 counts[cat] += 1
+
+    # Kifizetési státusz ellenőrzése
+    kifizetve = False
+    if diak and kezdo_datum and zaro_datum:
+        cursor.execute("""
+            SELECT kifizetve FROM kifizetesek 
+            WHERE diak_nev = ? AND kezdo_datum = ? AND zaro_datum = ?
+        """, (diak, kezdo_datum, zaro_datum))
+        k_row = cursor.fetchone()
+        if k_row:
+            kifizetve = bool(k_row["kifizetve"])
 
     conn.close()
 
@@ -347,8 +369,36 @@ def api_statisztika():
         "rewards": rewards,
         "jegy_osszeg": jegy_osszeg,
         "feljegyzes_osszeg": feljegyzes_osszeg,
-        "vegosszeg": vegosszeg
+        "vegosszeg": vegosszeg,
+        "kifizetve": kifizetve
     })
+
+@app.route("/api/kifizetes", methods=["POST"])
+def api_kifizetes_save():
+    data = request.json or {}
+    diak = data.get("diak", "")
+    kezdo_datum = data.get("kezdo_datum", "")
+    zaro_datum = data.get("zaro_datum", "")
+    kifizetve = 1 if data.get("kifizetve") else 0
+    osszeg = data.get("osszeg", 0)
+
+    if not diak or not kezdo_datum or not zaro_datum:
+        return jsonify({"status": "error", "message": "Hiányzó paraméterek"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO kifizetesek (diak_nev, kezdo_datum, zaro_datum, kifizetve, osszeg, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(diak_nev, kezdo_datum, zaro_datum) DO UPDATE SET
+            kifizetve = excluded.kifizetve,
+            osszeg = excluded.osszeg,
+            updated_at = CURRENT_TIMESTAMP
+    """, (diak, kezdo_datum, zaro_datum, kifizetve, osszeg))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok", "kifizetve": bool(kifizetve)})
 
 @app.route("/api/sync/start", methods=["POST"])
 def api_sync_start():
