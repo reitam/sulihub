@@ -198,7 +198,7 @@
         <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="text-secondary fw-bold small me-1"><i class="fa-solid fa-filter me-1"></i>Szűrőfeltételek</span>
-                <!-- GYORSGOMBOK -->
+                <!-- GYORSGOMBOK A KÉRT SORRENDBEN -->
                 <button id="btnQuickToday" class="btn btn-sm btn-outline-warning py-0 px-2 fw-bold" style="font-size: 0.8rem;">
                     <i class="fa-solid fa-calendar-day me-1"></i>Mai események
                 </button>
@@ -464,7 +464,7 @@
     </div>
 </div>
 
-<!-- MODAL ÜZENET OLVASÁSÁHOZ -->
+<!-- MODAL ÜZENET OLVASÁSÁHOZ (SORMAGASSÁG JAVÍTVA A SZÉTTÖRDELŐDÉS ELLEN) -->
 <div class="modal fade" id="uzenetModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -477,7 +477,7 @@
         <div class="mb-1 small"><strong>Időpont:</strong> <span id="modalIdopont"></span></div>
         <div class="mb-2 small"><strong>Diák:</strong> <span id="modalDiak"></span></div>
         <hr class="my-2">
-        <div class="p-3 bg-light rounded small" id="modalSzoveg" style="white-space: pre-wrap; max-height: 250px; overflow-y: auto;"></div>
+        <div class="p-3 bg-light rounded small" id="modalSzoveg" style="white-space: pre-wrap; line-height: 1.5; max-height: 350px; overflow-y: auto;"></div>
         <div id="modalCsatolmanyContainer" class="mt-2 d-none">
             <span class="small fw-bold"><i class="fa-solid fa-paperclip me-1 text-primary"></i>Csatolt dokumentum:</span>
             <a id="modalCsatolmanyLink" href="#" target="_blank" class="btn btn-outline-primary btn-sm ms-2 py-0">
@@ -802,7 +802,6 @@ $(document).ready(function() {
             }),
             success: function(res) {
                 if (res.status === 'ok') {
-                    // Frissítjük a lokális memóriában lévő rekordot
                     let item = rawData.find(x => x.id === esemenyId);
                     if (item) {
                         item.kesz = res.kesz;

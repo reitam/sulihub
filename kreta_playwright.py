@@ -2,6 +2,7 @@ import asyncio
 import json
 import sqlite3
 import os
+import re
 from playwright.async_api import async_playwright
 
 # --- KONFIGURÁCIÓ BEOLVASÁSA ---
@@ -244,7 +245,7 @@ async def scrape_uzenetek(page, diak_nev):
                 await eugy_page.wait_for_load_state("networkidle")
                 await asyncio.sleep(2)
 
-                # Üzenet szöveg kiolvasása
+                # Üzenet szöveg kiolvasása és tisztítása
                 szoveg = ""
                 szoveg_el = await eugy_page.query_selector('.message-body, .message-content, [class*="message-body"], .szoveg-container')
                 if szoveg_el:
@@ -261,6 +262,10 @@ async def scrape_uzenetek(page, diak_nev):
                         }''')
                     except Exception:
                         szoveg = ""
+
+                # Felesleges halmozott (3+) sortörések normálása maximum egy üres sorra (\n\n)
+                if szoveg:
+                    szoveg = re.sub(r'\n{3,}', '\n\n', szoveg)
 
                 # Csatolmány kezelése
                 csatolmany_nev = ""
