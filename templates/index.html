@@ -464,7 +464,7 @@
     </div>
 </div>
 
-<!-- MODAL ÜZENET OLVASÁSÁHOZ (SORMAGASSÁG JAVÍTVA A SZÉTTÖRDELŐDÉS ELLEN) -->
+<!-- MODAL ÜZENET OLVASÁSÁHOZ -->
 <div class="modal fade" id="uzenetModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -518,20 +518,19 @@
 
 <script>
 function enableResizableTable(tableId) {
-    let $table = $('#' + tableId);
-    let $headers = $table.find('thead th');
+    let $table =$('#' + tableId);
+    let $headers =$table.find('thead th');
 
     $headers.each(function() {
-        let $th = $(this);
+        let $th =$(this);
         if ($th.find('.resizer').length === 0) {
-            let $resizer = $('<div class="resizer"></div>');
+            let $resizer =$('<div class="resizer"></div>');
             $th.append($resizer);
 
             $resizer.on('mousedown', function(e) {
                 e.preventDefault();
                 let startX = e.pageX;
-                let startWidth = $th.width();
-                $resizer.addClass('resizing');
+                let startWidth = $th.width();$resizer.addClass('resizing');
 
                 $(document).on('mousemove.colResize', function(e) {
                     let newWidth = startWidth + (e.pageX - startX);
@@ -541,8 +540,7 @@ function enableResizableTable(tableId) {
                 });
 
                 $(document).on('mouseup.colResize', function() {
-                    $(document).off('.colResize');
-                    $resizer.removeClass('resizing');
+                    $(document).off('.colResize');$resizer.removeClass('resizing');
                 });
             });
         }
@@ -688,30 +686,27 @@ $(document).ready(function() {
                     let btnKeszHtml = '';
                     if (data.esemeny_tipus === 'Házi feladat') {
                         if (data.kesz === 1) {
-                            btnKeszHtml = `<button class="btn btn-xs btn-outline-secondary py-0 px-1 ms-2 btn-toggle-kesz" data-id="${data.id}" data-kesz="0" title="Visszaállítás elkészítendőre">
+                            btnKeszHtml = `<button class="btn btn-xs btn-outline-secondary py-0 px-1 btn-toggle-kesz" data-id="${data.id}" data-kesz="0" title="Visszaállítás elkészítendőre">
                                 <i class="fa-solid fa-rotate-left me-1"></i>Újra aktív
                             </button>`;
                         } else {
-                            btnKeszHtml = `<button class="btn btn-xs btn-success text-white py-0 px-1 ms-2 btn-toggle-kesz" data-id="${data.id}" data-kesz="1" title="Megjelölés elkészültként">
+                            btnKeszHtml = `<button class="btn btn-xs btn-success text-white py-0 px-1 btn-toggle-kesz" data-id="${data.id}" data-kesz="1" title="Megjelölés elkészültként">
                                 <i class="fa-solid fa-check me-1"></i>Elkészült
                             </button>`;
                         }
                     }
 
-                    if (fullText.length > 40) {
-                        return `<div class="d-flex align-items-center justify-content-between">
-                            <span class="cell-truncate me-1" title="${safeTitle}">${fullText}</span>
-                            <div class="d-flex align-items-center">
-                                <button class="btn btn-xs btn-outline-primary py-0 px-1 btn-show-details" data-text="${safeTitle}" title="Részletek megtekintése">
-                                    <i class="fa-solid fa-magnifying-glass"></i>
-                                </button>
-                                ${btnKeszHtml}
-                            </div>
-                        </div>`;
-                    }
+                    // A NAGYÍTÓ GOMB (RÉSZLETES OLVASÁS) MINDIG KÍVÜLRE, A SOR WEGÉRE KERÜL
+                    let btnDetailsHtml = `<button class="btn btn-xs btn-outline-primary py-0 px-1 btn-show-details" data-text="${safeTitle}" title="Részletek megtekintése">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>`;
+
                     return `<div class="d-flex align-items-center justify-content-between">
                         <span class="cell-truncate me-1" title="${safeTitle}">${fullText}</span>
-                        ${btnKeszHtml}
+                        <div class="d-flex align-items-center gap-1 ms-auto">
+                            ${btnKeszHtml}
+                            ${btnDetailsHtml}
+                        </div>
                     </div>`;
                 }
             }
