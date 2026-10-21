@@ -4,6 +4,7 @@ import os
 import subprocess
 import json
 import threading
+import re
 from datetime import datetime
 
 app = Flask(__name__)
@@ -237,6 +238,10 @@ def api_uzenetek():
         keys = r.keys()
         cs_nev = r["csatolmany_nev"] if "csatolmany_nev" in keys else ""
         cs_ut = r["csatolmany_utvonal"] if "csatolmany_utvonal" in keys else ""
+        
+        nyers_szoveg = r["szoveg"] if "szoveg" in keys and r["szoveg"] else ""
+        # Halmozott (3+) sortörések normálása maximum egy üres sorra (\n\n)
+        tisztitott_szoveg = re.sub(r'\n{3,}', '\n\n', nyers_szoveg) if nyers_szoveg else ""
 
         uzenetek.append({
             "id": r["id"],
@@ -244,7 +249,7 @@ def api_uzenetek():
             "felado": r["felado"] if "felado" in keys else "-",
             "targy": r["targy"] if "targy" in keys else "-",
             "idopont": r["idopont"] if "idopont" in keys else "-",
-            "szoveg": r["szoveg"] if "szoveg" in keys else "",
+            "szoveg": tisztitott_szoveg,
             "csatolmany_nev": cs_nev or "",
             "csatolmany_utvonal": cs_ut or ""
         })
