@@ -196,6 +196,77 @@ def api_esemenyek():
     conn.close()
     return jsonify(esemenyek)
 
+@app.route("/api/naptar_esemenyek")
+def api_naptar_esemenyek():
+    if not os.path.exists(DB_FILE):
+        return jsonify([])
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    diak = request.args.get("diak", "")
+    
+    query = """
+        SELECT * FROM esemenyek 
+        WHERE esemeny_tipus IN ('Házi feladat', 'Bejelentett számonkérés')
+          AND hatarido IS NOT NULL AND hatarido != '' AND hatarido != '-'
+    """
+    params = []
+
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+
+    events = []
+    for r in rows:
+        norm_date = normalize_date(r["hatarido"])
+        if not norm_date:
+            continue
+
+        es_tipus = r["esemeny_tipus"]
+        keys = r.keys()
+        is_kesz = bool(r["kesz"]) if "kesz" in keys and r["kesz"] else False
+
+        # TELJES NÉV HASZNÁLATA (VEZETÉKNÉV + KERESZTNÉV)
+        teljes_nev = r["diak_nev"] or "Ismeretlen"
+
+        title = f"{teljes_nev}: {r['tantargy']} - {es_tipus}"
+        if es_tipus == 'Házi feladat' and is_kesz:
+            title = f"✔ {title}"
+
+        color = "#0d6efd"  # Kék: Házi feladat
+        if es_tipus == 'Bejelentett számonkérés':
+            color = "#dc3545"  # Piros: Számonkérés
+        elif es_tipus == 'Házi feladat' and is_kesz:
+            color = "#198754"  # Zöld: Elkészült házi
+
+        reszletek = []
+        if r['tema'] and r['tema'] != '-': reszletek.append(f"Téma: {r['tema']}")
+        if r['cim'] and r['cim'] != '-': reszletek.append(f"Cím: {r['cim']}")
+        if r['tartalom'] and r['tartalom'] != '-': reszletek.append(f"{r['tartalom']}")
+        leiras = " | ".join(reszletek) or "Nincs részletes leírás"
+
+        events.append({
+            "id": r["id"],
+            "title": title,
+            "start": norm_date,
+            "color": color,
+            "extendedProps": {
+                "diak": teljes_nev,
+                "tipus": es_tipus,
+                "tantargy": r["tantargy"],
+                "tanar": r["ertekelo"] or "-",
+                "leiras": leiras,
+                "kesz": is_kesz
+            }
+        })
+
+    return jsonify(events)
+
 @app.route("/api/esemeny/statusz", methods=["POST"])
 def api_esemeny_statusz():
     data = request.json or {}
@@ -240,7 +311,6 @@ def api_uzenetek():
         cs_ut = r["csatolmany_utvonal"] if "csatolmany_utvonal" in keys else ""
         
         nyers_szoveg = r["szoveg"] if "szoveg" in keys and r["szoveg"] else ""
-        # Halmozott (3+) sortörések normálása maximum egy üres sorra (\n\n)
         tisztitott_szoveg = re.sub(r'\n{3,}', '\n\n', nyers_szoveg) if nyers_szoveg else ""
 
         uzenetek.append({
