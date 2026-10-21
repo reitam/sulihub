@@ -44,7 +44,8 @@ def init_db():
             mod TEXT,
             tema TEXT,
             cim TEXT,
-            tartalom TEXT
+            tartalom TEXT,
+            kesz INTEGER DEFAULT 0
         )
     ''')
     
@@ -62,6 +63,14 @@ def init_db():
         )
     ''')
     
+    cursor.execute("PRAGMA table_info(esemenyek)")
+    es_columns = [row[1] for row in cursor.fetchall()]
+    if "kesz" not in es_columns:
+        try:
+            cursor.execute("ALTER TABLE esemenyek ADD COLUMN kesz INTEGER DEFAULT 0")
+        except Exception:
+            pass
+
     cursor.execute("PRAGMA table_info(uzenetek)")
     existing_columns = [row[1] for row in cursor.fetchall()]
     
@@ -87,6 +96,26 @@ def init_db():
     conn.commit()
     conn.close()
 
+def get_completed_hazi_map(diak_nev):
+    """Kinyeri az adott diák már megjelölt (kesz=1) házi feladatainak azonosítóit, hogy frissítés után is megmaradjanak."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    completed = set()
+    try:
+        cursor.execute('''
+            SELECT tantargy, bej_datum, hatarido, tartalom 
+            FROM esemenyek 
+            WHERE diak_nev = ? AND esemeny_tipus = 'Házi feladat' AND kesz = 1
+        ''', (diak_nev,))
+        for r in cursor.fetchall():
+            key = f"{r[0]}|{r[1]}|{r[2]}|{r[3]}"
+            completed.add(key)
+    except Exception:
+        pass
+    finally:
+        conn.close()
+    return completed
+
 def clear_student_data(diak_nev):
     """Csak az adott diák korábbi eseményeit törli az adatbázisból (az üzeneteket megőrizzük!)."""
     conn = sqlite3.connect(DB_FILE)
@@ -95,19 +124,26 @@ def clear_student_data(diak_nev):
     conn.commit()
     conn.close()
 
-def save_esemenyek_to_db(diak_nev, esemenyek):
-    """Menti az adott diák kinyert eseményeit az adatbázisba."""
+def save_esemenyek_to_db(diak_nev, esemenyek, completed_set):
+    """Menti az adott diák kinyert eseményeit az adatbázisba megőrizve a korábbi 'kesz' státuszt."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
     for e in esemenyek:
+        es_tipus = e.get('esemeny_tipus', '')
+        kesz_val = 0
+        if es_tipus == 'Házi feladat':
+            key = f"{e.get('tantargy', '')}|{e.get('bej_datum', '')}|{e.get('hatarido', '')}|{e.get('tartalom', '')}"
+            if key in completed_set:
+                kesz_val = 1
+
         cursor.execute('''
             INSERT INTO esemenyek 
-            (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             diak_nev, 
-            e.get('esemeny_tipus', ''),
+            es_tipus,
             e.get('tantargy', ''),
             e.get('ertek', ''),
             e.get('szam_ertek', 0),
@@ -118,7 +154,8 @@ def save_esemenyek_to_db(diak_nev, esemenyek):
             e.get('mod', ''),
             e.get('tema', ''),
             e.get('cim', ''),
-            e.get('tartalom', '')
+            e.get('tartalom', ''),
+            kesz_val
         ))
         
     conn.commit()
@@ -275,12 +312,14 @@ async def process_student(page, student):
     username = student.get("username", "")
     password = student.get("password", "")
 
-    # DIÁKONKÉNTI ÚZENETLEKÉRÉS KAPCSOLÓ:
     student_scrape_messages = student.get("scrape_messages", GLOBAL_SCRAPE_MESSAGES)
 
     print("\n" + "=" * 70)
     print(f"  FELDOLGOZÁS: {diak_nev.upper()} (Iskola: {institute_code})")
     print("=" * 70)
+
+    # Korábban elkészült házi feladatok kimentése a frissítés előtt
+    completed_hazi = get_completed_hazi_map(diak_nev)
 
     # --- 1. BELÉPÉS ---
     login_url = f"https://{institute_code}.e-kreta.hu"
@@ -299,7 +338,6 @@ async def process_student(page, student):
             await page.wait_for_load_state("networkidle")
             await asyncio.sleep(1)
     except Exception:
-        # Ha a süti felugró ablak nem jelenik meg, megyünk tovább
         pass
 
     await page.wait_for_selector('input[name="UserName"]', timeout=15000)
@@ -549,12 +587,12 @@ async def process_student(page, student):
     osszes_esemeny = jegyek + feljegyzesek + hazifeladatok + szamonkeresek
 
     if len(osszes_esemeny) > 0:
-        save_esemenyek_to_db(diak_nev, osszes_esemeny)
+        save_esemenyek_to_db(diak_nev, osszes_esemeny, completed_hazi)
         print(f"\n{diak_nev} adataiból {len(osszes_esemeny)} db esemény sikeresen elmentve!")
     else:
         print(f"Figyelem: {diak_nev} fiókjából nem sikerült eseményadatot kinyerni.")
 
-    # --- 6. E-ÜGYINTÉZÉS ÜZENETEK KINYERÉSE (DIÁKONKÉNTI ELLENŐRZÉSSEL) ---
+    # --- 6. E-ÜGYINTÉZÉS ÜZENETEK KINYERÉSE ---
     if student_scrape_messages:
         await scrape_uzenetek(page, diak_nev)
     else:
