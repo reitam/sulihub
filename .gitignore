@@ -2,6 +2,7 @@
 *.db
 kreta_adatok.db
 config.json
+sync.log
 
 # Csatolmányok és letöltött dokumentumok kizárása
 static/csatolmanyok/*
