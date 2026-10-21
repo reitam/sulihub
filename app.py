@@ -5,7 +5,6 @@ import subprocess
 import json
 import threading
 from datetime import datetime
-from apscheduler.schedulers.background import BackgroundScheduler
 
 app = Flask(__name__)
 DB_FILE = "kreta_adatok.db"
@@ -24,10 +23,12 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def init_kifizetesek_db():
+def init_db_extensions():
     if os.path.exists(DB_FILE):
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Kifizetések tábla
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS kifizetesek (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,10 +41,18 @@ def init_kifizetesek_db():
                 UNIQUE(diak_nev, kezdo_datum, zaro_datum)
             )
         """)
+        
+        # Ellenőrizzük, hogy az esemenyek táblában létezik-e a 'kesz' oszlop
+        cursor.execute("PRAGMA table_info(esemenyek)")
+        columns = [row["name"] for row in cursor.fetchall()]
+        if "kesz" not in columns:
+            cursor.execute("ALTER TABLE esemenyek ADD COLUMN kesz INTEGER DEFAULT 0")
+            print("[Adatbázis séma frissítve]: 'kesz' oszlop hozzáadva az 'esemenyek' táblához.")
+            
         conn.commit()
         conn.close()
 
-init_kifizetesek_db()
+init_db_extensions()
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -162,6 +171,9 @@ def api_esemenyek():
 
     esemenyek = []
     for r in rows:
+        keys = r.keys()
+        kesz_val = r["kesz"] if "kesz" in keys else 0
+
         esemenyek.append({
             "id": r["id"],
             "diak_nev": r["diak_nev"],
@@ -176,11 +188,29 @@ def api_esemenyek():
             "mod": r["mod"] or "-",
             "tema": r["tema"] or "-",
             "cim": r["cim"] or "-",
-            "tartalom": r["tartalom"] or "-"
+            "tartalom": r["tartalom"] or "-",
+            "kesz": int(kesz_val or 0)
         })
 
     conn.close()
     return jsonify(esemenyek)
+
+@app.route("/api/esemeny/statusz", methods=["POST"])
+def api_esemeny_statusz():
+    data = request.json or {}
+    esemeny_id = data.get("id")
+    kesz = 1 if data.get("kesz") else 0
+
+    if not esemeny_id:
+        return jsonify({"status": "error", "message": "Hiányzó azonosító"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE esemenyek SET kesz = ? WHERE id = ?", (kesz, esemeny_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok", "kesz": kesz})
 
 @app.route("/api/uzenetek")
 def api_uzenetek():
@@ -330,7 +360,6 @@ def api_statisztika():
             if any(kw in text for kw in kw_list):
                 counts[cat] += 1
 
-    # Kifizetési státusz ellenőrzése
     kifizetve = False
     if diak and kezdo_datum and zaro_datum:
         cursor.execute("""
