@@ -276,7 +276,6 @@ async def process_student(page, student):
     password = student.get("password", "")
 
     # DIÁKONKÉNTI ÚZENETLEKÉRÉS KAPCSOLÓ:
-    # Ha van egyéni 'scrape_messages', azt használja, különben a globális 'SCRAPE_MESSAGES'-t
     student_scrape_messages = student.get("scrape_messages", GLOBAL_SCRAPE_MESSAGES)
 
     print("\n" + "=" * 70)
@@ -287,6 +286,21 @@ async def process_student(page, student):
     login_url = f"https://{institute_code}.e-kreta.hu"
     print(f"1. Kapcsolódás: {login_url} ...")
     await page.goto(login_url)
+
+    # --- SÜTI (COOKIE) BANNER KEZELÉSE ---
+    try:
+        cookie_btn = await page.wait_for_selector(
+            'form[action*="acceptnecessarycookies"] button, button:has-text("Az összes kötelező cookie elfogadása")',
+            timeout=3000
+        )
+        if cookie_btn:
+            print("  -> Süti tájékoztató elfogadása...")
+            await cookie_btn.click()
+            await page.wait_for_load_state("networkidle")
+            await asyncio.sleep(1)
+    except Exception:
+        # Ha a süti felugró ablak nem jelenik meg, megyünk tovább
+        pass
 
     await page.wait_for_selector('input[name="UserName"]', timeout=15000)
     await page.fill('input[name="UserName"]', username)
@@ -544,7 +558,7 @@ async def process_student(page, student):
     if student_scrape_messages:
         await scrape_uzenetek(page, diak_nev)
     else:
-        print(f"\n6. Üzenetek lekérése KI VAN KAPCSIOLVA ennel a diaknal ({diak_nev}).")
+        print(f"\n6. Üzenetek lekérése KI VAN KAPCSOLVA ennél a diáknál ({diak_nev}).")
 
     # --- 7. KIJELENTKEZÉS A FIÓKBÓL ---
     print(f"\nKijelentkezés ({diak_nev})...")
