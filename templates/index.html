@@ -1019,7 +1019,13 @@ $(document).ready(function() {
             eventClick: function(info) {
                 let props = info.event.extendedProps;
                 let eventId = info.event.id;
-                let bodyText = `Diák: ${props.diak}\nTípus: ${props.tipus}\nTantárgy: ${props.tantargy}\nTanár: ${props.tanar}\n\nLeírás / Részletek:\n${props.leiras}`;
+                
+                let tipusKijelzes = props.tipus;
+                if (props.tipus === 'Bejelentett számonkérés' && props.mod && props.mod !== '-') {
+                    tipusKijelzes = `${props.tipus} (${props.mod})`;
+                }
+
+                let bodyText = `Diák: ${props.diak}\nTípus / Mód: ${tipusKijelzes}\nTantárgy: ${props.tantargy}\nTanár: ${props.tanar}\n\nLeírás / Részletek:\n${props.leiras}`;
                 
                 $('#detailsModalTitle').html(`<i class="fa-solid fa-circle-info me-2"></i>${info.event.title}`);
                 $('#detailsModalBody').text(bodyText);
