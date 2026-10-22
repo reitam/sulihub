@@ -1,8 +1,8 @@
 # 🎓 KRÉTA Adatbázis Áttekintő & Zsebpénz Menedzser
 
-Egy központi, Flask és Playwright alapú webes alkalmazás, amely automatikusan lekéri és SQLite adatbázisba szinkronizálja több gyermek KRÉTA rendszerből származó adatait (osztályzatok, feljegyzések, házi feladatok, bejelentett számonkérések és e-Ügyintézés üzenetek). 
+Egy központi, Flask és Playwright alapú webes alkalmazás, amely automatikusan lekéri és SQLite adatbázisba szinkronizálja több gyermek KRÉTA rendszerből származó adatait (órarend, osztályzatok, feljegyzések, házi feladatok, bejelentett számonkérések és e-Ügyintézés üzenetek). 
 
-A rendszer emellett átlátható felületet nyújt a határidők naptári megjelenítéséhez, a házi feladatok ellenőrzéséhez/megoldásához, valamint egy testreszabható tanulmányi zsebpénz-elszámolási modult is biztosít.
+A rendszer emellett átlátható felületet nyújt az órarendek megjelenítéséhez és nyomtatásához, a határidők naptári áttekintéséhez, a házi feladatok ellenőrzéséhez/megoldásához, valamint egy testreszabható tanulmányi zsebpénz-elszámolási modult is biztosít.
 
 ---
 
@@ -11,8 +11,19 @@ A rendszer emellett átlátható felületet nyújt a határidők naptári megjel
 - **🤖 Automatikus KRÉTA Szinkronizáció:**
   - Playwright segítségével belép a megadott diákok fiókjába (több gyermek támogatása egyszerre).
   - Kezeli a belépés előtti süti (cookie) elfogadó ablakot.
+  - Lekéri az aktuális és a következő hét **heti órarendjét** (tanár, terem, csengetési időpontok).
   - Letölti az osztályzatokat, feljegyzéseket, házi feladatokat és bejelentett számonkéréseket.
   - Bejelentkezik az **e-Ügyintézés** felületre, letölti a beérkezett üzeneteket és az e-mailekhez csatolt dokumentumokat.
+
+- **📅 Heti Órarend Nézet & Nyomtatható PDF Export:**
+  - Idősávos FullCalendar heti órarendi nézet egyedi diák színkódolással.
+  - **A4 landscape méretű, nyomtatásra kész PDF exportálás** (ReportLab alapon).
+  - Gyermekre történő szűrés támogatása:
+    - Ha egy konkrét gyermek van kiválasztva, pontosan az ő 1 oldalas heti órarendje kerül exportálásra.
+    - Ha az *„-- Összes gyermek --”* lehetőség van kiválasztva, gyermekenként külön-külön oldalra kerül a szóló heti órarend.
+  - **Valódi csengetési rend kezelése**: Az adatbázisból beolvasott pontos kezdési és zárási időpontok alapján építi fel a táblázatot.
+  - **Téma szerinti színkódolás**: A tantárgyak automatikus tématikus háttérszínt kapnak (reál tárgyak, humán tárgyak/nyelvek, testnevelés, művészeti tárgyak, szünetek/ünnepnapok).
+  - **Egész napos események elkülönítése**: Az egész napos rendezvények és szünetek külön fejlécsorba kerülnek a számozott tanórák felett.
 
 - **📊 Iskolai Események Áttekintése:**
   - DataTables alapú, reszponzív, átméretezhető oszlopokkal ellátott táblázat.
@@ -26,11 +37,10 @@ A rendszer emellett átlátható felületet nyújt a határidők naptári megjel
   - Elkészültként megjelölve a sor betűszíne és háttere kímélő zöldre vált.
   - Az elkészültségi állapot megőrződik a későbbi KRÉTA szinkronizálások során is.
 
-- **📅 Naptár Nézet (FullCalendar 6):**
+- **🗓️ Feladatok Naptár Nézet (FullCalendar 6):**
   - Külön fülön jeleníti meg a házi feladatok és bejelentett számonkérések határidejét.
   - Színkódolt csempék: Kék (Házi feladat), Zöld (Elkészített házi feladat), Piros (Bejelentett számonkérés).
   - Saját gyermekszűrő a naptár fejlécében.
-  - Dinamikus magasság, nincsenek felesleges órasávok (0..24h) vagy függőleges görgetősávok.
   - A naptári elemekre kattintva a felugró ablakból is átkapcsolható a házi feladatok elkészültségi állapota.
 
 - **💰 Statisztika & Zsebpénz Elszámolás:**
@@ -40,14 +50,14 @@ A rendszer emellett átlátható felületet nyújt a határidők naptári megjel
   - Kifizetés állapotának rögzítése és mentése az adatbázisban (`KIFIZETVE`).
 
 - **📱 Letisztult UI / UX Design:**
-  - Összecsukható felső statisztikai és szűrőpanel (Accordion), amely automatikusan bezáródik a naptárra vagy üzenetekre váltáskor.
+  - Összecsukható felső statisztikai és szűrőpanel (Accordion), amely automatikusan bezáródik a naptárra, órarendre vagy üzenetekre váltáskor.
   - Az e-Ügyintézés üzeneteinek felesleges halmozott sortöréseit automatikusan letisztítja a jobb olvashatóság érdekében.
 
 ---
 
 ## 🛠️ Technológiai Stakk
 
-- **Backend:** Python 3.10+, Flask, SQLite3, APScheduler, Subprocess
+- **Backend:** Python 3.10+, Flask, SQLite3, Subprocess, ReportLab (PDF generálás)
 - **Scraper / Automatizáció:** Playwright (Chromium)
 - **Frontend:** HTML5, CSS3, JavaScript (ES6+), Bootstrap 5, jQuery
 - **Bővítmények:** DataTables, FullCalendar 6, FontAwesome 6
@@ -73,7 +83,7 @@ venv\Scripts\activate
 source venv/bin/activate
 
 # Szükséges csomagok telepítése
-pip install flask playwright apscheduler
+pip install flask playwright reportlab
 playwright install chromium
 ```
 
@@ -127,13 +137,14 @@ Hozz létre egy `config.json` fájlt a projekt gyökérmappájában az alábbi m
 2. Nyisd meg a böngésződben a következő címet:
    `http://127.0.0.1:5000`
 3. Nyomd meg az **"Adatok frissítése a KRÉTA-ból"** gombot az adatok első szinkronizálásához.
+4. Navigálj a **Heti Órarend** fülre, válaszd ki a kívánt gyermeket, majd kattints az **"Órarend letöltése PDF-ben"** gombra az A4 nyomtatható órarend előállításához.
 
 ---
 
 ## 📁 Mappa Szerkezet
 
 ```text
-├── app.py                  # Flask webszerver és API végpontok
+├── app.py                  # Flask webszerver, API és PDF generáló végpontok
 ├── kreta_playwright.py     # Playwright scraper script a KRÉTA adatgyűjtéshez
 ├── config.json             # Konfigurációs fájl (belépési adatok, zsebpénz szabályok)
 ├── kreta_adatok.db         # SQLite adatbázis (automatikusan jön létre)
