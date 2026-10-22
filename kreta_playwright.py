@@ -3,6 +3,7 @@ import json
 import sqlite3
 import os
 import re
+from datetime import datetime, timedelta
 from playwright.async_api import async_playwright
 
 # --- KONFIGURÁCIÓ BEOLVASÁSA ---
@@ -26,7 +27,7 @@ if not STUDENTS:
     exit(1)
 
 def init_db():
-    """Létrehozza az események és az üzenetek táblát az adatbázisban, és kezeli a sémafrissítéseket."""
+    """Létrehozza az események, üzenetek és órarend táblákat az adatbázisban, és kezeli a sémafrissítéseket."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
@@ -61,6 +62,24 @@ def init_db():
             szoveg TEXT,
             csatolmany_nev TEXT,
             csatolmany_utvonal TEXT
+        )
+    ''')
+
+    # === ÓRAREND TÁBLA LÉTREHOZÁSA ===
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS orarend (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            diak_nev TEXT,
+            kezdo_idopont TEXT,
+            zaro_idopont TEXT,
+            nap TEXT,
+            ora_szam INTEGER,
+            tantargy TEXT,
+            tanar TEXT,
+            terem TEXT,
+            osztaly_csoport TEXT,
+            allapot TEXT,
+            sorszam INTEGER
         )
     ''')
     
@@ -189,6 +208,149 @@ def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="
         print(f"      [Hiba az üzenet mentésekor]: {ex}")
     finally:
         conn.close()
+
+# ==============================================================================
+# === ÓRAREND KINYERÉSI BLOKK (AKTUÁLIS ÉS KÖVETKEZŐ HÉT) ===
+# ==============================================================================
+def save_orarend_to_db(diak_nev, orarend_lista):
+    """Elmenti a diák órarendi adatait az SQLite adatbázisba törlés után."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Adott diák korábbi órarend bejegyzéseinek törlése
+    cursor.execute("DELETE FROM orarend WHERE diak_nev = ?", (diak_nev,))
+
+    def to_str(val):
+        if val is None:
+            return ""
+        if isinstance(val, dict):
+            return str(val.get('_i') or val.get('d') or str(val))
+        return str(val).strip()
+
+    for ora in orarend_lista:
+        kezdo = to_str(ora.get('start') or ora.get('Kezdet'))
+        zaro = to_str(ora.get('end') or ora.get('Veg'))
+        raw_title = to_str(ora.get('title') or ora.get('tantargyNev') or ora.get('Tantargy'))
+        tanar = to_str(ora.get('tanarNev') or ora.get('Tanar'))
+        terem = to_str(ora.get('teremNev') or ora.get('Terem'))
+        nap = to_str(ora.get('day') or ora.get('NapNev'))
+
+        # Ha a title tartalmazza a teljes blokkot sortörésekkel
+        if "\n" in raw_title:
+            lines = [l.strip() for l in raw_title.split("\n") if l.strip()]
+            tantargy = lines[0] if len(lines) >= 1 else raw_title
+            if len(lines) >= 2 and not tanar:
+                tanar = lines[1]
+            if len(lines) >= 3 and not terem:
+                terem = lines[2].strip("()")
+        else:
+            tantargy = raw_title
+
+        # Nap automatikus kiszámítása a kezdő időpontból
+        if not nap and kezdo and len(kezdo) >= 10:
+            try:
+                dt = datetime.strptime(kezdo[:10], "%Y-%m-%d")
+                napok = ["hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat", "vasárnap"]
+                nap = napok[dt.weekday()]
+            except Exception:
+                pass
+
+        cursor.execute('''
+            INSERT INTO orarend 
+            (diak_nev, kezdo_idopont, zaro_idopont, nap, tantargy, tanar, terem)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            diak_nev,
+            kezdo,
+            zaro,
+            nap,
+            tantargy,
+            tanar,
+            terem
+        ))
+
+    conn.commit()
+    conn.close()
+
+async def scrape_orarend(page, diak_nev, institute_code):
+    """Lekéri az aktuális ÉS a következő hét órarendjét a bal felső nyilakkal történő elnavigálással."""
+    print("\n[ÓRAREND] Navigáció az Órarend oldalra és adatlekérés...")
+    try:
+        await page.goto(f"https://{institute_code}.e-kreta.hu/Orarend/InformaciokOrarend")
+        await page.wait_for_load_state("networkidle")
+        await page.wait_for_selector('#Calendar', timeout=15000)
+        await asyncio.sleep(2)
+
+        def parse_events_js():
+            """JS segédfüggvény a FullCalendar memóriájában lévő események kinyerésére."""
+            return '''() => {
+                try {
+                    let events = [];
+                    if (window.SDAFullCalendarInstance && window.SDAFullCalendarInstance.events) {
+                        events = window.SDAFullCalendarInstance.events;
+                    } else {
+                        let calEl = $('#Calendar');
+                        if (calEl.length && calEl.fullCalendar) {
+                            events = calEl.fullCalendar('clientEvents');
+                        }
+                    }
+
+                    return events.map(e => ({
+                        title: e.title || "",
+                        start: (e.start && typeof e.start.format === 'function') ? e.start.format() : (e.start || ""),
+                        end: (e.end && typeof e.end.format === 'function') ? e.end.format() : (e.end || ""),
+                        tanarNev: e.tanarNev || e.tanar || (e.extendedProps ? e.extendedProps.tanarNev : ""),
+                        teremNev: e.teremNev || e.terem || (e.extendedProps ? e.extendedProps.teremNev : ""),
+                        oraSzam: e.oraSzam || e.oraszam || (e.extendedProps ? e.extendedProps.oraSzam : 0),
+                        allapotNev: e.allapotNev || (e.extendedProps ? e.extendedProps.allapotNev : "")
+                    }));
+                } catch(e) {
+                    return [];
+                }
+            }'''
+
+        # === 1. LÉPÉS: AKTUÁLIS HÉT ADATAINAK KINYERÉSE ===
+        print("  -> 1/2. Aktuális hét órarendjének beolvasása...")
+        aktuális_heti_orák = await page.evaluate(parse_events_js())
+        print(f"     Siker! Aktuális hétről beolvasva {len(aktuális_heti_orák)} db elem.")
+
+        # === 2. LÉPÉS: NAVIGÁCIÓ A KÖVETKEZŐ HÉTRE A BAL FELSŐ NYÍLLAL ===
+        print("  -> 2/2. Navigáció a következő hétre (következő nyíl gomb)...")
+        
+        # Megkeressük a bal felső léptetőnyilat (fc-next-button vagy a naptár fejlécében lévő > gomb)
+        next_btn = await page.query_selector('.fc-next-button, #Calendar .fc-button-next, button:has(.fc-icon-right-single-arrow), .fc-header-left .fc-button:has-text(">")')
+        
+        if not next_btn:
+            # B-terv: jQuery-vel kattintunk a FullCalendar saját léptetőjére
+            await page.evaluate('''() => {
+                let calEl = $('#Calendar');
+                if (calEl.length && calEl.fullCalendar) {
+                    calEl.fullCalendar('next');
+                } else {
+                    $('.fc-next-button').click();
+                }
+            }''')
+        else:
+            await next_btn.click()
+
+        await page.wait_for_load_state("networkidle")
+        await asyncio.sleep(2)
+
+        # === 3. LÉPÉS: KÖVETKEZŐ HÉT ADATAINAK KINYERÉSE ===
+        következő_heti_orák = await page.evaluate(parse_events_js())
+        print(f"     Siker! Következő hétről (pl. őszi szünet) beolvasva {len(következő_heti_orák)} db elem.")
+
+        # === 4. LÉPÉS: ÖSSZEFŰZÉS ÉS MENTÉS AZ ADATBÁZISBA ===
+        osszes_ora = aktuális_heti_orák + következő_heti_orák
+        
+        if len(osszes_ora) > 0:
+            save_orarend_to_db(diak_nev, osszes_ora)
+            print(f"  [ÓRAREND OK] Összesen {len(osszes_ora)} db tanóra és bejegyzés elmentve az adatbázisba.")
+        else:
+            print("  [Figyelmeztetés]: Egyik hétről sem sikerült adatot kinyerni.")
+
+    except Exception as ex:
+        print(f"  [Órarend lekérési hiba]: {ex}")
 
 async def scrape_uzenetek(page, diak_nev):
     """Be- és letölti az e-Ügyintézés felületről az új üzeneteket és csatolmányokat."""
@@ -354,6 +516,9 @@ async def process_student(page, student):
     await page.wait_for_load_state("networkidle")
     print("Sikeres belépés!")
 
+    # --- ÓRAREND KINYERÉSE (ÚJ, MÓDOSÍTOTT BLOKK) ---
+    await scrape_orarend(page, diak_nev, institute_code)
+
     # --- 2. OSZTÁLYZATOK KINYERÉSE ---
     print("\n2. Navigáció az 'Osztályzatok' oldalra...")
     await page.goto(f"https://{institute_code}.e-kreta.hu/TanuloErtekeles/Osztalyzatok")
@@ -495,7 +660,6 @@ async def process_student(page, student):
     await page.wait_for_load_state("networkidle")
     await asyncio.sleep(3)
 
-    # 1. Alap adatok kinyerése a Kendo Gridből (IT MÓDOSÍTVA: esemeny_tipus HONTÁVAL)
     js_hazifeladat_extractor = """
     () => {
         let lista = [];
@@ -532,13 +696,11 @@ async def process_student(page, student):
     """
     hazifeladatok = await page.evaluate(js_hazifeladat_extractor)
 
-    # 2. Csonkított szövegek kiegészítése a nagyító modálból
     for hf in hazifeladatok:
         szoveg = hf['tartalom'].strip()
         if szoveg.endswith("...") or szoveg.endswith("…"):
             print(f"  -> Csonkított leírás detektálva ({hf['tantargy']}). Teljes szöveg kinyerése megnyitással...")
             try:
-                # Kréta ablaknyitás
                 await page.evaluate('''(idx) => {
                     let grid = $('#TanulotHaziFeladatkGrid').data("kendoGrid");
                     if (grid) {
@@ -552,7 +714,6 @@ async def process_student(page, student):
                 await page.wait_for_selector('#detailOraAdatokWindow', timeout=7000)
                 await asyncio.sleep(1)
 
-                # Átkattintás a "Házi feladat" menüpontra
                 await page.evaluate('''() => {
                     let haziTab = Array.from(document.querySelectorAll('#detailOraAdatokWindow a, #detailOraAdatokWindow li, #detailOraAdatokWindow span'))
                         .find(el => el.innerText && el.innerText.trim() === 'Házi feladat');
@@ -560,12 +721,10 @@ async def process_student(page, student):
                 }''')
                 await asyncio.sleep(1)
 
-                # Teljes tartalomkiolvasás a kártyából (az összes bekezdést és sort összefűzve)
                 teljes_szoveg = await page.evaluate('''() => {
                     let win = document.querySelector('#detailOraAdatokWindow');
                     if (!win) return "";
 
-                    // Megkeressük a jobb oldalon lévő tartalmi dobozt
                     let container = win.querySelector('.k-card-body, .panel-body, div[style*="float: right"], .col-xs-9, .col-sm-9') || win;
 
                     let rawText = container.innerText || "";
@@ -573,7 +732,6 @@ async def process_student(page, student):
 
                     let validLines = [];
                     for (let line of lines) {
-                        // Fejléc (dátum + tanár), alsó technikai határidő és gombok kiszűrése
                         if (!line.includes("Óra adatai") && 
                             !line.includes("Házi feladat") && 
                             !line.startsWith("Fájl") && 
@@ -595,7 +753,6 @@ async def process_student(page, student):
                 else:
                     print(f"    [Figyelmeztetés]: Az ablak megnyílt, de a leírás üres maradt.")
 
-                # Modal bezárása
                 await page.evaluate('''() => {
                     if (typeof InformaciokOrarend !== 'undefined' && InformaciokOrarend.detailOraInfoCancel) {
                         InformaciokOrarend.detailOraInfoCancel();
@@ -609,7 +766,6 @@ async def process_student(page, student):
             except Exception as ex_hf:
                 print(f"    [Figyelmeztetés]: Hiba a szöveg kinyerésekor: {ex_hf}")
 
-    # Segédmezők eltávolítása mentés előtt
     for hf in hazifeladatok:
         hf.pop('grid_index', None)
         hf.pop('eventId', None)
