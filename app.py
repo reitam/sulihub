@@ -43,6 +43,20 @@ def init_db_extensions():
             )
         """)
         
+        # Órarend tábla
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS orarend (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                diak_nev TEXT,
+                kezdo_idopont TEXT,
+                zaro_idopont TEXT,
+                nap TEXT,
+                tantargy TEXT,
+                tanar TEXT,
+                terem TEXT
+            )
+        """)
+        
         # Ellenőrizzük, hogy az esemenyek táblában létezik-e a 'kesz' oszlop
         cursor.execute("PRAGMA table_info(esemenyek)")
         columns = [row["name"] for row in cursor.fetchall()]
@@ -121,7 +135,7 @@ def index():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT DISTINCT diak_nev FROM esemenyek UNION SELECT DISTINCT diak_nev FROM uzenetek ORDER BY diak_nev")
+        cursor.execute("SELECT DISTINCT diak_nev FROM esemenyek UNION SELECT DISTINCT diak_nev FROM uzenetek UNION SELECT DISTINCT diak_nev FROM orarend ORDER BY diak_nev")
         diakok = [row["diak_nev"] for row in cursor.fetchall() if row["diak_nev"]]
 
         cursor.execute("SELECT DISTINCT esemeny_tipus FROM esemenyek ORDER BY esemeny_tipus")
@@ -196,6 +210,115 @@ def api_esemenyek():
     conn.close()
     return jsonify(esemenyek)
 
+@app.route("/api/orarend")
+def api_orarend():
+    if not os.path.exists(DB_FILE):
+        return jsonify([])
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    diak = request.args.get("diak", "")
+    query = "SELECT * FROM orarend WHERE 1=1"
+    params = []
+
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+
+    query += " ORDER BY kezdo_idopont ASC"
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+
+    return jsonify([dict(row) for row in rows])
+
+@app.route("/api/orarend_naptar")
+def api_orarend_naptar():
+    """Órarend lekérdezése a FullCalendar idősávos nézetéhez egyedi diák színkódolással."""
+    if not os.path.exists(DB_FILE):
+        return jsonify([])
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Lekérjük az összes egyedi diáknevet, hogy konzisztens színt rendelhessünk hozzájuk
+    cursor.execute("SELECT DISTINCT diak_nev FROM orarend ORDER BY diak_nev")
+    osszes_diak = [r["diak_nev"] for r in cursor.fetchall() if r["diak_nev"]]
+
+    # Kellemes, jól megkülönböztethető színpaletta gyermekekhez
+    color_palette = [
+        {"bg": "#0d6efd", "border": "#0a58ca"}, # Kék
+        {"bg": "#198754", "border": "#146c43"}, # Zöld
+        {"bg": "#6f42c1", "border": "#59359a"}, # Lila
+        {"bg": "#d63384", "border": "#ab296a"}, # Rózsaszín/Bíbor
+        {"bg": "#20c997", "border": "#1aa179"}, # Türkiz
+        {"bg": "#fd7e14", "border": "#ca6510"}  # Narancs
+    ]
+
+    diak_color_map = {}
+    for idx, d_nev in enumerate(osszes_diak):
+        diak_color_map[d_nev] = color_palette[idx % len(color_palette)]
+
+    diak = request.args.get("diak", "")
+    query = "SELECT * FROM orarend WHERE 1=1"
+    params = []
+
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+
+    multi_student = not diak  # Ha nincs szűrő, több diák is megjelenhet egy nézetben
+
+    events = []
+    for r in rows:
+        d_nev = r["diak_nev"] or "Ismeretlen"
+        kezdo = r["kezdo_idopont"]
+        zaro = r["zaro_idopont"]
+        tantargy = r["tantargy"] or "Tanóra"
+        tanar = r["tanar"] or ""
+        terem = r["terem"] or ""
+
+        is_all_day = not zaro or "T" not in kezdo
+
+        # Diákhoz tartozó szín lekérése
+        student_colors = diak_color_map.get(d_nev, {"bg": "#0d6efd", "border": "#0a58ca"})
+
+        if is_all_day:
+            title = f"🔴 {d_nev}: {tantargy}" if multi_student else f"🔴 {tantargy}"
+            bg_color = "#fd7e14"
+            border_color = "#ca6510"
+        else:
+            title = f"[{d_nev}] {tantargy}" if multi_student else tantargy
+            if terem:
+                title += f" ({terem})"
+            bg_color = student_colors["bg"]
+            border_color = student_colors["border"]
+
+        events.append({
+            "id": r["id"],
+            "title": title,
+            "start": kezdo,
+            "end": zaro if zaro else None,
+            "allDay": is_all_day,
+            "backgroundColor": bg_color,
+            "borderColor": border_color,
+            "extendedProps": {
+                "diak": d_nev,
+                "tantargy": tantargy,
+                "tanar": tanar,
+                "terem": terem,
+                "nap": r["nap"] or ""
+            }
+        })
+
+    return jsonify(events)
+
 @app.route("/api/naptar_esemenyek")
 def api_naptar_esemenyek():
     if not os.path.exists(DB_FILE):
@@ -239,16 +362,14 @@ def api_naptar_esemenyek():
         if es_tipus == 'Házi feladat' and is_kesz:
             title = f"✔ {title}"
 
-        # Ellenőrizzük, hogy a határidő múltbéli-e
         is_past = norm_date < mai_datum_str
 
-        # Színkódok meghatározása (aktív vs. múltbéli pasztell)
         if es_tipus == 'Bejelentett számonkérés':
-            color = "#f18b95" if is_past else "#dc3545"  # Pasztellpiros vs Piros
+            color = "#f18b95" if is_past else "#dc3545"
         elif es_tipus == 'Házi feladat' and is_kesz:
-            color = "#75c099" if is_past else "#198754"  # Pasztellzöld vs Zöld
+            color = "#75c099" if is_past else "#198754"
         else:
-            color = "#8bb9fe" if is_past else "#0d6efd"  # Pasztellkék vs Kék
+            color = "#8bb9fe" if is_past else "#0d6efd"
 
         reszletek = []
         if r['tema'] and r['tema'] != '-': reszletek.append(f"Téma: {r['tema']}")
