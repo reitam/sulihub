@@ -481,6 +481,7 @@ async def process_student(page, student):
     await page.wait_for_selector('#searchForm', timeout=15000)
     await asyncio.sleep(1)
 
+    # Régi házi feladatok elrejtése opció kikapcsolása és szűrés frissítése
     await page.evaluate('''() => {
         let cb = document.getElementById('RegiHaziFeladatokElrejtese');
         if (cb) cb.checked = false;
@@ -494,6 +495,7 @@ async def process_student(page, student):
     await page.wait_for_load_state("networkidle")
     await asyncio.sleep(3)
 
+    # 1. Alap adatok kinyerése a Kendo Gridből (IT MÓDOSÍTVA: esemeny_tipus HONTÁVAL)
     js_hazifeladat_extractor = """
     () => {
         let lista = [];
@@ -502,7 +504,7 @@ async def process_student(page, student):
         let grid = $(gridEl).data("kendoGrid");
         if (grid) {
             let dataItems = grid.dataSource.data();
-            dataItems.forEach(item => {
+            dataItems.forEach((item, index) => {
                 let formatDate = (dVal) => {
                     if (!dVal) return "";
                     let d = new Date(dVal);
@@ -514,6 +516,8 @@ async def process_student(page, student):
                 };
 
                 lista.push({
+                    grid_index: index,
+                    eventId: item.EventId,
                     esemeny_tipus: 'Házi feladat',
                     tantargy: item.TantargyNev || "",
                     ertekelo: item.TanarNeve || "",
@@ -527,6 +531,89 @@ async def process_student(page, student):
     }
     """
     hazifeladatok = await page.evaluate(js_hazifeladat_extractor)
+
+    # 2. Csonkított szövegek kiegészítése a nagyító modálból
+    for hf in hazifeladatok:
+        szoveg = hf['tartalom'].strip()
+        if szoveg.endswith("...") or szoveg.endswith("…"):
+            print(f"  -> Csonkított leírás detektálva ({hf['tantargy']}). Teljes szöveg kinyerése megnyitással...")
+            try:
+                # Kréta ablaknyitás
+                await page.evaluate('''(idx) => {
+                    let grid = $('#TanulotHaziFeladatkGrid').data("kendoGrid");
+                    if (grid) {
+                        let dataItem = grid.dataSource.data()[idx];
+                        if (dataItem && typeof InformaciokOrarend !== 'undefined') {
+                            InformaciokOrarend.openDetailTanuloHaziFeladatWindow(dataItem);
+                        }
+                    }
+                }''', hf['grid_index'])
+
+                await page.wait_for_selector('#detailOraAdatokWindow', timeout=7000)
+                await asyncio.sleep(1)
+
+                # Átkattintás a "Házi feladat" menüpontra
+                await page.evaluate('''() => {
+                    let haziTab = Array.from(document.querySelectorAll('#detailOraAdatokWindow a, #detailOraAdatokWindow li, #detailOraAdatokWindow span'))
+                        .find(el => el.innerText && el.innerText.trim() === 'Házi feladat');
+                    if (haziTab) haziTab.click();
+                }''')
+                await asyncio.sleep(1)
+
+                # Teljes tartalomkiolvasás a kártyából (az összes bekezdést és sort összefűzve)
+                teljes_szoveg = await page.evaluate('''() => {
+                    let win = document.querySelector('#detailOraAdatokWindow');
+                    if (!win) return "";
+
+                    // Megkeressük a jobb oldalon lévő tartalmi dobozt
+                    let container = win.querySelector('.k-card-body, .panel-body, div[style*="float: right"], .col-xs-9, .col-sm-9') || win;
+
+                    let rawText = container.innerText || "";
+                    let lines = rawText.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
+
+                    let validLines = [];
+                    for (let line of lines) {
+                        // Fejléc (dátum + tanár), alsó technikai határidő és gombok kiszűrése
+                        if (!line.includes("Óra adatai") && 
+                            !line.includes("Házi feladat") && 
+                            !line.startsWith("Fájl") && 
+                            !line.includes("Nincs találat") && 
+                            !line.includes("MÉGSE") &&
+                            !/^\d{4}\.\s*\d{2}\.\s*\d{2}\./.test(line) && 
+                            !/^Határidő:\s*\d{4}/.test(line)) {
+                            
+                            validLines.push(line);
+                        }
+                    }
+
+                    return validLines.join('\\n').trim();
+                }''')
+
+                if teljes_szoveg:
+                    hf['tartalom'] = teljes_szoveg
+                    print(f"    [Sikeres kinyerés]: {teljes_szoveg[:60]}...")
+                else:
+                    print(f"    [Figyelmeztetés]: Az ablak megnyílt, de a leírás üres maradt.")
+
+                # Modal bezárása
+                await page.evaluate('''() => {
+                    if (typeof InformaciokOrarend !== 'undefined' && InformaciokOrarend.detailOraInfoCancel) {
+                        InformaciokOrarend.detailOraInfoCancel();
+                    } else {
+                        let win = $('#detailOraAdatokWindow').data("kendoWindow");
+                        if (win) win.close();
+                    }
+                }''')
+                await page.wait_for_selector('#detailOraAdatokWindow', state='hidden', timeout=3000)
+
+            except Exception as ex_hf:
+                print(f"    [Figyelmeztetés]: Hiba a szöveg kinyerésekor: {ex_hf}")
+
+    # Segédmezők eltávolítása mentés előtt
+    for hf in hazifeladatok:
+        hf.pop('grid_index', None)
+        hf.pop('eventId', None)
+
     print(f"Siker! Beolvasva {len(hazifeladatok)} db házi feladat.")
 
     # --- 5. BEJELENTETT SZÁMONKÉRÉSEK KINYERÉSE ---
