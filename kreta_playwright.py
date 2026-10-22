@@ -945,10 +945,23 @@ async def main():
     log(f"Böngésző üzemmód: {'Háttérben (Headless)' if HEADLESS_MODE else 'Látható (Headed)'}")
     log(f"Globális üzenet-szinkronizálás: {'BE' if GLOBAL_SCRAPE_MESSAGES else 'KI'}")
 
+    user_data_dir = os.path.join(os.getcwd(), "browser_user_data")
+
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=HEADLESS_MODE)
-        context = await browser.new_context()
-        page = await context.new_page()
+        # launch_persistent_context használata a sütik és munkamenetek megőrzéséhez
+        # és az automatizációs/headless jelek teljes elrejtéséhez
+        context = await p.chromium.launch_persistent_context(
+            user_data_dir,
+            headless=HEADLESS_MODE,
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={'width': 1280, 'height': 800},
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox"
+            ],
+            ignore_default_args=["--enable-automation"]
+        )
+        page = context.pages[0] if context.pages else await context.new_page()
 
         for student in active_students:
             try:
@@ -962,7 +975,7 @@ async def main():
         log("=" * 70)
         
         await asyncio.sleep(2)
-        await browser.close()
+        await context.close()
 
 if __name__ == "__main__":
     asyncio.run(main())
