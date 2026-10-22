@@ -768,7 +768,8 @@ def api_statisztika():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    jegy_query = "SELECT szam_ertek, bej_datum FROM esemenyek WHERE esemeny_tipus = 'Értékelés'"
+    # JEGYEK LEKÉRDEZÉSE ÉS TÉTELES LISTÁJA
+    jegy_query = "SELECT id, tantargy, ertek, szam_ertek, bej_datum, mod, tema FROM esemenyek WHERE esemeny_tipus = 'Értékelés'"
     params = []
     if diak:
         jegy_query += " AND diak_nev = ?"
@@ -780,6 +781,7 @@ def api_statisztika():
     jegy_counts = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
     jegy_sum = 0
     jegy_total_count = 0
+    teteles_lista = []
 
     for r in jegy_rows:
         norm_d = normalize_date(r["bej_datum"])
@@ -794,10 +796,20 @@ def api_statisztika():
             jegy_counts[val] += 1
             jegy_sum += val
             jegy_total_count += 1
+            
+            jutalom = rewards.get(f"jegy_{val}", 0)
+            teteles_lista.append({
+                "datum": r["bej_datum"],
+                "tipus": "Értékelés",
+                "megnevezes": f"{r['tantargy']} - {r['ertek']}",
+                "reszletek": f"{r['mod'] or ''} {r['tema'] or ''}".strip(),
+                "osszeg": jutalom
+            })
 
     atlag = round(jegy_sum / jegy_total_count, 2) if jegy_total_count > 0 else 0.0
 
-    felj_query = "SELECT cim, tartalom, bej_datum FROM esemenyek WHERE esemeny_tipus = 'Feljegyzés'"
+    # FELJEGYZÉSEK LEKÉRDEZÉSE ÉS TÉTELES LISTÁJA
+    felj_query = "SELECT id, bej_datum, tipus, cim, tartalom FROM esemenyek WHERE esemeny_tipus = 'Feljegyzés'"
     f_params = []
     if diak:
         felj_query += " AND diak_nev = ?"
@@ -813,6 +825,13 @@ def api_statisztika():
         "felszereles_hiany": 0
     }
 
+    cat_names = {
+        "dicseret": "Dicséret",
+        "megrovas": "Intő / Megrovás",
+        "lecke_hiany": "Lecke hiány",
+        "felszereles_hiany": "Felszerelés hiány"
+    }
+
     for r in felj_rows:
         norm_d = normalize_date(r["bej_datum"])
         if norm_d:
@@ -826,6 +845,14 @@ def api_statisztika():
         for cat, kw_list in keywords.items():
             if any(kw in text for kw in kw_list):
                 counts[cat] += 1
+                jutalom = rewards.get(cat, 0)
+                teteles_lista.append({
+                    "datum": r["bej_datum"],
+                    "tipus": "Feljegyzés",
+                    "megnevezes": cat_names.get(cat, "Feljegyzés"),
+                    "reszletek": f"{r['cim'] or ''} {r['tartalom'] or ''}".strip(),
+                    "osszeg": jutalom
+                })
 
     kifizetve = False
     if diak and kezdo_datum and zaro_datum:
@@ -838,6 +865,8 @@ def api_statisztika():
             kifizetve = bool(k_row["kifizetve"])
 
     conn.close()
+
+    teteles_lista.sort(key=lambda x: x["datum"], reverse=True)
 
     jegy_osszeg = (
         jegy_counts[5] * rewards.get("jegy_5", 0) +
@@ -866,7 +895,8 @@ def api_statisztika():
         "jegy_osszeg": jegy_osszeg,
         "feljegyzes_osszeg": feljegyzes_osszeg,
         "vegosszeg": vegosszeg,
-        "kifizetve": kifizetve
+        "kifizetve": kifizetve,
+        "teteles_lista": teteles_lista
     })
 
 @app.route("/api/kifizetes", methods=["POST"])
