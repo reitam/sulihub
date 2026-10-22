@@ -339,6 +339,11 @@
             </button>
         </li>
         {% endif %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-pane" type="button" role="tab">
+                <i class="fa-solid fa-terminal me-2 text-warning"></i>Rendszernapló (sync.log)
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content" id="mainTabContent">
@@ -564,6 +569,27 @@
             </div>
         </div>
         {% endif %}
+
+        <!-- 6. FÜL: RENDSZERNAPLÓ TARTALOM -->
+        <div class="tab-pane fade" id="logs-pane" role="tabpanel">
+            <div class="card card-stat bg-white p-3 shadow-sm">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h6 class="m-0 fw-bold text-secondary"><i class="fa-solid fa-file-lines me-2 text-primary"></i>sync.log - Rendszerszintű Eseménynapló</h6>
+                        <small class="text-muted">A háttérfolyamatok és szinkronizációk teljes története</small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button id="btnRefreshLogs" class="btn btn-sm btn-outline-primary fw-bold">
+                            <i class="fa-solid fa-rotate me-1"></i>Napló frissítése
+                        </button>
+                        <button id="btnClearLogs" class="btn btn-sm btn-outline-danger fw-bold">
+                            <i class="fa-solid fa-trash-can me-1"></i>Napló ürítése
+                        </button>
+                    </div>
+                </div>
+                <pre id="syncLogFileTerminal" class="p-3 bg-dark text-success rounded" style="font-family: 'Consolas', 'Courier New', monospace; font-size: 0.82rem; max-height: 550px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;"></pre>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -888,11 +914,11 @@ $(document).ready(function() {
         orarendCalendar = new FullCalendar.Calendar(calendarEl, {
             locale: 'hu',
             initialView: 'timeGridWeek',
-            slotDuration: '00:15:00',     // 15 perces idősávok a nagyobb kiterjedésért és olvashatóságért
+            slotDuration: '00:15:00',
             slotLabelInterval: '01:00:00',
             slotMinTime: '07:00:00',
             slotMaxTime: '17:00:00',
-            slotEventOverlap: true,       // Egymás melletti oszlopos megjelenítés több gyermeknél
+            slotEventOverlap: true,
             allDaySlot: true,
             height: 'auto',
             displayEventTime: true,
@@ -991,6 +1017,17 @@ $(document).ready(function() {
         });
 
         calendar.render();
+    }
+
+    // --- SYNC.LOG NÉZET KEZELÉSE ---
+    function fetchSyncLogFile() {
+        $.getJSON('/api/logs', function(res) {
+            if (res.status === 'ok') {
+                let $term = $('#syncLogFileTerminal');
+                $term.text(res.content);
+                $term.scrollTop($term[0].scrollHeight);
+            }
+        });
     }
 
     $(document).on('click', '.btn-modal-toggle-kesz', function(e) {
@@ -1335,6 +1372,7 @@ $(document).ready(function() {
                     loadData();
                     if (orarendCalendar) orarendCalendar.refetchEvents();
                     if (calendar) calendar.refetchEvents();
+                    if ($('#logs-tab').hasClass('active')) fetchSyncLogFile();
                 }
             }
         });
@@ -1369,6 +1407,22 @@ $(document).ready(function() {
                 calendar.refetchEvents();
                 calendar.updateSize();
             }
+        } else if (e.target.id === 'logs-tab') {
+            fetchSyncLogFile();
+        }
+    });
+
+    $('#btnRefreshLogs').click(function() {
+        fetchSyncLogFile();
+    });
+
+    $('#btnClearLogs').click(function() {
+        if (confirm('Biztosan ki akarod üríteni a sync.log fájlt?')) {
+            $.post('/api/logs/clear', function(res) {
+                if (res.status === 'ok') {
+                    fetchSyncLogFile();
+                }
+            });
         }
     });
 

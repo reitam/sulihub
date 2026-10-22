@@ -18,6 +18,7 @@ from reportlab.lib.units import cm
 app = Flask(__name__)
 DB_FILE = "kreta_adatok.db"
 CONFIG_FILE = "config.json"
+LOG_FILE = "sync.log"
 
 sync_state = {
     "running": False,
@@ -465,7 +466,6 @@ def export_orarend_pdf():
             k_time = kezdo.split("T")[1][:5] if "T" in kezdo and len(kezdo) >= 16 else ""
             z_time = zaro.split("T")[1][:5] if "T" in zaro and len(zaro) >= 16 else ""
 
-            # Szigorú egész napos detektálás
             is_all_day = not k_time or "T" not in kezdo
 
             if is_all_day:
@@ -488,7 +488,6 @@ def export_orarend_pdf():
                     "terem": r["terem"] or ""
                 })
 
-        # Csak a pontos tanórai idősávokat rendezzük időrendbe
         sorted_k_times = sorted(list(time_slots_dict.keys()))
 
         schedule_map = {time_slots_dict[kt]: {d: None for d in days} for kt in sorted_k_times}
@@ -499,7 +498,6 @@ def export_orarend_pdf():
             if slot in schedule_map:
                 schedule_map[slot][d_key] = item
 
-        # TÁBLÁZAT ÉPÍTÉSE
         table_data = []
         header_row = [Paragraph("<b>Óra / Idő</b>", cell_header_style)] + [Paragraph(f"<b>{dh}</b>", cell_header_style) for dh in day_headers]
         table_data.append(header_row)
@@ -516,7 +514,6 @@ def export_orarend_pdf():
 
         current_row_idx = 1
 
-        # 1. HA VAN EGÉSZ NAPOS ESEMÉNY -> KÜLÖN SOR A TÁBLÁZAT TETEJÉN (SZÁMOZÁS NÉLKÜL)
         if has_all_day_event:
             row = [Paragraph("<b>Egész napos</b><br/><font size=6.5 color='#666666'>esemény / szünet</font>", cell_time_style)]
             for d_col_idx, d_key in enumerate(days, start=1):
@@ -534,7 +531,6 @@ def export_orarend_pdf():
             table_data.append(row)
             current_row_idx += 1
 
-        # 2. VALÓDI TANÓRÁK SZÁMOZÁSA (1. ÓRA = 07:40 - 08:25)
         for lesson_num, kt in enumerate(sorted_k_times, start=1):
             slot_name = time_slots_dict[kt]
             row = []
@@ -934,6 +930,32 @@ def api_sync_status():
             "status": sync_state["status"],
             "logs": sync_state["logs"]
         })
+
+# ==============================================================================
+# === SYNC.LOG KEZELŐ API VÉGPONTOK ===
+# ==============================================================================
+@app.route("/api/logs")
+def api_get_logs():
+    """Visszaadja a sync.log fájl tartalmát."""
+    if not os.path.exists(LOG_FILE):
+        return jsonify({"status": "ok", "content": "A sync.log fájl még nem létezik."})
+    
+    try:
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            content = f.read()
+        return jsonify({"status": "ok", "content": content if content else "A sync.log fájl üres."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/logs/clear", methods=["POST"])
+def api_clear_logs():
+    """Kiüríti a sync.log fájlt."""
+    try:
+        with open(LOG_FILE, "w", encoding="utf-8") as f:
+            f.write("")
+        return jsonify({"status": "ok", "message": "A sync.log sikeresen kiürítve."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/static/csatolmanyok/<path:filename>")
 def download_csatolmany(filename):

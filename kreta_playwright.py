@@ -3,16 +3,34 @@ import json
 import sqlite3
 import os
 import re
+import sys
+import logging
 from datetime import datetime, timedelta
 from playwright.async_api import async_playwright
 
-# --- KONFIGURÁCIÓ BEOLVASÁSA ---
+# --- KONFIGURÁCIÓ ÉS LOGGING BEÁLLÍTÁSA ---
 CONFIG_FILE = "config.json"
 DB_FILE = "kreta_adatok.db"
 CSATOLMANYOK_DIR = os.path.join("static", "csatolmanyok")
+LOG_FILE = "sync.log"
+
+# Standard Python Logging konfiguráció: egyszerre fájlba (sync.log) és stdout-ra (konzol/Flask)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding="utf-8", mode="a"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+def log(message=""):
+    """Segédfüggvény a sima print helyett, ami formázva ír a logfájlba és a konzolra is."""
+    logging.info(message)
 
 if not os.path.exists(CONFIG_FILE):
-    print(f"HIBA: A {CONFIG_FILE} fájl nem található!")
+    log(f"HIBA: A {CONFIG_FILE} fájl nem található!")
     exit(1)
 
 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -23,7 +41,7 @@ STUDENTS = config.get("STUDENTS", [])
 GLOBAL_SCRAPE_MESSAGES = config.get("SCRAPE_MESSAGES", True)
 
 if not STUDENTS:
-    print("HIBA: A config.json nem tartalmaz 'STUDENTS' listát!")
+    log("HIBA: A config.json nem tartalmaz 'STUDENTS' listát!")
     exit(1)
 
 def init_db():
@@ -109,9 +127,9 @@ def init_db():
         if col_name not in existing_columns:
             try:
                 cursor.execute(f"ALTER TABLE uzenetek ADD COLUMN {col_name} {col_type}")
-                print(f"  [Adatbázis séma frissítve]: '{col_name}' oszlop hozzáadva az 'uzenetek' táblához.")
+                log(f"  [Adatbázis séma frissítve]: '{col_name}' oszlop hozzáadva az 'uzenetek' táblához.")
             except Exception as ex:
-                print(f"  [Sémafrissítési figyelmeztetés ({col_name})]: {ex}")
+                log(f"  [Sémafrissítési figyelmeztetés ({col_name})]: {ex}")
 
     conn.commit()
     conn.close()
@@ -131,7 +149,7 @@ def get_existing_hazi_keys(diak_nev):
             key = f"{r[0]}|{r[1]}|{r[2]}"
             existing.add(key)
     except Exception as ex:
-        print(f"  [DB lekérdezési hiba - meglévő házik]: {ex}")
+        log(f"  [DB lekérdezési hiba - meglévő házik]: {ex}")
     finally:
         conn.close()
     return existing
@@ -151,7 +169,7 @@ def get_existing_szamonkeres_keys(diak_nev):
             key = f"{r[0]}|{r[1]}|{r[2]}"
             existing.add(key)
     except Exception as ex:
-        print(f"  [DB lekérdezési hiba - meglévő számonkérések]: {ex}")
+        log(f"  [DB lekérdezési hiba - meglévő számonkérések]: {ex}")
     finally:
         conn.close()
     return existing
@@ -256,7 +274,7 @@ def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="
         ''', (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal))
         conn.commit()
     except Exception as ex:
-        print(f"      [Hiba az üzenet mentésekor]: {ex}")
+        log(f"      [Hiba az üzenet mentésekor]: {ex}")
     finally:
         conn.close()
 
@@ -322,7 +340,7 @@ def save_orarend_to_db(diak_nev, orarend_lista):
 
 async def scrape_orarend(page, diak_nev, institute_code):
     """Lekéri az aktuális ÉS a következő hét órarendjét a bal felső nyilakkal történő elnavigálással."""
-    print("\n[ÓRAREND] Navigáció az Órarend oldalra és adatlekérés...")
+    log("\n[ÓRAREND] Navigáció az Órarend oldalra és adatlekérés...")
     try:
         await page.goto(f"https://{institute_code}.e-kreta.hu/Orarend/InformaciokOrarend")
         await page.wait_for_load_state("networkidle")
@@ -356,11 +374,11 @@ async def scrape_orarend(page, diak_nev, institute_code):
                 }
             }'''
 
-        print("  -> 1/2. Aktuális hét órarendjének beolvasása...")
+        log("  -> 1/2. Aktuális hét órarendjének beolvasása...")
         aktuális_heti_orák = await page.evaluate(parse_events_js())
-        print(f"     Siker! Aktuális hétről beolvasva {len(aktuális_heti_orák)} db elem.")
+        log(f"     Siker! Aktuális hétről beolvasva {len(aktuális_heti_orák)} db elem.")
 
-        print("  -> 2/2. Navigáció a következő hétre (következő nyíl gomb)...")
+        log("  -> 2/2. Navigáció a következő hétre (következő nyíl gomb)...")
         next_btn = await page.query_selector('.fc-next-button, #Calendar .fc-button-next, button:has(.fc-icon-right-single-arrow), .fc-header-left .fc-button:has-text(">")')
         
         if not next_btn:
@@ -379,22 +397,22 @@ async def scrape_orarend(page, diak_nev, institute_code):
         await asyncio.sleep(2)
 
         következő_heti_orák = await page.evaluate(parse_events_js())
-        print(f"     Siker! Következő hétről beolvasva {len(következő_heti_orák)} db elem.")
+        log(f"     Siker! Következő hétről beolvasva {len(következő_heti_orák)} db elem.")
 
         osszes_ora = aktuális_heti_orák + következő_heti_orák
         
         if len(osszes_ora) > 0:
             save_orarend_to_db(diak_nev, osszes_ora)
-            print(f"  [ÓRAREND OK] Összesen {len(osszes_ora)} db tanóra és bejegyzés elmentve az adatbázisba.")
+            log(f"  [ÓRAREND OK] Összesen {len(osszes_ora)} db tanóra és bejegyzés elmentve az adatbázisba.")
         else:
-            print("  [Figyelmeztetés]: Egyik hétről sem sikerült adatot kinyerni.")
+            log("  [Figyelmeztetés]: Egyik hétről sem sikerült adatot kinyerni.")
 
     except Exception as ex:
-        print(f"  [Órarend lekérési hiba]: {ex}")
+        log(f"  [Órarend lekérési hiba]: {ex}")
 
 async def scrape_uzenetek(page, diak_nev):
     """Be- és letölti az e-Ügyintézés felületről az új üzeneteket és csatolmányokat."""
-    print("\n6. Navigáció az e-Ügyintézés (Üzenetek) oldalra...")
+    log("\n6. Navigáció az e-Ügyintézés (Üzenetek) oldalra...")
     
     try:
         eugy_page = page
@@ -406,7 +424,7 @@ async def scrape_uzenetek(page, diak_nev):
                 await eugy_link.click()
             eugy_page = await new_page_info.value
             await eugy_page.wait_for_load_state("networkidle")
-            print("  -> e-Ügyintézés megnyitva új fülön!")
+            log("  -> e-Ügyintézés megnyitva új fülön!")
         else:
             await page.goto("https://eugyintezes.e-kreta.hu/uzenetek")
             await page.wait_for_load_state("networkidle")
@@ -421,7 +439,7 @@ async def scrape_uzenetek(page, diak_nev):
         await asyncio.sleep(2)
 
         rows = await eugy_page.query_selector_all('table tbody tr')
-        print(f"  -> {len(rows)} db beérkezett üzenet található a listában.")
+        log(f"  -> {len(rows)} db beérkezett üzenet található a listában.")
 
         uj_cnt = 0
         
@@ -441,7 +459,7 @@ async def scrape_uzenetek(page, diak_nev):
                 if is_uzenet_saved(diak_nev, felado, targy, idopont):
                     continue
 
-                print(f"    [ÚJ ÜZENET]: {felado} | {targy} ({idopont})")
+                log(f"    [ÚJ ÜZENET]: {felado} | {targy} ({idopont})")
                 
                 await row.click()
                 await eugy_page.wait_for_load_state("networkidle")
@@ -485,9 +503,9 @@ async def scrape_uzenetek(page, diak_nev):
                         
                         csatolmany_nev = download.suggested_filename
                         csatolmany_utvonal = save_path.replace("\\", "/")
-                        print(f"      -> Csatolmány letöltve: {csatolmany_nev}")
+                        log(f"      -> Csatolmány letöltve: {csatolmany_nev}")
                     except Exception as ex_dl:
-                        print(f"      [Csatolmány letöltési hiba]: {ex_dl}")
+                        log(f"      [Csatolmány letöltési hiba]: {ex_dl}")
 
                 save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal)
                 uj_cnt += 1
@@ -502,13 +520,13 @@ async def scrape_uzenetek(page, diak_nev):
                     await eugy_page.wait_for_load_state("networkidle")
                     await asyncio.sleep(2)
 
-        print(f"Siker! {uj_cnt} db új üzenet lett elmentve az adatbázisba.")
+        log(f"Siker! {uj_cnt} db új üzenet lett elmentve az adatbázisba.")
 
         if eugy_page != page:
             await eugy_page.close()
 
     except Exception as ex:
-        print(f"Figyelmeztetés az üzenetek lekérésekor: {ex}")
+        log(f"Figyelmeztetés az üzenetek lekérésekor: {ex}")
 
 async def process_student(page, student):
     diak_nev = student.get("diak_nev", "Ismeretlen")
@@ -518,9 +536,9 @@ async def process_student(page, student):
 
     student_scrape_messages = student.get("scrape_messages", GLOBAL_SCRAPE_MESSAGES)
 
-    print("\n" + "=" * 70)
-    print(f"  FELDOLGOZÁS: {diak_nev.upper()} (Iskola: {institute_code})")
-    print("=" * 70)
+    log("\n" + "=" * 70)
+    log(f"  FELDOLGOZÁS: {diak_nev.upper()} (Iskola: {institute_code})")
+    log("=" * 70)
 
     # Korábban elkészült házi feladatok és a DB-ben meglévő házi / számonkérés kulcsok kimentése
     completed_hazi = get_completed_hazi_map(diak_nev)
@@ -529,7 +547,7 @@ async def process_student(page, student):
 
     # --- 1. BELÉPÉS ---
     login_url = f"https://{institute_code}.e-kreta.hu"
-    print(f"1. Kapcsolódás: {login_url} ...")
+    log(f"1. Kapcsolódás: {login_url} ...")
     await page.goto(login_url)
 
     try:
@@ -538,7 +556,7 @@ async def process_student(page, student):
             timeout=3000
         )
         if cookie_btn:
-            print("  -> Süti tájékoztató elfogadása...")
+            log("  -> Süti tájékoztató elfogadása...")
             await cookie_btn.click()
             await page.wait_for_load_state("networkidle")
             await asyncio.sleep(1)
@@ -552,13 +570,13 @@ async def process_student(page, student):
 
     await page.wait_for_url(lambda url: "login" not in url.lower(), timeout=30000)
     await page.wait_for_load_state("networkidle")
-    print("Sikeres belépés!")
+    log("Sikeres belépés!")
 
     # --- ÓRAREND KINYERÉSE ---
     await scrape_orarend(page, diak_nev, institute_code)
 
     # --- 2. OSZTÁLYZATOK KINYERÉSE ---
-    print("\n2. Navigáció az 'Osztályzatok' oldalra...")
+    log("\n2. Navigáció az 'Osztályzatok' oldalra...")
     await page.goto(f"https://{institute_code}.e-kreta.hu/TanuloErtekeles/Osztalyzatok")
     await page.wait_for_load_state("networkidle")
     await page.wait_for_selector('tr.k-master-row, tbody tr:not(.k-no-data)', timeout=15000)
@@ -630,10 +648,10 @@ async def process_student(page, student):
     }
     """
     jegyek = await page.evaluate(js_ertekeles_extractor)
-    print(f"Siker! Beolvasva {len(jegyek)} db osztályzat.")
+    log(f"Siker! Beolvasva {len(jegyek)} db osztályzat.")
 
     # --- 3. FELJEGYZÉSEK KINYERÉSE ---
-    print("\n3. Navigáció a 'Feljegyzések' oldalra...")
+    log("\n3. Navigáció a 'Feljegyzések' oldalra...")
     await page.goto(f"https://{institute_code}.e-kreta.hu/TanuloErtekeles/InformaciokFeljegyzesek")
     await page.wait_for_load_state("networkidle")
     await page.wait_for_selector('#InformaciokFeljegyzesekGrid tbody tr', timeout=15000)
@@ -675,10 +693,10 @@ async def process_student(page, student):
     }
     """
     feljegyzesek = await page.evaluate(js_feljegyzes_extractor)
-    print(f"Siker! Beolvasva {len(feljegyzesek)} db feljegyzés.")
+    log(f"Siker! Beolvasva {len(feljegyzesek)} db feljegyzés.")
 
     # --- 4. HÁZI FELADATOK KINYERÉSE (INKREMENTÁLIS MEGOLDÁSSAL) ---
-    print("\n4. Navigáció a 'Házi feladatok' oldalra...")
+    log("\n4. Navigáció a 'Házi feladatok' oldalra...")
     await page.goto(f"https://{institute_code}.e-kreta.hu/Tanulo/TanuloHaziFeladat")
     await page.wait_for_load_state("networkidle")
     await page.wait_for_selector('#searchForm', timeout=15000)
@@ -746,7 +764,7 @@ async def process_student(page, student):
         szoveg = hf['tartalom'].strip()
 
         if szoveg.endswith("...") or szoveg.endswith("…"):
-            print(f"  -> Új csonkított leírás detektálva ({hf['tantargy']}). Teljes szöveg kinyerése megnyitással...")
+            log(f"  -> Új csonkított leírás detektálva ({hf['tantargy']}). Teljes szöveg kinyerése megnyitással...")
             try:
                 await page.evaluate('''(idx) => {
                     let grid = $('#TanulotHaziFeladatkGrid').data("kendoGrid");
@@ -796,9 +814,9 @@ async def process_student(page, student):
 
                 if teljes_szoveg:
                     hf['tartalom'] = teljes_szoveg
-                    print(f"    [Sikeres kinyerés]: {teljes_szoveg[:60]}...")
+                    log(f"    [Sikeres kinyerés]: {teljes_szoveg[:60]}...")
                 else:
-                    print(f"    [Figyelmeztetés]: Az ablak megnyílt, de a leírás üres maradt.")
+                    log(f"    [Figyelmeztetés]: Az ablak megnyílt, de a leírás üres maradt.")
 
                 await page.evaluate('''() => {
                     if (typeof InformaciokOrarend !== 'undefined' && InformaciokOrarend.detailOraInfoCancel) {
@@ -811,19 +829,19 @@ async def process_student(page, student):
                 await page.wait_for_selector('#detailOraAdatokWindow', state='hidden', timeout=3000)
 
             except Exception as ex_hf:
-                print(f"    [Figyelmeztetés]: Hiba a szöveg kinyerésekor: {ex_hf}")
+                log(f"    [Figyelmeztetés]: Hiba a szöveg kinyerésekor: {ex_hf}")
 
     for hf in hazifeladatok:
         hf.pop('grid_index', None)
         hf.pop('eventId', None)
 
     if uj_hf_cnt > 0:
-        print(f"Siker! Beolvasva {len(hazifeladatok)} db házi feladat a gridből ({uj_hf_cnt} db ÚJ házi feladat felvéve).")
+        log(f"Siker! Beolvasva {len(hazifeladatok)} db házi feladat a gridből ({uj_hf_cnt} db ÚJ házi feladat felvéve).")
     else:
-        print(f"Siker! Beolvasva {len(hazifeladatok)} db házi feladat a gridből (Nem volt új házi feladat).")
+        log(f"Siker! Beolvasva {len(hazifeladatok)} db házi feladat a gridből (Nem volt új házi feladat).")
 
     # --- 5. BEJELENTETT SZÁMONKÉRÉSEK KINYERÉSE (INKREMENTÁLIS MEGOLDÁSSAL) ---
-    print("\n5. Navigáció a 'Bejelentett számonkérés' oldalra...")
+    log("\n5. Navigáció a 'Bejelentett számonkérés' oldalra...")
     await page.goto(f"https://{institute_code}.e-kreta.hu/Tanulo/TanuloBejelentettSzamonkeresek")
     await page.wait_for_load_state("networkidle")
     await page.wait_for_selector('#searchForm, .k-grid', timeout=15000)
@@ -884,12 +902,12 @@ async def process_student(page, student):
         szk_key = f"{szk['tantargy']}|{szk['bej_datum']}|{szk['hatarido']}"
         if szk_key not in existing_szamonkeres_keys:
             uj_szk_cnt += 1
-            print(f"    [ÚJ SZÁMONKÉRÉS]: {szk['tantargy']} | Határidő: {szk['hatarido']} (Bejelentve: {szk['bej_datum']}) - Téma: {szk['tema'] or '-'}")
+            log(f"    [ÚJ SZÁMONKÉRÉS]: {szk['tantargy']} | Határidő: {szk['hatarido']} (Bejelentve: {szk['bej_datum']}) - Téma: {szk['tema'] or '-'}")
 
     if uj_szk_cnt > 0:
-        print(f"Siker! Beolvasva {len(szamonkeresek)} db bejelentett számonkérés ({uj_szk_cnt} db ÚJ számonkérés felvéve).")
+        log(f"Siker! Beolvasva {len(szamonkeresek)} db bejelentett számonkérés ({uj_szk_cnt} db ÚJ számonkérés felvéve).")
     else:
-        print(f"Siker! Beolvasva {len(szamonkeresek)} db bejelentett számonkérés (Nem volt új számonkérés).")
+        log(f"Siker! Beolvasva {len(szamonkeresek)} db bejelentett számonkérés (Nem volt új számonkérés).")
 
     # Mentés az adatbázisba
     clear_student_data(diak_nev)
@@ -897,32 +915,35 @@ async def process_student(page, student):
 
     if len(osszes_esemeny) > 0:
         save_esemenyek_to_db(diak_nev, osszes_esemeny, completed_hazi)
-        print(f"\n{diak_nev} adataiból {len(osszes_esemeny)} db esemény sikeresen elmentve!")
+        log(f"\n{diak_nev} adataiból {len(osszes_esemeny)} db esemény sikeresen elmentve!")
     else:
-        print(f"Figyelem: {diak_nev} fiókjából nem sikerült eseményadatot kinyerni.")
+        log(f"Figyelem: {diak_nev} fiókjából nem sikerült eseményadatot kinyerni.")
 
     # --- 6. E-ÜGYINTÉZÉS ÜZENETEK KINYERÉSE ---
     if student_scrape_messages:
         await scrape_uzenetek(page, diak_nev)
     else:
-        print(f"\n6. Üzenetek lekérése KI VAN KAPCSOLVA ennél a diáknál ({diak_nev}).")
+        log(f"\n6. Üzenetek lekérése KI VAN KAPCSOLVA ennél a diáknál ({diak_nev}).")
 
     # --- 7. KIJELENTKEZÉS A FIÓKBÓL ---
-    print(f"\nKijelentkezés ({diak_nev})...")
+    log(f"\nKijelentkezés ({diak_nev})...")
     try:
         await page.goto(f"https://{institute_code}.e-kreta.hu/Home/LogOut")
         await page.wait_for_load_state("networkidle")
-        print("Sikeres kijelentkezés!")
+        log("Sikeres kijelentkezés!")
     except Exception as e:
-        print(f"Kijelentkezési figyelmeztetés: {e}")
+        log(f"Kijelentkezési figyelmeztetés: {e}")
 
 async def main():
+    log("=" * 70)
+    log(f"SZINKRONIZÁCIÓ INDÍTÁSA - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    log("=" * 70)
     init_db()
     
     active_students = [s for s in STUDENTS if s.get("active", True)]
-    print(f"Készülődés {len(active_students)} diák adatainak lekérésére...")
-    print(f"Böngésző üzemmód: {'Háttérben (Headless)' if HEADLESS_MODE else 'Látható (Headed)'}")
-    print(f"Globális üzenet-szinkronizálás: {'BE' if GLOBAL_SCRAPE_MESSAGES else 'KI'}")
+    log(f"Készülődés {len(active_students)} diák adatainak lekérésére...")
+    log(f"Böngésző üzemmód: {'Háttérben (Headless)' if HEADLESS_MODE else 'Látható (Headed)'}")
+    log(f"Globális üzenet-szinkronizálás: {'BE' if GLOBAL_SCRAPE_MESSAGES else 'KI'}")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=HEADLESS_MODE)
@@ -934,11 +955,11 @@ async def main():
                 await process_student(page, student)
                 await asyncio.sleep(2)
             except Exception as err:
-                print(f"\nHIBA történt {student.get('diak_nev')} feldolgozása során: {err}")
+                log(f"\nHIBA történt {student.get('diak_nev')} feldolgozása során: {err}")
 
-        print("\n" + "=" * 70)
-        print("MINDEN DIÁK FELDOLGOZÁSA BEFEJEZŐDÖTT!")
-        print("=" * 70)
+        log("\n" + "=" * 70)
+        log("MINDEN DIÁK FELDOLGOZÁSA BEFEJEZŐDÖTT!")
+        log("=" * 70)
         
         await asyncio.sleep(2)
         await browser.close()
