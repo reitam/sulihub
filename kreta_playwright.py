@@ -136,6 +136,26 @@ def get_existing_hazi_keys(diak_nev):
         conn.close()
     return existing
 
+def get_existing_szamonkeres_keys(diak_nev):
+    """Kinyeri a DB-ben már meglévő bejelentett számonkérések azonosítóit (Tantárgy | Bejelentés dátuma | Határidő)."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    existing = set()
+    try:
+        cursor.execute('''
+            SELECT tantargy, bej_datum, hatarido 
+            FROM esemenyek 
+            WHERE diak_nev = ? AND esemeny_tipus = 'Bejelentett számonkérés'
+        ''', (diak_nev,))
+        for r in cursor.fetchall():
+            key = f"{r[0]}|{r[1]}|{r[2]}"
+            existing.add(key)
+    except Exception as ex:
+        print(f"  [DB lekérdezési hiba - meglévő számonkérések]: {ex}")
+    finally:
+        conn.close()
+    return existing
+
 def get_completed_hazi_map(diak_nev):
     """Kinyeri az adott diák már megjelölt (kesz=1) házi feladatainak azonosítóit, hogy frissítés után is megmaradjanak."""
     conn = sqlite3.connect(DB_FILE)
@@ -157,19 +177,20 @@ def get_completed_hazi_map(diak_nev):
     return completed
 
 def clear_student_data(diak_nev):
-    """Törli az adott diák nem-házi eseményeit az adatbázisból (a Házi feladatokat és Üzeneteket megőrizzük!)."""
+    """Törli az adott diák változó eseményeit (Értékelések, Feljegyzések) az adatbázisból (a Házi feladatokat, Számonkéréseket és Üzeneteket megőrizzük!)."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus != 'Házi feladat'", (diak_nev,))
+    cursor.execute("DELETE FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus NOT IN ('Házi feladat', 'Bejelentett számonkérés')", (diak_nev,))
     conn.commit()
     conn.close()
 
 def save_esemenyek_to_db(diak_nev, esemenyek, completed_set):
-    """Menti az adott diák kinyert eseményeit az adatbázisba megőrizve a korábbi 'kesz' státuszt és elkerülve a házi duplikációt."""
+    """Menti az adott diák kinyert eseményeit az adatbázisba megőrizve a korábbi 'kesz' státuszt és elkerülve a duplikációkat."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
     existing_hazi = get_existing_hazi_keys(diak_nev)
+    existing_szamonkeres = get_existing_szamonkeres_keys(diak_nev)
 
     for e in esemenyek:
         es_tipus = e.get('esemeny_tipus', '')
@@ -177,13 +198,15 @@ def save_esemenyek_to_db(diak_nev, esemenyek, completed_set):
         
         if es_tipus == 'Házi feladat':
             key = f"{e.get('tantargy', '')}|{e.get('bej_datum', '')}|{e.get('hatarido', '')}"
-            
-            # Ha a házi feladat már el volt mentve korábban, kihagyjuk a duplázást
             if key in existing_hazi:
                 continue
-
             if key in completed_set:
                 kesz_val = 1
+
+        elif es_tipus == 'Bejelentett számonkérés':
+            key = f"{e.get('tantargy', '')}|{e.get('bej_datum', '')}|{e.get('hatarido', '')}"
+            if key in existing_szamonkeres:
+                continue
 
         cursor.execute('''
             INSERT INTO esemenyek 
@@ -499,9 +522,10 @@ async def process_student(page, student):
     print(f"  FELDOLGOZÁS: {diak_nev.upper()} (Iskola: {institute_code})")
     print("=" * 70)
 
-    # Korábban elkészült házi feladatok és a DB-ben meglévő házi kulcsok kimentése
+    # Korábban elkészült házi feladatok és a DB-ben meglévő házi / számonkérés kulcsok kimentése
     completed_hazi = get_completed_hazi_map(diak_nev)
     existing_hazi_keys = get_existing_hazi_keys(diak_nev)
+    existing_szamonkeres_keys = get_existing_szamonkeres_keys(diak_nev)
 
     # --- 1. BELÉPÉS ---
     login_url = f"https://{institute_code}.e-kreta.hu"
@@ -798,8 +822,8 @@ async def process_student(page, student):
     else:
         print(f"Siker! Beolvasva {len(hazifeladatok)} db házi feladat a gridből (Nem volt új házi feladat).")
 
-    # --- 5. BEJELENTETT SZÁMONKÉRÉSEK KINYERÉSE ---
-    print("\n5. Navigáció a 'Bejelentett számonkérések' oldalra...")
+    # --- 5. BEJELENTETT SZÁMONKÉRÉSEK KINYERÉSE (INKREMENTÁLIS MEGOLDÁSSAL) ---
+    print("\n5. Navigáció a 'Bejelentett számonkérés' oldalra...")
     await page.goto(f"https://{institute_code}.e-kreta.hu/Tanulo/TanuloBejelentettSzamonkeresek")
     await page.wait_for_load_state("networkidle")
     await page.wait_for_selector('#searchForm, .k-grid', timeout=15000)
@@ -854,7 +878,18 @@ async def process_student(page, student):
     }
     """
     szamonkeresek = await page.evaluate(js_szamonkeres_extractor)
-    print(f"Siker! Beolvasva {len(szamonkeresek)} db bejelentett számonkérés.")
+
+    uj_szk_cnt = 0
+    for szk in szamonkeresek:
+        szk_key = f"{szk['tantargy']}|{szk['bej_datum']}|{szk['hatarido']}"
+        if szk_key not in existing_szamonkeres_keys:
+            uj_szk_cnt += 1
+            print(f"    [ÚJ SZÁMONKÉRÉS]: {szk['tantargy']} | Határidő: {szk['hatarido']} (Bejelentve: {szk['bej_datum']}) - Téma: {szk['tema'] or '-'}")
+
+    if uj_szk_cnt > 0:
+        print(f"Siker! Beolvasva {len(szamonkeresek)} db bejelentett számonkérés ({uj_szk_cnt} db ÚJ számonkérés felvéve).")
+    else:
+        print(f"Siker! Beolvasva {len(szamonkeresek)} db bejelentett számonkérés (Nem volt új számonkérés).")
 
     # Mentés az adatbázisba
     clear_student_data(diak_nev)
