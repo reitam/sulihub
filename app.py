@@ -1,11 +1,19 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, make_response
 import sqlite3
 import os
 import subprocess
 import json
 import threading
 import re
-from datetime import datetime
+import io
+from datetime import datetime, timedelta
+
+# ReportLab importok a PDF generáláshoz
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, PageBreak, KeepTogether
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
 
 app = Flask(__name__)
 DB_FILE = "kreta_adatok.db"
@@ -26,46 +34,49 @@ def get_db_connection():
 
 def init_db_extensions():
     if os.path.exists(DB_FILE):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Kifizetések tábla
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS kifizetesek (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                diak_nev TEXT NOT NULL,
-                kezdo_datum TEXT NOT NULL,
-                zaro_datum TEXT NOT NULL,
-                kifizetve INTEGER DEFAULT 0,
-                osszeg INTEGER DEFAULT 0,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(diak_nev, kezdo_datum, zaro_datum)
-            )
-        """)
-        
-        # Órarend tábla
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS orarend (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                diak_nev TEXT,
-                kezdo_idopont TEXT,
-                zaro_idopont TEXT,
-                nap TEXT,
-                tantargy TEXT,
-                tanar TEXT,
-                terem TEXT
-            )
-        """)
-        
-        # Ellenőrizzük, hogy az esemenyek táblában létezik-e a 'kesz' oszlop
-        cursor.execute("PRAGMA table_info(esemenyek)")
-        columns = [row["name"] for row in cursor.fetchall()]
-        if "kesz" not in columns:
-            cursor.execute("ALTER TABLE esemenyek ADD COLUMN kesz INTEGER DEFAULT 0")
-            print("[Adatbázis séma frissítve]: 'kesz' oszlop hozzáadva az 'esemenyek' táblához.")
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
             
-        conn.commit()
-        conn.close()
+            # Kifizetések tábla
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS kifizetesek (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    diak_nev TEXT NOT NULL,
+                    kezdo_datum TEXT NOT NULL,
+                    zaro_datum TEXT NOT NULL,
+                    kifizetve INTEGER DEFAULT 0,
+                    osszeg INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(diak_nev, kezdo_datum, zaro_datum)
+                )
+            """)
+            
+            # Órarend tábla
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS orarend (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    diak_nev TEXT,
+                    kezdo_idopont TEXT,
+                    zaro_idopont TEXT,
+                    nap TEXT,
+                    tantargy TEXT,
+                    tanar TEXT,
+                    terem TEXT
+                )
+            """)
+            
+            # Ellenőrizzük, hogy az esemenyek táblában létezik-e a 'kesz' oszlop
+            cursor.execute("PRAGMA table_info(esemenyek)")
+            columns = [row["name"] for row in cursor.fetchall()]
+            if "kesz" not in columns:
+                cursor.execute("ALTER TABLE esemenyek ADD COLUMN kesz INTEGER DEFAULT 0")
+                print("[Adatbázis séma frissítve]: 'kesz' oszlop hozzáadva az 'esemenyek' táblához.")
+                
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"[Adatbázis inicializálási figyelmeztetés]: {e}")
 
 init_db_extensions()
 
@@ -243,18 +254,16 @@ def api_orarend_naptar():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Lekérjük az összes egyedi diáknevet, hogy konzisztens színt rendelhessünk hozzájuk
     cursor.execute("SELECT DISTINCT diak_nev FROM orarend ORDER BY diak_nev")
     osszes_diak = [r["diak_nev"] for r in cursor.fetchall() if r["diak_nev"]]
 
-    # Kellemes, jól megkülönböztethető színpaletta gyermekekhez
     color_palette = [
-        {"bg": "#0d6efd", "border": "#0a58ca"}, # Kék
-        {"bg": "#198754", "border": "#146c43"}, # Zöld
-        {"bg": "#6f42c1", "border": "#59359a"}, # Lila
-        {"bg": "#d63384", "border": "#ab296a"}, # Rózsaszín/Bíbor
-        {"bg": "#20c997", "border": "#1aa179"}, # Türkiz
-        {"bg": "#fd7e14", "border": "#ca6510"}  # Narancs
+        {"bg": "#0d6efd", "border": "#0a58ca"},
+        {"bg": "#198754", "border": "#146c43"},
+        {"bg": "#6f42c1", "border": "#59359a"},
+        {"bg": "#d63384", "border": "#ab296a"},
+        {"bg": "#20c997", "border": "#1aa179"},
+        {"bg": "#fd7e14", "border": "#ca6510"}
     ]
 
     diak_color_map = {}
@@ -273,7 +282,7 @@ def api_orarend_naptar():
     rows = cursor.fetchall()
     conn.close()
 
-    multi_student = not diak  # Ha nincs szűrő, több diák is megjelenhet egy nézetben
+    multi_student = not diak
 
     events = []
     for r in rows:
@@ -286,7 +295,6 @@ def api_orarend_naptar():
 
         is_all_day = not zaro or "T" not in kezdo
 
-        # Diákhoz tartozó szín lekérése
         student_colors = diak_color_map.get(d_nev, {"bg": "#0d6efd", "border": "#0a58ca"})
 
         if is_all_day:
@@ -318,6 +326,267 @@ def api_orarend_naptar():
         })
 
     return jsonify(events)
+
+@app.route("/api/orarend/export_pdf")
+def export_orarend_pdf():
+    """Órarend PDF generálása teljesen elkülönített 'Egész napos' sor kezelésével."""
+    if not os.path.exists(DB_FILE):
+        return "Adatbázis nem található!", 404
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    diak = request.args.get("diak", "").strip()
+
+    mai_nap = datetime.now()
+    hetfo = mai_nap - timedelta(days=mai_nap.weekday())
+    hetfo_str = hetfo.strftime("%Y-%m-%d")
+    vasarnap_str = (hetfo + timedelta(days=6)).strftime("%Y-%m-%d")
+
+    if diak:
+        diakok = [diak]
+    else:
+        cursor.execute("SELECT DISTINCT diak_nev FROM orarend WHERE diak_nev IS NOT NULL AND diak_nev != '' ORDER BY diak_nev")
+        diakok = [r["diak_nev"] for r in cursor.fetchall()]
+
+    if not diakok:
+        conn.close()
+        return "Nincs elérhető órarendi adat!", 404
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        rightMargin=1.2*cm,
+        leftMargin=1.2*cm,
+        topMargin=1.0*cm,
+        bottomMargin=1.0*cm
+    )
+
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'HeaderTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        leading=22,
+        textColor=colors.HexColor('#0d6efd'),
+        alignment=0,
+        spaceAfter=2
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'HeaderSubtitle',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#6c757d'),
+        alignment=0,
+        spaceAfter=8
+    )
+
+    cell_time_style = ParagraphStyle(
+        'CellTime',
+        fontSize=8,
+        leading=10,
+        alignment=1,
+        textColor=colors.HexColor('#333333')
+    )
+
+    cell_header_style = ParagraphStyle(
+        'CellHeader',
+        fontSize=10,
+        leading=12,
+        alignment=1,
+        textColor=colors.white,
+        fontName='Helvetica-Bold'
+    )
+
+    story = []
+
+    days = ["hetfo", "kedd", "szerda", "csutortok", "pentek"]
+    day_headers = ["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek"]
+
+    def get_subject_bg(tantargy_name):
+        if not tantargy_name:
+            return colors.HexColor('#f8f9fa')
+        t = tantargy_name.lower()
+        if any(x in t for x in ["szünet", "tanítási szünet", "ünnepnap", "rendkívüli"]):
+            return colors.HexColor('#fff3cd')
+        if any(x in t for x in ["matematika", "fizika", "kémia", "biológia", "informatika", "digitális"]):
+            return colors.HexColor('#e7f1ff')
+        if any(x in t for x in ["magyar", "irodalom", "nyelvtan", "történelem", "angol", "német"]):
+            return colors.HexColor('#f0fff4')
+        if any(x in t for x in ["testnevelés", "tesi"]):
+            return colors.HexColor('#e8f5e9')
+        if any(x in t for x in ["ének", "rajz", "vizuális", "technika", "dráma"]):
+            return colors.HexColor('#f3e8ff')
+        return colors.HexColor('#f8f9fa')
+
+    for idx, d_nev in enumerate(diakok):
+        if idx > 0:
+            story.append(PageBreak())
+
+        cursor.execute("""
+            SELECT * FROM orarend 
+            WHERE diak_nev = ? 
+              AND (kezdo_idopont >= ? AND kezdo_idopont <= ? OR kezdo_idopont IS NULL OR kezdo_idopont = '')
+            ORDER BY kezdo_idopont ASC
+        """, (d_nev, hetfo_str, vasarnap_str + "T23:59:59"))
+        rows = cursor.fetchall()
+
+        all_day_map = {d: None for d in days}
+        time_slots_dict = {}
+        parsed_lessons = []
+        has_all_day_event = False
+
+        for r in rows:
+            kezdo = r["kezdo_idopont"] or ""
+            zaro = r["zaro_idopont"] or ""
+            nap_raw = (r["nap"] or "").lower()
+
+            day_key = None
+            if "hétfő" in nap_raw or "hetfo" in nap_raw: day_key = "hetfo"
+            elif "kedd" in nap_raw: day_key = "kedd"
+            elif "szerda" in nap_raw: day_key = "szerda"
+            elif "csütörtök" in nap_raw or "csutortok" in nap_raw: day_key = "csutortok"
+            elif "péntek" in nap_raw or "pentek" in nap_raw: day_key = "pentek"
+            
+            if not day_key and len(kezdo) >= 10:
+                try:
+                    dt = datetime.strptime(kezdo[:10], "%Y-%m-%d")
+                    w = dt.weekday()
+                    if w < 5: day_key = days[w]
+                except Exception:
+                    pass
+
+            if not day_key:
+                continue
+
+            k_time = kezdo.split("T")[1][:5] if "T" in kezdo and len(kezdo) >= 16 else ""
+            z_time = zaro.split("T")[1][:5] if "T" in zaro and len(zaro) >= 16 else ""
+
+            # Szigorú egész napos detektálás
+            is_all_day = not k_time or "T" not in kezdo
+
+            if is_all_day:
+                has_all_day_event = True
+                all_day_map[day_key] = {
+                    "tantargy": r["tantargy"] or "",
+                    "tanar": r["tanar"] or "",
+                    "terem": r["terem"] or ""
+                }
+            else:
+                slot_str = f"{k_time} - {z_time}" if z_time else k_time
+                time_slots_dict[k_time] = slot_str
+
+                parsed_lessons.append({
+                    "day_key": day_key,
+                    "slot_str": slot_str,
+                    "k_time": k_time,
+                    "tantargy": r["tantargy"] or "",
+                    "tanar": r["tanar"] or "",
+                    "terem": r["terem"] or ""
+                })
+
+        # Csak a pontos tanórai idősávokat rendezzük időrendbe
+        sorted_k_times = sorted(list(time_slots_dict.keys()))
+
+        schedule_map = {time_slots_dict[kt]: {d: None for d in days} for kt in sorted_k_times}
+
+        for item in parsed_lessons:
+            slot = item["slot_str"]
+            d_key = item["day_key"]
+            if slot in schedule_map:
+                schedule_map[slot][d_key] = item
+
+        # TÁBLÁZAT ÉPÍTÉSE
+        table_data = []
+        header_row = [Paragraph("<b>Óra / Idő</b>", cell_header_style)] + [Paragraph(f"<b>{dh}</b>", cell_header_style) for dh in day_headers]
+        table_data.append(header_row)
+
+        table_styles = [
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d6efd')),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e0e0e0')),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]
+
+        current_row_idx = 1
+
+        # 1. HA VAN EGÉSZ NAPOS ESEMÉNY -> KÜLÖN SOR A TÁBLÁZAT TETEJÉN (SZÁMOZÁS NÉLKÜL)
+        if has_all_day_event:
+            row = [Paragraph("<b>Egész napos</b><br/><font size=6.5 color='#666666'>esemény / szünet</font>", cell_time_style)]
+            for d_col_idx, d_key in enumerate(days, start=1):
+                cell_data = all_day_map.get(d_key)
+                if cell_data:
+                    tt = cell_data["tantargy"]
+                    cell_html = f"<b><font size=8 color='#d97706'>{tt}</font></b>"
+                    bg_c = get_subject_bg(tt)
+                    table_styles.append(('BACKGROUND', (d_col_idx, current_row_idx), (d_col_idx, current_row_idx), bg_c))
+                    p = Paragraph(cell_html, ParagraphStyle('CellContent', fontSize=8, leading=9.5, alignment=1))
+                else:
+                    p = Paragraph("<font color='#cccccc'>-</font>", cell_time_style)
+                row.append(p)
+            
+            table_data.append(row)
+            current_row_idx += 1
+
+        # 2. VALÓDI TANÓRÁK SZÁMOZÁSA (1. ÓRA = 07:40 - 08:25)
+        for lesson_num, kt in enumerate(sorted_k_times, start=1):
+            slot_name = time_slots_dict[kt]
+            row = []
+            time_p = Paragraph(f"<b>{lesson_num}. óra</b><br/><font size=7 color='#666666'>{slot_name}</font>", cell_time_style)
+            row.append(time_p)
+
+            for d_col_idx, d_key in enumerate(days, start=1):
+                cell_data = schedule_map[slot_name].get(d_key)
+                if cell_data:
+                    tt = cell_data["tantargy"]
+                    tr = cell_data["terem"]
+                    tn = cell_data["tanar"]
+
+                    cell_html = f"<b><font size=8 color='#0d6efd'>{tt}</font></b>"
+                    if tr or tn:
+                        sub_info = []
+                        if tr: sub_info.append(f"<b>{tr}</b>")
+                        if tn: sub_info.append(tn)
+                        cell_html += f"<br/><font size=6.5 color='#555555'>{' • '.join(sub_info)}</font>"
+
+                    bg_c = get_subject_bg(tt)
+                    table_styles.append(('BACKGROUND', (d_col_idx, current_row_idx), (d_col_idx, current_row_idx), bg_c))
+                    p = Paragraph(cell_html, ParagraphStyle('CellContent', fontSize=8, leading=9.5, alignment=1))
+                else:
+                    p = Paragraph("<font color='#cccccc'>-</font>", cell_time_style)
+
+                row.append(p)
+
+            table_data.append(row)
+            current_row_idx += 1
+
+        col_widths = [3.2*cm] + [4.8*cm]*5
+        t = Table(table_data, colWidths=col_widths)
+        t.setStyle(TableStyle(table_styles))
+
+        header_p = Paragraph(f"Heti Órarend – {d_nev}", title_style)
+        sub_p = Paragraph(f"Aktuális hét: {hetfo_str} – {vasarnap_str} | Generálva: {datetime.now().strftime('%Y.%m.%d. %H:%M')}", subtitle_style)
+
+        story.append(header_p)
+        story.append(sub_p)
+        story.append(Spacer(1, 0.2*cm))
+        story.append(t)
+
+    conn.close()
+    doc.build(story)
+
+    buffer.seek(0)
+    response = make_response(buffer.getvalue())
+    response.headers['Content-Type'] = 'application/pdf'
+    filename = f"orarend_{diak if diak else 'osszes_gyerek'}.pdf"
+    response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
 
 @app.route("/api/naptar_esemenyek")
 def api_naptar_esemenyek():

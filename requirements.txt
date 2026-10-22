@@ -14,10 +14,11 @@ Az alkalmazás futtatásához az alábbi Python könyvtárakra van szükség:
 
 - playwright : A böngésző-automatizációhoz és a Kendo Grid adatok kinyeréséhez
 - flask      : A webes dashboard háttérszerveréhez és az élő konzol-streameléshez (SSE)
+- reportlab  : Pdf előállításhoz szükséges 
 
 Telepítő parancs (futtasd a Parancssorban / Terminalban):
 
-    pip install playwright flask
+    pip install playwright flask reportlab
 
 3. PLAYWRIGHT BÖNGÉSZŐMOTOR TELEPÍTÉSE
 ---------------------------------------
@@ -29,7 +30,7 @@ A Playwright csomag telepítése után le kell tölteni a Chromium böngészőmo
 --------------------------------------------------
 Megnyitott Parancssorban (cmd) futtasd az alábbi két sort egymás után:
 
-    pip install playwright flask
+    pip install playwright flask reportlab
     playwright install chromium
 
 5. ALKALMAZÁS INDÍTÁSA A TELEPÍTÉS UTÁN
