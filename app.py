@@ -221,6 +221,8 @@ def api_naptar_esemenyek():
     rows = cursor.fetchall()
     conn.close()
 
+    mai_datum_str = datetime.now().strftime("%Y-%m-%d")
+
     events = []
     for r in rows:
         norm_date = normalize_date(r["hatarido"])
@@ -231,18 +233,22 @@ def api_naptar_esemenyek():
         keys = r.keys()
         is_kesz = bool(r["kesz"]) if "kesz" in keys and r["kesz"] else False
 
-        # TELJES NÉV HASZNÁLATA (VEZETÉKNÉV + KERESZTNÉV)
         teljes_nev = r["diak_nev"] or "Ismeretlen"
 
         title = f"{teljes_nev}: {r['tantargy']} - {es_tipus}"
         if es_tipus == 'Házi feladat' and is_kesz:
             title = f"✔ {title}"
 
-        color = "#0d6efd"  # Kék: Házi feladat
+        # Ellenőrizzük, hogy a határidő múltbéli-e
+        is_past = norm_date < mai_datum_str
+
+        # Színkódok meghatározása (aktív vs. múltbéli pasztell)
         if es_tipus == 'Bejelentett számonkérés':
-            color = "#dc3545"  # Piros: Számonkérés
+            color = "#f18b95" if is_past else "#dc3545"  # Pasztellpiros vs Piros
         elif es_tipus == 'Házi feladat' and is_kesz:
-            color = "#198754"  # Zöld: Elkészült házi
+            color = "#75c099" if is_past else "#198754"  # Pasztellzöld vs Zöld
+        else:
+            color = "#8bb9fe" if is_past else "#0d6efd"  # Pasztellkék vs Kék
 
         reszletek = []
         if r['tema'] and r['tema'] != '-': reszletek.append(f"Téma: {r['tema']}")
