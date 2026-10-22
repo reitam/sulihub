@@ -623,7 +623,10 @@ def api_naptar_esemenyek():
 
         teljes_nev = r["diak_nev"] or "Ismeretlen"
 
-        title = f"{teljes_nev}: {r['tantargy']} - {es_tipus}"
+        # Bejelentett számonkérés esetén a 'mod' mező értékét jelenítjük meg, ha rendelkezésre áll
+        megjelenitendo_tipus = r["mod"] if (es_tipus == "Bejelentett számonkérés" and r["mod"] and r["mod"] != "-") else es_tipus
+
+        title = f"{teljes_nev}: {r['tantargy']} - {megjelenitendo_tipus}"
         if es_tipus == 'Házi feladat' and is_kesz:
             title = f"✔ {title}"
 
@@ -650,6 +653,7 @@ def api_naptar_esemenyek():
             "extendedProps": {
                 "diak": teljes_nev,
                 "tipus": es_tipus,
+                "mod": r["mod"] or "-",
                 "tantargy": r["tantargy"],
                 "tanar": r["ertekelo"] or "-",
                 "leiras": leiras,
