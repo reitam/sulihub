@@ -116,6 +116,26 @@ def init_db():
     conn.commit()
     conn.close()
 
+def get_existing_hazi_keys(diak_nev):
+    """Kinyeri a DB-ben már meglévő házi feladatok azonosítóit (Tantárgy | Bejegyzés dátuma | Határidő)."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    existing = set()
+    try:
+        cursor.execute('''
+            SELECT tantargy, bej_datum, hatarido 
+            FROM esemenyek 
+            WHERE diak_nev = ? AND esemeny_tipus = 'Házi feladat'
+        ''', (diak_nev,))
+        for r in cursor.fetchall():
+            key = f"{r[0]}|{r[1]}|{r[2]}"
+            existing.add(key)
+    except Exception as ex:
+        print(f"  [DB lekérdezési hiba - meglévő házik]: {ex}")
+    finally:
+        conn.close()
+    return existing
+
 def get_completed_hazi_map(diak_nev):
     """Kinyeri az adott diák már megjelölt (kesz=1) házi feladatainak azonosítóit, hogy frissítés után is megmaradjanak."""
     conn = sqlite3.connect(DB_FILE)
@@ -123,12 +143,12 @@ def get_completed_hazi_map(diak_nev):
     completed = set()
     try:
         cursor.execute('''
-            SELECT tantargy, bej_datum, hatarido, tartalom 
+            SELECT tantargy, bej_datum, hatarido 
             FROM esemenyek 
             WHERE diak_nev = ? AND esemeny_tipus = 'Házi feladat' AND kesz = 1
         ''', (diak_nev,))
         for r in cursor.fetchall():
-            key = f"{r[0]}|{r[1]}|{r[2]}|{r[3]}"
+            key = f"{r[0]}|{r[1]}|{r[2]}"
             completed.add(key)
     except Exception:
         pass
@@ -137,23 +157,31 @@ def get_completed_hazi_map(diak_nev):
     return completed
 
 def clear_student_data(diak_nev):
-    """Csak az adott diák korábbi eseményeit törli az adatbázisból (az üzeneteket megőrizzük!)."""
+    """Törli az adott diák nem-házi eseményeit az adatbázisból (a Házi feladatokat és Üzeneteket megőrizzük!)."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM esemenyek WHERE diak_nev = ?", (diak_nev,))
+    cursor.execute("DELETE FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus != 'Házi feladat'", (diak_nev,))
     conn.commit()
     conn.close()
 
 def save_esemenyek_to_db(diak_nev, esemenyek, completed_set):
-    """Menti az adott diák kinyert eseményeit az adatbázisba megőrizve a korábbi 'kesz' státuszt."""
+    """Menti az adott diák kinyert eseményeit az adatbázisba megőrizve a korábbi 'kesz' státuszt és elkerülve a házi duplikációt."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
+    existing_hazi = get_existing_hazi_keys(diak_nev)
+
     for e in esemenyek:
         es_tipus = e.get('esemeny_tipus', '')
         kesz_val = 0
+        
         if es_tipus == 'Házi feladat':
-            key = f"{e.get('tantargy', '')}|{e.get('bej_datum', '')}|{e.get('hatarido', '')}|{e.get('tartalom', '')}"
+            key = f"{e.get('tantargy', '')}|{e.get('bej_datum', '')}|{e.get('hatarido', '')}"
+            
+            # Ha a házi feladat már el volt mentve korábban, kihagyjuk a duplázást
+            if key in existing_hazi:
+                continue
+
             if key in completed_set:
                 kesz_val = 1
 
@@ -217,7 +245,6 @@ def save_orarend_to_db(diak_nev, orarend_lista):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    # Adott diák korábbi órarend bejegyzéseinek törlése
     cursor.execute("DELETE FROM orarend WHERE diak_nev = ?", (diak_nev,))
 
     def to_str(val):
@@ -235,7 +262,6 @@ def save_orarend_to_db(diak_nev, orarend_lista):
         terem = to_str(ora.get('teremNev') or ora.get('Terem'))
         nap = to_str(ora.get('day') or ora.get('NapNev'))
 
-        # Ha a title tartalmazza a teljes blokkot sortörésekkel
         if "\n" in raw_title:
             lines = [l.strip() for l in raw_title.split("\n") if l.strip()]
             tantargy = lines[0] if len(lines) >= 1 else raw_title
@@ -246,7 +272,6 @@ def save_orarend_to_db(diak_nev, orarend_lista):
         else:
             tantargy = raw_title
 
-        # Nap automatikus kiszámítása a kezdő időpontból
         if not nap and kezdo and len(kezdo) >= 10:
             try:
                 dt = datetime.strptime(kezdo[:10], "%Y-%m-%d")
@@ -282,7 +307,6 @@ async def scrape_orarend(page, diak_nev, institute_code):
         await asyncio.sleep(2)
 
         def parse_events_js():
-            """JS segédfüggvény a FullCalendar memóriájában lévő események kinyerésére."""
             return '''() => {
                 try {
                     let events = [];
@@ -309,19 +333,14 @@ async def scrape_orarend(page, diak_nev, institute_code):
                 }
             }'''
 
-        # === 1. LÉPÉS: AKTUÁLIS HÉT ADATAINAK KINYERÉSE ===
         print("  -> 1/2. Aktuális hét órarendjének beolvasása...")
         aktuális_heti_orák = await page.evaluate(parse_events_js())
         print(f"     Siker! Aktuális hétről beolvasva {len(aktuális_heti_orák)} db elem.")
 
-        # === 2. LÉPÉS: NAVIGÁCIÓ A KÖVETKEZŐ HÉTRE A BAL FELSŐ NYÍLLAL ===
         print("  -> 2/2. Navigáció a következő hétre (következő nyíl gomb)...")
-        
-        # Megkeressük a bal felső léptetőnyilat (fc-next-button vagy a naptár fejlécében lévő > gomb)
         next_btn = await page.query_selector('.fc-next-button, #Calendar .fc-button-next, button:has(.fc-icon-right-single-arrow), .fc-header-left .fc-button:has-text(">")')
         
         if not next_btn:
-            # B-terv: jQuery-vel kattintunk a FullCalendar saját léptetőjére
             await page.evaluate('''() => {
                 let calEl = $('#Calendar');
                 if (calEl.length && calEl.fullCalendar) {
@@ -336,11 +355,9 @@ async def scrape_orarend(page, diak_nev, institute_code):
         await page.wait_for_load_state("networkidle")
         await asyncio.sleep(2)
 
-        # === 3. LÉPÉS: KÖVETKEZŐ HÉT ADATAINAK KINYERÉSE ===
         következő_heti_orák = await page.evaluate(parse_events_js())
-        print(f"     Siker! Következő hétről (pl. őszi szünet) beolvasva {len(következő_heti_orák)} db elem.")
+        print(f"     Siker! Következő hétről beolvasva {len(következő_heti_orák)} db elem.")
 
-        # === 4. LÉPÉS: ÖSSZEFŰZÉS ÉS MENTÉS AZ ADATBÁZISBA ===
         osszes_ora = aktuális_heti_orák + következő_heti_orák
         
         if len(osszes_ora) > 0:
@@ -407,7 +424,6 @@ async def scrape_uzenetek(page, diak_nev):
                 await eugy_page.wait_for_load_state("networkidle")
                 await asyncio.sleep(2)
 
-                # Üzenet szöveg kiolvasása és tisztítása
                 szoveg = ""
                 szoveg_el = await eugy_page.query_selector('.message-body, .message-content, [class*="message-body"], .szoveg-container')
                 if szoveg_el:
@@ -425,11 +441,9 @@ async def scrape_uzenetek(page, diak_nev):
                     except Exception:
                         szoveg = ""
 
-                # Felesleges halmozott (3+) sortörések normálása maximum egy üres sorra (\n\n)
                 if szoveg:
                     szoveg = re.sub(r'\n{3,}', '\n\n', szoveg)
 
-                # Csatolmány kezelése
                 csatolmany_nev = ""
                 csatolmany_utvonal = ""
 
@@ -485,15 +499,15 @@ async def process_student(page, student):
     print(f"  FELDOLGOZÁS: {diak_nev.upper()} (Iskola: {institute_code})")
     print("=" * 70)
 
-    # Korábban elkészült házi feladatok kimentése a frissítés előtt
+    # Korábban elkészült házi feladatok és a DB-ben meglévő házi kulcsok kimentése
     completed_hazi = get_completed_hazi_map(diak_nev)
+    existing_hazi_keys = get_existing_hazi_keys(diak_nev)
 
     # --- 1. BELÉPÉS ---
     login_url = f"https://{institute_code}.e-kreta.hu"
     print(f"1. Kapcsolódás: {login_url} ...")
     await page.goto(login_url)
 
-    # --- SÜTI (COOKIE) BANNER KEZELÉSE ---
     try:
         cookie_btn = await page.wait_for_selector(
             'form[action*="acceptnecessarycookies"] button, button:has-text("Az összes kötelező cookie elfogadása")',
@@ -516,7 +530,7 @@ async def process_student(page, student):
     await page.wait_for_load_state("networkidle")
     print("Sikeres belépés!")
 
-    # --- ÓRAREND KINYERÉSE (ÚJ, MÓDOSÍTOTT BLOKK) ---
+    # --- ÓRAREND KINYERÉSE ---
     await scrape_orarend(page, diak_nev, institute_code)
 
     # --- 2. OSZTÁLYZATOK KINYERÉSE ---
@@ -639,14 +653,13 @@ async def process_student(page, student):
     feljegyzesek = await page.evaluate(js_feljegyzes_extractor)
     print(f"Siker! Beolvasva {len(feljegyzesek)} db feljegyzés.")
 
-    # --- 4. HÁZI FELADATOK KINYERÉSE ---
+    # --- 4. HÁZI FELADATOK KINYERÉSE (INKREMENTÁLIS MEGOLDÁSSAL) ---
     print("\n4. Navigáció a 'Házi feladatok' oldalra...")
     await page.goto(f"https://{institute_code}.e-kreta.hu/Tanulo/TanuloHaziFeladat")
     await page.wait_for_load_state("networkidle")
     await page.wait_for_selector('#searchForm', timeout=15000)
     await asyncio.sleep(1)
 
-    # Régi házi feladatok elrejtése opció kikapcsolása és szűrés frissítése
     await page.evaluate('''() => {
         let cb = document.getElementById('RegiHaziFeladatokElrejtese');
         if (cb) cb.checked = false;
@@ -696,10 +709,20 @@ async def process_student(page, student):
     """
     hazifeladatok = await page.evaluate(js_hazifeladat_extractor)
 
+    uj_hf_cnt = 0
     for hf in hazifeladatok:
+        # Tiszta kulcs: Tantárgy | Bej. dátum | Határidő
+        hf_key = f"{hf['tantargy']}|{hf['bej_datum']}|{hf['hatarido']}"
+
+        # HA MÁR BENNE VAN AZ ADATBÁZISBAN -> Átugorjuk a lassú ablaknyitást!
+        if hf_key in existing_hazi_keys:
+            continue
+
+        uj_hf_cnt += 1
         szoveg = hf['tartalom'].strip()
+
         if szoveg.endswith("...") or szoveg.endswith("…"):
-            print(f"  -> Csonkított leírás detektálva ({hf['tantargy']}). Teljes szöveg kinyerése megnyitással...")
+            print(f"  -> Új csonkított leírás detektálva ({hf['tantargy']}). Teljes szöveg kinyerése megnyitással...")
             try:
                 await page.evaluate('''(idx) => {
                     let grid = $('#TanulotHaziFeladatkGrid').data("kendoGrid");
@@ -770,7 +793,10 @@ async def process_student(page, student):
         hf.pop('grid_index', None)
         hf.pop('eventId', None)
 
-    print(f"Siker! Beolvasva {len(hazifeladatok)} db házi feladat.")
+    if uj_hf_cnt > 0:
+        print(f"Siker! Beolvasva {len(hazifeladatok)} db házi feladat a gridből ({uj_hf_cnt} db ÚJ házi feladat felvéve).")
+    else:
+        print(f"Siker! Beolvasva {len(hazifeladatok)} db házi feladat a gridből (Nem volt új házi feladat).")
 
     # --- 5. BEJELENTETT SZÁMONKÉRÉSEK KINYERÉSE ---
     print("\n5. Navigáció a 'Bejelentett számonkérések' oldalra...")
@@ -830,7 +856,7 @@ async def process_student(page, student):
     szamonkeresek = await page.evaluate(js_szamonkeres_extractor)
     print(f"Siker! Beolvasva {len(szamonkeresek)} db bejelentett számonkérés.")
 
-    # Mentés az adatbázisba (események)
+    # Mentés az adatbázisba
     clear_student_data(diak_nev)
     osszes_esemeny = jegyek + feljegyzesek + hazifeladatok + szamonkeresek
 
