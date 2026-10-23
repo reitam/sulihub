@@ -109,7 +109,7 @@ Hozz létre egy `config.json` fájlt a projekt gyökérmappájában az alábbi m
   "KEYWORDS": {
     "dicseret": ["dicséret", "dicséretben", "kiemelkedő", "dicséretet"],
     "megrovas": ["intő", "megrovás", "figyelmeztetés", "elmarasztalás"],
-    "lecke_hiany": ["házi feladat hiány", "házi hiány", "lecke hiány", "nem készített házi"],
+    "lecke_hiany": ["házi feladat hiány", "házi hiány", "lecke hiány", "nem veolt készített házi"],
     "felszereles_hiany": ["felszerelés hiány", "felszerelése hiányzott", "felszereléshiány"]
   },
   "STUDENTS": [
