@@ -81,6 +81,10 @@ if docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
 else
     # A konténer nem fut → nincs aktív író, a sima cp is biztonságos.
     log "A konténer nem fut — sima cp a data kötetről."
+    if [ ! -f "$DATA_DIR/kreta_adatok.db" ]; then
+        log "Nincs meg DB a data köteten — első élesítés, mentés kihagyva."
+        exit 0
+    fi
     cp "$DATA_DIR/kreta_adatok.db" "$db_backup" || fail "a DB másolása nem sikerült"
 fi
 
