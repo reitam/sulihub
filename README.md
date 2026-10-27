@@ -154,3 +154,59 @@ Hozz létre egy `config.json` fájlt a projekt gyökérmappájában az alábbi m
 └── templates/
     └── index.html          # Fő Dashboard nézet (Bootstrap + DataTables + FullCalendar)
 ```
+
+---
+
+## 🐳 Docker élesítés (saját szerver szerver)
+
+Az éles környezet a saját szerver Linux szerveren fut Dockerben (a RabbitApp_Svelte
+mintájára), **csak belső hálózaton** érhető el: `http://saját szerver:8085`.
+A lokális (Windows) példány ezentúl csak tesztelésre való.
+
+**Fájlok:**
+
+| Fájl | Szerep |
+|---|---|
+| `Dockerfile` | Python 3.12 + Playwright Chromium kép, nem-root futás |
+| `docker-compose.yml` | 8085-ös port, data + mentés kötetek, healthcheck |
+| `entrypoint.sh` | DB-guard: HDD-leszakadásnál nem hoz létre üres DB-t, mentésből visszaállít |
+| `.env.example` | Szerveroldali `.env` minta (csak `APP_ENVIRONMENT=PROD`) |
+| `deploy.ps1` | Élesítő script Windowsról (Samba staging + SSH) |
+| `backup/kreta_backup.sh` | Napi cron-mentés (DB snapshot + fájlok + forgatás) |
+
+**Első élesítés (egyszeri):**
+
+```powershell
+# 0. Zárd be a lokális KRETA appot! (a DB-t nem szabad futás közben másolni)
+# 1. Samba meghajtó (ha még nincs):  net use h: \\saját szerver\HP_Share /user:reitam
+# 2. Élesítés + a lokális adatok (DB, böngészőprofil, csatolmányok, config.json)
+#    felmigrálása + a mentő-cron telepítése:
+cd c:\ReiTam\AI\Gemini\Kreta
+.\deploy.ps1 -Release v1.0.0 -MigrateLocalData -InstallBackup
+```
+
+A szkript jelszót kér az SSH-hoz (`reitam@saját szerver`). Az első `docker compose
+up --build` több percig tart (pip + Chromium letöltés) — ez normális.
+
+**Későbbi frissítések:** `.\deploy.ps1 -Release v1.0.1`
+
+**A szerveren (az éles környezetben):**
+
+- Munka: `/opt/sulihub` — Konténer: `kreta-app` — Port: 8085
+- Adatkötet (HDD): `./data` — itt a DB, a `config.json`,
+  a böngészőprofil (`browser_user_data`), a csatolmányok és a `sync.log`
+- Mentések: `./backup`, cron 3:30-kor
+  (`/home/reitam/docker-backup/kreta_backup.sh`)
+- ⚠ A szerver `.env`-jébe **TILOS** `DATA_DIR` / `BACKUP_DIR` / `KRETA_DATA_DIR`
+  sort írni (a RabbitApp 2026-10-27-i „üres db” incidensét okozta) — a
+  kötet-útvonalakat a `docker-compose.yml` defaultjai tartalmazzák.
+
+**Környezeti változók** (lokális futtatásnál nem kötelezők, a Docker-compose beállítja):
+
+| Változó | Alapérték | Leírás |
+|---|---|---|
+| `KRETA_DATA_DIR` | `.` | Adatkönyvtár (DB, config, log, csatolmányok) |
+| `KRETA_DB_FILE` / `KRETA_CONFIG_FILE` / `KRETA_LOG_FILE` | data-könyvtáron belül | Egyedi fájlutak |
+| `KRETA_CSATOLMANYOK_DIR` | `static/csatolmanyok` | Csatolmányok könyvtára |
+| `KRETA_BROWSER_DATA_DIR` | `./browser_user_data` | Chromium profil (sütik, munkamenetek) |
+| `KRETA_HOST` / `KRETA_PORT` / `KRETA_DEBUG` | `127.0.0.1` / `5000` / ki | Flask szerver beállításai |

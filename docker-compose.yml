@@ -1,0 +1,42 @@
+services:
+  kreta-app:
+    build:
+      context: .
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    container_name: kreta-app
+    # Belső hálózati port: 8085 (a RabbitApp_Svelte 8084-es portja mellett)
+    ports:
+      - "8085:5000"
+    volumes:
+      # A data kötet: DB, config.json, böngészőprofil, csatolmányok, sync.log
+      - ${DATA_DIR:-./data}:/app/data
+      # A mentési kötet: ide írja a cron mentő a pillanatfelvételeket
+      - ${BACKUP_DIR:-./backup}:/app/backup
+    env_file:
+      - .env
+    environment:
+      - TZ=Europe/Budapest
+      # App-szintű beállítások — KIZÁRÓLAG konténerbeli, fix értékek!
+      # (A .env-be SOHA ne kerüljön DATA_DIR / BACKUP_DIR / KRETA_DATA_DIR
+      #  host-útvonal: az a RabbitApp 2026-10-27-i „üres db” incidensét okozta.
+      #  A kötet-útvonalakat fent a compose-defaultok tartalmazzák.)
+      - KRETA_HOST=0.0.0.0
+      - KRETA_PORT=5000
+      - KRETA_DEBUG=0
+      - KRETA_DATA_DIR=/app/data
+      - KRETA_BROWSER_DATA_DIR=/app/data/browser_user_data
+    # A Chromiumnak több shared memória kell Playwright alatt
+    shm_size: "1gb"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# Az adatbázis és a config.json a HDD-n van (DATA_DIR, alapból
+# ./data), a mentések a BACKUP_DIR-ben.
+# Soha ne töröld a data/ könyvtárat!

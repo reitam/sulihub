@@ -9,10 +9,12 @@ from datetime import datetime, timedelta
 from playwright.async_api import async_playwright
 
 # --- KONFIGURÁCIÓ ÉS LOGGING BEÁLLÍTÁSA ---
-CONFIG_FILE = "config.json"
-DB_FILE = "kreta_adatok.db"
-CSATOLMANYOK_DIR = os.path.join("static", "csatolmanyok")
-LOG_FILE = "sync.log"
+# Az útvonalak felülírhatók környezeti változókkal (Docker): alapból a régi,
+# relatív elrendezés él (lokális futtatás), a konténerben KRETA_DATA_DIR=/app/data.
+CONFIG_FILE = os.environ.get("KRETA_CONFIG_FILE", "config.json")
+DB_FILE = os.environ.get("KRETA_DB_FILE", "kreta_adatok.db")
+CSATOLMANYOK_DIR = os.environ.get("KRETA_CSATOLMANYOK_DIR", os.path.join("static", "csatolmanyok"))
+LOG_FILE = os.environ.get("KRETA_LOG_FILE", "sync.log")
 
 # Standard Python Logging konfiguráció: egyszerre fájlba (sync.log) és stdout-ra (konzol/Flask)
 logging.basicConfig(
@@ -945,7 +947,7 @@ async def main():
     log(f"Böngésző üzemmód: {'Háttérben (Headless)' if HEADLESS_MODE else 'Látható (Headed)'}")
     log(f"Globális üzenet-szinkronizálás: {'BE' if GLOBAL_SCRAPE_MESSAGES else 'KI'}")
 
-    user_data_dir = os.path.join(os.getcwd(), "browser_user_data")
+    user_data_dir = os.environ.get("KRETA_BROWSER_DATA_DIR", os.path.join(os.getcwd(), "browser_user_data"))
 
     async with async_playwright() as p:
         # launch_persistent_context használata a sütik és munkamenetek megőrzéséhez

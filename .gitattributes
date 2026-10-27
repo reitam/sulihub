@@ -1,0 +1,12 @@
+# Sorvég-konverzió: a shell szkripteknek és a Docker-fájloknak KÖTELEZŐEN LF
+# kell (CRLF-vel a Linux-szerveren az entrypoint/backup szkript elhasalna).
+# A robocopy a munkakönyvtárból másol, ezért a kicheckolt fájloknak is LF-nek
+# kell lenniük.
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+.env.example text eol=lf
+*.py text eol=lf
+
+# A PowerShell szkriptek Windows-on futnak, nekik CRLF kell
+*.ps1 text eol=crlf
