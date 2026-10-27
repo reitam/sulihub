@@ -195,8 +195,8 @@ up --build` több percig tart (pip + Chromium letöltés) — ez normális.
 - Munka: `/opt/sulihub` — Konténer: `kreta-app` — Port: 8085
 - Adatkötet (HDD): `./data` — itt a DB, a `config.json`,
   a böngészőprofil (`browser_user_data`), a csatolmányok és a `sync.log`
-- Mentések: `./backup`, cron 3:30-kor
-  (`/home/reitam/docker-backup/kreta_backup.sh`)
+- Mentések: `./backup`, cron 3:00-kor
+  (`/home/reitam/docker-backup/kreta_backup.sh`, log: `kretabackup.log`)
 - ⚠ A szerver `.env`-jébe **TILOS** `DATA_DIR` / `BACKUP_DIR` / `KRETA_DATA_DIR`
   sort írni (a RabbitApp 2026-10-27-i „üres db” incidensét okozta) — a
   kötet-útvonalakat a `docker-compose.yml` defaultjai tartalmazzák.
