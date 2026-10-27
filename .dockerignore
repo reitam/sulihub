@@ -1,0 +1,15 @@
+# A build kontextusból kizárt fájlok — a config.json SOHA ne kerüljön a képbe
+.git
+__pycache__/
+*.py[cod]
+*.db
+config.json
+.env
+sync.log
+browser_user_data/
+static/csatolmanyok/
+deploy.ps1
+KretaApp_Start.bat
+backup/
+rendszerterv.md
+README.md

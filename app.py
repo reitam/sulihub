@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory, make_response
 import sqlite3
 import os
+import sys
 import subprocess
 import json
 import threading
@@ -16,9 +17,16 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 
 app = Flask(__name__)
-DB_FILE = "kreta_adatok.db"
-CONFIG_FILE = "config.json"
-LOG_FILE = "sync.log"
+
+# ── Útvonalak ────────────────────────────────────────────────────────────────
+# Alapból minden az aktuális könyvtárban él (lokális Windows-futtatás, változatlan
+# viselkedés). Dockerben a KRETA_DATA_DIR=/app/data (bind mount) — így az adatbázis,
+# a config.json, a sync.log és a csatolmányok a HDD-s adatköteten maradnak.
+DATA_DIR = os.environ.get("KRETA_DATA_DIR", ".")
+DB_FILE = os.environ.get("KRETA_DB_FILE", os.path.join(DATA_DIR, "kreta_adatok.db"))
+CONFIG_FILE = os.environ.get("KRETA_CONFIG_FILE", os.path.join(DATA_DIR, "config.json"))
+LOG_FILE = os.environ.get("KRETA_LOG_FILE", os.path.join(DATA_DIR, "sync.log"))
+CSATOLMANYOK_DIR = os.environ.get("KRETA_CSATOLMANYOK_DIR", os.path.join("static", "csatolmanyok"))
 
 sync_state = {
     "running": False,
@@ -97,7 +105,7 @@ def run_scraper_thread():
 
     try:
         process = subprocess.Popen(
-            ["python", "-u", "kreta_playwright.py"],
+            [sys.executable, "-u", "kreta_playwright.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -993,8 +1001,16 @@ def api_clear_logs():
 
 @app.route("/static/csatolmanyok/<path:filename>")
 def download_csatolmany(filename):
-    return send_from_directory("static/csatolmanyok", filename)
+    return send_from_directory(CSATOLMANYOK_DIR, filename)
+
+@app.route("/health")
+def health():
+    """Docker healthcheck végpont."""
+    return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
-    print("Flask web szerver indítása: http://127.0.0.1:5000")
-    app.run(debug=True, port=5000)
+    host = os.environ.get("KRETA_HOST", "127.0.0.1")
+    port = int(os.environ.get("KRETA_PORT", "5000"))
+    debug = os.environ.get("KRETA_DEBUG", "0") == "1"
+    print(f"Flask web szerver indítása: http://{host}:{port}")
+    app.run(host=host, port=port, debug=debug, threaded=True)
