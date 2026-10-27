@@ -27,7 +27,8 @@
     lokalis KRETA appot! (a DB-t nem szabad futas kozben masolni)
 .PARAMETER InstallBackup
     EGYSZERI: a kreta_backup.sh telepitese a szerverre (HDD + docker-backup
-    peldany) es a napi 3:30-as cron bejegyzes beallitasa
+    peldany) es a napi 3:00-as cron bejegyzes beallitasa (a log a mentesi
+    konyvtarba kerul, a RabbitApp-pal egyezo minta)
 .PARAMETER LinuxHost
     A tavoli gep hosztneve vagy IP-je (alapertelmezett: HPReiTam)
 .PARAMETER SambaShare
@@ -290,7 +291,7 @@ cp -f REMOTE_DIR_PLACEHOLDER/backup/kreta_backup.sh /home/reitam/docker-backup/k
 cp -f REMOTE_DIR_PLACEHOLDER/backup/kreta_backup.sh BACKUP_DIR_PLACEHOLDER/kreta_backup.sh
 chmod +x /home/reitam/docker-backup/kreta_backup.sh BACKUP_DIR_PLACEHOLDER/kreta_backup.sh
 ( crontab -l 2>/dev/null | grep -v 'kreta_backup.sh'; \
-  echo '30 3 * * * /home/reitam/docker-backup/kreta_backup.sh >> /var/log/kreta_backup.log 2>&1' ) | crontab -
+  echo '0 3 * * * /home/reitam/docker-backup/kreta_backup.sh >> /mnt/Maxxel_HDD/ReiTam_BackUp/Kreta_backup/kretabackup.log 2>&1' ) | crontab -
 echo "Cron bejegyzesek:"
 crontab -l | grep -E 'kreta|rabbit' || echo "(nincs cron bejegyzes?)"
 

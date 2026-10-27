@@ -12,10 +12,11 @@
 #   2. A cron TÉNYLEGES példánya (a RabbitApp mintájára — a cron innen fut):
 #        cp /mnt/work/Kreta/backup/kreta_backup.sh \
 #           /home/reitam/docker-backup/kreta_backup.sh
-#   3. Crontab (napi, 3:30 — a RabbitApp 2:30-as mentése után):
+#   3. Crontab (napi 3:00 — a RabbitApp-pal egyező minta, a log a mentési
+#      könyvtárban, ahogy a RabbitApp-nál is):
 #        crontab -e
-#        30 3 * * * /home/reitam/docker-backup/kreta_backup.sh \
-#                   >> /var/log/kreta_backup.log 2>&1
+#        0 3 * * * /home/reitam/docker-backup/kreta_backup.sh \
+#                  >> /mnt/Maxxel_HDD/ReiTam_BackUp/Kreta_backup/kretabackup.log 2>&1
 #      (vagy egyszerűbben: a deploy.ps1 -InstallBackup kapcsolója)
 #
 # Mit csinál:
