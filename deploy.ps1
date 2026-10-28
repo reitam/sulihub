@@ -173,8 +173,11 @@ if ($MigrateLocalData) {
     Write-Host "  Cel: $SambaDataShare  (= $DataDir a szerveren)" -ForegroundColor DarkGray
     Write-Host "  FIGYELEM: a lokalis KRETA app NEM futhat a masolas alatt!" -ForegroundColor DarkYellow
 
-    if (-not (Test-Path (Split-Path $SambaDataShare -Parent) -PathType Container)) {
-        Write-Host "  HIBA: a Samba share (h:) nem elerheto. Mappeld:" -ForegroundColor Red
+    # A share GYÖKERÉT ellenőrizzük (a h:\app\Kreta almappa lehet, hogy meg
+    # nem letezik — a data konyvtarlancot alabb a New-Item -Force hozza letre)
+    $shareRoot = (Split-Path $SambaDataShare -Qualifier) + "\"
+    if (-not (Test-Path $shareRoot -PathType Container)) {
+        Write-Host "  HIBA: a Samba share ($shareRoot) nem elerheto. Mappeld:" -ForegroundColor Red
         Write-Host "    net use h: \\HPReiTam\HP_Share /user:$LinuxUser" -ForegroundColor White
         exit 1
     }
@@ -189,8 +192,12 @@ if ($MigrateLocalData) {
     )
 
     if (-not (Test-Path $SambaDataShare)) {
-        New-Item -ItemType Directory -Path $SambaDataShare -Force | Out-Null
-        Write-Host "  Data almappa letrehozva: $SambaDataShare" -ForegroundColor Green
+        if ($WhatIf) {
+            Write-Host "  WHAT-IF: a data almappa letrejon majd: $SambaDataShare" -ForegroundColor DarkCyan
+        } else {
+            New-Item -ItemType Directory -Path $SambaDataShare -Force | Out-Null
+            Write-Host "  Data almappa letrehozva: $SambaDataShare" -ForegroundColor Green
+        }
     }
 
     if ($WhatIf) {
