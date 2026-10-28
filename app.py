@@ -16,6 +16,8 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle, Spacer, PageBreak, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 app = Flask(__name__)
 
@@ -675,11 +677,73 @@ def api_orarend_naptar():
 
     return jsonify(events)
 
+# ==============================================================================
+# === PDF BETŰKÉSZLET (magyar ő/ű támogatás) ===================================
+# ==============================================================================
+# A ReportLab beépített Type1 betűi (Helvetica stb.) csak Latin-1-et tudnak,
+# így a hosszú ő/Ő és ű/Ű (U+0150–U+0171) NEM jelenik meg helyesen a PDF-ben.
+# Ezért egy Unicode TrueType betűt regisztrálunk (amilyen épp elérhető a gépen):
+# a konténerben Liberation/DejaVu, lokálisan (Windows) Arial/Calibri.
+_PDF_FONT_REG = "KretaHU"
+_PDF_FONT_BOLD = "KretaHU-Bold"
+
+
+def _pdf_font_candidates():
+    """(regular, bold) jelölt betűkészlet-párok, preferencia-sorrendben."""
+    return [
+        # Linux (Debian; a Dockerfile a playwright --with-deps / fonts-liberation miatt ezt tartalmazza)
+        ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ("/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+         "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"),
+        # Windows (fejlesztés)
+        ("C:\\Windows\\Fonts\\arial.ttf", "C:\\Windows\\Fonts\\arialbd.ttf"),
+        ("C:\\Windows\\Fonts\\calibri.ttf", "C:\\Windows\\Fonts\\calibrib.ttf"),
+        ("C:\\Windows\\Fonts\\segoeui.ttf", "C:\\Windows\\Fonts\\seguisb.ttf"),
+    ]
+
+
+def _register_pdf_fonts():
+    """Regisztrál egy ő/ű-t támogató betűkészletet; True ha sikerült."""
+    if _PDF_FONT_REG in pdfmetrics.getRegisteredFontNames():
+        return True
+    for regular, bold in _pdf_font_candidates():
+        if os.path.exists(regular) and os.path.exists(bold):
+            try:
+                pdfmetrics.registerFont(TTFont(_PDF_FONT_REG, regular))
+                pdfmetrics.registerFont(TTFont(_PDF_FONT_BOLD, bold))
+                pdfmetrics.registerFontFamily(
+                    _PDF_FONT_REG,
+                    normal=_PDF_FONT_REG,
+                    bold=_PDF_FONT_BOLD,
+                    italic=_PDF_FONT_REG,
+                    boldItalic=_PDF_FONT_BOLD,
+                )
+                return True
+            except Exception as e:
+                print(f"[PDF] A(z) {regular} betűkészlet regisztrálása sikertelen: {e}")
+    print("[PDF] FIGYELEM: nem található Unicode betűkészlet — az ő/ű hibás lehet.")
+    return False
+
+
+def _pdf_font():
+    return _PDF_FONT_REG if _PDF_FONT_REG in pdfmetrics.getRegisteredFontNames() else "Helvetica"
+
+
+def _pdf_font_bold():
+    return _PDF_FONT_BOLD if _PDF_FONT_BOLD in pdfmetrics.getRegisteredFontNames() else "Helvetica-Bold"
+
+
 @app.route("/api/orarend/export_pdf")
 def export_orarend_pdf():
     """Órarend PDF generálása teljesen elkülönített 'Egész napos' sor kezelésével."""
     if not os.path.exists(DB_FILE):
         return "Adatbázis nem található!", 404
+
+    # Magyar ő/ű támogatáshoz Unicode betűkészlet regisztrálása (ha még nincs).
+    _register_pdf_fonts()
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -727,7 +791,8 @@ def export_orarend_pdf():
         leading=22,
         textColor=colors.HexColor('#0d6efd'),
         alignment=0,
-        spaceAfter=2
+        spaceAfter=2,
+        fontName=_pdf_font_bold()
     )
     
     subtitle_style = ParagraphStyle(
@@ -736,7 +801,8 @@ def export_orarend_pdf():
         fontSize=10,
         textColor=colors.HexColor('#6c757d'),
         alignment=0,
-        spaceAfter=8
+        spaceAfter=8,
+        fontName=_pdf_font()
     )
 
     cell_time_style = ParagraphStyle(
@@ -744,7 +810,8 @@ def export_orarend_pdf():
         fontSize=8,
         leading=10,
         alignment=1,
-        textColor=colors.HexColor('#333333')
+        textColor=colors.HexColor('#333333'),
+        fontName=_pdf_font()
     )
 
     cell_header_style = ParagraphStyle(
@@ -753,7 +820,7 @@ def export_orarend_pdf():
         leading=12,
         alignment=1,
         textColor=colors.white,
-        fontName='Helvetica-Bold'
+        fontName=_pdf_font_bold()
     )
 
     story = []
@@ -877,7 +944,7 @@ def export_orarend_pdf():
                     cell_html = f"<b><font size=8 color='#d97706'>{tt}</font></b>"
                     bg_c = get_subject_bg(tt)
                     table_styles.append(('BACKGROUND', (d_col_idx, current_row_idx), (d_col_idx, current_row_idx), bg_c))
-                    p = Paragraph(cell_html, ParagraphStyle('CellContent', fontSize=8, leading=9.5, alignment=1))
+                    p = Paragraph(cell_html, ParagraphStyle('CellContent', fontSize=8, leading=9.5, alignment=1, fontName=_pdf_font()))
                 else:
                     p = Paragraph("<font color='#cccccc'>-</font>", cell_time_style)
                 row.append(p)
@@ -907,7 +974,7 @@ def export_orarend_pdf():
 
                     bg_c = get_subject_bg(tt)
                     table_styles.append(('BACKGROUND', (d_col_idx, current_row_idx), (d_col_idx, current_row_idx), bg_c))
-                    p = Paragraph(cell_html, ParagraphStyle('CellContent', fontSize=8, leading=9.5, alignment=1))
+                    p = Paragraph(cell_html, ParagraphStyle('CellContent', fontSize=8, leading=9.5, alignment=1, fontName=_pdf_font()))
                 else:
                     p = Paragraph("<font color='#cccccc'>-</font>", cell_time_style)
 

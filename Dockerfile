@@ -9,8 +9,9 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # tzdata a TZ=Europe/Budapest-hez, sqlite3 CLI (entrypoint DB-guard + mentések),
-# util-linux a setpriv-hez (entrypoint jogosultságváltás)
-RUN apt-get update && apt-get install -y --no-install-recommends tzdata sqlite3 util-linux \
+# util-linux a setpriv-hez (entrypoint jogosultságváltás), fonts-liberation a
+# PDF magyar ő/ű betűkészletéhez (a ReportLab beépített Type1 betűi nem tudják).
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata sqlite3 util-linux fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 # Függőségek külön rétegben (cache: kódváltozáskor nem épül újra)
