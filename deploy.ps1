@@ -274,11 +274,32 @@ $robocopyArgs = @(
     "/MIR",
     "/XD", ".git", "__pycache__", "browser_user_data", "static\csatolmanyok", ".claude",
     "/XF", ".env", "deploy.ps1", "config.json", "*.db", "sync.log", "KretaApp_Start.bat",
+    # Csak fejlesztoi/dokumentacios fajlok — a futasidohoz nem kellenek, ezert
+    # ne keruljenek at a szerver munkakonyvtaraba (a /MIR a kizart fajlokat
+    # nem masolja; a korabban odakerult peldanyokat a szerveroldali tisztitas
+    # torli).
+    "README.md", "rendszerterv.md", "config.json.example", ".env.example",
+    ".gitignore", ".gitattributes", "scheduler_state.json",
     "/NP", "/NDL", "/NJH", "/NJS",
     "/R:2", "/W:3", "/MT:4"
 )
 
 Write-Host "  robocopy $SourceDir -> $SambaShare"
+
+# A korabbi deployokbol a stagingben maradt, futasidoben felesleges fajlok
+# torlese (a /MIR a kizart neveket nem torli, ezert kulon kell).
+$obsoleteNames = @("README.md", "rendszerterv.md", "config.json.example",
+                   ".env.example", ".gitignore", ".gitattributes", "scheduler_state.json")
+if (-not $WhatIf) {
+    foreach ($name in $obsoleteNames) {
+        $stale = Join-Path $SambaShare $name
+        if (Test-Path $stale) {
+            Remove-Item $stale -Force
+            Write-Host "  Torolve (staging): $name" -ForegroundColor DarkGray
+        }
+    }
+}
+
 if ($WhatIf) {
     $robocopyArgs += "/L"
     Write-Host "  (WHAT-IF mod: csak listazas, nem modosit)" -ForegroundColor DarkCyan
@@ -341,6 +362,19 @@ else
     echo "HIBA: a staging ures - nincs mit elesiteni!"
     exit 1
 fi
+
+echo ""
+echo "===[ FELESLEGES FAJLOK TISZTITASA (munkakonyvtar) ]==="
+# A cp -rf nem torol, ezert a korabbi deployok docs/example fajljai itt
+# maradnanak — ezekre futasidoben nincs szukseg.
+rm -f REMOTE_DIR_PLACEHOLDER/README.md \
+      REMOTE_DIR_PLACEHOLDER/rendszerterv.md \
+      REMOTE_DIR_PLACEHOLDER/config.json.example \
+      REMOTE_DIR_PLACEHOLDER/.env.example \
+      REMOTE_DIR_PLACEHOLDER/.gitignore \
+      REMOTE_DIR_PLACEHOLDER/.gitattributes \
+      REMOTE_DIR_PLACEHOLDER/scheduler_state.json
+echo OK
 
 echo ""
 echo "===[ DATA / BACKUP KONYVTARAK ]==="
