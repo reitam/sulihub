@@ -237,6 +237,13 @@ def scheduler_status():
     with sync_lock:
         running = sync_state["running"]
         trigger = sync_state.get("trigger")
+
+    # Ha az állapotfájl "running"-ot tartalmaz, de nincs futó folyamat (pl. a
+    # konténer közben újraindult), akkor az előző futás félbeszakadt.
+    last_status = state.get("last_status")
+    if last_status == "running" and not running:
+        last_status = "interrupted"
+
     return {
         "enabled": cfg["enabled"],
         "interval_minutes": cfg["interval_minutes"],
@@ -246,7 +253,7 @@ def scheduler_status():
         "next_run_iso": nxt.strftime(SCHEDULER_TS_FMT) if nxt else None,
         "last_run": state.get("last_run_started"),
         "last_run_finished": state.get("last_run_finished"),
-        "last_status": state.get("last_status"),
+        "last_status": last_status,
         "last_trigger": state.get("last_trigger"),
         "last_scheduled_run": state.get("last_scheduled_run")
         or (state.get("last_run_started") if state.get("last_trigger") == "scheduled" else None),
@@ -354,6 +361,10 @@ def run_scraper_thread(trigger="manual"):
     run_state = load_scheduler_state()
     run_state["last_run_started"] = started_at.strftime(SCHEDULER_TS_FMT)
     run_state["last_trigger"] = trigger
+    # A futás alatt ne a KORÁBBI eredmény látszódjon a felületen: amíg tart,
+    # "running", a végén pedig a tényleges státusz íródik be.
+    run_state["last_status"] = "running"
+    run_state["last_run_finished"] = None
     if trigger == "scheduled":
         _last_scheduled_memo = started_at
         run_state["last_scheduled_run"] = started_at.strftime(SCHEDULER_TS_FMT)

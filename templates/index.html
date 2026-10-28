@@ -1465,14 +1465,18 @@ $(document).ready(function() {
             const trig = auto
                 ? '<span class="badge bg-primary">automatikus</span>'
                 : '<span class="badge bg-warning text-dark">kézi</span>';
-            const st = sched.last_status;
+            const st = sched.running ? 'running' : sched.last_status;
             const eredmeny = st === 'done'
                 ? '<span class="text-success">sikeres</span>'
-                : st === 'stopped'
-                    ? '<span class="text-secondary">leállítva</span>'
-                    : st === 'error'
-                        ? '<span class="text-danger">hiba</span>'
-                        : (st ? `<span class="text-secondary">${st}</span>` : '');
+                : st === 'running'
+                    ? '<span class="text-primary">folyamatban...</span>'
+                    : st === 'stopped'
+                        ? '<span class="text-secondary">leállítva</span>'
+                        : st === 'interrupted'
+                            ? '<span class="text-warning">megszakadt</span>'
+                            : st === 'error'
+                                ? '<span class="text-danger">hiba</span>'
+                                : (st ? `<span class="text-secondary">${st}</span>` : '');
             // Az ütemező ciklusa csak az utolsó AUTOMATIKUS futáshoz igazodik,
             // ezért ha most kézi volt az utolsó, külön is kiírjuk az automatát.
             let autoInfo = '';
