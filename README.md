@@ -95,6 +95,12 @@ Hozz létre egy `config.json` fájlt a projekt gyökérmappájában az alábbi m
   "HEADLESS": true,
   "SCRAPE_MESSAGES": true,
   "ENABLE_REWARDS": true,
+  "SCHEDULER": {
+    "ENABLED": true,
+    "INTERVAL_MINUTES": 180,
+    "START_HOUR": 0,
+    "END_HOUR": 24
+  },
   "REWARDS": {
     "jegy_5": 500,
     "jegy_4": 200,
@@ -141,12 +147,61 @@ Hozz létre egy `config.json` fájlt a projekt gyökérmappájában az alábbi m
 
 ---
 
+## ⏱️ Automatikus szinkronizáció (ütemező)
+
+A `config.json` **`SCHEDULER`** blokkja vezérli az időzített futást — az ütemező
+az alkalmazáson belül, egy háttérszálban fut, és ugyanazt a szinkront indítja,
+mint a felületi gomb (a konzol és a `/api/sync/status` is mutatja).
+
+```json
+"SCHEDULER": {
+  "ENABLED": true,
+  "INTERVAL_MINUTES": 180,
+  "START_HOUR": 0,
+  "END_HOUR": 24
+}
+```
+
+| Kulcs | Jelentés |
+|---|---|
+| `ENABLED` | `false` esetén nincs automatikus futás (a kézi gomb persze működik) |
+| `INTERVAL_MINUTES` | Két futás közti idő az **utolsó futás kezdetétől** (min. 5 perc; egy futás ~2,2 perc) |
+| `START_HOUR` / `END_HOUR` | Opcionális időablak. `0`–`24` (vagy a két érték egyenlő) = **egész nap**, nincs korlátozás |
+
+**Működés / védelmek:**
+
+- **Nincs lemaradt futás pótlás.** Ha a konténer/deploy miatt kimarad egy
+  időpont, a következő ellenőrzésnél egyszer lefut, majd visszaáll a normál
+  ciklusra (30 másodpercenként ellenőriz).
+- **Perzisztált állapot:** a legutóbbi futás a data köteten lévő
+  `scheduler_state.json`-ban él, így a gyakori deploy **nem** indít azonnal
+  szinkront — a 3 órás ciklus újraindítás után is folytatódik.
+- **Nincs átfedés:** a kézi gomb és az ütemező ugyanazt az egy belépési pontot
+  (`start_sync`) használja, ami a lock alatt foglalja le a futást. Ha épp fut
+  valami, az ütemezett indítás a következő tickre csúszik (nincs sorban állás).
+- **Hibánál nincs újrapróbálkozás-vihar:** a következő kísérlet a normál
+  intervallum után lesz.
+- **Első indítás:** ha még sosem futott (nincs állapotfájl), 5 perc múlva indul.
+- A naplóban a `sync.log` külön sort kap: `ÜTEMEZETT SZINKRONIZÁCIÓ INDÍTÁSA ...`.
+
+A fejlécben a gomb alatt látszik a **következő automatikus futás** ideje
+(`/api/scheduler/status`), és ha épp ütemezett futás zajlik, a konzol címe is
+ezt jelzi.
+
+> Megjegyzés: az ütemező a Flask processzhez kötött, egy processzes futásra
+> készült (a Dockerben `python app.py`, `threaded=True`). Ha valaha több
+> workerre váltotok (pl. gunicorn), `--workers 1` kell, különben minden worker
+> saját ütemezőt indítana.
+
+---
+
 ## 📁 Mappa Szerkezet
 
 ```text
 ├── app.py                  # Flask webszerver, API és PDF generáló végpontok
 ├── kreta_playwright.py     # Playwright scraper script a KRÉTA adatgyűjtéshez
 ├── config.json             # Konfigurációs fájl (belépési adatok, zsebpénz szabályok)
+├── scheduler_state.json    # Ütemező állapota (legutóbbi futás) — automatikusan jön létre
 ├── kreta_adatok.db         # SQLite adatbázis (automatikusan jön létre)
 ├── static/
 │   ├── favicon.svg         # Weboldal ikonja
@@ -209,4 +264,5 @@ up --build` több percig tart (pip + Chromium letöltés) — ez normális.
 | `KRETA_DB_FILE` / `KRETA_CONFIG_FILE` / `KRETA_LOG_FILE` | data-könyvtáron belül | Egyedi fájlutak |
 | `KRETA_CSATOLMANYOK_DIR` | `static/csatolmanyok` | Csatolmányok könyvtára |
 | `KRETA_BROWSER_DATA_DIR` | `./browser_user_data` | Chromium profil (sütik, munkamenetek) |
+| `KRETA_SCHEDULER_STATE_FILE` | data-könyvtáron belül `scheduler_state.json` | Az ütemező állapota (legutóbbi futás) |
 | `KRETA_HOST` / `KRETA_PORT` / `KRETA_DEBUG` | `127.0.0.1` / `5000` / ki | Flask szerver beállításai |
