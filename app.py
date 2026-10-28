@@ -7,6 +7,7 @@ import json
 import threading
 import re
 import io
+import time
 from datetime import datetime, timedelta
 
 # ReportLab importok a PDF generáláshoz
@@ -27,12 +28,18 @@ DB_FILE = os.environ.get("KRETA_DB_FILE", os.path.join(DATA_DIR, "kreta_adatok.d
 CONFIG_FILE = os.environ.get("KRETA_CONFIG_FILE", os.path.join(DATA_DIR, "config.json"))
 LOG_FILE = os.environ.get("KRETA_LOG_FILE", os.path.join(DATA_DIR, "sync.log"))
 CSATOLMANYOK_DIR = os.environ.get("KRETA_CSATOLMANYOK_DIR", os.path.join("static", "csatolmanyok"))
+# Az ütemező állapota (legutóbbi futás, eredmény) — a data köteten él, hogy
+# konténer-újraindítás/deploy után is megmaradjon a 3 órás ciklus.
+SCHEDULER_STATE_FILE = os.environ.get(
+    "KRETA_SCHEDULER_STATE_FILE", os.path.join(DATA_DIR, "scheduler_state.json")
+)
 
 sync_state = {
     "running": False,
     "process": None,
     "logs": [],
-    "status": "idle"
+    "status": "idle",
+    "trigger": None
 }
 sync_lock = threading.Lock()
 
@@ -95,13 +102,226 @@ def load_config():
             return json.load(f)
     return {}
 
-def run_scraper_thread():
-    global sync_state
+# ==============================================================================
+# === ÜTEMEZETT SZINKRONIZÁCIÓ (config.json → SCHEDULER blokk) ==================
+# ==============================================================================
+# Alapelv: NINCS lemaradt futás pótlás. Egyetlen szabály van: az utolsó futás
+# kezdete + INTERVAL_MINUTES. Ha közben állt a konténer, a következő ticknél
+# egyszer lefut, majd visszaáll a normál ciklusra.
+#
+# A "legutóbbi futás" a data köteten lévő scheduler_state.json-ban él, így a
+# gyakori deploy/újraindítás nem indít minden alkalommal azonnal szinkront.
+SCHEDULER_TICK_SECONDS = 30          # ennyit vár a ciklus két ellenőrzés között
+SCHEDULER_FIRST_DELAY_MIN = 5        # ha még sosem futott (friss telepítés)
+SCHEDULER_TS_FMT = "%Y-%m-%dT%H:%M:%S"
+
+scheduler_lock = threading.Lock()
+_scheduler_thread = None
+_scheduler_boot = datetime.now().replace(microsecond=0)
+# Memória-beli biztonsági háló: ha az állapotfájlt nem sikerül írni (pl. HDD
+# leszakadás), akkor se essen bele végtelen újraindításba az ütemező.
+_last_run_memo = None
+
+
+def _now():
+    return datetime.now().replace(microsecond=0)
+
+
+def scheduler_config():
+    """A config.json SCHEDULER blokkja, ésszerű alapértékekkel és határolással."""
+    raw = load_config().get("SCHEDULER") or {}
+    try:
+        interval = int(raw.get("INTERVAL_MINUTES", 180))
+    except (TypeError, ValueError):
+        interval = 180
+    try:
+        start_hour = int(raw.get("START_HOUR", 0))
+        end_hour = int(raw.get("END_HOUR", 24))
+    except (TypeError, ValueError):
+        start_hour, end_hour = 0, 24
+    return {
+        "enabled": bool(raw.get("ENABLED", False)),
+        # 5 perc alatti intervallum értelmetlen (egy szinkron ~2,2 perc)
+        "interval_minutes": max(5, interval),
+        "start_hour": max(0, min(24, start_hour)),
+        "end_hour": max(0, min(24, end_hour)),
+    }
+
+
+def load_scheduler_state():
+    try:
+        with open(SCHEDULER_STATE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_scheduler_state(state):
+    """Atomikus írás (tmp + replace), hogy félig írt fájl ne maradjon."""
+    try:
+        directory = os.path.dirname(SCHEDULER_STATE_FILE)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        tmp = SCHEDULER_STATE_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, SCHEDULER_STATE_FILE)
+    except OSError as e:
+        print(f"[Ütemező] Az állapotfájl írása nem sikerült: {e}")
+
+
+def _parse_scheduler_dt(value):
+    try:
+        return datetime.strptime(value, SCHEDULER_TS_FMT)
+    except (TypeError, ValueError):
+        return None
+
+
+def _in_time_window(now, start_hour, end_hour):
+    """START_HOUR..END_HOUR között? Ha a kettő egyenlő: nincs időablak (0-24)."""
+    if start_hour == end_hour:
+        return True
+    if start_hour < end_hour:
+        return start_hour <= now.hour < end_hour
+    return now.hour >= start_hour or now.hour < end_hour   # átforduló ablak
+
+
+def _next_window_start(now, start_hour, end_hour):
+    if _in_time_window(now, start_hour, end_hour):
+        return now
+    target = now.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+    if target <= now:
+        target += timedelta(days=1)
+    return target
+
+
+def scheduler_next_run(state=None, config=None, now=None):
+    """Mikor lenne esedékes a következő automatikus futás (datetime vagy None)."""
+    cfg = config or scheduler_config()
+    if not cfg["enabled"]:
+        return None
+    now = now or _now()
+    state = load_scheduler_state() if state is None else state
+
+    last_started = _parse_scheduler_dt(state.get("last_run_started")) or _last_run_memo
+    if last_started:
+        due = last_started + timedelta(minutes=cfg["interval_minutes"])
+    else:
+        due = _scheduler_boot + timedelta(minutes=SCHEDULER_FIRST_DELAY_MIN)
+
+    # Ha esedékes lenne, de az időablak zárva van, a következő nyitásra tolódik.
+    if due <= now and not _in_time_window(now, cfg["start_hour"], cfg["end_hour"]):
+        due = _next_window_start(now, cfg["start_hour"], cfg["end_hour"])
+    return due
+
+
+def scheduler_status():
+    cfg = scheduler_config()
+    state = load_scheduler_state()
+    nxt = scheduler_next_run(state=state, config=cfg)
+    with sync_lock:
+        running = sync_state["running"]
+        trigger = sync_state.get("trigger")
+    return {
+        "enabled": cfg["enabled"],
+        "interval_minutes": cfg["interval_minutes"],
+        "start_hour": cfg["start_hour"],
+        "end_hour": cfg["end_hour"],
+        "next_run": nxt.strftime("%Y-%m-%d %H:%M") if nxt else None,
+        "next_run_iso": nxt.strftime(SCHEDULER_TS_FMT) if nxt else None,
+        "last_run": state.get("last_run_started"),
+        "last_run_finished": state.get("last_run_finished"),
+        "last_status": state.get("last_status"),
+        "last_trigger": state.get("last_trigger"),
+        "running": running,
+        "trigger": trigger,
+    }
+
+
+def _append_sync_log(message):
+    """Bekezdés a sync.log-ba ugyanabban a formátumban, amit a scraper használ."""
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{_now().strftime('%Y-%m-%d %H:%M:%S')} [INFO] {message}\n")
+    except OSError as e:
+        print(f"[Ütemező] A sync.log írása nem sikerült: {e}")
+
+
+def start_sync(trigger="manual"):
+    """
+    Egyetlen belépési pont a szinkron indítására (kézi gomb és ütemező is ezt
+    használja). A 'running' jelzőt a szál indítása ELŐTT, a lock alatt foglalja
+    le, így két egyszerre érkező kérés nem indíthat két párhuzamos futást.
+    """
+    with sync_lock:
+        if sync_state["running"]:
+            return False
+        sync_state["running"] = True
+        sync_state["status"] = "starting"
+        sync_state["trigger"] = trigger
+    try:
+        threading.Thread(target=run_scraper_thread, args=(trigger,), daemon=True).start()
+    except Exception:
+        # Ha a szál nem indult el, ne maradjon örökre "fut" állapotban.
+        with sync_lock:
+            sync_state["running"] = False
+            sync_state["status"] = "error"
+        raise
+    return True
+
+
+def _scheduler_loop():
+    """Háttérszál: 30 másodpercenként dönt, hogy esedékes-e a szinkron."""
+    print("[Ütemező] Háttérszál elindult.")
+    while True:
+        try:
+            cfg = scheduler_config()
+            due = scheduler_next_run(config=cfg)
+            if due and _now() >= due and _in_time_window(_now(), cfg["start_hour"], cfg["end_hour"]):
+                if start_sync("scheduled"):
+                    _append_sync_log(
+                        f"ÜTEMEZETT SZINKRONIZÁCIÓ INDÍTÁSA (ütemező: {cfg['interval_minutes']} percenként)"
+                    )
+                # ha épp fut valami, a következő tick újra próbálja (nincs sorban állás)
+        except Exception as e:
+            print(f"[Ütemező] Hiba a ciklusban: {e}")
+        time.sleep(SCHEDULER_TICK_SECONDS)
+
+
+def start_scheduler():
+    """Az ütemező szál indítása — csak egyszer, és csak a fő processzből."""
+    global _scheduler_thread
+    with scheduler_lock:
+        if _scheduler_thread and _scheduler_thread.is_alive():
+            return
+        cfg = scheduler_config()
+        _scheduler_thread = threading.Thread(
+            target=_scheduler_loop, name="kreta-scheduler", daemon=True
+        )
+        _scheduler_thread.start()
+        print(
+            f"[Ütemező] enabled={cfg['enabled']}, intervallum={cfg['interval_minutes']} perc, "
+            f"ablak={cfg['start_hour']}-{cfg['end_hour']} óra"
+        )
+
+
+def run_scraper_thread(trigger="manual"):
+    global sync_state, _last_run_memo
     
     with sync_lock:
         sync_state["running"] = True
+        sync_state["trigger"] = trigger
         sync_state["logs"] = ["> Szinkronizáció indítása a háttérben..."]
         sync_state["status"] = "running"
+
+    # A ciklus alapja a futás KEZDEMÉNYEZÉSE (nem a vége), így a ~2,2 perces
+    # futás nem tolja el az ütemezést.
+    _last_run_memo = _now()
+    run_state = load_scheduler_state()
+    run_state["last_run_started"] = _last_run_memo.strftime(SCHEDULER_TS_FMT)
+    run_state["last_trigger"] = trigger
+    save_scheduler_state(run_state)
 
     try:
         process = subprocess.Popen(
@@ -143,6 +363,14 @@ def run_scraper_thread():
         with sync_lock:
             sync_state["running"] = False
             sync_state["process"] = None
+            final_status = sync_state["status"]
+
+        # Az eredményt is perzisztáljuk (a "legutóbbi futás" időpontja már fent
+        # megtörtént, ez csak az UI/napló visszajelzéséhez kell).
+        run_state = load_scheduler_state()
+        run_state["last_run_finished"] = _now().strftime(SCHEDULER_TS_FMT)
+        run_state["last_status"] = final_status
+        save_scheduler_state(run_state)
 
 @app.route("/")
 def index():
@@ -947,14 +1175,9 @@ def api_kifizetes_save():
 
 @app.route("/api/sync/start", methods=["POST"])
 def api_sync_start():
-    global sync_state
-    with sync_lock:
-        if sync_state["running"]:
-            return jsonify({"status": "already_running", "message": "A szinkronizáció már fut!"})
-        
-        t = threading.Thread(target=run_scraper_thread, daemon=True)
-        t.start()
-        return jsonify({"status": "started", "message": "Szinkronizáció elindítva."})
+    if not start_sync("manual"):
+        return jsonify({"status": "already_running", "message": "A szinkronizáció már fut!"})
+    return jsonify({"status": "started", "message": "Szinkronizáció elindítva."})
 
 @app.route("/api/sync/stop", methods=["POST"])
 def api_sync_stop():
@@ -973,12 +1196,26 @@ def api_sync_stop():
 
 @app.route("/api/sync/status")
 def api_sync_status():
+    # Figyelem: a scheduler_status() maga is fogja a sync_lock-ot, ezért ELŐBB
+    # hívjuk, és csak utána lépünk be a lock alá (a Lock nem újrabeléphető).
+    sched = scheduler_status()
     with sync_lock:
-        return jsonify({
+        payload = {
             "running": sync_state["running"],
             "status": sync_state["status"],
-            "logs": sync_state["logs"]
-        })
+            "trigger": sync_state.get("trigger"),
+            "logs": list(sync_state["logs"]),
+        }
+    payload["scheduler"] = sched
+    return jsonify(payload)
+
+@app.route("/api/scheduler/status")
+def api_scheduler_status():
+    """
+    Könnyű végpont a fejléc "Következő automatikus szinkron" feliratához —
+    a /api/sync/status-tól eltérően nem küldi át a teljes log tömböt.
+    """
+    return jsonify(scheduler_status())
 
 # ==============================================================================
 # === SYNC.LOG KEZELŐ API VÉGPONTOK ===
@@ -1027,4 +1264,8 @@ if __name__ == "__main__":
     port = int(os.environ.get("KRETA_PORT", "5000"))
     debug = os.environ.get("KRETA_DEBUG", "0") == "1"
     print(f"Flask web szerver indítása: http://{host}:{port}")
+    # Az ütemezőt csak egyszer indítjuk: debug módban a reloader két processzt
+    # futtat, ezért ott csak a gyerek-processzben (WERKZEUG_RUN_MAIN) indul.
+    if not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        start_scheduler()
     app.run(host=host, port=port, debug=debug, threaded=True)

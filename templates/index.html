@@ -163,9 +163,14 @@
             <h4 class="m-0 text-primary fw-bold"><i class="fa-solid fa-graduation-cap me-2"></i>KRÉTA Adatbázis Áttekintő</h4>
             <small class="text-muted">Központi SQLite Adatlekérő, Szűrő és Üzenetolvasó</small>
         </div>
-        <button id="btnSync" class="btn btn-success">
-            <i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból
-        </button>
+        <div class="text-end">
+            <button id="btnSync" class="btn btn-success">
+                <i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból
+            </button>
+            <div id="schedulerInfo" class="small text-muted mt-1 d-none">
+                <i class="fa-regular fa-clock me-1"></i><span id="schedulerNextText"></span>
+            </div>
+        </div>
     </div>
 
     <!-- ÉLŐ SZINKRONIZÁCIÓS KONZOL -->
@@ -1393,6 +1398,47 @@ $(document).ready(function() {
         }
     }
 
+    // ── Ütemező visszajelzése a fejlécben ───────────────────────────────────
+    function formatSchedulerNext(iso) {
+        if (!iso) return null;
+        const d = new Date(String(iso).replace(' ', 'T'));
+        if (isNaN(d.getTime())) return null;
+        const now = new Date();
+        const holnap = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const hhmm = d.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+        if (d.toDateString() === now.toDateString()) return `ma ${hhmm}`;
+        if (d.toDateString() === holnap.toDateString()) return `holnap ${hhmm}`;
+        return `${d.toLocaleDateString('hu-HU')} ${hhmm}`;
+    }
+
+    function refreshSchedulerInfo(sched) {
+        if (!sched || typeof sched !== 'object') {
+            $.getJSON('/api/scheduler/status', function(res) { refreshSchedulerInfo(res); });
+            return;
+        }
+        $('#schedulerInfo').removeClass('d-none');
+        const txt = $('#schedulerNextText');
+
+        if (!sched.enabled) {
+            txt.html('<span class="text-secondary">Automatikus szinkron: kikapcsolva</span>');
+            return;
+        }
+        if (sched.running && sched.trigger === 'scheduled') {
+            txt.html(`<span class="text-success fw-bold">Ütemezett szinkron fut</span>
+                      <span class="text-secondary">(${sched.interval_minutes} percenként)</span>`);
+            return;
+        }
+        const when = formatSchedulerNext(sched.next_run_iso);
+        if (!when) {
+            txt.html(`Automatikus szinkron: <b>${sched.interval_minutes} percenként</b>`);
+            return;
+        }
+        const overdue = new Date(String(sched.next_run_iso).replace(' ', 'T')) <= new Date();
+        txt.html(`Következő automatikus szinkron: <b>${when}</b>`
+                 + (overdue ? ' <span class="text-warning">(hamarosan)</span>' : '')
+                 + ` <span class="text-secondary">(${sched.interval_minutes} percenként)</span>`);
+    }
+
     function checkSyncStatus() {
         $.getJSON('/api/sync/status', function(res) {
             let logTerminal = $('#logTerminal');
@@ -1403,12 +1449,16 @@ $(document).ready(function() {
             let btnStop = $('#btnStopSync');
             let autoAlert = $('#autoSyncAlert');
 
+            refreshSchedulerInfo(res.scheduler);
+
             if (res.running) {
                 autoAlert.addClass('d-none');
                 btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-2"></i>Szinkronizálás...');
                 logContainer.removeClass('d-none');
                 spinner.removeClass('d-none');
-                title.text('Szinkronizálás folyamatban a háttérben...');
+                title.text(res.trigger === 'scheduled'
+                    ? 'Ütemezett szinkronizálás folyamatban a háttérben...'
+                    : 'Szinkronizálás folyamatban a háttérben...');
                 btnStop.removeClass('d-none');
 
                 if (res.logs.length > 0) {
@@ -1450,6 +1500,10 @@ $(document).ready(function() {
 
     loadData();
     checkSyncStatus();
+    refreshSchedulerInfo();
+    // Az ütemező feliratot a futás közbeni 1,5 mp-es pollozástól függetlenül
+    // percenként frissítjük (a /api/scheduler/status könnyű végpont).
+    setInterval(function() { refreshSchedulerInfo(); }, 60000);
 
     // Kinyitó / összecsukó gomb ikonjának cseréje (+ / -)
     $('#collapseRewardDetails').on('show.bs.collapse', function () {

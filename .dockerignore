@@ -6,6 +6,7 @@ __pycache__/
 config.json
 .env
 sync.log
+scheduler_state.json
 browser_user_data/
 static/csatolmanyok/
 deploy.ps1

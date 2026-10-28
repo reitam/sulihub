@@ -3,6 +3,7 @@
 kreta_adatok.db
 config.json
 sync.log
+scheduler_state.json
 
 # Csatolmányok és letöltött dokumentumok kizárása
 static/csatolmanyok/*
