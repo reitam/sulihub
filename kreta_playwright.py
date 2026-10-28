@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import logging
+import logging.handlers
 from datetime import datetime, timedelta
 from playwright.async_api import async_playwright
 
@@ -15,6 +16,11 @@ CONFIG_FILE = os.environ.get("KRETA_CONFIG_FILE", "config.json")
 DB_FILE = os.environ.get("KRETA_DB_FILE", "kreta_adatok.db")
 CSATOLMANYOK_DIR = os.environ.get("KRETA_CSATOLMANYOK_DIR", os.path.join("static", "csatolmanyok"))
 LOG_FILE = os.environ.get("KRETA_LOG_FILE", "sync.log")
+# Napló-rotáció: ne nőjön korlátlanul a sync.log (a felület is ezt olvassa).
+LOG_MAX_BYTES = int(os.environ.get("KRETA_LOG_MAX_BYTES", 1000000))
+LOG_BACKUP_COUNT = int(os.environ.get("KRETA_LOG_BACKUP_COUNT", 2))
+# A Flakon (app.py) ezt a jelölőt keresi a kimenetben az összegzéshez.
+RESULT_MARKER = "##KRETA_RESULT##"
 
 # Standard Python Logging konfiguráció: egyszerre fájlba (sync.log) és stdout-ra (konzol/Flask)
 logging.basicConfig(
@@ -22,7 +28,10 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
-        logging.FileHandler(LOG_FILE, encoding="utf-8", mode="a"),
+        logging.handlers.RotatingFileHandler(
+            LOG_FILE, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT,
+            encoding="utf-8", mode="a"
+        ),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -975,19 +984,32 @@ async def main():
         )
         page = context.pages[0] if context.pages else await context.new_page()
 
+        failed = []
+        ok_count = 0
         for student in active_students:
             try:
                 await process_student(page, student)
+                ok_count += 1
                 await asyncio.sleep(2)
             except Exception as err:
+                failed.append(student.get("diak_nev", "?"))
                 log(f"\nHIBA történt {student.get('diak_nev')} feldolgozása során: {err}")
 
         log("\n" + "=" * 70)
         log("MINDEN DIÁK FELDOLGOZÁSA BEFEJEZŐDÖTT!")
+        if failed:
+            log(f"FIGYELEM: {len(failed)} diák adata NEM frissült: {', '.join(failed)}")
         log("=" * 70)
         
         await asyncio.sleep(2)
         await context.close()
 
+    # Géppel olvasható összegzés a Flask appnak (stdout-ra, a naplóba nem kell).
+    summary = {"total": len(active_students), "ok": ok_count, "failed": failed}
+    print(RESULT_MARKER + json.dumps(summary, ensure_ascii=False), flush=True)
+
+    # Kilépési kód: 0 = minden diák rendben, 2 = részleges hiba, 1 = végzetes.
+    return 0 if not failed else 2
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

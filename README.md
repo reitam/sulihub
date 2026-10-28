@@ -168,6 +168,10 @@ mint a felületi gomb (a konzol és a `/api/sync/status` is mutatja).
 | `ENABLED` | `false` esetén nincs automatikus futás (a kézi gomb persze működik) |
 | `INTERVAL_MINUTES` | Két futás közti idő az **utolsó futás kezdetétől** (min. 5 perc; egy futás ~2,2 perc) |
 | `START_HOUR` / `END_HOUR` | Opcionális időablak. `0`–`24` (vagy a két érték egyenlő) = **egész nap**, nincs korlátozás. Ha az esedékesség időpontja az ablakon kívülre esik (pl. 22:16 + 3 óra = 01:16, de az ablak 6–22), a futás a **következő ablaknyitásra** tolódik (06:00) — a felület is ezt mutatja. |
+| `STALE_ALERT_HOURS` | Ennyi óránál régebbi utolsó futás esetén **ntfy riasztás** (0 = kikapcsolva; alapérték 12). Legalább 6 óránként egyszer riaszt. |
+
+> A `STALE_ALERT_HOURS` értéke legyen nagyobb a leghosszabb éjszakai szünetnél
+> (6–22 ablaknál 21:00 → 06:00 = 9 óra), különben minden reggel téves riasztás jön.
 
 **Működés / védelmek:**
 
@@ -180,6 +184,11 @@ mint a felületi gomb (a konzol és a `/api/sync/status` is mutatja).
 - **Nincs átfedés:** a kézi gomb és az ütemező ugyanazt az egy belépési pontot
   (`start_sync`) használja, ami a lock alatt foglalja le a futást. Ha épp fut
   valami, az ütemezett indítás a következő tickre csúszik (nincs sorban állás).
+- **Részleges hiba nem siker:** ha egy diák feldolgozása elhasal, a többi adata
+  továbbra is mentődik, de a futás állapota **`done_with_errors`** lesz (a felületen
+  „részleges hiba", a hibás diák nevével; a naplóban is látszik). A scraper ehhez
+  `##KRETA_RESULT##{...}` összegzést ír a kimenetére és 2-es kilépési kóddal tér vissza.
+- **ntfy értesítés** hiba / részleges hiba / elavult adat esetén (lásd `NTFY_TOPIC`).
 - **Hibánál nincs újrapróbálkozás-vihar:** a következő kísérlet a normál
   intervallum után lesz.
 - **Első indítás:** ha még sosem futott (nincs állapotfájl), 5 perc múlva indul.
@@ -225,6 +234,18 @@ A fejlécben a gomb alatt látszik:
 └── templates/
     └── index.html          # Fő Dashboard nézet (Bootstrap + DataTables + FullCalendar)
 ```
+
+---
+
+## 🧪 Tesztelés
+
+```bash
+python tests/run_all.py
+```
+
+Három teszt-csomag (ütemező, A-csomag: részleges hiba/ntfy/napló, PDF-betűk), izolált
+temp könyvtárban — a valódi adatbázist és `config.json`-t nem érintik.
+Részletek: [`tests/README.md`](tests/README.md).
 
 ---
 
@@ -282,3 +303,10 @@ up --build` több percig tart (pip + Chromium letöltés) — ez normális.
 | `KRETA_BROWSER_DATA_DIR` | `./browser_user_data` | Chromium profil (sütik, munkamenetek) |
 | `KRETA_SCHEDULER_STATE_FILE` | data-könyvtáron belül `scheduler_state.json` | Az ütemező állapota (legutóbbi futás) |
 | `KRETA_HOST` / `KRETA_PORT` / `KRETA_DEBUG` | `127.0.0.1` / `5000` / ki | Flask szerver beállításai |
+| `KRETA_SERVER` | `flask` | `waitress` = produkciós WSGI szerver (a compose így indítja); `flask` = dev szerver |
+| `KRETA_WAITRESS_THREADS` | `8` | A waitress szálainak száma |
+| `NTFY_TOPIC` | *(üres)* | ntfy push topic; üresen hagyva nincs értesítés |
+| `NTFY_URL` | `https://ntfy.sh` | ntfy szerver címe |
+| `NTFY_TIMEOUT` | `5` | ntfy kérés timeout (mp) |
+| `KRETA_LOG_MAX_BYTES` / `KRETA_LOG_BACKUP_COUNT` | `1000000` / `2` | `sync.log` rotáció (méret / mentett példányok) |
+| `KRETA_LOG_API_MAX_BYTES` | `300000` | Az `/api/logs` ennyi bájtot ad vissza a napló végéről |

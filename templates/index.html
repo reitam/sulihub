@@ -1446,8 +1446,11 @@ $(document).ready(function() {
             : `(az időszakban ${sched.interval_minutes} percenként)`;
     }
 
-    function schedStatusHtml(st) {
+    function schedStatusHtml(st, failed) {
+        const failedTxt = (failed && failed.length) ? String(failed.join(', ')) : '';
+        const titleAttr = failedTxt ? ` title="Nem frissült: ${failedTxt}"` : '';
         if (st === 'done') return '<span class="text-success fw-bold">sikeres</span>';
+        if (st === 'done_with_errors') return `<span class="text-warning fw-bold"${titleAttr}>részleges hiba</span>`;
         if (st === 'running') return '<span class="text-primary">folyamatban...</span>';
         if (st === 'stopped') return '<span class="text-secondary">leállítva</span>';
         if (st === 'interrupted') return '<span class="text-warning">megszakadt</span>';
@@ -1506,13 +1509,13 @@ $(document).ready(function() {
             const trig = sched.last_trigger === 'scheduled'
                 ? '<span class="badge bg-primary">automatikus</span>'
                 : '<span class="badge bg-warning text-dark">kézi</span>';
-            const st = schedStatusHtml(sched.running ? 'running' : sched.last_status);
+            const st = schedStatusHtml(sched.running ? 'running' : sched.last_status, sched.last_failed_students);
             parts.push(`<span class="text-nowrap">Utolsó frissítés: <b>${when}</b> ${trig}${st ? ' &middot; ' + st : ''}</span>`);
 
             // Ha az utolsó futás kézi volt, az ütemező ciklusának alapja külön sor.
             if (sched.last_trigger !== 'scheduled' && sched.last_scheduled_run) {
                 const aw = formatSchedTime(sched.last_scheduled_run) || sched.last_scheduled_run;
-                const ast = schedStatusHtml(sched.last_scheduled_status);
+                const ast = schedStatusHtml(sched.last_scheduled_status, sched.last_scheduled_failed_students);
                 parts.push(`<span class="text-nowrap">Utolsó automatikus: <b>${aw}</b>${ast ? ' &middot; ' + ast : ''}</span>`);
             }
 
@@ -1561,6 +1564,9 @@ $(document).ready(function() {
 
                 if (res.status === 'done') {
                     title.text('Szinkronizáció kész!');
+                } else if (res.status === 'done_with_errors') {
+                    const hibas = (res.failed_students || []).join(', ');
+                    title.text('Szinkronizáció kész — részleges hiba' + (hibas ? ` (${hibas})` : ''));
                 } else if (res.status === 'stopped') {
                     title.text('Szinkronizáció leállítva!');
                 } else if (res.status === 'error') {

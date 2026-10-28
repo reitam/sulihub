@@ -272,7 +272,7 @@ $robocopyArgs = @(
     $SourceDir,
     $SambaShare,
     "/MIR",
-    "/XD", ".git", "__pycache__", "browser_user_data", "static\csatolmanyok", ".claude",
+    "/XD", ".git", "__pycache__", "browser_user_data", "static\csatolmanyok", ".claude", "tests",
     "/XF", ".env", "deploy.ps1", "config.json", "*.db", "sync.log", "KretaApp_Start.bat",
     # Csak fejlesztoi/dokumentacios fajlok — a futasidohoz nem kellenek, ezert
     # ne keruljenek at a szerver munkakonyvtaraba (a /MIR a kizart fajlokat
@@ -305,6 +305,12 @@ if (-not $WhatIf) {
     if (Test-Path $staleAttachments) {
         Remove-Item $staleAttachments -Recurse -Force
         Write-Host "  Torolve (staging): static\csatolmanyok" -ForegroundColor DarkGray
+    }
+    # A tesztek fejlesztoi fajlok — a szerverre nem kellenek.
+    $staleTests = Join-Path $SambaShare "tests"
+    if (Test-Path $staleTests) {
+        Remove-Item $staleTests -Recurse -Force
+        Write-Host "  Torolve (staging): tests" -ForegroundColor DarkGray
     }
 }
 
@@ -386,6 +392,7 @@ rm -f REMOTE_DIR_PLACEHOLDER/README.md \
 # (/app/data/csatolmanyok), a munkakonyvtar static/csatolmanyok masolata
 # felesleges (a .dockerignore is kizarja a kepbol).
 rm -rf REMOTE_DIR_PLACEHOLDER/static/csatolmanyok
+rm -rf REMOTE_DIR_PLACEHOLDER/tests
 echo OK
 
 echo ""
