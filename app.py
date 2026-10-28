@@ -347,8 +347,15 @@ def export_orarend_pdf():
 
     diak = request.args.get("diak", "").strip()
 
-    mai_nap = datetime.now()
-    hetfo = mai_nap - timedelta(days=mai_nap.weekday())
+    # A frontend a naptárban ÉPPEN MEGJELENÍTETT hét kezdőnapját küldi a 'datum'
+    # paraméterben — a PDF ahhoz a héthez készül. Üres/hibás paraméternél az
+    # aktuális hét marad (visszafelé kompatibilis viselkedés).
+    datum_param = request.args.get("datum", "").strip()
+    try:
+        hetfo = datetime.strptime(datum_param, "%Y-%m-%d")
+    except ValueError:
+        hetfo = datetime.now()
+    hetfo = hetfo - timedelta(days=hetfo.weekday())
     hetfo_str = hetfo.strftime("%Y-%m-%d")
     vasarnap_str = (hetfo + timedelta(days=6)).strftime("%Y-%m-%d")
 
