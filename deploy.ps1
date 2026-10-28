@@ -312,13 +312,19 @@ echo "Staging fajlok szama: $STAGING_COUNT"
 if [ "$STAGING_COUNT" -gt 0 ]; then
     # A szerver .env-je szent: a stagingben levo (regi) peldany nem irhatja felul
     cp -f REMOTE_DIR_PLACEHOLDER/.env /tmp/kreta_env_backup 2>/dev/null
-    mkdir -p REMOTE_DIR_PLACEHOLDER
+    mkdir -p REMOTE_DIR_PLACEHOLDER || { echo "HIBA: a munkakonyvtar nem hozhato letre: REMOTE_DIR_PLACEHOLDER"; exit 1; }
     # -r es nem -a: tulajdonos/idobelyeg orzes nelkul (NTFS mount-on ugyis hibazna)
-    cp -rf STAGING_DIR_PLACEHOLDER/. REMOTE_DIR_PLACEHOLDER/ && echo OK || echo "HIBA: a masolas nem sikerult"
+    cp -rf STAGING_DIR_PLACEHOLDER/. REMOTE_DIR_PLACEHOLDER/ || { echo "HIBA: a masolas nem sikerult"; exit 1; }
+    echo OK
     cp -f /tmp/kreta_env_backup REMOTE_DIR_PLACEHOLDER/.env 2>/dev/null
     rm -f /tmp/kreta_env_backup
+    if [ ! -f REMOTE_DIR_PLACEHOLDER/.env ]; then
+        echo "APP_ENVIRONMENT=PROD" > REMOTE_DIR_PLACEHOLDER/.env
+        echo "A szerver .env letrehozva (APP_ENVIRONMENT=PROD)"
+    fi
 else
-    echo "FIGYELMEZTETES: a staging ures - a regi kod marad a helyen!"
+    echo "HIBA: a staging ures - nincs mit elesiteni!"
+    exit 1
 fi
 
 echo ""
@@ -393,7 +399,7 @@ exit $DOCKER_EXIT
         $installBackupSh = $installBackupSh.Replace('REMOTE_DIR_PLACEHOLDER', $RemoteDir)
         $installBackupSh = $installBackupSh.Replace('BACKUP_DIR_PLACEHOLDER', $BackupDir)
         # A mento telepites a staging masolas UTAN fusson (friss szkript)
-        $deploySh = $deploySh -replace 'echo "===\[ STAGING MASOLAS \]==="', ($installBackupSh + 'echo "===[ STAGING MASOLAS ]==="')
+        $deploySh = $deploySh -replace 'echo "===\[ DATA / BACKUP KONYVTARAK \]==="', ($installBackupSh + 'echo "===[ DATA / BACKUP KONYVTARAK ]==="')
     }
 
     # LF sorelvalasztok kellenek (bash), ASCII kodolas
