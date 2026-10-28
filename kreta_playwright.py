@@ -504,7 +504,12 @@ async def scrape_uzenetek(page, diak_nev):
                         await download.save_as(save_path)
                         
                         csatolmany_nev = download.suggested_filename
-                        csatolmany_utvonal = save_path.replace("\\", "/")
+                        # A DB-be a csatolmány-könyvtárhoz KÉPEST relatív utat
+                        # mentünk ("diak_nev/fajl.pdf"). Abszolút útvonallal
+                        # (KRETA_CSATOLMANYOK_DIR=/app/data/csatolmanyok) a
+                        # frontend linkje //app/... protokoll-relatív URL-ként
+                        # halott lenne, a route pedig safe_join-nal 404-et adna.
+                        csatolmany_utvonal = os.path.relpath(save_path, CSATOLMANYOK_DIR).replace("\\", "/")
                         log(f"      -> Csatolmány letöltve: {csatolmany_nev}")
                     except Exception as ex_dl:
                         log(f"      [Csatolmány letöltési hiba]: {ex_dl}")

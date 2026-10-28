@@ -1008,6 +1008,13 @@ def api_clear_logs():
 
 @app.route("/static/csatolmanyok/<path:filename>")
 def download_csatolmany(filename):
+    # A DB-ben tárolt érték történetileg több formátumban szerepelt
+    # ("static/csatolmanyok/...", "/app/data/csatolmanyok/...", tiszta
+    # "diak/fajl.pdf") — a biztonság kedvéért (régi gyorsítótárazott oldalak,
+    # kézzel írt linkek) mindegyikből a tiszta relatív nevet állítjuk elő,
+    # a safe_join ezt illeszti a CSATOLMANYOK_DIR alá.
+    filename = re.sub(r"^.*?csatolmanyok/", "", filename)
+    filename = filename.lstrip("/")
     return send_from_directory(CSATOLMANYOK_DIR, filename)
 
 @app.route("/health")
