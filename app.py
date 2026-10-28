@@ -53,7 +53,9 @@ sync_state = {
     "logs": [],
     "status": "idle",
     "trigger": None,
-    "failed_students": []
+    "failed_students": [],
+    "ok_count": None,
+    "total_students": None
 }
 sync_lock = threading.Lock()
 
@@ -384,6 +386,8 @@ NTFY_TIMEOUT = int(os.environ.get("NTFY_TIMEOUT", 5))
 STALE_ALERT_REPEAT_HOURS = 6
 # A diáknevek személyes adatok — a nyilvános ntfy.sh-ra alapból NEM küldjük őket.
 NTFY_INCLUDE_NAMES = os.environ.get("NTFY_INCLUDE_NAMES", "0").strip().lower() in ("1", "true", "yes", "on")
+# Sikeres futásról is küldjünk-e push-t (alapból igen, mert ezt kérték).
+NTFY_NOTIFY_SUCCESS = os.environ.get("NTFY_NOTIFY_SUCCESS", "1").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _http_post_ntfy(url, data, headers, timeout):
@@ -438,8 +442,8 @@ def send_notification(title, message, priority="default", tags=None):
     return True
 
 
-def notify_sync_result(status, failed_students, trigger, duration_min):
-    """A szinkron eredményéről szóló push (csak hibánál / részleges hibánál)."""
+def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=None, total=None):
+    """A szinkron eredményéről szóló push (hiba / részleges hiba / sikeres)."""
     failed_txt = ", ".join(failed_students) if failed_students else ""
     if status == "done_with_errors":
         if failed_students and NTFY_INCLUDE_NAMES:
@@ -453,6 +457,19 @@ def notify_sync_result(status, failed_students, trigger, duration_min):
             f"{trigger_label(trigger)} futás, {duration_min:.1f} perc. {detail}",
             "default",
             ["warning"],
+        )
+    if status == "done":
+        if not NTFY_NOTIFY_SUCCESS:
+            return False
+        if ok_count is not None and total is not None:
+            detail = f"{ok_count}/{total} diák frissült."
+        else:
+            detail = "Minden diák adata frissült."
+        return send_notification(
+            "KRÉTA szinkron: sikeres",
+            f"{trigger_label(trigger)} futás, {duration_min:.1f} perc. {detail}",
+            "low",
+            ["white_check_mark"],
         )
     if status == "error":
         return send_notification(
@@ -575,6 +592,8 @@ def run_scraper_thread(trigger="manual"):
         sync_state["logs"] = ["> Szinkronizáció indítása a háttérben..."]
         sync_state["status"] = "running"
         sync_state["failed_students"] = []
+        sync_state["ok_count"] = None
+        sync_state["total_students"] = None
 
     # A ciklus alapja a futás KEZDEMÉNYEZÉSE (nem a vége), így a ~2,2 perces
     # futás nem tolja el az ütemezést. Az ütemező ciklusához CSAK az ütemezett
@@ -622,6 +641,8 @@ def run_scraper_thread(trigger="manual"):
         #   0 = minden diák rendben, 2 = részleges hiba (a többi diák mentve),
         #   egyéb = végzetes hiba.
         failed_students = []
+        ok_count = None
+        total_students = None
         with sync_lock:
             log_lines = list(sync_state["logs"])
         for line in log_lines:
@@ -629,11 +650,15 @@ def run_scraper_thread(trigger="manual"):
                 try:
                     payload = json.loads(line.split(RESULT_MARKER, 1)[1])
                     failed_students = [str(n) for n in payload.get("failed", [])]
+                    ok_count = payload.get("ok")
+                    total_students = payload.get("total")
                 except (ValueError, AttributeError, TypeError):
                     pass
 
         with sync_lock:
             sync_state["failed_students"] = failed_students
+            sync_state["ok_count"] = ok_count
+            sync_state["total_students"] = total_students
             if sync_state["status"] != "stopped":
                 if process.returncode == 0:
                     sync_state["status"] = "done"
@@ -658,6 +683,8 @@ def run_scraper_thread(trigger="manual"):
             sync_state["process"] = None
             final_status = sync_state["status"]
             final_failed = list(sync_state.get("failed_students") or [])
+            final_ok = sync_state.get("ok_count")
+            final_total = sync_state.get("total_students")
 
         # Az eredményt is perzisztáljuk (a "legutóbbi futás" időpontja már fent
         # megtörtént, ez csak az UI/napló visszajelzéséhez kell).
@@ -665,6 +692,8 @@ def run_scraper_thread(trigger="manual"):
         run_state["last_run_finished"] = _now().strftime(SCHEDULER_TS_FMT)
         run_state["last_status"] = final_status
         run_state["last_failed_students"] = final_failed
+        run_state["last_ok"] = final_ok
+        run_state["last_total"] = final_total
         if trigger == "scheduled":
             run_state["last_scheduled_status"] = final_status
             run_state["last_scheduled_finished"] = run_state["last_run_finished"]
@@ -678,8 +707,8 @@ def run_scraper_thread(trigger="manual"):
             + (f" — hibás diák: {', '.join(final_failed)}" if final_failed else "")
         )
 
-        # Push értesítés hiba / részleges hiba esetén (csak ha NTFY_TOPIC be van állítva).
-        notify_sync_result(final_status, final_failed, trigger, duration_min)
+        # Push értesítés: hiba / részleges hiba / sikeres (beállítástól függően).
+        notify_sync_result(final_status, final_failed, trigger, duration_min, final_ok, final_total)
 
 @app.route("/")
 def index():
