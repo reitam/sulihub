@@ -184,6 +184,42 @@ def _parse_scheduler_dt(value):
         return None
 
 
+# Ha egy RÉGI állapotfájlban még nincs last_scheduled_status (a mező bevezetése
+# előtti futás), a sync.log záró sorából pótoljuk. Kulcs: last_scheduled_run.
+_scheduled_status_cache = {}
+
+
+def _scheduled_status_from_log(last_scheduled_run):
+    if not last_scheduled_run:
+        return None
+    if last_scheduled_run in _scheduled_status_cache:
+        return _scheduled_status_cache[last_scheduled_run]
+
+    status = None
+    started = _parse_scheduler_dt(last_scheduled_run)
+    try:
+        with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                m = re.match(
+                    r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[INFO\] SZINKRONIZÁCIÓ VÉGE \(ütemezett\): (\w+)",
+                    line,
+                )
+                if not m:
+                    continue
+                try:
+                    finished = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    continue
+                # csak az adott ütemezett futáshoz tartozó záró sor
+                if started and started <= finished <= started + timedelta(hours=2):
+                    status = m.group(2)
+    except OSError:
+        status = None
+
+    _scheduled_status_cache[last_scheduled_run] = status
+    return status
+
+
 def _in_time_window(now, start_hour, end_hour):
     """START_HOUR..END_HOUR között? Ha a kettő egyenlő: nincs időablak (0-24)."""
     if start_hour == end_hour:
@@ -249,6 +285,9 @@ def scheduler_status():
     if last_scheduled_status is None and state.get("last_trigger") == "scheduled":
         # Régi állapotfájl: akkor a last_status az ütemezett futásé.
         last_scheduled_status = last_status
+    if last_scheduled_status is None:
+        # Még régebbi állapot + kézi utolsó futás: a naplóból pótoljuk.
+        last_scheduled_status = _scheduled_status_from_log(state.get("last_scheduled_run"))
     if last_scheduled_status == "running" and not running:
         last_scheduled_status = "interrupted"
 
