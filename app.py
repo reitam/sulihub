@@ -98,8 +98,14 @@ init_db_extensions()
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+        # utf-8-sig: a Windows Notepad/PowerShell által írt BOM-ot is kezeli,
+        # különben egy BOM-os config.json-tól nem indulna el az alkalmazás.
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
+                return json.load(f)
+        except ValueError as e:
+            print(f"[Konfiguráció hiba] A {CONFIG_FILE} nem érvényes JSON: {e}")
+            return {}
     return {}
 
 # ==============================================================================
@@ -248,6 +254,11 @@ def _append_sync_log(message):
         print(f"[Ütemező] A sync.log írása nem sikerült: {e}")
 
 
+def trigger_label(trigger):
+    """A naplóban/UI-ban használt magyar megnevezés."""
+    return {"manual": "kézi", "scheduled": "ütemezett"}.get(trigger, trigger or "-")
+
+
 def start_sync(trigger="manual"):
     """
     Egyetlen belépési pont a szinkron indítására (kézi gomb és ütemező is ezt
@@ -268,6 +279,14 @@ def start_sync(trigger="manual"):
             sync_state["running"] = False
             sync_state["status"] = "error"
         raise
+
+    # A naplóban mindig látszik, hogy kézi vagy ütemezett futás indult.
+    if trigger == "scheduled":
+        _append_sync_log(
+            f"ÜTEMEZETT SZINKRONIZÁCIÓ INDÍTÁSA (ütemező: {scheduler_config()['interval_minutes']} percenként)"
+        )
+    else:
+        _append_sync_log("KÉZI SZINKRONIZÁCIÓ INDÍTÁSA (felületi gomb)")
     return True
 
 
@@ -279,10 +298,8 @@ def _scheduler_loop():
             cfg = scheduler_config()
             due = scheduler_next_run(config=cfg)
             if due and _now() >= due and _in_time_window(_now(), cfg["start_hour"], cfg["end_hour"]):
-                if start_sync("scheduled"):
-                    _append_sync_log(
-                        f"ÜTEMEZETT SZINKRONIZÁCIÓ INDÍTÁSA (ütemező: {cfg['interval_minutes']} percenként)"
-                    )
+                # a naplózást a start_sync végzi (egységesen, mindkét triggerre)
+                start_sync("scheduled")
                 # ha épp fut valami, a következő tick újra próbálja (nincs sorban állás)
         except Exception as e:
             print(f"[Ütemező] Hiba a ciklusban: {e}")
@@ -295,7 +312,12 @@ def start_scheduler():
     with scheduler_lock:
         if _scheduler_thread and _scheduler_thread.is_alive():
             return
-        cfg = scheduler_config()
+        # Egy hibás config.json soha ne akadályozza meg a webszerver indulását.
+        try:
+            cfg = scheduler_config()
+        except Exception as e:
+            print(f"[Ütemező] A SCHEDULER beállítás nem olvasható ({e}) — ütemező kikapcsolva.")
+            cfg = {"enabled": False, "interval_minutes": 180, "start_hour": 0, "end_hour": 24}
         _scheduler_thread = threading.Thread(
             target=_scheduler_loop, name="kreta-scheduler", daemon=True
         )
@@ -317,9 +339,10 @@ def run_scraper_thread(trigger="manual"):
 
     # A ciklus alapja a futás KEZDEMÉNYEZÉSE (nem a vége), így a ~2,2 perces
     # futás nem tolja el az ütemezést.
-    _last_run_memo = _now()
+    started_at = _now()
+    _last_run_memo = started_at
     run_state = load_scheduler_state()
-    run_state["last_run_started"] = _last_run_memo.strftime(SCHEDULER_TS_FMT)
+    run_state["last_run_started"] = started_at.strftime(SCHEDULER_TS_FMT)
     run_state["last_trigger"] = trigger
     save_scheduler_state(run_state)
 
@@ -371,6 +394,12 @@ def run_scraper_thread(trigger="manual"):
         run_state["last_run_finished"] = _now().strftime(SCHEDULER_TS_FMT)
         run_state["last_status"] = final_status
         save_scheduler_state(run_state)
+
+        # Záró sor a naplóba: látszik a trigger (kézi/ütemezett) és az eredmény.
+        duration_min = (_now() - started_at).total_seconds() / 60
+        _append_sync_log(
+            f"SZINKRONIZÁCIÓ VÉGE ({trigger_label(trigger)}): {final_status}, {duration_min:.1f} perc"
+        )
 
 @app.route("/")
 def index():

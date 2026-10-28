@@ -35,8 +35,13 @@ if not os.path.exists(CONFIG_FILE):
     log(f"HIBA: A {CONFIG_FILE} fájl nem található!")
     exit(1)
 
-with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-    config = json.load(f)
+# utf-8-sig: a Windows Notepad/PowerShell által írt BOM-ot is kezeli.
+try:
+    with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
+        config = json.load(f)
+except ValueError as e:
+    log(f"HIBA: A {CONFIG_FILE} nem érvényes JSON: {e}")
+    exit(1)
 
 HEADLESS_MODE = config.get("HEADLESS", True)
 STUDENTS = config.get("STUDENTS", [])
