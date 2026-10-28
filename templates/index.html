@@ -168,7 +168,11 @@
                 <i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból
             </button>
             <div id="schedulerInfo" class="small text-muted mt-1 d-none">
-                <i class="fa-regular fa-clock me-1"></i><span id="schedulerNextText"></span>
+                <div class="d-flex align-items-center justify-content-end gap-2">
+                    <span id="schedulerState" class="badge bg-secondary"><i class="fa-solid fa-clock me-1"></i>Ütemező: KI</span>
+                    <span id="schedulerNextText"></span>
+                </div>
+                <div id="schedulerLastText" class="text-secondary mt-1"></div>
             </div>
         </div>
     </div>
@@ -1399,15 +1403,18 @@ $(document).ready(function() {
     }
 
     // ── Ütemező visszajelzése a fejlécben ───────────────────────────────────
-    function formatSchedulerNext(iso) {
+    function formatSchedTime(iso) {
         if (!iso) return null;
         const d = new Date(String(iso).replace(' ', 'T'));
         if (isNaN(d.getTime())) return null;
         const now = new Date();
-        const holnap = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const ma = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const nap = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const diff = Math.round((nap - ma) / 86400000);
         const hhmm = d.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
-        if (d.toDateString() === now.toDateString()) return `ma ${hhmm}`;
-        if (d.toDateString() === holnap.toDateString()) return `holnap ${hhmm}`;
+        if (diff === 0) return `ma ${hhmm}`;
+        if (diff === 1) return `holnap ${hhmm}`;
+        if (diff === -1) return `tegnap ${hhmm}`;
         return `${d.toLocaleDateString('hu-HU')} ${hhmm}`;
     }
 
@@ -1417,26 +1424,57 @@ $(document).ready(function() {
             return;
         }
         $('#schedulerInfo').removeClass('d-none');
+        const badge = $('#schedulerState');
         const txt = $('#schedulerNextText');
+        const last = $('#schedulerLastText');
 
+        // 1) Be van-e kapcsolva az ütemező?
+        if (sched.enabled) {
+            badge.removeClass('bg-secondary').addClass('bg-success')
+                 .html('<i class="fa-solid fa-clock me-1"></i>Ütemező: BE');
+        } else {
+            badge.removeClass('bg-success').addClass('bg-secondary')
+                 .html('<i class="fa-solid fa-clock me-1"></i>Ütemező: KI');
+        }
+
+        // 2) Következő futás / épp futó szinkron
         if (!sched.enabled) {
-            txt.html('<span class="text-secondary">Automatikus szinkron: kikapcsolva</span>');
-            return;
+            txt.html('<span class="text-secondary">automatikus szinkron kikapcsolva</span>');
+        } else if (sched.running) {
+            txt.html(sched.trigger === 'scheduled'
+                ? '<span class="text-success fw-bold">ütemezett szinkron fut...</span>'
+                : '<span class="text-primary fw-bold">kézi szinkron fut...</span>');
+        } else {
+            const when = formatSchedTime(sched.next_run_iso);
+            if (when) {
+                const overdue = new Date(String(sched.next_run_iso).replace(' ', 'T')) <= new Date();
+                txt.html(`következő: <b>${when}</b>`
+                         + (overdue ? ' <span class="text-warning">(hamarosan)</span>' : '')
+                         + ` <span class="text-secondary">(${sched.interval_minutes} percenként)</span>`);
+            } else {
+                txt.html(`<span class="text-secondary">${sched.interval_minutes} percenként</span>`);
+            }
         }
-        if (sched.running && sched.trigger === 'scheduled') {
-            txt.html(`<span class="text-success fw-bold">Ütemezett szinkron fut</span>
-                      <span class="text-secondary">(${sched.interval_minutes} percenként)</span>`);
-            return;
+
+        // 3) Utolsó frissítés: mikor, kézi vagy automatikus, és mi lett az eredménye
+        if (!sched.last_run) {
+            last.html('Legutóbbi frissítés: <span class="text-secondary">még nem volt</span>');
+        } else {
+            const when = formatSchedTime(sched.last_run) || sched.last_run;
+            const auto = sched.last_trigger === 'scheduled';
+            const trig = auto
+                ? '<span class="badge bg-primary">automatikus</span>'
+                : '<span class="badge bg-warning text-dark">kézi</span>';
+            const st = sched.last_status;
+            const eredmeny = st === 'done'
+                ? '<span class="text-success">sikeres</span>'
+                : st === 'stopped'
+                    ? '<span class="text-secondary">leállítva</span>'
+                    : st === 'error'
+                        ? '<span class="text-danger">hiba</span>'
+                        : (st ? `<span class="text-secondary">${st}</span>` : '');
+            last.html(`Legutóbbi frissítés: <b>${when}</b> ${trig}${eredmeny ? ' &middot; ' + eredmeny : ''}`);
         }
-        const when = formatSchedulerNext(sched.next_run_iso);
-        if (!when) {
-            txt.html(`Automatikus szinkron: <b>${sched.interval_minutes} percenként</b>`);
-            return;
-        }
-        const overdue = new Date(String(sched.next_run_iso).replace(' ', 'T')) <= new Date();
-        txt.html(`Következő automatikus szinkron: <b>${when}</b>`
-                 + (overdue ? ' <span class="text-warning">(hamarosan)</span>' : '')
-                 + ` <span class="text-secondary">(${sched.interval_minutes} percenként)</span>`);
     }
 
     function checkSyncStatus() {
