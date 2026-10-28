@@ -1604,7 +1604,15 @@ $(document).ready(function() {
         if (msg.csatolmany_utvonal) {
             $('#modalCsatolmanyContainer').removeClass('d-none');
             $('#modalCsatolmanyNev').text(` ${msg.csatolmany_nev}`);
-            $('#modalCsatolmanyLink').attr('href', `/${msg.csatolmany_utvonal}`);
+            // A DB-ben történetileg több formátum szerepel: "static/csatolmanyok/...",
+            // "/app/data/csatolmanyok/..." és tiszta "diak/fajl.pdf" — mindegyikből
+            // a tiszta relatív nevet állítjuk elő, és a route prefixet mi tesszük elé
+            // (a `//app/...` protokoll-relatív URL halott link lenne).
+            let csRel = String(msg.csatolmany_utvonal)
+                .replace(/\\/g, '/')
+                .replace(/^\/+/, '')
+                .replace(/^.*csatolmanyok\//, '');
+            $('#modalCsatolmanyLink').attr('href', '/static/csatolmanyok/' + encodeURI(csRel));
         } else {
             $('#modalCsatolmanyContainer').addClass('d-none');
         }
