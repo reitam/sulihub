@@ -167,6 +167,9 @@
         <div id="schedulerInfo" class="flex-grow-1 d-none">
             <div class="d-flex flex-wrap align-items-center justify-content-center gap-3 bg-light border rounded px-3 py-2 small">
                 <span id="schedulerState" class="badge bg-secondary"><i class="fa-solid fa-clock me-1"></i>Ütemező: KI</span>
+                <span class="text-secondary">|</span>
+                <span id="schedulerWindowText" class="text-nowrap"></span>
+                <span class="text-secondary">|</span>
                 <span id="schedulerNextText"></span>
                 <span class="text-secondary">|</span>
                 <span id="schedulerLastText" class="text-secondary"
@@ -1422,6 +1425,25 @@ $(document).ready(function() {
         return `${d.toLocaleDateString('hu-HU')} ${hhmm}`;
     }
 
+    function schedulerAlwaysOn(sched) {
+        return sched.start_hour === sched.end_hour
+            || (sched.start_hour === 0 && sched.end_hour === 24);
+    }
+
+    function schedulerWindowHtml(sched) {
+        if (schedulerAlwaysOn(sched)) {
+            return 'időablak: <b>egész nap</b>';
+        }
+        const pad = h => String(h).padStart(2, '0') + ':00';
+        return `időablak: <b>${pad(sched.start_hour)}–${pad(sched.end_hour)}</b>`;
+    }
+
+    function schedulerIntervalText(sched) {
+        return schedulerAlwaysOn(sched)
+            ? `(egész nap, ${sched.interval_minutes} percenként)`
+            : `(az időszakban ${sched.interval_minutes} percenként)`;
+    }
+
     function schedStatusHtml(st) {
         if (st === 'done') return '<span class="text-success fw-bold">sikeres</span>';
         if (st === 'running') return '<span class="text-primary">folyamatban...</span>';
@@ -1451,21 +1473,24 @@ $(document).ready(function() {
         }
 
         // 2) Következő futás / épp futó szinkron
+        $('#schedulerWindowText').html(schedulerWindowHtml(sched));
+
         if (!sched.enabled) {
             txt.html('<span class="text-secondary">automatikus szinkron kikapcsolva</span>');
         } else if (sched.running) {
-            txt.html(sched.trigger === 'scheduled'
+            txt.html((sched.trigger === 'scheduled'
                 ? '<span class="text-success fw-bold">ütemezett szinkron fut...</span>'
-                : '<span class="text-primary fw-bold">kézi szinkron fut...</span>');
+                : '<span class="text-primary fw-bold">kézi szinkron fut...</span>')
+                + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`);
         } else {
             const when = formatSchedTime(sched.next_run_iso);
             if (when) {
                 const overdue = new Date(String(sched.next_run_iso).replace(' ', 'T')) <= new Date();
                 txt.html(`következő: <b>${when}</b>`
                          + (overdue ? ' <span class="text-warning">(hamarosan)</span>' : '')
-                         + ` <span class="text-secondary">(${sched.interval_minutes} percenként)</span>`);
+                         + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`);
             } else {
-                txt.html(`<span class="text-secondary">${sched.interval_minutes} percenként</span>`);
+                txt.html(`<span class="text-secondary">${schedulerIntervalText(sched)}</span>`);
             }
         }
 
