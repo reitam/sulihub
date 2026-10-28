@@ -308,5 +308,6 @@ up --build` több percig tart (pip + Chromium letöltés) — ez normális.
 | `NTFY_TOPIC` | *(üres)* | ntfy push topic **vagy teljes URL** (pl. `https://ntfy.sh/kreta-xyz`, mint a mentő-scriptnél); üresen hagyva nincs értesítés |
 | `NTFY_URL` | `https://ntfy.sh` | ntfy szerver címe (csak ha a `NTFY_TOPIC` nem teljes URL) |
 | `NTFY_TIMEOUT` | `5` | ntfy kérés timeout (mp) |
+| `NTFY_INCLUDE_NAMES` | `0` | `1` = a részleges hiba push-ban szerepeljenek a diáknevek (alapból csak darabszám) |
 | `KRETA_LOG_MAX_BYTES` / `KRETA_LOG_BACKUP_COUNT` | `1000000` / `2` | `sync.log` rotáció (méret / mentett példányok) |
 | `KRETA_LOG_API_MAX_BYTES` | `300000` | Az `/api/logs` ennyi bájtot ad vissza a napló végéről |
