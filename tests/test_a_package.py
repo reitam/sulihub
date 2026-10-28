@@ -101,7 +101,7 @@ time.sleep(0.4)
 ok(len(sent) == 1, f"egy kérés ment el ({len(sent)})")
 url, data, headers, timeout = sent[0]
 payload = json.loads(data.decode("utf-8"))
-ok(url == "https://ntfy.example", f"URL: {url}")
+ok(url == "https://ntfy.example/teszt-topic", f"URL: {url}")
 ok(payload["topic"] == "teszt-topic", "payload.topic")
 ok(payload["title"] == "Cím ő/ű" and payload["message"] == "Üzenet Ő/Ű", "UTF-8 cím/üzenet helyes")
 ok(payload["priority"] == "high" and payload["tags"] == ["warning"], "priority/tags")
@@ -120,6 +120,16 @@ sent.clear()
 kreta.notify_sync_result("error", [], "manual", 1.0)
 time.sleep(0.4)
 ok(len(sent) == 1 and "HIBA" in json.loads(sent[0][1].decode())["title"], "hiba -> küld")
+
+# A backup-script konvenciója: NTFY_TOPIC lehet teljes URL is
+sent.clear()
+kreta.NTFY_TOPIC = "https://ntfy.sh/kreta-teszt-123"
+ok(kreta.send_notification("URL forma", "test"), "teljes URL-es NTFY_TOPIC is működik")
+time.sleep(0.4)
+url2, data2, _, _ = sent[0]
+ok(url2 == "https://ntfy.sh/kreta-teszt-123", f"URL forma: {url2}")
+ok(json.loads(data2.decode())["topic"] == "kreta-teszt-123", "a topic a URL utolsó szegmense")
+kreta.NTFY_TOPIC = "teszt-topic"
 
 # elavult adat riasztás + throttle
 sent.clear()
