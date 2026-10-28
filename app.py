@@ -244,6 +244,14 @@ def scheduler_status():
     if last_status == "running" and not running:
         last_status = "interrupted"
 
+    # Az utolsó ÜTEMEZETT futás eredménye külön (a felület mindkettőt kiírja).
+    last_scheduled_status = state.get("last_scheduled_status")
+    if last_scheduled_status is None and state.get("last_trigger") == "scheduled":
+        # Régi állapotfájl: akkor a last_status az ütemezett futásé.
+        last_scheduled_status = last_status
+    if last_scheduled_status == "running" and not running:
+        last_scheduled_status = "interrupted"
+
     return {
         "enabled": cfg["enabled"],
         "interval_minutes": cfg["interval_minutes"],
@@ -257,6 +265,8 @@ def scheduler_status():
         "last_trigger": state.get("last_trigger"),
         "last_scheduled_run": state.get("last_scheduled_run")
         or (state.get("last_run_started") if state.get("last_trigger") == "scheduled" else None),
+        "last_scheduled_status": last_scheduled_status,
+        "last_scheduled_finished": state.get("last_scheduled_finished"),
         "running": running,
         "trigger": trigger,
     }
@@ -368,6 +378,8 @@ def run_scraper_thread(trigger="manual"):
     if trigger == "scheduled":
         _last_scheduled_memo = started_at
         run_state["last_scheduled_run"] = started_at.strftime(SCHEDULER_TS_FMT)
+        run_state["last_scheduled_status"] = "running"
+        run_state["last_scheduled_finished"] = None
     save_scheduler_state(run_state)
 
     try:
@@ -417,6 +429,9 @@ def run_scraper_thread(trigger="manual"):
         run_state = load_scheduler_state()
         run_state["last_run_finished"] = _now().strftime(SCHEDULER_TS_FMT)
         run_state["last_status"] = final_status
+        if trigger == "scheduled":
+            run_state["last_scheduled_status"] = final_status
+            run_state["last_scheduled_finished"] = run_state["last_run_finished"]
         save_scheduler_state(run_state)
 
         # Záró sor a naplóba: látszik a trigger (kézi/ütemezett) és az eredmény.

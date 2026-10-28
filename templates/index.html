@@ -170,7 +170,7 @@
                 <span id="schedulerNextText"></span>
                 <span class="text-secondary">|</span>
                 <span id="schedulerLastText" class="text-secondary"
-                      title="A legutóbbi szinkron (kézi vagy automatikus) időpontja és eredménye"></span>
+                      title="A legutóbbi szinkron (kézi vagy automatikus) és a legutóbbi automatikus futás időpontja és eredménye"></span>
             </div>
         </div>
 
@@ -1422,6 +1422,15 @@ $(document).ready(function() {
         return `${d.toLocaleDateString('hu-HU')} ${hhmm}`;
     }
 
+    function schedStatusHtml(st) {
+        if (st === 'done') return '<span class="text-success fw-bold">sikeres</span>';
+        if (st === 'running') return '<span class="text-primary">folyamatban...</span>';
+        if (st === 'stopped') return '<span class="text-secondary">leállítva</span>';
+        if (st === 'interrupted') return '<span class="text-warning">megszakadt</span>';
+        if (st === 'error') return '<span class="text-danger fw-bold">hiba</span>';
+        return st ? `<span class="text-secondary">${st}</span>` : '';
+    }
+
     function refreshSchedulerInfo(sched) {
         if (!sched || typeof sched !== 'object') {
             $.getJSON('/api/scheduler/status', function(res) { refreshSchedulerInfo(res); });
@@ -1460,36 +1469,27 @@ $(document).ready(function() {
             }
         }
 
-        // 3) Utolsó frissítés: mikor, kézi vagy automatikus, és mi lett az eredménye
+        // 3) Utolsó frissítés ÉS utolsó automatikus futás — mindkettő saját eredménnyel
         if (!sched.last_run) {
-            last.html('Legutóbbi frissítés: <span class="text-secondary">még nem volt</span>');
+            last.html('Utolsó frissítés: <span class="text-secondary">még nem volt</span>');
         } else {
+            const parts = [];
+
             const when = formatSchedTime(sched.last_run) || sched.last_run;
-            const auto = sched.last_trigger === 'scheduled';
-            const trig = auto
+            const trig = sched.last_trigger === 'scheduled'
                 ? '<span class="badge bg-primary">automatikus</span>'
                 : '<span class="badge bg-warning text-dark">kézi</span>';
-            const st = sched.running ? 'running' : sched.last_status;
-            const eredmeny = st === 'done'
-                ? '<span class="text-success">sikeres</span>'
-                : st === 'running'
-                    ? '<span class="text-primary">folyamatban...</span>'
-                    : st === 'stopped'
-                        ? '<span class="text-secondary">leállítva</span>'
-                        : st === 'interrupted'
-                            ? '<span class="text-warning">megszakadt</span>'
-                            : st === 'error'
-                                ? '<span class="text-danger">hiba</span>'
-                                : (st ? `<span class="text-secondary">${st}</span>` : '');
-            const eredmenyPrefix = st === 'running' ? ' &middot; ' : ' &middot; eredmény: ';
-            // Az ütemező ciklusa csak az utolsó AUTOMATIKUS futáshoz igazodik,
-            // ezért ha most kézi volt az utolsó, külön is kiírjuk az automatát.
-            let autoInfo = '';
-            if (sched.last_scheduled_run && sched.last_trigger !== 'scheduled') {
-                const aw = formatSchedTime(sched.last_scheduled_run);
-                if (aw) autoInfo = ` &middot; utolsó automatikus: <b>${aw}</b>`;
+            const st = schedStatusHtml(sched.running ? 'running' : sched.last_status);
+            parts.push(`<span class="text-nowrap">Utolsó frissítés: <b>${when}</b> ${trig}${st ? ' &middot; ' + st : ''}</span>`);
+
+            // Ha az utolsó futás kézi volt, az ütemező ciklusának alapja külön sor.
+            if (sched.last_trigger !== 'scheduled' && sched.last_scheduled_run) {
+                const aw = formatSchedTime(sched.last_scheduled_run) || sched.last_scheduled_run;
+                const ast = schedStatusHtml(sched.last_scheduled_status);
+                parts.push(`<span class="text-nowrap">Utolsó automatikus: <b>${aw}</b>${ast ? ' &middot; ' + ast : ''}</span>`);
             }
-            last.html(`Utolsó frissítés: <b>${when}</b> ${trig}${eredmeny ? eredmenyPrefix + eredmeny : ''}${autoInfo}`);
+
+            last.html(parts.join('<span class="text-secondary mx-1">|</span>'));
         }
     }
 

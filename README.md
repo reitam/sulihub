@@ -197,8 +197,9 @@ A fejlécben a gomb alatt látszik:
 - a **következő automatikus futás** (`/api/scheduler/status`), illetve ha épp fut,
   hogy kézi vagy ütemezett szinkron zajlik,
 - a **legutóbbi frissítés**: mikor, **kézi vagy automatikus** jelvénnyel, és az
-  eredménye (sikeres / hiba / leállítva). Ha az utolsó futás kézi volt, külön
-  látszik az **utolsó automatikus** futás ideje is (ez az ütemezés alapja).
+  **adott futás eredménye** (sikeres / hiba / leállítva / folyamatban / megszakadt).
+  Ha az utolsó futás kézi volt, külön — szintén saját eredménnyel — látszik az
+  **utolsó automatikus** futás is (ez az ütemezés alapja).
 
 > Megjegyzés: az ütemező a Flask processzhez kötött, egy processzes futásra
 > készült (a Dockerben `python app.py`, `threaded=True`). Ha valaha több
