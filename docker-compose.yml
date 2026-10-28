@@ -25,6 +25,8 @@ services:
       - KRETA_HOST=0.0.0.0
       - KRETA_PORT=5000
       - KRETA_DEBUG=0
+      # Élesben waitress (a Flask dev szerver csak fejlesztésre való)
+      - KRETA_SERVER=waitress
       - KRETA_DATA_DIR=/app/data
       - KRETA_BROWSER_DATA_DIR=/app/data/browser_user_data
       # Fontos: az alapérték "static/csatolmanyok" lenne, ami a konténer

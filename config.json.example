@@ -6,7 +6,8 @@
     "ENABLED": true,
     "INTERVAL_MINUTES": 180,
     "START_HOUR": 0,
-    "END_HOUR": 24
+    "END_HOUR": 24,
+    "STALE_ALERT_HOURS": 12
   },
   "REWARDS": {
     "jegy_5": 500,

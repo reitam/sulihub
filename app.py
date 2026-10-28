@@ -8,6 +8,7 @@ import threading
 import re
 import io
 import time
+import urllib.request
 from datetime import datetime, timedelta
 
 # ReportLab importok a PDF generáláshoz
@@ -29,6 +30,10 @@ DATA_DIR = os.environ.get("KRETA_DATA_DIR", ".")
 DB_FILE = os.environ.get("KRETA_DB_FILE", os.path.join(DATA_DIR, "kreta_adatok.db"))
 CONFIG_FILE = os.environ.get("KRETA_CONFIG_FILE", os.path.join(DATA_DIR, "config.json"))
 LOG_FILE = os.environ.get("KRETA_LOG_FILE", os.path.join(DATA_DIR, "sync.log"))
+LOG_MAX_BYTES = int(os.environ.get("KRETA_LOG_MAX_BYTES", 1000000))
+LOG_BACKUP_COUNT = int(os.environ.get("KRETA_LOG_BACKUP_COUNT", 2))
+# Az /api/logs ennyi bájtot ad vissza a napló végéről (a UI-nak elég).
+LOG_API_MAX_BYTES = int(os.environ.get("KRETA_LOG_API_MAX_BYTES", 300000))
 CSATOLMANYOK_DIR = os.environ.get("KRETA_CSATOLMANYOK_DIR", os.path.join("static", "csatolmanyok"))
 # Az ütemező állapota (legutóbbi futás, eredmény) — a data köteten él, hogy
 # konténer-újraindítás/deploy után is megmaradjon a 3 órás ciklus.
@@ -38,12 +43,17 @@ SCHEDULER_STATE_FILE = os.environ.get(
 # A deploy által a data kötetre írt verziószám (a felületen jelenik meg).
 VERSION_FILE = os.environ.get("KRETA_VERSION_FILE", os.path.join(DATA_DIR, "version.txt"))
 
+# A scraper ezzel a jelölővel küldi a gép-olvasható összegzést a kimenetén:
+# ##KRETA_RESULT##{"total":3,"ok":2,"failed":["Név"]}
+RESULT_MARKER = "##KRETA_RESULT##"
+
 sync_state = {
     "running": False,
     "process": None,
     "logs": [],
     "status": "idle",
-    "trigger": None
+    "trigger": None,
+    "failed_students": []
 }
 sync_lock = threading.Lock()
 
@@ -159,12 +169,18 @@ def scheduler_config():
         end_hour = int(raw.get("END_HOUR", 24))
     except (TypeError, ValueError):
         start_hour, end_hour = 0, 24
+    try:
+        stale_hours = int(raw.get("STALE_ALERT_HOURS", 12))
+    except (TypeError, ValueError):
+        stale_hours = 12
     return {
         "enabled": bool(raw.get("ENABLED", False)),
         # 5 perc alatti intervallum értelmetlen (egy szinkron ~2,2 perc)
         "interval_minutes": max(5, interval),
         "start_hour": max(0, min(24, start_hour)),
         "end_hour": max(0, min(24, end_hour)),
+        # Elavult adat riasztás: ennyi óra után push (0 = kikapcsolva).
+        "stale_alert_hours": max(0, stale_hours),
     }
 
 
@@ -320,10 +336,12 @@ def scheduler_status():
         "last_run_finished": state.get("last_run_finished"),
         "last_status": last_status,
         "last_trigger": state.get("last_trigger"),
+        "last_failed_students": state.get("last_failed_students") or [],
         "last_scheduled_run": state.get("last_scheduled_run")
         or (state.get("last_run_started") if state.get("last_trigger") == "scheduled" else None),
         "last_scheduled_status": last_scheduled_status,
         "last_scheduled_finished": state.get("last_scheduled_finished"),
+        "last_scheduled_failed_students": state.get("last_scheduled_failed_students") or [],
         "running": running,
         "trigger": trigger,
     }
@@ -332,10 +350,126 @@ def scheduler_status():
 def _append_sync_log(message):
     """Bekezdés a sync.log-ba ugyanabban a formátumban, amit a scraper használ."""
     try:
+        _rotate_log_if_needed()
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(f"{_now().strftime('%Y-%m-%d %H:%M:%S')} [INFO] {message}\n")
     except OSError as e:
         print(f"[Ütemező] A sync.log írása nem sikerült: {e}")
+
+
+def _rotate_log_if_needed():
+    """sync.log rotáció (a scraper RotatingFileHandler-jával azonos méret mellett)."""
+    try:
+        if not os.path.exists(LOG_FILE):
+            return
+        if os.path.getsize(LOG_FILE) < LOG_MAX_BYTES:
+            return
+        # .1 -> .2, sync.log -> .1 (a régieket felülírva; max 2 mentés)
+        for i in range(LOG_BACKUP_COUNT, 1, -1):
+            src = f"{LOG_FILE}.{i-1}"
+            dst = f"{LOG_FILE}.{i}"
+            if os.path.exists(src):
+                os.replace(src, dst)
+        os.replace(LOG_FILE, f"{LOG_FILE}.1")
+    except OSError as e:
+        # Windows: ha épp a scraper tartja nyitva, hagyjuk — a következő írásnál újrapróbáljuk
+        print(f"[Napló] Rotáció kihagyva: {e}")
+
+
+# ── Értesítés (ntfy) ─────────────────────────────────────────────────────────
+# A backup-script már használ ntfy-t; ugyanaz a csatorna itt is működik.
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "").strip()
+NTFY_URL = os.environ.get("NTFY_URL", "https://ntfy.sh").rstrip("/")
+NTFY_TIMEOUT = int(os.environ.get("NTFY_TIMEOUT", 5))
+STALE_ALERT_REPEAT_HOURS = 6
+
+
+def _http_post_ntfy(url, data, headers, timeout):
+    """A tényleges HTTP hívás — tesztben monkeypatch-elhető."""
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.status
+
+
+def send_notification(title, message, priority="default", tags=None):
+    """
+    ntfy push küldése háttérszálban. Ha nincs NTFY_TOPIC, csendben nem tesz semmit.
+    A JSON publish API-t használjuk (a fejlécek nem bírnak el ékezetet).
+    """
+    if not NTFY_TOPIC:
+        return False
+
+    payload = json.dumps(
+        {
+            "topic": NTFY_TOPIC,
+            "title": title,
+            "message": message,
+            "priority": priority,
+            "tags": tags or ["warning"],
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+    def _send():
+        try:
+            _http_post_ntfy(
+                NTFY_URL,
+                payload,
+                {"Content-Type": "application/json; charset=utf-8"},
+                NTFY_TIMEOUT,
+            )
+        except Exception as e:
+            print(f"[Értesítés] Nem sikerült elküldeni: {e}")
+
+    threading.Thread(target=_send, name="kreta-ntfy", daemon=True).start()
+    return True
+
+
+def notify_sync_result(status, failed_students, trigger, duration_min):
+    """A szinkron eredményéről szóló push (csak hibánál / részleges hibánál)."""
+    failed_txt = ", ".join(failed_students) if failed_students else ""
+    if status == "done_with_errors":
+        return send_notification(
+            "KRÉTA szinkron: részleges hiba",
+            f"{trigger_label(trigger)} futás, {duration_min:.1f} perc. Nem frissült: {failed_txt or 'ismeretlen'}",
+            "default",
+            ["warning"],
+        )
+    if status == "error":
+        return send_notification(
+            "KRÉTA szinkron: HIBA",
+            f"A {trigger_label(trigger)} szinkron hibával ért véget ({duration_min:.1f} perc). Részletek a Rendszernaplóban.",
+            "high",
+            ["rotating_light"],
+        )
+    return False
+
+
+def _maybe_notify_stale(cfg):
+    """Ha túl régi az utolsó futás, egyszer riasztunk (legfeljebb 6 óránként)."""
+    stale_hours = cfg.get("stale_alert_hours", 12)
+    if not stale_hours or stale_hours <= 0 or not NTFY_TOPIC:
+        return False
+    state = load_scheduler_state()
+    last = _parse_scheduler_dt(state.get("last_run_started"))
+    if not last:
+        return False
+    age_h = (_now() - last).total_seconds() / 3600
+    if age_h < stale_hours:
+        return False
+    last_alert = _parse_scheduler_dt(state.get("last_stale_alert"))
+    if last_alert and (_now() - last_alert).total_seconds() < STALE_ALERT_REPEAT_HOURS * 3600:
+        return False
+    sent = send_notification(
+        "KRÉTA: elavult adatok",
+        f"Az utolsó szinkron {age_h:.0f} órával ezelőtt volt (küszöb: {stale_hours} óra).",
+        "high",
+        ["hourglass"],
+    )
+    if sent:
+        state["last_stale_alert"] = _now().strftime(SCHEDULER_TS_FMT)
+        save_scheduler_state(state)
+    return sent
 
 
 def trigger_label(trigger):
@@ -385,6 +519,7 @@ def _scheduler_loop():
                 # a naplózást a start_sync végzi (egységesen, mindkét triggerre)
                 start_sync("scheduled")
                 # ha épp fut valami, a következő tick újra próbálja (nincs sorban állás)
+            _maybe_notify_stale(cfg)
         except Exception as e:
             print(f"[Ütemező] Hiba a ciklusban: {e}")
         time.sleep(SCHEDULER_TICK_SECONDS)
@@ -420,6 +555,7 @@ def run_scraper_thread(trigger="manual"):
         sync_state["trigger"] = trigger
         sync_state["logs"] = ["> Szinkronizáció indítása a háttérben..."]
         sync_state["status"] = "running"
+        sync_state["failed_students"] = []
 
     # A ciklus alapja a futás KEZDEMÉNYEZÉSE (nem a vége), így a ~2,2 perces
     # futás nem tolja el az ütemezést. Az ütemező ciklusához CSAK az ütemezett
@@ -439,6 +575,7 @@ def run_scraper_thread(trigger="manual"):
         run_state["last_scheduled_finished"] = None
     save_scheduler_state(run_state)
 
+    failed_students = []
     try:
         process = subprocess.Popen(
             [sys.executable, "-u", "kreta_playwright.py"],
@@ -462,11 +599,32 @@ def run_scraper_thread(trigger="manual"):
         process.stdout.close()
         process.wait()
 
+        # A scraper gép-olvasható összegzése + kilépési kódja:
+        #   0 = minden diák rendben, 2 = részleges hiba (a többi diák mentve),
+        #   egyéb = végzetes hiba.
+        failed_students = []
         with sync_lock:
+            log_lines = list(sync_state["logs"])
+        for line in log_lines:
+            if RESULT_MARKER in line:
+                try:
+                    payload = json.loads(line.split(RESULT_MARKER, 1)[1])
+                    failed_students = [str(n) for n in payload.get("failed", [])]
+                except (ValueError, AttributeError, TypeError):
+                    pass
+
+        with sync_lock:
+            sync_state["failed_students"] = failed_students
             if sync_state["status"] != "stopped":
                 if process.returncode == 0:
                     sync_state["status"] = "done"
                     sync_state["logs"].append("> SZINKRONIZÁCIÓ SIKERESEN BEFEJEZŐDÖTT!")
+                elif process.returncode == 2:
+                    sync_state["status"] = "done_with_errors"
+                    sync_state["logs"].append(
+                        "> SZINKRONIZÁCIÓ RÉSZBEN SIKERES — hibás diák: "
+                        + (", ".join(failed_students) if failed_students else "ismeretlen")
+                    )
                 else:
                     sync_state["status"] = "error"
                     sync_state["logs"].append("> HIBA TÖRTÉNT A SZINKRONIZÁCIÓ SORÁN!")
@@ -480,22 +638,29 @@ def run_scraper_thread(trigger="manual"):
             sync_state["running"] = False
             sync_state["process"] = None
             final_status = sync_state["status"]
+            final_failed = list(sync_state.get("failed_students") or [])
 
         # Az eredményt is perzisztáljuk (a "legutóbbi futás" időpontja már fent
         # megtörtént, ez csak az UI/napló visszajelzéséhez kell).
         run_state = load_scheduler_state()
         run_state["last_run_finished"] = _now().strftime(SCHEDULER_TS_FMT)
         run_state["last_status"] = final_status
+        run_state["last_failed_students"] = final_failed
         if trigger == "scheduled":
             run_state["last_scheduled_status"] = final_status
             run_state["last_scheduled_finished"] = run_state["last_run_finished"]
+            run_state["last_scheduled_failed_students"] = final_failed
         save_scheduler_state(run_state)
 
         # Záró sor a naplóba: látszik a trigger (kézi/ütemezett) és az eredmény.
         duration_min = (_now() - started_at).total_seconds() / 60
         _append_sync_log(
             f"SZINKRONIZÁCIÓ VÉGE ({trigger_label(trigger)}): {final_status}, {duration_min:.1f} perc"
+            + (f" — hibás diák: {', '.join(final_failed)}" if final_failed else "")
         )
+
+        # Push értesítés hiba / részleges hiba esetén (csak ha NTFY_TOPIC be van állítva).
+        notify_sync_result(final_status, final_failed, trigger, duration_min)
 
 @app.route("/")
 def index():
@@ -1395,6 +1560,7 @@ def api_sync_status():
             "running": sync_state["running"],
             "status": sync_state["status"],
             "trigger": sync_state.get("trigger"),
+            "failed_students": list(sync_state.get("failed_students") or []),
             "logs": list(sync_state["logs"]),
         }
     payload["scheduler"] = sched
@@ -1413,13 +1579,21 @@ def api_scheduler_status():
 # ==============================================================================
 @app.route("/api/logs")
 def api_get_logs():
-    """Visszaadja a sync.log fájl tartalmát."""
+    """Visszaadja a sync.log végét (a teljes fájl helyett, hogy ne nőjön a válasz)."""
     if not os.path.exists(LOG_FILE):
         return jsonify({"status": "ok", "content": "A sync.log fájl még nem létezik."})
     
     try:
-        with open(LOG_FILE, "r", encoding="utf-8") as f:
-            content = f.read()
+        with open(LOG_FILE, "r", encoding="utf-8", errors="replace") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            if size > LOG_API_MAX_BYTES:
+                f.seek(size - LOG_API_MAX_BYTES)
+                f.readline()  # az első, csonka sor eldobása
+                content = "…(a napló eleje levágva, az utolsó " + str(LOG_API_MAX_BYTES) + " bájt)…\n" + f.read()
+            else:
+                f.seek(0)
+                content = f.read()
         return jsonify({"status": "ok", "content": content if content else "A sync.log fájl üres."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1454,9 +1628,23 @@ if __name__ == "__main__":
     host = os.environ.get("KRETA_HOST", "127.0.0.1")
     port = int(os.environ.get("KRETA_PORT", "5000"))
     debug = os.environ.get("KRETA_DEBUG", "0") == "1"
-    print(f"Flask web szerver indítása: http://{host}:{port}")
+    print(f"Web szerver indítása: http://{host}:{port}")
     # Az ütemezőt csak egyszer indítjuk: debug módban a reloader két processzt
     # futtat, ezért ott csak a gyerek-processzben (WERKZEUG_RUN_MAIN) indul.
     if not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         start_scheduler()
-    app.run(host=host, port=port, debug=debug, threaded=True)
+
+    # Élesben waitress (a Flask dev szerver csak fejlesztésre való).
+    # KRETA_SERVER=waitress a compose-ban; lokálisan marad a Flask dev szerver.
+    server = os.environ.get("KRETA_SERVER", "flask").lower()
+    if server == "waitress" and not debug:
+        try:
+            from waitress import serve
+            threads = int(os.environ.get("KRETA_WAITRESS_THREADS", "8"))
+            print(f"Waitress produkciós szerver indítása ({threads} szál)...")
+            serve(app, host=host, port=port, threads=threads)
+        except ImportError:
+            print("[Figyelmeztetés] A waitress nincs telepítve — Flask dev szerverrel indul.")
+            app.run(host=host, port=port, debug=debug, threaded=True)
+    else:
+        app.run(host=host, port=port, debug=debug, threaded=True)
