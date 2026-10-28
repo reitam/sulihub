@@ -298,6 +298,14 @@ if (-not $WhatIf) {
             Write-Host "  Torolve (staging): $name" -ForegroundColor DarkGray
         }
     }
+    # A csatolmányok Dockerben a data koteten vannak (/app/data/csatolmanyok),
+    # a munkakonyvtarban levo masolat 2,7 MB felesleg — a .dockerignore is
+    # kizarja a kepbol.
+    $staleAttachments = Join-Path $SambaShare "static\csatolmanyok"
+    if (Test-Path $staleAttachments) {
+        Remove-Item $staleAttachments -Recurse -Force
+        Write-Host "  Torolve (staging): static\csatolmanyok" -ForegroundColor DarkGray
+    }
 }
 
 if ($WhatIf) {
@@ -374,6 +382,10 @@ rm -f REMOTE_DIR_PLACEHOLDER/README.md \
       REMOTE_DIR_PLACEHOLDER/.gitignore \
       REMOTE_DIR_PLACEHOLDER/.gitattributes \
       REMOTE_DIR_PLACEHOLDER/scheduler_state.json
+# A csatolmányok az eles kornyezetben a data koteten vannak
+# (/app/data/csatolmanyok), a munkakonyvtar static/csatolmanyok masolata
+# felesleges (a .dockerignore is kizarja a kepbol).
+rm -rf REMOTE_DIR_PLACEHOLDER/static/csatolmanyok
 echo OK
 
 echo ""
