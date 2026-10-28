@@ -194,8 +194,10 @@ mint a felületi gomb (a konzol és a `/api/sync/status` is mutatja).
 A fejlécben a gomb alatt látszik:
 
 - **`Ütemező: BE` / `Ütemező: KI`** jelvény (a `SCHEDULER.ENABLED` állapota),
+- az **időablak** a configból: `időablak: 06:00–22:00` (vagy `egész nap`),
 - a **következő automatikus futás** (`/api/scheduler/status`), illetve ha épp fut,
-  hogy kézi vagy ütemezett szinkron zajlik,
+  hogy kézi vagy ütemezett szinkron zajlik; mellette az intervallum az
+  időszakra vonatkoztatva: *(az időszakban 180 percenként)*,
 - a **legutóbbi frissítés**: mikor, **kézi vagy automatikus** jelvénnyel, és az
   **adott futás eredménye** (sikeres / hiba / leállítva / folyamatban / megszakadt).
   Ha az utolsó futás kézi volt, külön — szintén saját eredménnyel — látszik az
