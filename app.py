@@ -260,10 +260,14 @@ def scheduler_next_run(state=None, config=None, now=None):
     else:
         due = _scheduler_boot + timedelta(minutes=SCHEDULER_FIRST_DELAY_MIN)
 
-    # Ha esedékes lenne, de az időablak zárva van, a következő nyitásra tolódik.
-    if due <= now and not _in_time_window(now, cfg["start_hour"], cfg["end_hour"]):
-        due = _next_window_start(now, cfg["start_hour"], cfg["end_hour"])
-    return due
+    # A TÉNYLEGES következő futás: ha az esedékesség időpontja az időablakon
+    # kívülre esik (pl. 22:16 + 3 óra = 01:16, de az ablak 6-22), akkor az
+    # ablak következő nyitására tolódik (06:00) — így a felület sem írhat
+    # olyan időpontot, amikor valójában nem fut le.
+    reference = max(due, now)
+    if not _in_time_window(reference, cfg["start_hour"], cfg["end_hour"]):
+        reference = _next_window_start(reference, cfg["start_hour"], cfg["end_hour"])
+    return reference
 
 
 def scheduler_status():

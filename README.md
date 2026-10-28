@@ -166,7 +166,7 @@ mint a felületi gomb (a konzol és a `/api/sync/status` is mutatja).
 |---|---|
 | `ENABLED` | `false` esetén nincs automatikus futás (a kézi gomb persze működik) |
 | `INTERVAL_MINUTES` | Két futás közti idő az **utolsó futás kezdetétől** (min. 5 perc; egy futás ~2,2 perc) |
-| `START_HOUR` / `END_HOUR` | Opcionális időablak. `0`–`24` (vagy a két érték egyenlő) = **egész nap**, nincs korlátozás |
+| `START_HOUR` / `END_HOUR` | Opcionális időablak. `0`–`24` (vagy a két érték egyenlő) = **egész nap**, nincs korlátozás. Ha az esedékesség időpontja az ablakon kívülre esik (pl. 22:16 + 3 óra = 01:16, de az ablak 6–22), a futás a **következő ablaknyitásra** tolódik (06:00) — a felület is ezt mutatja. |
 
 **Működés / védelmek:**
 
