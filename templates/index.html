@@ -158,22 +158,26 @@
     </div>
 
     <!-- FEJLÉC ÉS SZINKRONIZÁLÓ GOMB -->
-    <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm">
-        <div>
+    <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm gap-3">
+        <div class="flex-shrink-0">
             <h4 class="m-0 text-primary fw-bold"><i class="fa-solid fa-graduation-cap me-2"></i>KRÉTA Adatbázis Áttekintő</h4>
             <small class="text-muted">Központi SQLite Adatlekérő, Szűrő és Üzenetolvasó</small>
         </div>
-        <div class="text-end">
+
+        <div id="schedulerInfo" class="flex-grow-1 d-none">
+            <div class="d-flex flex-wrap align-items-center justify-content-center gap-3 bg-light border rounded px-3 py-2 small">
+                <span id="schedulerState" class="badge bg-secondary"><i class="fa-solid fa-clock me-1"></i>Ütemező: KI</span>
+                <span id="schedulerNextText"></span>
+                <span class="text-secondary">|</span>
+                <span id="schedulerLastText" class="text-secondary"
+                      title="A legutóbbi szinkron (kézi vagy automatikus) időpontja és eredménye"></span>
+            </div>
+        </div>
+
+        <div class="flex-shrink-0">
             <button id="btnSync" class="btn btn-success">
                 <i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból
             </button>
-            <div id="schedulerInfo" class="small text-muted mt-1 d-none">
-                <div class="d-flex align-items-center justify-content-end gap-2">
-                    <span id="schedulerState" class="badge bg-secondary"><i class="fa-solid fa-clock me-1"></i>Ütemező: KI</span>
-                    <span id="schedulerNextText"></span>
-                </div>
-                <div id="schedulerLastText" class="text-secondary mt-1"></div>
-            </div>
         </div>
     </div>
 
@@ -1477,6 +1481,7 @@ $(document).ready(function() {
                             : st === 'error'
                                 ? '<span class="text-danger">hiba</span>'
                                 : (st ? `<span class="text-secondary">${st}</span>` : '');
+            const eredmenyPrefix = st === 'running' ? ' &middot; ' : ' &middot; eredmény: ';
             // Az ütemező ciklusa csak az utolsó AUTOMATIKUS futáshoz igazodik,
             // ezért ha most kézi volt az utolsó, külön is kiírjuk az automatát.
             let autoInfo = '';
@@ -1484,7 +1489,7 @@ $(document).ready(function() {
                 const aw = formatSchedTime(sched.last_scheduled_run);
                 if (aw) autoInfo = ` &middot; utolsó automatikus: <b>${aw}</b>`;
             }
-            last.html(`Legutóbbi frissítés: <b>${when}</b> ${trig}${eredmeny ? ' &middot; ' + eredmeny : ''}${autoInfo}`);
+            last.html(`Utolsó frissítés: <b>${when}</b> ${trig}${eredmeny ? eredmenyPrefix + eredmeny : ''}${autoInfo}`);
         }
     }
 
