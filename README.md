@@ -182,9 +182,10 @@ mint a felületi gomb (a konzol és a `/api/sync/status` is mutatja).
 - **Hibánál nincs újrapróbálkozás-vihar:** a következő kísérlet a normál
   intervallum után lesz.
 - **Első indítás:** ha még sosem futott (nincs állapotfájl), 5 perc múlva indul.
-- **A ciklus a legutóbbi futás kezdetétől számít** — mindegy, hogy az kézi vagy
-  ütemezett volt. Egy kézi „Adatok frissítése" tehát eltolja a következő
-  automatikus futást (3 órával későbbre).
+- **A ciklus KIZÁRÓLAG az utolsó ütemezett futáshoz igazodik.** Egy kézi
+  „Adatok frissítése" **nem** tolja el az automatikus időzítést: ha az automata
+  22:49-kor esedékes, egy 22:15-ös kézi frissítés után is 22:49-kor fut.
+  (A felület ilyenkor külön kiírja az „utolsó automatikus" időpontját is.)
 - A naplóban a `sync.log` külön sort kap minden futás elejére és végére:
   `KÉZI SZINKRONIZÁCIÓ INDÍTÁSA (felületi gomb)`,
   `ÜTEMEZETT SZINKRONIZÁCIÓ INDÍTÁSA (ütemező: 180 percenként)`,
@@ -196,7 +197,8 @@ A fejlécben a gomb alatt látszik:
 - a **következő automatikus futás** (`/api/scheduler/status`), illetve ha épp fut,
   hogy kézi vagy ütemezett szinkron zajlik,
 - a **legutóbbi frissítés**: mikor, **kézi vagy automatikus** jelvénnyel, és az
-  eredménye (sikeres / hiba / leállítva).
+  eredménye (sikeres / hiba / leállítva). Ha az utolsó futás kézi volt, külön
+  látszik az **utolsó automatikus** futás ideje is (ez az ütemezés alapja).
 
 > Megjegyzés: az ütemező a Flask processzhez kötött, egy processzes futásra
 > készült (a Dockerben `python app.py`, `threaded=True`). Ha valaha több

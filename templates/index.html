@@ -1473,7 +1473,14 @@ $(document).ready(function() {
                     : st === 'error'
                         ? '<span class="text-danger">hiba</span>'
                         : (st ? `<span class="text-secondary">${st}</span>` : '');
-            last.html(`Legutóbbi frissítés: <b>${when}</b> ${trig}${eredmeny ? ' &middot; ' + eredmeny : ''}`);
+            // Az ütemező ciklusa csak az utolsó AUTOMATIKUS futáshoz igazodik,
+            // ezért ha most kézi volt az utolsó, külön is kiírjuk az automatát.
+            let autoInfo = '';
+            if (sched.last_scheduled_run && sched.last_trigger !== 'scheduled') {
+                const aw = formatSchedTime(sched.last_scheduled_run);
+                if (aw) autoInfo = ` &middot; utolsó automatikus: <b>${aw}</b>`;
+            }
+            last.html(`Legutóbbi frissítés: <b>${when}</b> ${trig}${eredmeny ? ' &middot; ' + eredmeny : ''}${autoInfo}`);
         }
     }
 

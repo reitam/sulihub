@@ -126,7 +126,7 @@ _scheduler_thread = None
 _scheduler_boot = datetime.now().replace(microsecond=0)
 # Memória-beli biztonsági háló: ha az állapotfájlt nem sikerül írni (pl. HDD
 # leszakadás), akkor se essen bele végtelen újraindításba az ütemező.
-_last_run_memo = None
+_last_scheduled_memo = None
 
 
 def _now():
@@ -210,9 +210,17 @@ def scheduler_next_run(state=None, config=None, now=None):
     now = now or _now()
     state = load_scheduler_state() if state is None else state
 
-    last_started = _parse_scheduler_dt(state.get("last_run_started")) or _last_run_memo
-    if last_started:
-        due = last_started + timedelta(minutes=cfg["interval_minutes"])
+    # FONTOS: a ciklus KIZÁRÓLAG az utolsó ÜTEMEZETT futáshoz igazodik — egy
+    # kézi "Adatok frissítése" nem tolja el az automatikus időzítést.
+    last_scheduled = _parse_scheduler_dt(state.get("last_scheduled_run"))
+    if last_scheduled is None and state.get("last_trigger") == "scheduled":
+        # Visszafelé kompatibilitás: a korábbi állapotfájlban nem volt külön
+        # last_scheduled_run mező, de a last_run_started ütemezett futás volt.
+        last_scheduled = _parse_scheduler_dt(state.get("last_run_started"))
+    last_scheduled = last_scheduled or _last_scheduled_memo
+
+    if last_scheduled:
+        due = last_scheduled + timedelta(minutes=cfg["interval_minutes"])
     else:
         due = _scheduler_boot + timedelta(minutes=SCHEDULER_FIRST_DELAY_MIN)
 
@@ -240,6 +248,8 @@ def scheduler_status():
         "last_run_finished": state.get("last_run_finished"),
         "last_status": state.get("last_status"),
         "last_trigger": state.get("last_trigger"),
+        "last_scheduled_run": state.get("last_scheduled_run")
+        or (state.get("last_run_started") if state.get("last_trigger") == "scheduled" else None),
         "running": running,
         "trigger": trigger,
     }
@@ -329,7 +339,7 @@ def start_scheduler():
 
 
 def run_scraper_thread(trigger="manual"):
-    global sync_state, _last_run_memo
+    global sync_state, _last_scheduled_memo
     
     with sync_lock:
         sync_state["running"] = True
@@ -338,12 +348,15 @@ def run_scraper_thread(trigger="manual"):
         sync_state["status"] = "running"
 
     # A ciklus alapja a futás KEZDEMÉNYEZÉSE (nem a vége), így a ~2,2 perces
-    # futás nem tolja el az ütemezést.
+    # futás nem tolja el az ütemezést. Az ütemező ciklusához CSAK az ütemezett
+    # futás számít — a kézi indítás csak a "legutóbbi frissítés" infóhoz kell.
     started_at = _now()
-    _last_run_memo = started_at
     run_state = load_scheduler_state()
     run_state["last_run_started"] = started_at.strftime(SCHEDULER_TS_FMT)
     run_state["last_trigger"] = trigger
+    if trigger == "scheduled":
+        _last_scheduled_memo = started_at
+        run_state["last_scheduled_run"] = started_at.strftime(SCHEDULER_TS_FMT)
     save_scheduler_state(run_state)
 
     try:
