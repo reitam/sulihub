@@ -615,12 +615,22 @@ def run_scraper_thread(trigger="manual"):
 
     failed_students = []
     try:
+        # A scraper ugyanazokat az útvonalakat kapja, amiket az app használ —
+        # így nem fordulhat elő, hogy a konténerben máshol keresi a configot.
+        child_env = os.environ.copy()
+        child_env["KRETA_DATA_DIR"] = DATA_DIR
+        child_env["KRETA_CONFIG_FILE"] = CONFIG_FILE
+        child_env["KRETA_DB_FILE"] = DB_FILE
+        child_env["KRETA_LOG_FILE"] = LOG_FILE
+        child_env["KRETA_CSATOLMANYOK_DIR"] = CSATOLMANYOK_DIR
+
         process = subprocess.Popen(
             [sys.executable, "-u", "kreta_playwright.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1
+            bufsize=1,
+            env=child_env
         )
         
         with sync_lock:
