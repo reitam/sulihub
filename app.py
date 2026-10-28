@@ -391,6 +391,16 @@ def _http_post_ntfy(url, data, headers, timeout):
         return resp.status
 
 
+def _ntfy_publish_url():
+    """
+    A backup-script konvenciója szerint a NTFY_TOPIC lehet teljes URL is
+    (pl. https://ntfy.sh/kreta-xyz); ezt elfogadjuk, különben NTFY_URL + topic.
+    """
+    if NTFY_TOPIC.startswith("http://") or NTFY_TOPIC.startswith("https://"):
+        return NTFY_TOPIC, NTFY_TOPIC.rsplit("/", 1)[-1]
+    return f"{NTFY_URL}/{NTFY_TOPIC}", NTFY_TOPIC
+
+
 def send_notification(title, message, priority="default", tags=None):
     """
     ntfy push küldése háttérszálban. Ha nincs NTFY_TOPIC, csendben nem tesz semmit.
@@ -399,9 +409,10 @@ def send_notification(title, message, priority="default", tags=None):
     if not NTFY_TOPIC:
         return False
 
+    url, topic = _ntfy_publish_url()
     payload = json.dumps(
         {
-            "topic": NTFY_TOPIC,
+            "topic": topic,
             "title": title,
             "message": message,
             "priority": priority,
@@ -413,7 +424,7 @@ def send_notification(title, message, priority="default", tags=None):
     def _send():
         try:
             _http_post_ntfy(
-                NTFY_URL,
+                url,
                 payload,
                 {"Content-Type": "application/json; charset=utf-8"},
                 NTFY_TIMEOUT,
