@@ -35,6 +35,8 @@ CSATOLMANYOK_DIR = os.environ.get("KRETA_CSATOLMANYOK_DIR", os.path.join("static
 SCHEDULER_STATE_FILE = os.environ.get(
     "KRETA_SCHEDULER_STATE_FILE", os.path.join(DATA_DIR, "scheduler_state.json")
 )
+# A deploy által a data kötetre írt verziószám (a felületen jelenik meg).
+VERSION_FILE = os.environ.get("KRETA_VERSION_FILE", os.path.join(DATA_DIR, "version.txt"))
 
 sync_state = {
     "running": False,
@@ -97,6 +99,16 @@ def init_db_extensions():
             print(f"[Adatbázis inicializálási figyelmeztetés]: {e}")
 
 init_db_extensions()
+
+def get_app_version():
+    """A deploy által a data kötetre írt verzió (version.txt), pl. 'v1.1.1'."""
+    try:
+        with open(VERSION_FILE, "r", encoding="utf-8-sig") as f:
+            version = f.read().strip()
+        return version or "dev"
+    except OSError:
+        return "dev"
+
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -512,7 +524,8 @@ def index():
         diakok=diakok, 
         tipusok=tipusok, 
         tantargyak=tantargyak,
-        global_enable_rewards=global_enable_rewards
+        global_enable_rewards=global_enable_rewards,
+        app_version=get_app_version()
     )
 
 @app.route("/api/esemenyek")
@@ -1435,7 +1448,7 @@ def download_csatolmany(filename):
 @app.route("/health")
 def health():
     """Docker healthcheck végpont."""
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "version": get_app_version()})
 
 if __name__ == "__main__":
     host = os.environ.get("KRETA_HOST", "127.0.0.1")

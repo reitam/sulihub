@@ -50,6 +50,7 @@ A rendszer emellett átlátható felületet nyújt az órarendek megjelenítés�
   - Kifizetés állapotának rögzítése és mentése az adatbázisban (`KIFIZETVE`).
 
 - **📱 Letisztult UI / UX Design:**
+  - A fejlécben a **telepített verzió** is látszik (a deploy által írt `version.txt`-ből).
   - Összecsukható felső statisztikai és szűrőpanel (Accordion), amely automatikusan bezáródik a naptárra, órarendre vagy üzenetekre váltáskor.
   - Az e-Ügyintézés üzeneteinek felesleges halmozott sortöréseit automatikusan letisztítja a jobb olvashatóság érdekében.
 
