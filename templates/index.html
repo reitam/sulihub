@@ -1107,7 +1107,17 @@ $(document).ready(function() {
 
     $('#btnExportOrarendPdf').click(function() {
         let selectedDiak = $('#orarendFilterDiak').val() || $('#filterDiak').val() || '';
-        let url = `/api/orarend/export_pdf?diak=${encodeURIComponent(selectedDiak)}`;
+        // A naptárban éppen megjelenített hét kezdőnapja — a PDF ehhez a héthez készül
+        // (nem fixen az aktuálishoz). A backend a hét hétfőjét számolja belőle.
+        let datum = '';
+        if (orarendCalendar && orarendCalendar.view && orarendCalendar.view.currentStart) {
+            let vs = orarendCalendar.view.currentStart;
+            let y = vs.getFullYear();
+            let m = String(vs.getMonth() + 1).padStart(2, '0');
+            let d = String(vs.getDate()).padStart(2, '0');
+            datum = `${y}-${m}-${d}`;
+        }
+        let url = `/api/orarend/export_pdf?diak=${encodeURIComponent(selectedDiak)}&datum=${encodeURIComponent(datum)}`;
         window.open(url, '_blank');
     });
 	
