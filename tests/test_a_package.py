@@ -112,6 +112,15 @@ ok(kreta.notify_sync_result("done_with_errors", ["A Bácsi"], "scheduled", 2.3) 
 time.sleep(0.4)
 ok(len(sent) == 1 and "részleges" in json.loads(sent[0][1].decode())["title"].lower(),
    "a cím jelzi a részleges hibát")
+_body = json.loads(sent[0][1].decode())["message"]
+ok("A Bácsi" not in _body and "1 diák" in _body, f"alapból NINCS diáknév a push-ban: {_body}")
+
+sent.clear()
+kreta.NTFY_INCLUDE_NAMES = True
+kreta.notify_sync_result("done_with_errors", ["A Bácsi"], "scheduled", 2.3)
+time.sleep(0.4)
+ok("A Bácsi" in json.loads(sent[0][1].decode())["message"], "NTFY_INCLUDE_NAMES=1 esetén van név")
+kreta.NTFY_INCLUDE_NAMES = False
 sent.clear()
 kreta.notify_sync_result("done", [], "manual", 2.0)
 time.sleep(0.3)

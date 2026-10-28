@@ -382,6 +382,8 @@ NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "").strip()
 NTFY_URL = os.environ.get("NTFY_URL", "https://ntfy.sh").rstrip("/")
 NTFY_TIMEOUT = int(os.environ.get("NTFY_TIMEOUT", 5))
 STALE_ALERT_REPEAT_HOURS = 6
+# A diáknevek személyes adatok — a nyilvános ntfy.sh-ra alapból NEM küldjük őket.
+NTFY_INCLUDE_NAMES = os.environ.get("NTFY_INCLUDE_NAMES", "0").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _http_post_ntfy(url, data, headers, timeout):
@@ -440,9 +442,15 @@ def notify_sync_result(status, failed_students, trigger, duration_min):
     """A szinkron eredményéről szóló push (csak hibánál / részleges hibánál)."""
     failed_txt = ", ".join(failed_students) if failed_students else ""
     if status == "done_with_errors":
+        if failed_students and NTFY_INCLUDE_NAMES:
+            detail = f"Nem frissült: {failed_txt}"
+        elif failed_students:
+            detail = f"Nem frissült: {len(failed_students)} diák (részletek a Rendszernaplóban)"
+        else:
+            detail = "Részletek a Rendszernaplóban"
         return send_notification(
             "KRÉTA szinkron: részleges hiba",
-            f"{trigger_label(trigger)} futás, {duration_min:.1f} perc. Nem frissült: {failed_txt or 'ismeretlen'}",
+            f"{trigger_label(trigger)} futás, {duration_min:.1f} perc. {detail}",
             "default",
             ["warning"],
         )
