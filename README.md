@@ -188,7 +188,8 @@ mint a felületi gomb (a konzol és a `/api/sync/status` is mutatja).
   továbbra is mentődik, de a futás állapota **`done_with_errors`** lesz (a felületen
   „részleges hiba", a hibás diák nevével; a naplóban is látszik). A scraper ehhez
   `##KRETA_RESULT##{...}` összegzést ír a kimenetére és 2-es kilépési kóddal tér vissza.
-- **ntfy értesítés** hiba / részleges hiba / elavult adat esetén (lásd `NTFY_TOPIC`).
+- **ntfy értesítés** hiba / részleges hiba / elavult adat esetén (lásd `NTFY_TOPIC`),
+  valamint **sikeres futásnál** is (`NTFY_NOTIFY_SUCCESS`, alapból be).
 - **Hibánál nincs újrapróbálkozás-vihar:** a következő kísérlet a normál
   intervallum után lesz.
 - **Első indítás:** ha még sosem futott (nincs állapotfájl), 5 perc múlva indul.
@@ -309,5 +310,6 @@ up --build` több percig tart (pip + Chromium letöltés) — ez normális.
 | `NTFY_URL` | `https://ntfy.sh` | ntfy szerver címe (csak ha a `NTFY_TOPIC` nem teljes URL) |
 | `NTFY_TIMEOUT` | `5` | ntfy kérés timeout (mp) |
 | `NTFY_INCLUDE_NAMES` | `0` | `1` = a részleges hiba push-ban szerepeljenek a diáknevek (alapból csak darabszám) |
+| `NTFY_NOTIFY_SUCCESS` | `1` | `0` = sikeres futásról ne küldjön push-t (alapból küld) |
 | `KRETA_LOG_MAX_BYTES` / `KRETA_LOG_BACKUP_COUNT` | `1000000` / `2` | `sync.log` rotáció (méret / mentett példányok) |
 | `KRETA_LOG_API_MAX_BYTES` | `300000` | Az `/api/logs` ennyi bájtot ad vissza a napló végéről |

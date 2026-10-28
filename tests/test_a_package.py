@@ -73,6 +73,8 @@ kreta.subprocess.Popen = fake_popen(["##KRETA_RESULT##" + '{"total":3,"ok":3,"fa
 kreta.run_scraper_thread("manual")
 ok(kreta.sync_state["status"] == "done" and kreta.sync_state["failed_students"] == [],
    f"exit 0 -> done, nincs hibás diák ({kreta.sync_state['status']})")
+ok(kreta.sync_state["ok_count"] == 3 and kreta.sync_state["total_students"] == 3,
+   f"az összegzésből ok/total is kiolvasva: {kreta.sync_state['ok_count']}/{kreta.sync_state['total_students']}")
 
 kreta.subprocess.Popen = fake_popen(["valami hiba"], 1)
 kreta.run_scraper_thread("manual")
@@ -122,9 +124,19 @@ time.sleep(0.4)
 ok("A Bácsi" in json.loads(sent[0][1].decode())["message"], "NTFY_INCLUDE_NAMES=1 esetén van név")
 kreta.NTFY_INCLUDE_NAMES = False
 sent.clear()
-kreta.notify_sync_result("done", [], "manual", 2.0)
+kreta.NTFY_NOTIFY_SUCCESS = True
+kreta.notify_sync_result("done", [], "manual", 2.0, 3, 3)
+time.sleep(0.4)
+ok(len(sent) == 1, "sikeres futás -> küld (alapból)")
+_succ = json.loads(sent[0][1].decode())
+ok("sikeres" in _succ["title"].lower() and "3/3" in _succ["message"],
+   f"sikeres üzenet: {_succ['title']} / {_succ['message']}")
+sent.clear()
+kreta.NTFY_NOTIFY_SUCCESS = False
+kreta.notify_sync_result("done", [], "manual", 2.0, 3, 3)
 time.sleep(0.3)
-ok(not sent, "sikeres futás -> nincs értesítés")
+ok(not sent, "NTFY_NOTIFY_SUCCESS=0 -> sikeres futásról nem küld")
+kreta.NTFY_NOTIFY_SUCCESS = True
 sent.clear()
 kreta.notify_sync_result("error", [], "manual", 1.0)
 time.sleep(0.4)
