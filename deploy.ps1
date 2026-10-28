@@ -94,8 +94,18 @@ if (-not (Test-Path ".git")) {
     exit 1
 }
 
+# PS 5.1-csapda: a git a normál előrehaladási kimenetét ("To https://...")
+# stderr-re írja, ami a $ErrorActionPreference="Stop" + 2>&1 kombinációval
+# NativeCommandError-ként ELHASÍTJA a scriptet (2026-10-28-i v1.0.1 deploy hiba).
+# A git-hívások alatt ezért Continue-ra állítjuk az EAP-t, a sikert pedig a
+# kilépőkódokból olvassuk.
+$ErrorActionPreference = "Continue"
 $gitStatus = git status --porcelain 2>&1
-if ($LASTEXITCODE -ne 0) {
+$gitStatusExit = $LASTEXITCODE
+$existingTag = git tag -l $Release 2>&1
+$ErrorActionPreference = "Stop"
+
+if ($gitStatusExit -ne 0) {
     Write-Host "  HIBA: git status sikertelen. Biztos, hogy git van telepitve?" -ForegroundColor Red
     Pop-Location
     exit 1
@@ -108,19 +118,24 @@ if ($gitStatus) {
     Write-Host ""
 }
 
-$existingTag = git tag -l $Release 2>&1
 if ($existingTag -eq $Release) {
     Write-Host "  Git tag '$Release' mar letezik, felhasznalva." -ForegroundColor Green
 } else {
     if (-not $WhatIf) {
+        $ErrorActionPreference = "Continue"
         $tagOut = git tag -a $Release -m "KRETA elesites: $Release - $(Get-Date -Format 'yyyy-MM-dd HH:mm')" 2>&1
-        if ($LASTEXITCODE -ne 0) {
+        $tagExit = $LASTEXITCODE
+        $ErrorActionPreference = "Stop"
+        if ($tagExit -ne 0) {
             Write-Host "  HIBA: A git tag letrehozasa sikertelen!" -ForegroundColor Red
             Pop-Location
             exit 1
         }
+        $ErrorActionPreference = "Continue"
         $pushOut = git push origin $Release 2>&1
-        if ($LASTEXITCODE -ne 0) {
+        $pushExit = $LASTEXITCODE
+        $ErrorActionPreference = "Stop"
+        if ($pushExit -ne 0) {
             Write-Host "  FIGYELEM: A tag push-ja nem sikerult:" -ForegroundColor DarkYellow
             Write-Host ($pushOut -join "`n")
         } else {
