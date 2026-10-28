@@ -27,6 +27,10 @@ services:
       - KRETA_DEBUG=0
       - KRETA_DATA_DIR=/app/data
       - KRETA_BROWSER_DATA_DIR=/app/data/browser_user_data
+      # Fontos: az alapérték "static/csatolmanyok" lenne, ami a konténer
+      # RÉTEGÉBE írna (rebuildnél elvesznek a csatolmányok, és a mentő sem
+      # éri el őket) — ezért explicit a data kötet alá irányítjuk.
+      - KRETA_CSATOLMANYOK_DIR=/app/data/csatolmanyok
     # A Chromiumnak több shared memória kell Playwright alatt
     shm_size: "1gb"
     restart: unless-stopped
