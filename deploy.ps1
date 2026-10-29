@@ -333,6 +333,7 @@ Write-Host "  Fajlok atmasolva." -ForegroundColor Green
 Write-Host ""
 
 # === 3-6. Tavoli muveletek SSH-n ============================================
+$sshExit = 0
 if (-not $WhatIf) {
     Write-Host "[3-6/6] Tavoli muveletek SSH-n keresztul..." -ForegroundColor Yellow
     Write-Host "  Csatlakozas: $LinuxUser@$LinuxHost (jelszo szukseges)"
@@ -502,6 +503,17 @@ exit $DOCKER_EXIT
 # === Osszegzes ==============================================================
 $appUrl = "http://$LinuxHost" + ":$Port"
 Write-Host ""
+if ($sshExit -ne 0) {
+    Write-Host "==============================================" -ForegroundColor Red
+    Write-Host "  ELESITES NEM SIKERULT (exit: $sshExit)" -ForegroundColor Red
+    Write-Host "==============================================" -ForegroundColor Red
+    Write-Host "  A szerveroldali lepes (staging masolas / docker compose) hibaval" -ForegroundColor Yellow
+    Write-Host "  tert vissza. A kimenetben lathato az ok (pl. I/O error, docker" -ForegroundColor Yellow
+    Write-Host "  daemon nem fut). A tag ($Release) letrejott, igy a javitas utan" -ForegroundColor Yellow
+    Write-Host "  ugyanez a parancs ujra futtathato." -ForegroundColor Yellow
+    Write-Host ""
+    exit 1
+}
 Write-Host "==============================================" -ForegroundColor Cyan
 Write-Host "  Elesites kesz!" -ForegroundColor Cyan
 Write-Host "==============================================" -ForegroundColor Cyan
