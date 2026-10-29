@@ -556,29 +556,24 @@
 
             <div class="card card-stat bg-white p-2 px-3 mb-3">
                 <div class="row g-2 text-center" id="hianyzasSummary">
-                    <div class="col-6 col-md-2">
-                        <div class="small text-muted" title="Nem késés és nem tanórai célú mulasztás">Hiányzás</div>
+                    <div class="col-6 col-md">
+                        <div class="small text-muted" title="Nem késés">Hiányzás</div>
                         <div class="fs-5 fw-bold text-dark" id="stHianyzasDb">0 db</div>
                     </div>
-                    <div class="col-6 col-md-2">
+                    <div class="col-6 col-md">
                         <div class="small text-muted">Igazolt óra</div>
                         <div class="fs-5 fw-bold text-success" id="stIgazoltOra">0 óra</div>
                     </div>
-                    <div class="col-6 col-md-2">
+                    <div class="col-6 col-md">
                         <div class="small text-muted">Igazolatlan óra</div>
                         <div class="fs-5 fw-bold text-danger" id="stIgazolatlanOra">0 óra</div>
                     </div>
-                    <div class="col-6 col-md-2">
-                        <div class="small text-muted" title="Iskolai program, verseny — nem hiányzó óra">Tanórai célú</div>
-                        <div class="fs-5 fw-bold text-info" id="stTanoraiCelu">0 óra</div>
-                        <div class="small text-muted" id="stTanoraiCeluDb">0 db</div>
-                    </div>
-                    <div class="col-6 col-md-2">
+                    <div class="col-6 col-md">
                         <div class="small text-muted">Késés</div>
                         <div class="fs-5 fw-bold text-warning" id="stKesesDb">0 db</div>
                         <div class="small text-muted" id="stKesesPerc">0 perc</div>
                     </div>
-                    <div class="col-6 col-md-2">
+                    <div class="col-6 col-md">
                         <div class="small text-muted">Igazolás</div>
                         <div class="fs-5 fw-bold text-info" id="stIgazolasDb">0 db</div>
                     </div>
@@ -1322,11 +1317,7 @@ $(document).ready(function() {
                         nev = (data || 'Késés') + ` (${row.perc} perc)`;
                     }
                     let cls = row.keses ? 'bg-warning text-dark' : 'bg-danger';
-                    let html = `<span class="badge ${cls}">${escapeHtml(nev)}</span>`;
-                    if (String(row.tanorai_celu || '').toLowerCase() === 'igen') {
-                        html += ' <span class="badge bg-info text-dark" title="Iskolai program, verseny — nem hiányzó óra"><span class="d-none d-sm-inline">Tanórai célú</span><span class="d-sm-none">Iskolai</span></span>';
-                    }
-                    return html;
+                    return `<span class="badge ${cls}">${escapeHtml(nev)}</span>`;
                 }
             },
             { data: 'ora_sorszam', render: function (data) { return Number(data) ? data + '. óra' : '-'; } },
@@ -1396,8 +1387,6 @@ $(document).ready(function() {
             $('#stHianyzasDb').text((o.hianyzas_db || 0) + ' db');
             $('#stIgazoltOra').text((o.igazolt_ora || 0) + ' óra');
             $('#stIgazolatlanOra').text((o.igazolatlan_ora || 0) + ' óra');
-            $('#stTanoraiCelu').text((o.tanorai_celu_ora || 0) + ' óra');
-            $('#stTanoraiCeluDb').text((o.tanorai_celu_db || 0) + ' db');
             $('#stKesesDb').text((o.keses_db || 0) + ' db');
             $('#stKesesPerc').text((o.keses_perc || 0) + ' perc');
 

@@ -1798,23 +1798,17 @@ def _is_keses(row):
     return "késés" in str(row.get("mulasztas_tipus") or "").lower()
 
 
-def _is_tanorai_celu(row):
-    """Iskolai program/verseny miatti távollét — nem számít hiányzó órának."""
-    return str(row.get("tanorai_celu") or "").strip().lower() in ("igen", "1", "true")
-
-
 def hianyzas_osszesito(rows):
     """Havi/összesített mutatók a hiányzás-sorokból.
 
     A KRÉTA egy sora egy tanórát jelent (az 'Óra' oszlop a napon belüli
-    órasorszám), ezért az órákat soronként 1-ként számoljuk.
+    órasorszám), ezért az órákat soronként 1-ként számoljuk. A tanórai célú
+    jelzőt tároljuk, de a statisztikában nem különböztetjük meg.
     """
     o = {
         "hianyzas_db": 0,
         "igazolt_ora": 0,
         "igazolatlan_ora": 0,
-        "tanorai_celu_db": 0,
-        "tanorai_celu_ora": 0,
         "keses_db": 0,
         "keses_perc": 0,
         "keses_igazolatlan_db": 0,
@@ -1825,10 +1819,6 @@ def hianyzas_osszesito(rows):
             o["keses_perc"] += int(r.get("perc") or 0)
             if not int(r.get("igazolt") or 0):
                 o["keses_igazolatlan_db"] += 1
-            continue
-        if _is_tanorai_celu(r):
-            o["tanorai_celu_db"] += 1
-            o["tanorai_celu_ora"] += 1
             continue
         o["hianyzas_db"] += 1
         if int(r.get("igazolt") or 0):

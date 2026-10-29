@@ -63,8 +63,8 @@ a saját szerveren maradnak.
 - Alapból a **teljes előzmény** látszik; a havi bontás a hónapválasztóval vagy az
   „Aktuális hónap” gombbal érhető el.
 - A késéseket a KRÉTA „(N perc)” adatából ismeri fel; a havi összesítő külön kezeli őket.
-- A **tanórai célú (iskolai program/verseny) mulasztásokat** külön kártyán mutatja, és nem
-  számolja bele az igazolt/igazolatlan hiányzó órákba (sem a push-ban).
+- **Inkrementális mentés:** a rekordot a dátum + órasorszám azonosítja, ezért az
+  újraszinkron csak a változásokat írja (a sor-ID stabil, az eltűnt sorok törlődnek).
 
 ### 🗓️ Feladatok naptár
 - Házik és számonkérések határidő szerint (FullCalendar 6), színkódolva;
@@ -274,7 +274,7 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**8 csomag, 178 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**8 csomag, 180 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, hiányzások/igazolások, **mobil elrendezés** (valódi böngésző, 393 px).
 Részletek: [`tests/README.md`](tests/README.md).
