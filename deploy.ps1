@@ -278,7 +278,7 @@ $robocopyArgs = @(
     # ne keruljenek at a szerver munkakonyvtaraba (a /MIR a kizart fajlokat
     # nem masolja; a korabban odakerult peldanyokat a szerveroldali tisztitas
     # torli).
-    "README.md", "rendszerterv.md", "config.json.example", ".env.example",
+    "README.md", "rendszerterv.md", "DOKUMENTACIO.md", "config.json.example", ".env.example",
     ".gitignore", ".gitattributes", "scheduler_state.json",
     "/NP", "/NDL", "/NJH", "/NJS",
     "/R:2", "/W:3", "/MT:4"
@@ -382,6 +382,7 @@ echo "===[ FELESLEGES FAJLOK TISZTITASA (munkakonyvtar) ]==="
 # A cp -rf nem torol, ezert a korabbi deployok docs/example fajljai itt
 # maradnanak — ezekre futasidoben nincs szukseg.
 rm -f REMOTE_DIR_PLACEHOLDER/README.md \
+      REMOTE_DIR_PLACEHOLDER/DOKUMENTACIO.md \
       REMOTE_DIR_PLACEHOLDER/rendszerterv.md \
       REMOTE_DIR_PLACEHOLDER/config.json.example \
       REMOTE_DIR_PLACEHOLDER/.env.example \

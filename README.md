@@ -1,5 +1,8 @@
 # 🎓 KRÉTA Adatbázis Áttekintő & Zsebpénz Menedzser
 
+> **Teljes rendszerdokumentáció:** [`DOKUMENTACIO.md`](DOKUMENTACIO.md) — üzleti áttekintés,
+> architektúra, adatmodell, üzemeltetés, verziótörténet.
+
 Egy központi, Flask és Playwright alapú webes alkalmazás, amely automatikusan lekéri és SQLite adatbázisba szinkronizálja több gyermek KRÉTA rendszerből származó adatait (órarend, osztályzatok, feljegyzések, házi feladatok, bejelentett számonkérések és e-Ügyintézés üzenetek). 
 
 A rendszer emellett átlátható felületet nyújt az órarendek megjelenítéséhez és nyomtatásához, a határidők naptári áttekintéséhez, a házi feladatok ellenőrzéséhez/megoldásához, valamint egy testreszabható tanulmányi zsebpénz-elszámolási modult is biztosít.
@@ -237,8 +240,9 @@ A fejlécben a gomb alatt látszik:
 
 A „legutóbbi futás" és „legutóbbi ütemezett futás" állapot ebből **levezethető**
 (nincs külön állapotfájl). Induláskor a beragadt `running` sorok `interrupted`-ra
-váltanak. Az adatbázis **WAL módban** fut, hogy az app és a scraper párhuzamos
-írása ne akadjon össze.
+váltanak. Az adatbázis **alapból rollback journal** módban fut; a WAL csak
+opt-in (`KRETA_SQLITE_WAL=1`), mert a data kötet FUSE (ntfs-3g) mount, ahol a
+WAL nem ajánlott.
 
 ---
 
@@ -334,3 +338,4 @@ up --build` több percig tart (pip + Chromium letöltés) — ez normális.
 | `NTFY_NOTIFY_SUCCESS` | `1` | `0` = sikeres futásról ne küldjön push-t (alapból küld) |
 | `KRETA_LOG_MAX_BYTES` / `KRETA_LOG_BACKUP_COUNT` | `1000000` / `2` | `sync.log` rotáció (méret / mentett példányok) |
 | `KRETA_LOG_API_MAX_BYTES` | `300000` | Az `/api/logs` ennyi bájtot ad vissza a napló végéről |
+| `KRETA_SQLITE_WAL` | `0` | `1` = SQLite WAL mód. **Alapból ki**, mert a data kötet FUSE (ntfs-3g) mount |
