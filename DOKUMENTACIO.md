@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Dokumentum verziója** | 1.0 |
-| **A rendszer verziója** | v1.4.0 |
+| **A rendszer verziója** | v1.4.1 |
 | **Utolsó frissítés** | 2026-10-29 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
@@ -85,6 +85,9 @@ A felület **mobilra is optimalizált** (Redmi 12/13/14 méret, ~393 CSS px):
 - a szűrők teljes szélességűek, a dátumtartomány egymás alatt,
 - a **táblázatok összecsukhatók**: csak a legfontosabb 2–3 oszlop látszik,
   a többi a sor kinyitásával (▸) érhető el,
+- a **diák oszlopban színes monogram-avatar** látszik (pl. `RB`, `RBE`) a teljes név
+  helyett — így a **bejegyzés dátuma** is kifér; az avatar színe a gyermekhez kötött,
+  a teljes név az avatar fölé húzva (tooltip) jelenik meg,
 - az **órarend mobilon napi naptárnézet** (időrács), ‹ › gombokkal és „Ma"-val
   lehet napot léptetni; a „Hét" váltóval a heti nézet érhető el,
 - a **feladatnaptár mobilon listanézetben** indul (időrendben, napokra bontva),
@@ -459,6 +462,7 @@ adatokat nem érintik.
 | v1.3.0 | 2026-10-29 | Futásnapló a DB-ben (`sync_runs`, `app_meta`) |
 | **v1.3.1** | **2026-10-29** | WAL alapból kikapcsolva (FUSE kötet), induláskori integritás-ellenőrzés, **ez a dokumentum** |
 | **v1.4.0** | **2026-10-29** | **Mobilra optimalizált felület** (Redmi 12/13/14): összecsukható táblázatok, **napi naptárnézet lapozással**, 2 sorba tördelődő fülek, teljes szélességű vezérlők + mobil elrendezés-teszt |
+| **v1.4.1** | **2026-10-29** | Mobil finomítás: **monogram-avatar** a diák oszlopban (szabad hely a **bejegyzés dátumának**), a naptár két lista-gombja külön névvel (Havi/Heti lista), rövidebb mobil fejléc-címkék |
 
 ---
 
