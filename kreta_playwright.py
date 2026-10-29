@@ -116,6 +116,42 @@ def init_db():
         )
     ''')
 
+    # === HIÁNYZÁSOK / KÉSÉSEK ÉS IGAZOLÁSOK TÁBLÁI ===
+    # A dátumok ISO (ÉÉÉÉ-HH-NN) formában vannak, hogy a havi szűrés
+    # BETWEEN-nel egyszerű legyen; a felület formázza magyarra.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS hianyzasok (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            diak_nev TEXT,
+            kreta_id TEXT,
+            mulasztas_datum TEXT,
+            oraszam INTEGER DEFAULT 0,
+            perc INTEGER,
+            tantargy TEXT,
+            tema TEXT,
+            tanar TEXT,
+            mulasztas_tipus TEXT,
+            igazolt INTEGER DEFAULT 0,
+            tanorai_celu TEXT,
+            igazolas_tipus TEXT,
+            rogzites_datum TEXT
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_hianyzasok_diak ON hianyzasok(diak_nev, mulasztas_datum)')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS igazolasok (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            diak_nev TEXT,
+            kreta_id TEXT,
+            kezdete TEXT,
+            vege TEXT,
+            igazolas_tipus TEXT,
+            megjegyzes TEXT
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_igazolasok_diak ON igazolasok(diak_nev, kezdete)')
+
     # === ÓRAREND TÁBLA LÉTREHOZÁSA ===
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS orarend (
@@ -270,6 +306,135 @@ def diff_event_counts(before_keys, after_keys):
         tipus = key[0] if key else "?"
         counts[tipus] = counts.get(tipus, 0) + 1
     return counts
+
+
+# ── Hiányzások / késések és igazolások ───────────────────────────────────────
+# A szinkron során az új hiányzásokat is kimutatjuk (push-értesítéshez).
+NEW_HIANYZAS_COUNTS = {}
+
+_HIANYZAS_KEY_FIELDS = ("mulasztas_datum", "oraszam", "tantargy", "mulasztas_tipus", "perc", "tema")
+
+
+def hianyzas_key(row):
+    """Egy hiányzás tartalom-alapú kulcsa (a KRÉTA ID stabil, ha van)."""
+    kreta_id = str(row.get("kreta_id") or "").strip()
+    if kreta_id:
+        return f"id:{kreta_id}"
+    return "|".join(str(row.get(f) if row.get(f) is not None else "") for f in _HIANYZAS_KEY_FIELDS)
+
+
+def get_hianyzas_key_set(diak_nev):
+    """A diák összes eltárolt hiányzásának kulcsa (összehasonlításhoz)."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    keys = set()
+    try:
+        cursor.execute(
+            "SELECT kreta_id, mulasztas_datum, oraszam, tantargy, mulasztas_tipus, perc, tema "
+            "FROM hianyzasok WHERE diak_nev = ?", (diak_nev,)
+        )
+        for r in cursor.fetchall():
+            keys.add(hianyzas_key({
+                "kreta_id": r[0], "mulasztas_datum": r[1], "oraszam": r[2],
+                "tantargy": r[3], "mulasztas_tipus": r[4], "perc": r[5], "tema": r[6],
+            }))
+    except Exception as ex:
+        log(f"  [DB lekérdezési hiba - hiányzások]: {ex}")
+    finally:
+        conn.close()
+    return keys
+
+
+def save_hianyzasok_to_db(diak_nev, rows):
+    """A diák hiányzásainak teljes cseréje (a KRÉTA mindig a teljes listát adja)."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM hianyzasok WHERE diak_nev = ?", (diak_nev,))
+        seen = set()
+        for r in rows:
+            key = hianyzas_key(r)
+            if key in seen:
+                continue
+            seen.add(key)
+            cursor.execute('''
+                INSERT INTO hianyzasok
+                (diak_nev, kreta_id, mulasztas_datum, oraszam, perc, tantargy, tema, tanar,
+                 mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus, rogzites_datum)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                diak_nev,
+                str(r.get("kreta_id") or ""),
+                r.get("mulasztas_datum") or "",
+                int(r.get("oraszam") or 0),
+                r.get("perc"),
+                r.get("tantargy") or "",
+                r.get("tema") or "",
+                r.get("tanar") or "",
+                r.get("mulasztas_tipus") or "",
+                int(r.get("igazolt") or 0),
+                r.get("tanorai_celu") or "",
+                r.get("igazolas_tipus") or "",
+                r.get("rogzites_datum") or "",
+            ))
+        conn.commit()
+    except Exception as ex:
+        log(f"  [Hiba a hiányzások mentésekor]: {ex}")
+    finally:
+        conn.close()
+
+
+def save_igazolasok_to_db(diak_nev, rows):
+    """A diák igazolásainak teljes cseréje."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM igazolasok WHERE diak_nev = ?", (diak_nev,))
+        seen = set()
+        for r in rows:
+            kreta_id = str(r.get("kreta_id") or "").strip()
+            key = kreta_id or f"{r.get('kezdete')}|{r.get('vege')}|{r.get('igazolas_tipus')}|{r.get('megjegyzes')}"
+            if key in seen:
+                continue
+            seen.add(key)
+            cursor.execute('''
+                INSERT INTO igazolasok
+                (diak_nev, kreta_id, kezdete, vege, igazolas_tipus, megjegyzes)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (
+                diak_nev,
+                kreta_id,
+                r.get("kezdete") or "",
+                r.get("vege") or "",
+                r.get("igazolas_tipus") or "",
+                r.get("megjegyzes") or "",
+            ))
+        conn.commit()
+    except Exception as ex:
+        log(f"  [Hiba az igazolások mentésekor]: {ex}")
+    finally:
+        conn.close()
+
+
+def diff_hianyzas_counts(before_keys, rows):
+    """Új hiányzások száma és az új igazolatlan órák összege (nem késés)."""
+    new_rows = []
+    seen = set()
+    for r in rows:
+        key = hianyzas_key(r)
+        if key in before_keys or key in seen:
+            continue
+        seen.add(key)
+        new_rows.append(r)
+    igazolatlan = 0
+    for r in new_rows:
+        if int(r.get("igazolt") or 0):
+            continue
+        if r.get("perc") is not None and str(r.get("perc")) != "":
+            continue  # késés — nem számít hiányzó órának
+        igazolatlan += int(r.get("oraszam") or 0)
+    return {"db": len(new_rows), "igazolatlan_ora": igazolatlan}
+
 
 def save_esemenyek_to_db(diak_nev, esemenyek, completed_set):
     """Menti az adott diák kinyert eseményeit az adatbázisba megőrizve a korábbi 'kesz' státuszt és elkerülve a duplikációkat."""
@@ -479,9 +644,257 @@ async def scrape_orarend(page, diak_nev, institute_code):
     except Exception as ex:
         log(f"  [Órarend lekérési hiba]: {ex}")
 
+# ==============================================================================
+# === HIÁNYZÁSOK / KÉSÉSEK ÉS IGAZOLÁSOK KINYERÉSE ============================
+# ==============================================================================
+# A KRÉTA Kendo gridjei lapozottak (HianyzasGrid: 100, IgazolasGrid: 10 sor).
+# Ezért nem elég az első oldalt kiolvasni: a teljes találatszámból számoljuk a
+# oldalakat, és mindegyiket beolvassuk. A dátumokat ISO alakban mentjük.
+_JS_FORMAT_DATE = """
+    const fmtDate = (v) => {
+        if (v === null || v === undefined || v === "") return "";
+        let d = (v instanceof Date) ? v : new Date(v);
+        if (isNaN(d.getTime())) return String(v);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+"""
+
+_HIANYZAS_MAPPER = """(item) => {""" + _JS_FORMAT_DATE + """
+    const bname = String(item.Igazolt_BNAME || "");
+    let igazolt = (item.Igazolt_BOOL === true || item.Igazolt_BOOL === "true" || /igen/i.test(bname));
+    if (/nem|igazolatlan/i.test(bname)) igazolt = false;
+    return {
+        kreta_id: (item.ID === null || item.ID === undefined) ? "" : String(item.ID),
+        mulasztas_datum: fmtDate(item.MulasztasDatum),
+        oraszam: parseInt(item.Oraszam || 0, 10) || 0,
+        perc: (item.Perc === null || item.Perc === undefined || item.Perc === "") ? null : (parseInt(item.Perc, 10) || null),
+        tantargy: item.Targy || "",
+        tema: item.Tema || "",
+        tanar: item.Tanar || item.TanarNev || "",
+        mulasztas_tipus: item.MulasztasTipus_DNAME || "",
+        igazolt: igazolt ? 1 : 0,
+        tanorai_celu: item.TanoraiCeluMulasztas_BNAME || "",
+        igazolas_tipus: item.IgazolasTipus_DNAME || "",
+        rogzites_datum: fmtDate(item.RogzitesDatum)
+    };
+}"""
+
+_IGAZOLAS_MAPPER = """(item) => {""" + _JS_FORMAT_DATE + """
+    return {
+        kreta_id: (item.ID === null || item.ID === undefined) ? "" : String(item.ID),
+        kezdete: fmtDate(item.Kezdete),
+        vege: fmtDate(item.Vege),
+        igazolas_tipus: item.IgazolasTipusa_DNAME || "",
+        megjegyzes: item.Megjegyzes || ""
+    };
+}"""
+
+_JS_GRID_STATE = """
+(gridId) => {
+    let g = $(gridId).data('kendoGrid');
+    if (!g) return null;
+    let ds = g.dataSource;
+    return {total: ds.total() || 0, page: ds.page() || 1,
+            pageSize: ds.pageSize() || 0, count: ds.data().length};
+}
+"""
+
+_JS_GRID_PAGE_ROWS = """
+([gridId, mapperSrc, pageNum]) => {
+    let g = $(gridId).data('kendoGrid');
+    if (!g) return {missing: true};
+    let ds = g.dataSource;
+    if (pageNum && ds.page() !== pageNum) {
+        ds.page(pageNum);
+        return {pending: true};
+    }
+    try {
+        const map = eval('(' + mapperSrc + ')');
+        return {rows: ds.data().map(map)};
+    } catch (e) {
+        return {error: String(e)};
+    }
+}
+"""
+
+# A Kendo grid dataBound eseménye jelzi, melyik oldal töltődött be —
+# így nem olvassuk ki az előző oldal adatait a lapozás közben.
+_JS_GRID_INSTALL_HOOK = """
+(gridId) => {
+    let g = $(gridId).data('kendoGrid');
+    if (!g) return false;
+    if (!g.__kretaLoadedHook) {
+        g.__kretaLoadedHook = true;
+        g.bind('dataBound', function () {
+            window.__kretaGridLoaded = window.__kretaGridLoaded || {};
+            window.__kretaGridLoaded[gridId] = this.dataSource.page();
+        });
+    }
+    return true;
+}
+"""
+
+_JS_GRID_GOTO_PAGE = """
+([gridId, pageNum]) => {
+    window.__kretaGridLoaded = window.__kretaGridLoaded || {};
+    window.__kretaGridLoaded[gridId] = null;
+    let g = $(gridId).data('kendoGrid');
+    if (g) g.dataSource.page(pageNum);
+}
+"""
+
+_JS_GRID_QUERY_ALL = """
+([gridId, total]) => {
+    let g = $(gridId).data('kendoGrid');
+    if (!g) return false;
+    window.__kretaGridLoaded = window.__kretaGridLoaded || {};
+    window.__kretaGridLoaded[gridId] = null;
+    g.dataSource.query({ page: 1, pageSize: total });
+    return true;
+}
+"""
+
+_JS_GRID_LOADED_PAGE = """
+(gridId) => ((window.__kretaGridLoaded || {})[gridId] || null)
+"""
+
+
+async def _wait_grid_data(page, grid_id, timeout=8.0):
+    """Megvárja, hogy a grid betöltse az adatot (üres találatnál is visszatér)."""
+    waited = 0.0
+    state = None
+    while waited <= timeout:
+        state = await page.evaluate(_JS_GRID_STATE, grid_id)
+        if not state:
+            return None
+        if (state.get("total") or 0) > 0 or (state.get("count") or 0) > 0:
+            return state
+        await asyncio.sleep(0.5)
+        waited += 0.5
+    return state
+
+
+async def _grid_rows_now(page, grid_id, mapper_src, page_num):
+    res = await page.evaluate(_JS_GRID_PAGE_ROWS, [grid_id, mapper_src, page_num])
+    if res.get("error"):
+        log(f"  [Grid olvasási hiba] {grid_id}: {res['error']}")
+        return []
+    return res.get("rows") or []
+
+
+async def _read_kendo_grid_all(page, grid_id, mapper_src, max_pages=50):
+    """A grid összes oldalának kiolvasása. None = a grid nem található."""
+    state = await _wait_grid_data(page, grid_id)
+    if not state:
+        return None
+
+    total = int(state.get("total") or 0)
+    page_size = int(state.get("pageSize") or 0)
+    current = int(state.get("page") or 1)
+    count = int(state.get("count") or 0)
+
+    if not await page.evaluate(_JS_GRID_INSTALL_HOOK, grid_id):
+        return None
+
+    # Első kör: kérjük le egy lapon az összes sort (a gyakorlatban < 1000 sor).
+    if total > count and total > 0:
+        await page.evaluate(_JS_GRID_QUERY_ALL, [grid_id, total])
+        waited = 0.0
+        while waited <= 12.0:
+            await asyncio.sleep(0.4)
+            waited += 0.4
+            st = await page.evaluate(_JS_GRID_STATE, grid_id)
+            if st and int(st.get("count") or 0) >= total:
+                current, page_size = 1, total
+                break
+        else:
+            st = await page.evaluate(_JS_GRID_STATE, grid_id)
+            if st:
+                current = int(st.get("page") or 1)
+                page_size = int(st.get("pageSize") or page_size or 0)
+
+    rows = await _grid_rows_now(page, grid_id, mapper_src, current)
+
+    # Ha a szerver mégis lapozott (pageSize-korlát), oldalanként folytatjuk.
+    if page_size > 0 and total > len(rows):
+        pages = min(max_pages, (total + page_size - 1) // page_size)
+        for p in range(current + 1, pages + 1):
+            await page.evaluate(_JS_GRID_GOTO_PAGE, [grid_id, p])
+            waited = 0.0
+            while waited <= 8.0:
+                await asyncio.sleep(0.3)
+                waited += 0.3
+                loaded = await page.evaluate(_JS_GRID_LOADED_PAGE, grid_id)
+                if loaded == p:
+                    break
+            rows.extend(await _grid_rows_now(page, grid_id, mapper_src, p))
+    return rows
+
+
+async def scrape_hianyzasok(page, diak_nev, institute_code):
+    """Késések és hiányzások kiolvasása a 'Mulasztások' menü oldaláról."""
+    log("\n[HIÁNYZÁSOK] Navigáció a 'Késések, hiányzások' oldalra...")
+    try:
+        await page.goto(f"https://{institute_code}.e-kreta.hu/Hianyzas/Hianyzasok")
+        await page.wait_for_load_state("networkidle")
+        await page.wait_for_selector('#HianyzasGrid, #searchForm', timeout=15000)
+        await asyncio.sleep(1)
+
+        # A grid autoBind=false → a keresőpanel frissítése indítja a betöltést.
+        await page.evaluate('''() => {
+            if (typeof KretaGridHelper !== 'undefined' && KretaGridHelper.refreshGridSearchPanel) {
+                KretaGridHelper.refreshGridSearchPanel("HianyzasGrid", "searchForm");
+            } else {
+                let btn = document.getElementById('searchPanelBtn');
+                if (btn) btn.click();
+            }
+        }''')
+        await page.wait_for_load_state("networkidle")
+
+        rows = await _read_kendo_grid_all(page, "#HianyzasGrid", _HIANYZAS_MAPPER)
+        if rows is None:
+            log("  [Figyelmeztetés]: a #HianyzasGrid nem található, a korábbi adatok megmaradnak.")
+            return None
+
+        save_hianyzasok_to_db(diak_nev, rows)
+        keses = sum(1 for r in rows if r.get("perc") is not None)
+        log(f"  [HIÁNYZÁSOK OK] {len(rows)} db mulasztás rögzítve ({keses} db késés).")
+        return rows
+    except Exception as ex:
+        log(f"  [Hiányzás lekérési hiba]: {ex}")
+        return None
+
+
+async def scrape_igazolasok(page, diak_nev, institute_code):
+    """Igazolások kiolvasása az 'Igazolások' oldalról."""
+    log("\n[IGAZOLÁSOK] Navigáció az 'Igazolások' oldalra...")
+    try:
+        await page.goto(f"https://{institute_code}.e-kreta.hu/Hianyzas/InformaciokIgazolasok")
+        await page.wait_for_load_state("networkidle")
+        await page.wait_for_selector('#IgazolasGrid', timeout=15000)
+        await asyncio.sleep(1)
+
+        await page.evaluate('''() => {
+            let g = $('#IgazolasGrid').data('kendoGrid');
+            if (g) g.dataSource.read();
+        }''')
+        await page.wait_for_load_state("networkidle")
+
+        rows = await _read_kendo_grid_all(page, "#IgazolasGrid", _IGAZOLAS_MAPPER)
+        if rows is None:
+            log("  [Figyelmeztetés]: az #IgazolasGrid nem található, a korábbi adatok megmaradnak.")
+            return None
+
+        save_igazolasok_to_db(diak_nev, rows)
+        log(f"  [IGAZOLÁSOK OK] {len(rows)} db igazolás rögzítve.")
+        return rows
+    except Exception as ex:
+        log(f"  [Igazolás lekérési hiba]: {ex}")
+        return None
+
 async def scrape_uzenetek(page, diak_nev):
     """Be- és letölti az e-Ügyintézés felületről az új üzeneteket és csatolmányokat."""
-    log("\n6. Navigáció az e-Ügyintézés (Üzenetek) oldalra...")
+    log("\n7. Navigáció az e-Ügyintézés (Üzenetek) oldalra...")
     uj_cnt = 0
 
     try:
@@ -619,6 +1032,7 @@ async def process_student(page, student):
 
     # A frissítés ELŐTTI állapot — a végén ebből számoljuk az új eseményeket.
     before_event_keys = get_event_key_set(diak_nev)
+    before_hianyzas_keys = get_hianyzas_key_set(diak_nev)
 
     # Korábban elkészült házi feladatok és a DB-ben meglévő házi / számonkérés kulcsok kimentése
     completed_hazi = get_completed_hazi_map(diak_nev)
@@ -999,18 +1413,30 @@ async def process_student(page, student):
     else:
         log(f"Figyelem: {diak_nev} fiókjából nem sikerült eseményadatot kinyerni.")
 
-    # --- 6. E-ÜGYINTÉZÉS ÜZENETEK KINYERÉSE ---
+    # --- 6. HIÁNYZÁSOK / KÉSÉSEK ÉS IGAZOLÁSOK KINYERÉSE ---
+    hianyzasok = await scrape_hianyzasok(page, diak_nev, institute_code)
+    if hianyzasok is not None:
+        NEW_HIANYZAS_COUNTS[diak_nev] = diff_hianyzas_counts(before_hianyzas_keys, hianyzasok)
+        uj = NEW_HIANYZAS_COUNTS[diak_nev]
+        if uj.get("db"):
+            log(f"    [ÚJ HIÁNYZÁS]: {uj['db']} db (ebből {uj.get('igazolatlan_ora', 0)} igazolatlan óra)")
+    else:
+        NEW_HIANYZAS_COUNTS[diak_nev] = {"db": 0, "igazolatlan_ora": 0}
+
+    await scrape_igazolasok(page, diak_nev, institute_code)
+
+    # --- 7. E-ÜGYINTÉZÉS ÜZENETEK KINYERÉSE ---
     if student_scrape_messages:
         new_msg_count = await scrape_uzenetek(page, diak_nev) or 0
         NEW_MESSAGE_COUNTS[diak_nev] = new_msg_count
     else:
         NEW_MESSAGE_COUNTS[diak_nev] = 0
-        log(f"\n6. Üzenetek lekérése KI VAN KAPCSOLVA ennél a diáknál ({diak_nev}).")
+        log(f"\n7. Üzenetek lekérése KI VAN KAPCSOLVA ennél a diáknál ({diak_nev}).")
 
     # Új események (a frissítés előtti és utáni állapot különbsége)
     NEW_EVENT_COUNTS[diak_nev] = diff_event_counts(before_event_keys, get_event_key_set(diak_nev))
 
-    # --- 7. KIJELENTKEZÉS A FIÓKBÓL ---
+    # --- 8. KIJELENTKEZÉS A FIÓKBÓL ---
     log(f"\nKijelentkezés ({diak_nev})...")
     try:
         await page.goto(f"https://{institute_code}.e-kreta.hu/Home/LogOut")
@@ -1075,6 +1501,7 @@ async def main():
         "failed": failed,
         "new_events": NEW_EVENT_COUNTS,
         "new_messages": NEW_MESSAGE_COUNTS,
+        "new_hianyzasok": NEW_HIANYZAS_COUNTS,
     }
     print(RESULT_MARKER + json.dumps(summary, ensure_ascii=False), flush=True)
 
