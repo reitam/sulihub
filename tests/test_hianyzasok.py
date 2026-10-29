@@ -124,6 +124,30 @@ print("NOV_ROWS=" + str(len(r5.get_json()["rows"])))
 lines = kreta.format_new_events({{"Teszt Elek": {{"Értékelés": 1}}}}, {{}},
                                 {{"Teszt Elek": {{"db": 2, "igazolatlan_ora": 3}}}})
 print("PUSH=" + json.dumps(lines, ensure_ascii=False))
+
+# --- inkrementális mentés (dátum + órasorszám azonosító) ---
+def inkre_row(igazolt):
+    return {{"kreta_id": "100", "mulasztas_datum": "2026-10-20", "ora_sorszam": 1,
+             "perc": None, "tantargy": "Kémia", "tema": "", "mulasztas_tipus": "Hiányzás",
+             "igazolt": igazolt, "tanorai_celu": "Nem", "rogzites_datum": "2026-10-20"}}
+
+k.save_hianyzasok_to_db("Inkre Teszt", [inkre_row(0)])
+conn = sqlite3.connect(k.DB_FILE)
+conn.row_factory = sqlite3.Row
+r1 = conn.execute("SELECT id, igazolt FROM hianyzasok WHERE diak_nev='Inkre Teszt'").fetchone()
+conn.close()
+k.save_hianyzasok_to_db("Inkre Teszt", [inkre_row(1)])
+conn = sqlite3.connect(k.DB_FILE)
+conn.row_factory = sqlite3.Row
+r2 = conn.execute("SELECT id, igazolt FROM hianyzasok WHERE diak_nev='Inkre Teszt'").fetchone()
+conn.close()
+print("INKRE_ID_SAME=" + str(r1["id"] == r2["id"]))
+print("INKRE_IG=" + str(r2["igazolt"]))
+k.save_hianyzasok_to_db("Inkre Teszt", [])
+conn = sqlite3.connect(k.DB_FILE)
+left = conn.execute("SELECT COUNT(*) FROM hianyzasok WHERE diak_nev='Inkre Teszt'").fetchone()[0]
+conn.close()
+print("INKRE_LEFT=" + str(left))
 """.format(root=str(ROOT)),
     encoding="utf-8",
 )
@@ -164,17 +188,17 @@ ok(vals.get("BEFORE") == "0", f"kezdetben nincs hiányzás: {vals.get('BEFORE')}
 ok(vals.get("AFTER") == "5", f"a duplikált sor nem került be (5 sor): {vals.get('AFTER')}")
 diff = json.loads(vals.get("DIFF", "{}"))
 ok(diff.get("db") == 5, f"5 új hiányzás: {diff.get('db')}")
-ok(diff.get("igazolatlan_ora") == 2, f"2 új igazolatlan tanóra (1 sor = 1 óra): {diff.get('igazolatlan_ora')}")
+ok(diff.get("igazolatlan_ora") == 3, f"3 új igazolatlan tanóra (1 sor = 1 óra): {diff.get('igazolatlan_ora')}")
 
 print("\n3) API és havi összesítő")
 ok(vals.get("API_STATUS") == "200", f"a /api/hianyzasok válasza: {vals.get('API_STATUS')}")
 ok(vals.get("API_ROWS") == "5", f"októberi sorok: {vals.get('API_ROWS')}")
 o = json.loads(vals.get("API_O", "{}"))
-ok(o.get("hianyzas_db") == 3, f"3 hiányzás-sor (késés és tanórai célú külön): {o.get('hianyzas_db')}")
+ok(o.get("hianyzas_db") == 4, f"4 hiányzás-sor (a késés külön): {o.get('hianyzas_db')}")
 ok(o.get("igazolt_ora") == 1, f"1 igazolt tanóra: {o.get('igazolt_ora')}")
-ok(o.get("igazolatlan_ora") == 2, f"2 igazolatlan tanóra: {o.get('igazolatlan_ora')}")
-ok(o.get("tanorai_celu_db") == 1, f"1 tanórai célú mulasztás: {o.get('tanorai_celu_db')}")
-ok(o.get("tanorai_celu_ora") == 1, f"1 tanórai célú óra: {o.get('tanorai_celu_ora')}")
+ok(o.get("igazolatlan_ora") == 3, f"3 igazolatlan tanóra: {o.get('igazolatlan_ora')}")
+ok("tanorai_celu_db" not in o and "tanorai_celu_ora" not in o,
+   "a tanórai célú nincs az összesítőben (csak tárolt adat)")
 ok(o.get("keses_db") == 1, f"1 késés: {o.get('keses_db')}")
 ok(o.get("keses_perc") == 5, f"5 perc késés: {o.get('keses_perc')}")
 ok(vals.get("API_ALL_ROWS") == "5", f"szűrés nélkül is 5 sor: {vals.get('API_ALL_ROWS')}")
@@ -186,6 +210,11 @@ print("\n4) Push szöveg")
 push = json.loads(vals.get("PUSH", "[]"))
 ok(len(push) == 1 and "2 hiányzás" in push[0], f"a push tartalmazza az új hiányzást: {push}")
 ok(len(push) == 1 and "3 igazolatlan óra" in push[0], f"a push tartalmazza az igazolatlan órát: {push}")
+
+print("\n5) Inkrementális mentés (dátum + órasorszám)")
+ok(vals.get("INKRE_ID_SAME") == "True", "az újramentés ugyanazt a sort frissíti (stabil ID)")
+ok(vals.get("INKRE_IG") == "1", f"az igazolt érték frissült: {vals.get('INKRE_IG')}")
+ok(vals.get("INKRE_LEFT") == "0", f"a KRÉTA-ból eltűnt sor törlődik: {vals.get('INKRE_LEFT')}")
 
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")

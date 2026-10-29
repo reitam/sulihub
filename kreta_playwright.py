@@ -327,7 +327,19 @@ _HIANYZAS_KEY_FIELDS = ("mulasztas_datum", "ora_sorszam", "tantargy", "mulasztas
 
 
 def hianyzas_key(row):
-    """Egy hiányzás tartalom-alapú kulcsa (a KRÉTA ID stabil, ha van)."""
+    """A hiányzás azonosítója: dátum + órasorszám (a KRÉTA ID csak tartalék).
+
+    A felhasználó megerősítése szerint egy adott napon egy órasorszám
+    egyértelműen azonosít egy mulasztást; így a szinkron újrafuttatása nem
+    hoz létre duplikátumot és a sor ID-ja stabil marad.
+    """
+    datum = str(row.get("mulasztas_datum") or "").strip()
+    try:
+        ora = int(row.get("ora_sorszam") or 0)
+    except (TypeError, ValueError):
+        ora = 0
+    if datum and ora > 0:
+        return f"{datum}#{ora}"
     kreta_id = str(row.get("kreta_id") or "").strip()
     if kreta_id:
         return f"id:{kreta_id}"
@@ -357,24 +369,31 @@ def get_hianyzas_key_set(diak_nev):
 
 
 def save_hianyzasok_to_db(diak_nev, rows):
-    """A diák hiányzásainak teljes cseréje (a KRÉTA mindig a teljes listát adja)."""
+    """Inkrementális mentés: a rekord azonosítója a dátum + órasorszám.
+
+    A KRÉTA mindig a teljes listát adja (nincs delta végpont), ezért a beolvasás
+    teljes; a DB-be viszont csak a változás megy: a meglévő sor frissül (stabil
+    ID), az új beszúródik, a KRÉTA-ból eltűnt sor pedig törlődik.
+    """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM hianyzasok WHERE diak_nev = ?", (diak_nev,))
+        existing = {}
+        for rid, kid, datum, ora in cursor.execute(
+            "SELECT id, kreta_id, mulasztas_datum, ora_sorszam FROM hianyzasok WHERE diak_nev = ?",
+            (diak_nev,),
+        ).fetchall():
+            existing[hianyzas_key({
+                "kreta_id": kid, "mulasztas_datum": datum, "ora_sorszam": ora,
+            })] = rid
+
         seen = set()
         for r in rows:
             key = hianyzas_key(r)
             if key in seen:
                 continue
             seen.add(key)
-            cursor.execute('''
-                INSERT INTO hianyzasok
-                (diak_nev, kreta_id, mulasztas_datum, ora_sorszam, perc, tantargy, tema, tanar,
-                 mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus, rogzites_datum)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                diak_nev,
+            values = (
                 str(r.get("kreta_id") or ""),
                 r.get("mulasztas_datum") or "",
                 int(r.get("ora_sorszam") or 0),
@@ -387,7 +406,27 @@ def save_hianyzasok_to_db(diak_nev, rows):
                 r.get("tanorai_celu") or "",
                 r.get("igazolas_tipus") or "",
                 r.get("rogzites_datum") or "",
-            ))
+            )
+            if key in existing:
+                cursor.execute('''
+                    UPDATE hianyzasok SET
+                        kreta_id = ?, mulasztas_datum = ?, ora_sorszam = ?, perc = ?,
+                        tantargy = ?, tema = ?, tanar = ?, mulasztas_tipus = ?,
+                        igazolt = ?, tanorai_celu = ?, igazolas_tipus = ?, rogzites_datum = ?
+                    WHERE id = ?
+                ''', values + (existing[key],))
+            else:
+                cursor.execute('''
+                    INSERT INTO hianyzasok
+                    (kreta_id, mulasztas_datum, ora_sorszam, perc, tantargy, tema, tanar,
+                     mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus, rogzites_datum, diak_nev)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', values + (diak_nev,))
+
+        # A KRÉTA-ból eltűnt (törölt/javított) sorok eltávolítása.
+        stale_ids = [rid for key, rid in existing.items() if key not in seen]
+        for rid in stale_ids:
+            cursor.execute("DELETE FROM hianyzasok WHERE id = ?", (rid,))
         conn.commit()
     except Exception as ex:
         log(f"  [Hiba a hiányzások mentésekor]: {ex}")
@@ -447,8 +486,6 @@ def diff_hianyzas_counts(before_keys, rows):
             continue
         if r.get("perc") is not None and str(r.get("perc")) != "":
             continue  # késés — nem számít hiányzó órának
-        if str(r.get("tanorai_celu") or "").strip().lower() in ("igen", "1", "true"):
-            continue  # iskolai program/verseny — nem igazolatlan hiányzás
         igazolatlan += 1
     return {"db": len(new_rows), "igazolatlan_ora": igazolatlan}
 
