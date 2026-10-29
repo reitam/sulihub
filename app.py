@@ -60,7 +60,8 @@ sync_state = {
     "ok_count": None,
     "total_students": None,
     "new_events": {},
-    "new_messages": {}
+    "new_messages": {},
+    "new_hianyzasok": {}
 }
 sync_lock = threading.Lock()
 
@@ -93,9 +94,15 @@ def ensure_run_tables(conn):
             failed_students TEXT,
             new_events      TEXT,
             new_messages    TEXT,
+            new_hianyzasok  TEXT,
             duration_sec    REAL
         )
     """)
+    # Meglévő adatbázis: a hiányzás-összegzés oszlopa utólag is bekerül.
+    cur.execute("PRAGMA table_info(sync_runs)")
+    run_cols = [row[1] for row in cur.fetchall()]
+    if "new_hianyzasok" not in run_cols:
+        cur.execute("ALTER TABLE sync_runs ADD COLUMN new_hianyzasok TEXT")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sync_runs_started ON sync_runs(started_at)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sync_runs_trigger ON sync_runs(trigger, started_at)")
     cur.execute("""
@@ -217,7 +224,7 @@ def record_run_start(trigger, started_at=None):
 
 def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_count=None,
                       failed_students=None, new_events=None, new_messages=None,
-                      duration_sec=None):
+                      new_hianyzasok=None, duration_sec=None):
     """A futás sorának lezárása."""
     if run_id is None or not _db_ready():
         return
@@ -226,13 +233,15 @@ def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_cou
         cur = conn.cursor()
         cur.execute("""
             UPDATE sync_runs SET finished_at = ?, status = ?, ok_count = ?, total_count = ?,
-                   failed_students = ?, new_events = ?, new_messages = ?, duration_sec = ?
+                   failed_students = ?, new_events = ?, new_messages = ?, new_hianyzasok = ?,
+                   duration_sec = ?
             WHERE id = ?
         """, (
             finished_at or _now_iso(), status, ok_count, total_count,
             json.dumps(failed_students or [], ensure_ascii=False),
             json.dumps(new_events or {}, ensure_ascii=False),
             json.dumps(new_messages or {}, ensure_ascii=False),
+            json.dumps(new_hianyzasok or {}, ensure_ascii=False),
             duration_sec, run_id,
         ))
         conn.commit()
@@ -307,6 +316,7 @@ def _row_to_state(row):
         "last_failed_students": _loads(row["failed_students"], []),
         "last_new_events": _loads(row["new_events"], {}),
         "last_new_messages": _loads(row["new_messages"], {}),
+        "last_new_hianyzasok": _loads(row["new_hianyzasok"], {}),
         "last_duration_sec": row["duration_sec"],
     }
 
@@ -365,6 +375,40 @@ def init_db_extensions():
                 )
             """)
             
+            # Hiányzások / késések és igazolások táblái (a scraper is létrehozza,
+            # itt azért kell, hogy a felület a legelső szinkron előtt se hibázzon).
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS hianyzasok (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    diak_nev TEXT,
+                    kreta_id TEXT,
+                    mulasztas_datum TEXT,
+                    oraszam INTEGER DEFAULT 0,
+                    perc INTEGER,
+                    tantargy TEXT,
+                    tema TEXT,
+                    tanar TEXT,
+                    mulasztas_tipus TEXT,
+                    igazolt INTEGER DEFAULT 0,
+                    tanorai_celu TEXT,
+                    igazolas_tipus TEXT,
+                    rogzites_datum TEXT
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_hianyzasok_diak ON hianyzasok(diak_nev, mulasztas_datum)")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS igazolasok (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    diak_nev TEXT,
+                    kreta_id TEXT,
+                    kezdete TEXT,
+                    vege TEXT,
+                    igazolas_tipus TEXT,
+                    megjegyzes TEXT
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_igazolasok_diak ON igazolasok(diak_nev, kezdete)")
+
             # Órarend tábla
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS orarend (
@@ -694,15 +738,20 @@ EVENT_TYPE_LABELS = {
 EVENT_TYPE_ORDER = ["Értékelés", "Házi feladat", "Bejelentett számonkérés", "Feljegyzés"]
 
 
-def format_new_events(new_events, new_messages=None):
+def format_new_events(new_events, new_messages=None, new_hianyzasok=None):
     """
     Emberi olvasású bontás a push-üzenethez:
-        ["Teszt Elek: 2 jegy, 1 házi", "Teszt Anna: 1 üzenet"]
+        ["Teszt Elek: 2 jegy, 1 házi", "Teszt Anna: 1 üzenet, 3 hiányzás (2 igazolatlan óra)"]
     Csak azt a diákot írja ki, akinél történt valami.
     """
     new_messages = new_messages or {}
+    new_hianyzasok = new_hianyzasok or {}
+    diakok = list(dict.fromkeys(
+        list(new_events or {}) + list(new_messages) + list(new_hianyzasok)
+    ))
     lines = []
-    for diak, counts in (new_events or {}).items():
+    for diak in diakok:
+        counts = (new_events or {}).get(diak) or {}
         parts = []
         for tipus in EVENT_TYPE_ORDER:
             n = int((counts or {}).get(tipus, 0) or 0)
@@ -711,6 +760,11 @@ def format_new_events(new_events, new_messages=None):
         n_msg = int(new_messages.get(diak, 0) or 0)
         if n_msg:
             parts.append(f"{n_msg} üzenet")
+        h = new_hianyzasok.get(diak) or {}
+        n_h = int(h.get("db", 0) or 0)
+        if n_h:
+            ora = int(h.get("igazolatlan_ora", 0) or 0)
+            parts.append(f"{n_h} hiányzás" + (f" ({ora} igazolatlan óra)" if ora else ""))
         if parts:
             lines.append(f"{diak}: {', '.join(parts)}")
     return lines
@@ -764,10 +818,10 @@ def send_notification(title, message, priority=3, tags=None):
 
 
 def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=None, total=None,
-                       new_events=None, new_messages=None):
+                       new_events=None, new_messages=None, new_hianyzasok=None):
     """A szinkron eredményéről szóló push (hiba / részleges hiba / sikeres)."""
     failed_txt = ", ".join(failed_students) if failed_students else ""
-    event_lines = format_new_events(new_events, new_messages)
+    event_lines = format_new_events(new_events, new_messages, new_hianyzasok)
     events_block = ("\n\n" + "\n".join(event_lines)) if event_lines else ""
 
     if status == "done_with_errors":
@@ -923,6 +977,7 @@ def run_scraper_thread(trigger="manual"):
         sync_state["total_students"] = None
         sync_state["new_events"] = {}
         sync_state["new_messages"] = {}
+        sync_state["new_hianyzasok"] = {}
 
     # A ciklus alapja a futás KEZDEMÉNYEZÉSE (nem a vége), így a ~2,2 perces
     # futás nem tolja el az ütemezést. Az ütemező ciklusához CSAK az ütemezett
@@ -974,6 +1029,7 @@ def run_scraper_thread(trigger="manual"):
         total_students = None
         new_events = {}
         new_messages = {}
+        new_hianyzasok = {}
         with sync_lock:
             log_lines = list(sync_state["logs"])
         for line in log_lines:
@@ -985,6 +1041,7 @@ def run_scraper_thread(trigger="manual"):
                     total_students = payload.get("total")
                     new_events = payload.get("new_events") or {}
                     new_messages = payload.get("new_messages") or {}
+                    new_hianyzasok = payload.get("new_hianyzasok") or {}
                 except (ValueError, AttributeError, TypeError):
                     pass
 
@@ -994,6 +1051,7 @@ def run_scraper_thread(trigger="manual"):
             sync_state["total_students"] = total_students
             sync_state["new_events"] = new_events
             sync_state["new_messages"] = new_messages
+            sync_state["new_hianyzasok"] = new_hianyzasok
             if sync_state["status"] != "stopped":
                 if process.returncode == 0:
                     sync_state["status"] = "done"
@@ -1022,6 +1080,7 @@ def run_scraper_thread(trigger="manual"):
             final_total = sync_state.get("total_students")
             final_new_events = sync_state.get("new_events") or {}
             final_new_messages = sync_state.get("new_messages") or {}
+            final_new_hianyzasok = sync_state.get("new_hianyzasok") or {}
 
         # A futás sorát lezárjuk a DB-ben (ez a "legutóbbi futás" állapot is).
         duration_sec = (_now() - started_at).total_seconds()
@@ -1031,6 +1090,7 @@ def run_scraper_thread(trigger="manual"):
             ok_count=final_ok, total_count=final_total,
             failed_students=final_failed,
             new_events=final_new_events, new_messages=final_new_messages,
+            new_hianyzasok=final_new_hianyzasok,
             duration_sec=duration_sec,
         )
 
@@ -1043,7 +1103,7 @@ def run_scraper_thread(trigger="manual"):
 
         # Push értesítés: hiba / részleges hiba / sikeres (beállítástól függően).
         notify_sync_result(final_status, final_failed, trigger, duration_min, final_ok, final_total,
-                           final_new_events, final_new_messages)
+                           final_new_events, final_new_messages, final_new_hianyzasok)
 
 @app.route("/")
 def index():
@@ -1056,7 +1116,7 @@ def index():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT DISTINCT diak_nev FROM esemenyek UNION SELECT DISTINCT diak_nev FROM uzenetek UNION SELECT DISTINCT diak_nev FROM orarend ORDER BY diak_nev")
+        cursor.execute("SELECT DISTINCT diak_nev FROM esemenyek UNION SELECT DISTINCT diak_nev FROM uzenetek UNION SELECT DISTINCT diak_nev FROM orarend UNION SELECT DISTINCT diak_nev FROM hianyzasok ORDER BY diak_nev")
         diakok = [row["diak_nev"] for row in cursor.fetchall() if row["diak_nev"]]
 
         cursor.execute("SELECT DISTINCT esemeny_tipus FROM esemenyek ORDER BY esemeny_tipus")
@@ -1704,6 +1764,136 @@ def api_uzenetek():
 
     conn.close()
     return jsonify(uzenetek)
+
+# ==============================================================================
+# === HIÁNYZÁSOK / KÉSÉSEK ÉS IGAZOLÁSOK API ===================================
+# ==============================================================================
+def _month_bounds(honap):
+    """'ÉÉÉÉ-HH' -> (hónap első napja, utolsó napja) ISO alakban."""
+    m = re.fullmatch(r"\s*(\d{4})-(\d{1,2})\s*", honap or "")
+    if not m:
+        return None, None
+    year, month = int(m.group(1)), int(m.group(2))
+    if not 1 <= month <= 12:
+        return None, None
+    first = f"{year:04d}-{month:02d}-01"
+    next_month = f"{year + 1:04d}-01-01" if month == 12 else f"{year:04d}-{month + 1:02d}-01"
+    last = (datetime.strptime(next_month, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+    return first, last
+
+
+def _is_keses(row):
+    """Késés: van Perc érték, vagy a típus neve tartalmazza, hogy 'késés'."""
+    if row.get("perc") is not None:
+        return True
+    return "késés" in str(row.get("mulasztas_tipus") or "").lower()
+
+
+def hianyzas_osszesito(rows):
+    """Havi/összesített mutatók a hiányzás-sorokból."""
+    o = {
+        "hianyzas_db": 0,
+        "igazolt_ora": 0,
+        "igazolatlan_ora": 0,
+        "keses_db": 0,
+        "keses_perc": 0,
+        "keses_igazolatlan_db": 0,
+    }
+    for r in rows:
+        if _is_keses(r):
+            o["keses_db"] += 1
+            o["keses_perc"] += int(r.get("perc") or 0)
+            if not int(r.get("igazolt") or 0):
+                o["keses_igazolatlan_db"] += 1
+            continue
+        o["hianyzas_db"] += 1
+        if int(r.get("igazolt") or 0):
+            o["igazolt_ora"] += int(r.get("oraszam") or 0)
+        else:
+            o["igazolatlan_ora"] += int(r.get("oraszam") or 0)
+    return o
+
+
+def _date_range_from_request():
+    """kezdo/zaro paraméter, vagy a honap=ÉÉÉÉ-HH paraméterből számolva."""
+    kezdo = request.args.get("kezdo", "").strip()
+    zaro = request.args.get("zaro", "").strip()
+    if not kezdo and not zaro:
+        kezdo, zaro = _month_bounds(request.args.get("honap", ""))
+    return kezdo or None, zaro or None
+
+
+@app.route("/api/hianyzasok")
+def api_hianyzasok():
+    empty = {"rows": [], "osszesito": hianyzas_osszesito([])}
+    if not os.path.exists(DB_FILE):
+        return jsonify(empty)
+
+    diak = request.args.get("diak", "")
+    kezdo, zaro = _date_range_from_request()
+
+    query = "SELECT * FROM hianyzasok WHERE 1=1"
+    params = []
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+    if kezdo:
+        query += " AND mulasztas_datum >= ?"
+        params.append(kezdo)
+    if zaro:
+        query += " AND mulasztas_datum <= ?"
+        params.append(zaro)
+    query += " ORDER BY mulasztas_datum DESC, id DESC"
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        rows = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+    except sqlite3.Error as e:
+        print(f"[Hiányzások API] Olvasás nem sikerült: {e}")
+        return jsonify(empty)
+
+    for r in rows:
+        r["igazolt"] = int(r.get("igazolt") or 0)
+        r["oraszam"] = int(r.get("oraszam") or 0)
+        r["keses"] = 1 if _is_keses(r) else 0
+    return jsonify({"rows": rows, "osszesito": hianyzas_osszesito(rows)})
+
+
+@app.route("/api/igazolasok")
+def api_igazolasok():
+    if not os.path.exists(DB_FILE):
+        return jsonify([])
+
+    diak = request.args.get("diak", "")
+    kezdo, zaro = _date_range_from_request()
+
+    query = "SELECT * FROM igazolasok WHERE 1=1"
+    params = []
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+    # A hónaphoz kapcsolódó igazolások: az intervallum metszi a hónapot.
+    if kezdo:
+        query += " AND (vege IS NULL OR vege = '' OR vege >= ?)"
+        params.append(kezdo)
+    if zaro:
+        query += " AND (kezdete IS NULL OR kezdete = '' OR kezdete <= ?)"
+        params.append(zaro)
+    query += " ORDER BY kezdete DESC, id DESC"
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        rows = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+    except sqlite3.Error as e:
+        print(f"[Igazolások API] Olvasás nem sikerült: {e}")
+        return jsonify([])
+    return jsonify(rows)
 
 def normalize_date(d_str):
     if not d_str or d_str == "-":

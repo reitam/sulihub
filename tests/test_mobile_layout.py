@@ -113,7 +113,7 @@ try:
             await page.wait_for_timeout(2500)
 
             # 1) nincs vízszintes túlcsordulás
-            for tab in ("esemenyek", "orarend", "naptar", "uzenetek", "rewards", "logs"):
+            for tab in ("esemenyek", "hianyzasok", "orarend", "naptar", "uzenetek", "rewards", "logs"):
                 await page.evaluate(
                     "(id) => bootstrap.Tab.getOrCreateInstance(document.getElementById(id)).show()", tab + "-tab")
                 await page.wait_for_timeout(900)
@@ -159,6 +159,14 @@ try:
             sched_txt = await page.evaluate("() => document.querySelector('#schedulerInfo').innerText")
             ok("Utolsó frissítés" in sched_txt, "a fejlécben mobilon is látszik az utolsó frissítés")
             ok("Ütemező" in sched_txt and "időablak" in sched_txt, "az ütemező állapota és az időablak is látszik")
+
+            # 8) hiányzások fül: havi választó, összesítő és a két táblázat elfér
+            await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('hianyzasok-tab')).show()")
+            await page.wait_for_timeout(900)
+            for sel in ("#hianyzasHonap", "#hianyzasSummary", "#hianyzasokTable", "#igazolasokTable"):
+                box = await page.evaluate("""(s) => { const e = document.querySelector(s); if (!e) return null;
+                    const r = e.getBoundingClientRect(); return {w: r.width, right: r.right}; }""", sel)
+                ok(box and box["w"] > 0 and box["right"] <= 394, f"{sel} a képernyőn belül van")
 
             # 5) a fülek tördelődnek — minden fül látszik, nem fut ki
             tabs_info = await page.evaluate("""() => {

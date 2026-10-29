@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v1.4.1`
+**Jelenlegi verzió:** `v1.5.0`
 
 ---
 
@@ -24,8 +24,8 @@ a saját szerveren maradnak.
 - Playwright/Chromiummal belép a diákfiókokba (**több gyermek, több intézmény** egyszerre).
 - Kezeli a sütikezelő ablakot; perzisztens böngészőprofilt használ (kevesebb bejelentkezés).
 - Lekéri az **aktuális és következő hét** órarendjét (tanár, terem, csengetési időpontok).
-- Jegyek, feljegyzések, házik, számonkérések mentése; az e-Ügyintézés üzenetei
-  **inkrementálisan** (csak az újak) töltődnek, a csatolmányokkal együtt.
+- Jegyek, feljegyzések, házik, számonkérések, **hiányzások/késések és igazolások** mentése;
+  az e-Ügyintézés üzenetei **inkrementálisan** (csak az újak) töltődnek, a csatolmányokkal együtt.
 - **Részleges hiba ≠ siker:** ha egy gyermek adata nem jön le, a többi frissül, a futás
   „részleges hiba" állapotba kerül, és a hibás gyermek neve megjelenik.
 
@@ -37,7 +37,7 @@ a saját szerveren maradnak.
 ### 🔔 Push értesítések (ntfy)
 - Sikeres futás, részleges hiba, hiba és elavult adat esetén.
 - A sikeres üzenet tartalmazza a **diákonkénti új eseményeket**:
-  `Teszt Elek: 2 jegy, 1 házi` · `Teszt Anna: 1 számonkérés, 2 üzenet`.
+  `Teszt Elek: 2 jegy, 1 házi` · `Teszt Anna: 1 számonkérés, 2 üzenet, 1 hiányzás (2 igazolatlan óra)`.
 - Diáknevek alapból **nem** mennek ki (csak darabszám); kapcsolható.
 
 ### 📅 Heti/napi órarend + PDF
@@ -53,6 +53,13 @@ a saját szerveren maradnak.
 
 ### 📝 Házi feladat kezelés
 - „Elkészült" jelölés, amely **megmarad** a következő szinkronok után is (zöld kiemelés).
+
+### 🚸 Hiányzások és késések
+- Saját „Hiányzások" fül: **havi összesítő** (igazolt óra, igazolatlan óra, késések
+  darabszáma és percei) gyermek- és hónapválasztóval, „Összes" nézettel.
+- Részletes hiányzás-/késés-táblázat (dátum, típus, óraszám, tantárgy, téma, igazolt?,
+  igazolás típusa) és külön **igazolás-lista** (érvényesség, típus, megjegyzés).
+- A késéseket a KRÉTA „(N perc)” adatából ismeri fel; a havi összesítő külön kezeli őket.
 
 ### 🗓️ Feladatok naptár
 - Házik és számonkérések határidő szerint (FullCalendar 6), színkódolva;
@@ -262,9 +269,9 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**7 csomag, 143 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**8 csomag, 175 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
-migráció, **mobil elrendezés** (valódi böngésző, 393 px).
+migráció, hiányzások/igazolások, **mobil elrendezés** (valódi böngésző, 393 px).
 Részletek: [`tests/README.md`](tests/README.md).
 
 ---
@@ -287,7 +294,7 @@ Az éles környezet a HPReiTam Linux szerveren fut Dockerben, **csak belső hál
 ```powershell
 net use h: \\HPReiTam\HP_Share /user:reitam     # ha még nincs
 cd c:\ReiTam\AI\Gemini\Kreta
-.\deploy.ps1 -Release v1.4.1
+.\deploy.ps1 -Release v1.5.0
 ```
 
 A script jelszót kér az SSH-hoz. Hibánál **nem** ír „sikeres"-t (nem-nulla kilépési kód).
@@ -323,6 +330,7 @@ telepíti a mentő-cront.
 
 | Verzió | Tartalom |
 |---|---|
+| v1.5.x | **Hiányzások / késések modul** (havi összesítő, igazolások, push-ban az igazolatlan órák) |
 | v1.4.x | **Mobilra optimalizált felület** (napi naptárnézet, összecsukható táblázatok, avatárok, tördelődő fülek) |
 | v1.3.x | Futásnapló a DB-ben (`sync_runs`), WAL opt-in, teljes `DOKUMENTACIO.md` |
 | v1.2.x | Részleges hiba, ntfy, napló-rotáció, waitress, tesztek, új események a push-ban |
