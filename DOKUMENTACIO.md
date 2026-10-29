@@ -288,7 +288,14 @@ cd c:\ReiTam\AI\Gemini\Kreta
 ```
 
 A folyamat: git tag létrehozása/push → szerveri mentés → staging másolás (Samba) →
-SSH: munkakönyvtár frissítése → `docker compose up -d --build` → healthcheck.
+SSH: **előellenőrzés** → munkakönyvtár frissítése → `docker compose up -d --build` → healthcheck.
+
+**Előellenőrzés a szerveren (a másolás előtt):** a script SSH-n ellenőrzi, hogy
+a Docker daemon fut, a munkakönyvtár olvasható (nincs I/O hiba), a data köteten
+megvan a `config.json`, és van legalább **1 GB szabad hely**. Ha valamelyik nem
+teljesül, a deploy **a másolás előtt leáll** érthető hibaüzenettel (90% feletti
+kihasználtságnál figyelmeztet). Így egy lemez-/mount-hiba nem a másolás közepén
+derül ki.
 
 **A deploy NEM másolja** a `config.json`-t, az adatbázist és a `sync.log`-ot (ezek a data
 köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data kötetre másolni.
@@ -424,7 +431,7 @@ adatokat nem érintik.
 | C4 | DB-migrációs keret + indexek | hosszú távú stabilitás | 1 nap |
 | C5 | **Hitelesítés** (basic auth / reverse proxy) | gyerek-adatok védelme | 0,5–1 nap |
 | C6 | Apróságok: `SyntaxWarning`, `config.json.example` vessző, halott `autoSyncAlert` | tisztaság | 2–3 óra |
-| C7 | **Egylemezes üzemeltetési kockázat** — a kód és a Docker a rendszerlemezen; lemezhiba esetén a deploy elakad, a dockerd elérhetetlen (2026-10-29-i incidens) | work dir (+ Docker data-root) áthelyezése a HDD-re, SMART-figyelés + ntfy riasztás | 0,5–1 nap |
+| C7 | **Deploy előtti szerver-ellenőrzés** — Docker daemon, munkakönyvtár olvashatósága (I/O hiba), `config.json` megléte, szabad hely | **KÉSZ**: a deploy a másolás előtt leáll, ha valami hiányzik; 90% feletti HDD-kihasználtságnál figyelmeztet. A lemez-/Docker-áthelyezés (C7b–d) **elvetve** — a felhasználó szerint monitoring már van rá | – |
 
 > **Elvetett irány:** a KRÉTA JSON-végpontok használata a DOM-scraping helyett — a fejlesztés
 > során sok helyen kipróbálták és nem működött, ezért marad a Playwright-alapú megoldás.

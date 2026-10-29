@@ -357,6 +357,28 @@ crontab -l | grep -E 'kreta|rabbit' || echo "(nincs cron bejegyzes?)"
     }
 
     $deploySh = @'
+echo "===[ SZERVER-ELLENORZES (deploy elott) ]==="
+PF=""
+systemctl is-active --quiet docker || PF="$PF docker-nem-fut"
+# A munkakonyvtar olvashatosaga (I/O hiba eseten itt derul ki, nem a masolas kozben)
+ls -d REMOTE_DIR_PLACEHOLDER >/dev/null 2>&1 || PF="$PF workdir-nem-olvashato"
+# A data kotet tenyleg ott van-e (mount nelkul ures app indulna)
+[ -f DATA_DIR_PLACEHOLDER/config.json ] || PF="$PF nincs-config-json"
+# Szabad hely a data koteten (kemény korlat: 1 GB)
+FREE_KB=$(df -Pk DATA_DIR_PLACEHOLDER 2>/dev/null | awk 'NR==2 {print $4}')
+FREE_KB=${FREE_KB:-0}
+[ "$FREE_KB" -ge 1048576 ] || PF="$PF keves-szabadhely(${FREE_KB}KB)"
+if [ -n "$PF" ]; then
+    echo "HIBA: a szerver nem alkalmas az elesitesre:$PF"
+    exit 1
+fi
+USE_PCT=$(df -P DATA_DIR_PLACEHOLDER 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
+USE_PCT=${USE_PCT:-0}
+echo "OK: docker fut, munkakonyvtar olvashato, config megvan, szabad hely $((FREE_KB/1024)) MB (${USE_PCT}% hasznalva)"
+if [ "$USE_PCT" -ge 90 ]; then
+    echo "FIGYELEM: a data kotet ${USE_PCT}%-ban tele van - a mentes/DB iras meghiusulhat!"
+fi
+
 echo "===[ STAGING MASOLAS ]==="
 STAGING_COUNT=$(find STAGING_DIR_PLACEHOLDER -type f 2>/dev/null | wc -l)
 echo "Staging fajlok szama: $STAGING_COUNT"
