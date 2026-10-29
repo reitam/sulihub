@@ -67,7 +67,7 @@ továbbítanak.
 | Fül | Mire való |
 |---|---|
 | **Iskolai események** | Szűrhető, kereshető táblázat: jegyek, feljegyzések, házik, számonkérések |
-| **Hiányzások** | Hiányzások és késések havi bontásban: **5 összesítő kártya** (hiányzás db, igazolt óra, igazolatlan óra, késés db/perc, igazolás db) + részletes tábla és igazolás-lista. Alapból a **teljes előzmény** látszik, a havi bontás hónapválasztóval / „Aktuális hónap" gombbal |
+| **Hiányzások** | Hiányzások és késések havi bontásban: **5 összesítő kártya** (összes hiányzás óra, igazolt óra, igazolatlan óra, késés db/perc, igazolás db) + részletes tábla és igazolás-lista. Alapból a **teljes előzmény** látszik, a havi bontás hónapválasztóval / „Aktuális hónap" gombbal |
 | **Heti órarend** | Idősávos heti nézet, gyermekszínekkel; **A4 PDF export** |
 | **Feladatok naptár nézet** | Házik és számonkérések határidő szerint, színkódolva |
 | **Beérkezett üzenetek** | Üzenetek olvasása, csatolmányok letöltése |
