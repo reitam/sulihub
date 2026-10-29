@@ -569,8 +569,8 @@
             <div class="card card-stat bg-white p-2 px-3 mb-3">
                 <div class="row g-2 text-center" id="hianyzasSummary">
                     <div class="col-6 col-md">
-                        <div class="small text-muted" title="Nem késés">Hiányzás</div>
-                        <div class="fs-5 fw-bold text-dark" id="stHianyzasDb">0 db</div>
+                        <div class="small text-muted" title="Nem késés; 1 sor = 1 tanóra">Összes hiányzás</div>
+                        <div class="fs-5 fw-bold text-dark" id="stHianyzasOra">0 óra</div>
                     </div>
                     <div class="col-6 col-md">
                         <div class="small text-muted">Igazolt óra</div>
@@ -1396,7 +1396,7 @@ $(document).ready(function() {
             let rows = (res && res.rows) || [];
             let o = (res && res.osszesito) || {};
             hianyzasokTable.clear().rows.add(rows).draw();
-            $('#stHianyzasDb').text((o.hianyzas_db || 0) + ' db');
+            $('#stHianyzasOra').text((o.hianyzas_db || 0) + ' óra');
             $('#stIgazoltOra').text((o.igazolt_ora || 0) + ' óra');
             $('#stIgazolatlanOra').text((o.igazolatlan_ora || 0) + ' óra');
             $('#stKesesDb').text((o.keses_db || 0) + ' db');
