@@ -432,6 +432,8 @@ def diff_hianyzas_counts(before_keys, rows):
             continue
         if r.get("perc") is not None and str(r.get("perc")) != "":
             continue  # késés — nem számít hiányzó órának
+        if str(r.get("tanorai_celu") or "").strip().lower() in ("igen", "1", "true"):
+            continue  # iskolai program/verseny — nem igazolatlan hiányzás
         igazolatlan += int(r.get("oraszam") or 0)
     return {"db": len(new_rows), "igazolatlan_ora": igazolatlan}
 
@@ -680,12 +682,23 @@ _HIANYZAS_MAPPER = """(item) => {""" + _JS_FORMAT_DATE + """
 }"""
 
 _IGAZOLAS_MAPPER = """(item) => {""" + _JS_FORMAT_DATE + """
+    const stripHtml = (v) => {
+        if (v === null || v === undefined) return "";
+        let s = String(v);
+        if (s.indexOf('<') === -1) return s.trim();
+        // A blokk-elemek határán szóköz kell, különben a szövegek összeolvadnak.
+        s = s.replace(/<\\/(p|div|li|tr|h[1-6]|td|th)>/gi, ' ')
+             .replace(/<br\\s*\\/?>/gi, ' ');
+        let d = document.createElement('div');
+        d.innerHTML = s;
+        return (d.textContent || d.innerText || "").replace(/\\s+/g, " ").trim();
+    };
     return {
         kreta_id: (item.ID === null || item.ID === undefined) ? "" : String(item.ID),
         kezdete: fmtDate(item.Kezdete),
         vege: fmtDate(item.Vege),
         igazolas_tipus: item.IgazolasTipusa_DNAME || "",
-        megjegyzes: item.Megjegyzes || ""
+        megjegyzes: stripHtml(item.Megjegyzes)
     };
 }"""
 
