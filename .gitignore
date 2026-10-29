@@ -16,4 +16,4 @@ __pycache__/
 *$py.class
 .venv/
 env/
-venv/
+venv/scheduler_state.json.migrated
