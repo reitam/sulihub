@@ -47,6 +47,9 @@ VERSION_FILE = os.environ.get("KRETA_VERSION_FILE", os.path.join(DATA_DIR, "vers
 # ##KRETA_RESULT##{"total":3,"ok":2,"failed":["Név"]}
 RESULT_MARKER = "##KRETA_RESULT##"
 
+# WAL: csak opt-in, lásd enable_wal() — a data kötet FUSE mount.
+SQLITE_WAL = os.environ.get("KRETA_SQLITE_WAL", "0").strip().lower() in ("1", "true", "yes", "on")
+
 sync_state = {
     "running": False,
     "process": None,
@@ -106,11 +109,34 @@ def ensure_run_tables(conn):
 
 
 def enable_wal(conn):
-    """WAL mód: az app és a scraper párhuzamos írása ne akadjon össze."""
+    """
+    A WAL mód CSAK opt-in (KRETA_SQLITE_WAL=1).
+
+    A data kötet a szerveren ntfs-3g (FUSE) mount — a SQLite hivatalosan sem
+    ajánlja a WAL-t ilyen fájlrendszeren (locking/mmap), és a csak-olvasható
+    megnyitások (pl. az entrypoint DB-guardja) is elhasalhatnak tőle.
+    Alapból ezért a bevált rollback journal marad; ha a DB-t korábban WAL-ra
+    állítottuk, itt visszaállítjuk.
+    """
     try:
-        conn.execute("PRAGMA journal_mode=WAL")
-    except sqlite3.Error:
-        pass
+        if SQLITE_WAL:
+            conn.execute("PRAGMA journal_mode=WAL")
+        else:
+            mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+            if str(mode).lower() == "wal":
+                conn.execute("PRAGMA journal_mode=delete")
+    except sqlite3.Error as e:
+        print(f"[DB] journal_mode beállítás nem sikerült: {e}")
+
+
+def check_db_integrity(conn):
+    """Induláskori gyors integritás-ellenőrzés (csak naplóz, nem blokkol)."""
+    try:
+        result = conn.execute("PRAGMA quick_check").fetchone()[0]
+        if str(result).lower() != "ok":
+            print(f"[DB] FIGYELEM: az adatbázis integritás-ellenőrzése hibát jelzett: {result}")
+    except sqlite3.Error as e:
+        print(f"[DB] Integritás-ellenőrzés nem futott le: {e}")
 
 
 def migrate_state_file(conn):
@@ -320,6 +346,7 @@ def init_db_extensions():
 
             # WAL + futásnapló táblák + egyszeri átvétel a régi JSON-ból
             enable_wal(conn)
+            check_db_integrity(conn)
             ensure_run_tables(conn)
             migrate_state_file(conn)
             mark_interrupted_runs()

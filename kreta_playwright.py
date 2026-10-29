@@ -19,6 +19,8 @@ DATA_DIR = os.environ.get("KRETA_DATA_DIR", ".")
 CONFIG_FILE = os.environ.get("KRETA_CONFIG_FILE", os.path.join(DATA_DIR, "config.json"))
 DB_FILE = os.environ.get("KRETA_DB_FILE", os.path.join(DATA_DIR, "kreta_adatok.db"))
 LOG_FILE = os.environ.get("KRETA_LOG_FILE", os.path.join(DATA_DIR, "sync.log"))
+# WAL csak opt-in (a data kötet FUSE mount — lásd a Dockerfile/compose megjegyzést)
+SQLITE_WAL = os.environ.get("KRETA_SQLITE_WAL", "0").strip().lower() in ("1", "true", "yes", "on")
 CSATOLMANYOK_DIR = os.environ.get("KRETA_CSATOLMANYOK_DIR", os.path.join("static", "csatolmanyok"))# Napló-rotáció: ne nőjön korlátlanul a sync.log (a felület is ezt olvassa).
 LOG_MAX_BYTES = int(os.environ.get("KRETA_LOG_MAX_BYTES", 1000000))
 LOG_BACKUP_COUNT = int(os.environ.get("KRETA_LOG_BACKUP_COUNT", 2))
@@ -68,9 +70,15 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
-    # WAL: az app és a scraper párhuzamos írása ne akadjon össze.
+    # WAL csak opt-in (KRETA_SQLITE_WAL=1): a data kötet FUSE mount, ahol a
+    # WAL nem ajánlott. Ha korábban be volt kapcsolva, visszaállítjuk.
     try:
-        cursor.execute("PRAGMA journal_mode=WAL")
+        if SQLITE_WAL:
+            cursor.execute("PRAGMA journal_mode=WAL")
+        else:
+            mode = cursor.execute("PRAGMA journal_mode").fetchone()[0]
+            if str(mode).lower() == "wal":
+                cursor.execute("PRAGMA journal_mode=delete")
     except sqlite3.Error:
         pass
 

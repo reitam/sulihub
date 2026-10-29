@@ -143,7 +143,8 @@ ok(st.get("last_status") == "done" and st.get("last_trigger") == "scheduled",
 ok(st.get("last_scheduled_run") == "2026-10-28T12:30:00", f"ütemezett futás is: {st.get('last_scheduled_run')}")
 
 conn = kreta.get_db_connection()
-ok(str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower() == "wal", "WAL mód aktív")
+ok(str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower() != "wal", "WAL alapból KI (FUSE kötet)")
+ok(kreta.SQLITE_WAL is False, "KRETA_SQLITE_WAL opt-in (alapból ki)")
 cols = [r[1] for r in conn.execute("PRAGMA table_info(sync_runs)")]
 ok(all(c in cols for c in ("trigger", "started_at", "status", "new_events", "duration_sec")), f"sync_runs séma: {cols}")
 conn.close()
