@@ -397,31 +397,53 @@ def _http_post_ntfy(url, data, headers, timeout):
         return resp.status
 
 
-def _ntfy_publish_url():
+def _ntfy_target():
     """
+    Visszaadja (publish_url, topic) párban.
+
+    FONTOS: a JSON publish API-t a szerver GYÖKÉRE kell POST-olni
+    (pl. https://ntfy.sh) — a topic URL-re küldött JSON-t a szolgáltatás magát
+    az üzenetnek tekinti, ezért jelent meg nyers JSON a telefonon.
+
     A backup-script konvenciója szerint a NTFY_TOPIC lehet teljes URL is
-    (pl. https://ntfy.sh/kreta-xyz); ezt elfogadjuk, különben NTFY_URL + topic.
+    (https://ntfy.sh/kreta-xyz); ilyenkor a topic az utolsó path-szegmens.
     """
     if NTFY_TOPIC.startswith("http://") or NTFY_TOPIC.startswith("https://"):
-        return NTFY_TOPIC, NTFY_TOPIC.rsplit("/", 1)[-1]
-    return f"{NTFY_URL}/{NTFY_TOPIC}", NTFY_TOPIC
+        base, _, topic = NTFY_TOPIC.rstrip("/").rpartition("/")
+        return (base or NTFY_URL), topic
+    return NTFY_URL, NTFY_TOPIC
 
 
-def send_notification(title, message, priority="default", tags=None):
+_NTFY_PRIORITIES = {"min": 1, "low": 2, "default": 3, "high": 4, "max": 5, "urgent": 5}
+
+
+def _ntfy_priority(value):
+    """A JSON API számot vár (1-5); a szöveges neveket is elfogadjuk."""
+    if isinstance(value, str):
+        return _NTFY_PRIORITIES.get(value.strip().lower(), 3)
+    try:
+        return max(1, min(5, int(value)))
+    except (TypeError, ValueError):
+        return 3
+
+
+def send_notification(title, message, priority=3, tags=None):
     """
     ntfy push küldése háttérszálban. Ha nincs NTFY_TOPIC, csendben nem tesz semmit.
     A JSON publish API-t használjuk (a fejlécek nem bírnak el ékezetet).
+    A priority a JSON API-ban SZÁM (1=min … 5=max) — szöveges értéket 400-zal elutasít,
+    ezért itt alakítjuk át.
     """
     if not NTFY_TOPIC:
         return False
 
-    url, topic = _ntfy_publish_url()
+    url, topic = _ntfy_target()
     payload = json.dumps(
         {
             "topic": topic,
             "title": title,
             "message": message,
-            "priority": priority,
+            "priority": _ntfy_priority(priority),
             "tags": tags or ["warning"],
         },
         ensure_ascii=False,
@@ -449,13 +471,13 @@ def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=
         if failed_students and NTFY_INCLUDE_NAMES:
             detail = f"Nem frissült: {failed_txt}"
         elif failed_students:
-            detail = f"Nem frissült: {len(failed_students)} diák (részletek a Rendszernaplóban)"
+            detail = f"{len(failed_students)} diák nem frissült (részletek a Rendszernaplóban)"
         else:
             detail = "Részletek a Rendszernaplóban"
         return send_notification(
             "KRÉTA szinkron: részleges hiba",
-            f"{trigger_label(trigger)} futás, {duration_min:.1f} perc. {detail}",
-            "default",
+            f"{trigger_label(trigger)} futás · {duration_min:.1f} perc · {detail}",
+            3,
             ["warning"],
         )
     if status == "done":
@@ -467,15 +489,16 @@ def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=
             detail = "Minden diák adata frissült."
         return send_notification(
             "KRÉTA szinkron: sikeres",
-            f"{trigger_label(trigger)} futás, {duration_min:.1f} perc. {detail}",
-            "low",
+            f"{trigger_label(trigger)} futás · {duration_min:.1f} perc · {detail}",
+            2,
             ["white_check_mark"],
         )
     if status == "error":
         return send_notification(
             "KRÉTA szinkron: HIBA",
-            f"A {trigger_label(trigger)} szinkron hibával ért véget ({duration_min:.1f} perc). Részletek a Rendszernaplóban.",
-            "high",
+            f"A {trigger_label(trigger)} szinkron hibával ért véget ({duration_min:.1f} perc). "
+            f"Részletek a Rendszernaplóban.",
+            4,
             ["rotating_light"],
         )
     return False
@@ -499,7 +522,7 @@ def _maybe_notify_stale(cfg):
     sent = send_notification(
         "KRÉTA: elavult adatok",
         f"Az utolsó szinkron {age_h:.0f} órával ezelőtt volt (küszöb: {stale_hours} óra).",
-        "high",
+        4,
         ["hourglass"],
     )
     if sent:
