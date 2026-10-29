@@ -125,7 +125,7 @@ def init_db():
             diak_nev TEXT,
             kreta_id TEXT,
             mulasztas_datum TEXT,
-            oraszam INTEGER DEFAULT 0,
+            ora_sorszam INTEGER DEFAULT 0,
             perc INTEGER,
             tantargy TEXT,
             tema TEXT,
@@ -138,6 +138,17 @@ def init_db():
         )
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_hianyzasok_diak ON hianyzasok(diak_nev, mulasztas_datum)')
+
+    # Régi séma: az 'oraszam' valójában a napon belüli órasorszám volt —
+    # átnevezzük, hogy senki ne értelmezze óraszámként.
+    cursor.execute("PRAGMA table_info(hianyzasok)")
+    hianyzas_cols = [row[1] for row in cursor.fetchall()]
+    if "oraszam" in hianyzas_cols and "ora_sorszam" not in hianyzas_cols:
+        try:
+            cursor.execute("ALTER TABLE hianyzasok RENAME COLUMN oraszam TO ora_sorszam")
+            log("  [Adatbázis séma frissítve]: hianyzasok.oraszam -> ora_sorszam")
+        except Exception as ex:
+            log(f"  [Sémafrissítési figyelmeztetés (ora_sorszam)]: {ex}")
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS igazolasok (
@@ -312,7 +323,7 @@ def diff_event_counts(before_keys, after_keys):
 # A szinkron során az új hiányzásokat is kimutatjuk (push-értesítéshez).
 NEW_HIANYZAS_COUNTS = {}
 
-_HIANYZAS_KEY_FIELDS = ("mulasztas_datum", "oraszam", "tantargy", "mulasztas_tipus", "perc", "tema")
+_HIANYZAS_KEY_FIELDS = ("mulasztas_datum", "ora_sorszam", "tantargy", "mulasztas_tipus", "perc", "tema")
 
 
 def hianyzas_key(row):
@@ -330,12 +341,12 @@ def get_hianyzas_key_set(diak_nev):
     keys = set()
     try:
         cursor.execute(
-            "SELECT kreta_id, mulasztas_datum, oraszam, tantargy, mulasztas_tipus, perc, tema "
+            "SELECT kreta_id, mulasztas_datum, ora_sorszam, tantargy, mulasztas_tipus, perc, tema "
             "FROM hianyzasok WHERE diak_nev = ?", (diak_nev,)
         )
         for r in cursor.fetchall():
             keys.add(hianyzas_key({
-                "kreta_id": r[0], "mulasztas_datum": r[1], "oraszam": r[2],
+                "kreta_id": r[0], "mulasztas_datum": r[1], "ora_sorszam": r[2],
                 "tantargy": r[3], "mulasztas_tipus": r[4], "perc": r[5], "tema": r[6],
             }))
     except Exception as ex:
@@ -359,14 +370,14 @@ def save_hianyzasok_to_db(diak_nev, rows):
             seen.add(key)
             cursor.execute('''
                 INSERT INTO hianyzasok
-                (diak_nev, kreta_id, mulasztas_datum, oraszam, perc, tantargy, tema, tanar,
+                (diak_nev, kreta_id, mulasztas_datum, ora_sorszam, perc, tantargy, tema, tanar,
                  mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus, rogzites_datum)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 diak_nev,
                 str(r.get("kreta_id") or ""),
                 r.get("mulasztas_datum") or "",
-                int(r.get("oraszam") or 0),
+                int(r.get("ora_sorszam") or 0),
                 r.get("perc"),
                 r.get("tantargy") or "",
                 r.get("tema") or "",
@@ -417,7 +428,11 @@ def save_igazolasok_to_db(diak_nev, rows):
 
 
 def diff_hianyzas_counts(before_keys, rows):
-    """Új hiányzások száma és az új igazolatlan órák összege (nem késés)."""
+    """Új hiányzások száma és az új igazolatlan tanórák száma.
+
+    FIGYELEM: a KRÉTA egy sora egy tanórát jelent (az 'Óra' oszlop a napon
+    belüli órasorszám), ezért az órákat soronként 1-ként számoljuk.
+    """
     new_rows = []
     seen = set()
     for r in rows:
@@ -434,7 +449,7 @@ def diff_hianyzas_counts(before_keys, rows):
             continue  # késés — nem számít hiányzó órának
         if str(r.get("tanorai_celu") or "").strip().lower() in ("igen", "1", "true"):
             continue  # iskolai program/verseny — nem igazolatlan hiányzás
-        igazolatlan += int(r.get("oraszam") or 0)
+        igazolatlan += 1
     return {"db": len(new_rows), "igazolatlan_ora": igazolatlan}
 
 
@@ -668,7 +683,7 @@ _HIANYZAS_MAPPER = """(item) => {""" + _JS_FORMAT_DATE + """
     return {
         kreta_id: (item.ID === null || item.ID === undefined) ? "" : String(item.ID),
         mulasztas_datum: fmtDate(item.MulasztasDatum),
-        oraszam: parseInt(item.Oraszam || 0, 10) || 0,
+        ora_sorszam: parseInt(item.Oraszam || 0, 10) || 0,
         perc: (item.Perc === null || item.Perc === undefined || item.Perc === "") ? null : (parseInt(item.Perc, 10) || null),
         tantargy: item.Targy || "",
         tema: item.Tema || "",

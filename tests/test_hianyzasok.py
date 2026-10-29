@@ -41,8 +41,19 @@ probe.write_text(
 import json, sqlite3, sys
 sys.path.insert(0, r'{root}')
 
-import app as kreta
 import kreta_playwright as k
+
+# Régi sémájú tábla (oraszam) -> az app importjakor át kell neveznie.
+conn = sqlite3.connect(k.DB_FILE)
+conn.execute(
+    "CREATE TABLE hianyzasok (id INTEGER PRIMARY KEY AUTOINCREMENT, diak_nev TEXT, kreta_id TEXT,"
+    " mulasztas_datum TEXT, oraszam INTEGER, perc INTEGER, tantargy TEXT, tema TEXT, tanar TEXT,"
+    " mulasztas_tipus TEXT, igazolt INTEGER, tanorai_celu TEXT, igazolas_tipus TEXT, rogzites_datum TEXT)"
+)
+conn.commit()
+conn.close()
+
+import app as kreta
 
 k.init_db()
 
@@ -56,24 +67,24 @@ conn.close()
 
 # --- mentés + dedupe ---
 rows = [
-    {{"kreta_id": "1", "mulasztas_datum": "2026-10-05", "oraszam": 2, "perc": None,
+    {{"kreta_id": "1", "mulasztas_datum": "2026-10-05", "ora_sorszam": 2, "perc": None,
       "tantargy": "Matematika", "tema": "Dolgozat", "mulasztas_tipus": "Hiányzás",
       "igazolt": 1, "igazolas_tipus": "Orvosi", "rogzites_datum": "2026-10-05"}},
-    {{"kreta_id": "2", "mulasztas_datum": "2026-10-06", "oraszam": 1, "perc": None,
+    {{"kreta_id": "2", "mulasztas_datum": "2026-10-06", "ora_sorszam": 1, "perc": None,
       "tantargy": "Magyar", "tema": "", "mulasztas_tipus": "Hiányzás",
       "igazolt": 0, "igazolas_tipus": "", "rogzites_datum": "2026-10-06"}},
-    {{"kreta_id": "3", "mulasztas_datum": "2026-10-07", "oraszam": 0, "perc": 5,
+    {{"kreta_id": "3", "mulasztas_datum": "2026-10-07", "ora_sorszam": 0, "perc": 5,
       "tantargy": "Fizika", "tema": "", "mulasztas_tipus": "Késés",
       "igazolt": 0, "igazolas_tipus": "", "rogzites_datum": "2026-10-07"}},
-    {{"kreta_id": "4", "mulasztas_datum": "2026-10-08", "oraszam": 3, "perc": None,
+    {{"kreta_id": "4", "mulasztas_datum": "2026-10-08", "ora_sorszam": 3, "perc": None,
       "tantargy": "Történelem", "tema": "", "mulasztas_tipus": "Hiányzás",
       "igazolt": 0, "igazolas_tipus": "", "rogzites_datum": "2026-10-08"}},
-    {{"kreta_id": "5", "mulasztas_datum": "2026-10-09", "oraszam": 2, "perc": None,
+    {{"kreta_id": "5", "mulasztas_datum": "2026-10-09", "ora_sorszam": 2, "perc": None,
       "tantargy": "Német", "tema": "Verseny", "mulasztas_tipus": "Hiányzás",
       "igazolt": 0, "tanorai_celu": "Igen", "igazolas_tipus": "",
       "rogzites_datum": "2026-10-09"}},
     # ugyanaz az ID mégegyszer -> nem duplikálódhat
-    {{"kreta_id": "4", "mulasztas_datum": "2026-10-08", "oraszam": 3, "perc": None,
+    {{"kreta_id": "4", "mulasztas_datum": "2026-10-08", "ora_sorszam": 3, "perc": None,
       "tantargy": "Történelem", "tema": "", "mulasztas_tipus": "Hiányzás",
       "igazolt": 0, "igazolas_tipus": "", "rogzites_datum": "2026-10-08"}},
 ]
@@ -143,26 +154,27 @@ tables = json.loads(vals.get("TABLES", "[]"))
 cols = json.loads(vals.get("COLS", "[]"))
 ok("hianyzasok" in tables, "a 'hianyzasok' tábla létrejött")
 ok("igazolasok" in tables, "az 'igazolasok' tábla létrejött")
-for col in ("mulasztas_datum", "oraszam", "perc", "tantargy", "mulasztas_tipus",
+for col in ("mulasztas_datum", "ora_sorszam", "perc", "tantargy", "mulasztas_tipus",
             "igazolt", "igazolas_tipus", "rogzites_datum"):
     ok(col in cols, f"a 'hianyzasok' táblában van '{col}' oszlop")
+ok("oraszam" not in cols, "a régi 'oraszam' oszlop átnevezve 'ora_sorszam'-ra")
 
 print("\n2) Mentés és új-hiányzás számítás")
 ok(vals.get("BEFORE") == "0", f"kezdetben nincs hiányzás: {vals.get('BEFORE')}")
 ok(vals.get("AFTER") == "5", f"a duplikált sor nem került be (5 sor): {vals.get('AFTER')}")
 diff = json.loads(vals.get("DIFF", "{}"))
 ok(diff.get("db") == 5, f"5 új hiányzás: {diff.get('db')}")
-ok(diff.get("igazolatlan_ora") == 4, f"4 új igazolatlan óra (késés és tanórai célú nélkül): {diff.get('igazolatlan_ora')}")
+ok(diff.get("igazolatlan_ora") == 2, f"2 új igazolatlan tanóra (1 sor = 1 óra): {diff.get('igazolatlan_ora')}")
 
 print("\n3) API és havi összesítő")
 ok(vals.get("API_STATUS") == "200", f"a /api/hianyzasok válasza: {vals.get('API_STATUS')}")
 ok(vals.get("API_ROWS") == "5", f"októberi sorok: {vals.get('API_ROWS')}")
 o = json.loads(vals.get("API_O", "{}"))
 ok(o.get("hianyzas_db") == 3, f"3 hiányzás-sor (késés és tanórai célú külön): {o.get('hianyzas_db')}")
-ok(o.get("igazolt_ora") == 2, f"2 igazolt óra: {o.get('igazolt_ora')}")
-ok(o.get("igazolatlan_ora") == 4, f"4 igazolatlan óra: {o.get('igazolatlan_ora')}")
+ok(o.get("igazolt_ora") == 1, f"1 igazolt tanóra: {o.get('igazolt_ora')}")
+ok(o.get("igazolatlan_ora") == 2, f"2 igazolatlan tanóra: {o.get('igazolatlan_ora')}")
 ok(o.get("tanorai_celu_db") == 1, f"1 tanórai célú mulasztás: {o.get('tanorai_celu_db')}")
-ok(o.get("tanorai_celu_ora") == 2, f"2 tanórai célú óra: {o.get('tanorai_celu_ora')}")
+ok(o.get("tanorai_celu_ora") == 1, f"1 tanórai célú óra: {o.get('tanorai_celu_ora')}")
 ok(o.get("keses_db") == 1, f"1 késés: {o.get('keses_db')}")
 ok(o.get("keses_perc") == 5, f"5 perc késés: {o.get('keses_perc')}")
 ok(vals.get("API_ALL_ROWS") == "5", f"szűrés nélkül is 5 sor: {vals.get('API_ALL_ROWS')}")
