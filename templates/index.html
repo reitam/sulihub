@@ -556,7 +556,7 @@
             <div class="card card-stat bg-white p-2 px-3 mb-3">
                 <div class="row g-2 text-center" id="hianyzasSummary">
                     <div class="col-6 col-md-2">
-                        <div class="small text-muted">Hiányzás</div>
+                        <div class="small text-muted" title="Nem késés és nem tanórai célú mulasztás">Hiányzás</div>
                         <div class="fs-5 fw-bold text-dark" id="stHianyzasDb">0 db</div>
                     </div>
                     <div class="col-6 col-md-2">
@@ -568,12 +568,14 @@
                         <div class="fs-5 fw-bold text-danger" id="stIgazolatlanOra">0 óra</div>
                     </div>
                     <div class="col-6 col-md-2">
-                        <div class="small text-muted">Késés</div>
-                        <div class="fs-5 fw-bold text-warning" id="stKesesDb">0 db</div>
+                        <div class="small text-muted" title="Iskolai program, verseny — nem hiányzó óra">Tanórai célú</div>
+                        <div class="fs-5 fw-bold text-info" id="stTanoraiCelu">0 óra</div>
+                        <div class="small text-muted" id="stTanoraiCeluDb">0 db</div>
                     </div>
                     <div class="col-6 col-md-2">
-                        <div class="small text-muted">Késés összesen</div>
-                        <div class="fs-5 fw-bold text-warning" id="stKesesPerc">0 perc</div>
+                        <div class="small text-muted">Késés</div>
+                        <div class="fs-5 fw-bold text-warning" id="stKesesDb">0 db</div>
+                        <div class="small text-muted" id="stKesesPerc">0 perc</div>
                     </div>
                     <div class="col-6 col-md-2">
                         <div class="small text-muted">Igazolás</div>
@@ -587,7 +589,7 @@
                 <table id="hianyzasokTable" class="table table-striped table-hover w-100">
                     <thead>
                         <tr>
-                            <th style="width: 120px;">Diák</th>
+                            <th style="width: 150px;">Diák</th>
                             <th style="width: 110px;">Dátum</th>
                             <th style="width: 150px;">Típus</th>
                             <th style="width: 80px;">Óra</th>
@@ -606,7 +608,7 @@
                 <table id="igazolasokTable" class="table table-striped table-hover w-100">
                     <thead>
                         <tr>
-                            <th style="width: 120px;">Diák</th>
+                            <th style="width: 150px;">Diák</th>
                             <th style="width: 110px;">Kezdete</th>
                             <th style="width: 110px;">Vége</th>
                             <th style="width: 160px;">Igazolás típusa</th>
@@ -1274,8 +1276,19 @@ $(document).ready(function() {
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    function fmtIsoToHu(value) {
-        if (!value) return '-';
+    // A KRÉTA az igazolás megjegyzését HTML-ként adja (pl. <p>…</p>);
+    // megjelenítés előtt sima szövegre alakítjuk.
+    function htmlToText(value) {
+        if (value === null || value === undefined) return '';
+        let s = String(value);
+        if (s.indexOf('<') === -1) return s;
+        s = s.replace(/<\/(p|div|li|tr|h[1-6]|td|th)>/gi, ' ').replace(/<br\s*\/?>/gi, ' ');
+        let d = document.createElement('div');
+        d.innerHTML = s;
+        return (d.textContent || d.innerText || '').replace(/\s+/g, ' ').trim();
+    }
+
+    function fmtIsoToHu(value) {        if (!value) return '-';
         let parts = String(value).split('-');
         if (parts.length !== 3) return value;
         return `${parts[0]}. ${parts[1]}. ${parts[2]}.`;
@@ -1306,7 +1319,11 @@ $(document).ready(function() {
                         nev = (data || 'Késés') + ` (${row.perc} perc)`;
                     }
                     let cls = row.keses ? 'bg-warning text-dark' : 'bg-danger';
-                    return `<span class="badge ${cls}">${escapeHtml(nev)}</span>`;
+                    let html = `<span class="badge ${cls}">${escapeHtml(nev)}</span>`;
+                    if (String(row.tanorai_celu || '').toLowerCase() === 'igen') {
+                        html += ' <span class="badge bg-info text-dark" title="Iskolai program, verseny — nem hiányzó óra"><span class="d-none d-sm-inline">Tanórai célú</span><span class="d-sm-none">Iskolai</span></span>';
+                    }
+                    return html;
                 }
             },
             { data: 'oraszam', render: function (data) { return Number(data) ? data + ' óra' : '-'; } },
@@ -1348,7 +1365,7 @@ $(document).ready(function() {
             { data: 'kezdete', render: function (data, type) { return type === 'display' ? fmtIsoToHu(data) : data; } },
             { data: 'vege', render: function (data, type) { return type === 'display' ? fmtIsoToHu(data) : data; } },
             { data: 'igazolas_tipus', render: function (data) { return escapeHtml(data || '-'); } },
-            { data: 'megjegyzes', render: function (data) { return escapeHtml(data || '-'); } }
+            { data: 'megjegyzes', render: function (data) { return escapeHtml(htmlToText(data) || '-'); } }
         ],
         drawCallback: function () {
             setTimeout(function () {
@@ -1376,6 +1393,8 @@ $(document).ready(function() {
             $('#stHianyzasDb').text((o.hianyzas_db || 0) + ' db');
             $('#stIgazoltOra').text((o.igazolt_ora || 0) + ' óra');
             $('#stIgazolatlanOra').text((o.igazolatlan_ora || 0) + ' óra');
+            $('#stTanoraiCelu').text((o.tanorai_celu_ora || 0) + ' óra');
+            $('#stTanoraiCeluDb').text((o.tanorai_celu_db || 0) + ' db');
             $('#stKesesDb').text((o.keses_db || 0) + ' db');
             $('#stKesesPerc').text((o.keses_perc || 0) + ' perc');
         });

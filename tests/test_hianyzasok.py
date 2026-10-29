@@ -68,6 +68,10 @@ rows = [
     {{"kreta_id": "4", "mulasztas_datum": "2026-10-08", "oraszam": 3, "perc": None,
       "tantargy": "Történelem", "tema": "", "mulasztas_tipus": "Hiányzás",
       "igazolt": 0, "igazolas_tipus": "", "rogzites_datum": "2026-10-08"}},
+    {{"kreta_id": "5", "mulasztas_datum": "2026-10-09", "oraszam": 2, "perc": None,
+      "tantargy": "Német", "tema": "Verseny", "mulasztas_tipus": "Hiányzás",
+      "igazolt": 0, "tanorai_celu": "Igen", "igazolas_tipus": "",
+      "rogzites_datum": "2026-10-09"}},
     # ugyanaz az ID mégegyszer -> nem duplikálódhat
     {{"kreta_id": "4", "mulasztas_datum": "2026-10-08", "oraszam": 3, "perc": None,
       "tantargy": "Történelem", "tema": "", "mulasztas_tipus": "Hiányzás",
@@ -145,21 +149,23 @@ for col in ("mulasztas_datum", "oraszam", "perc", "tantargy", "mulasztas_tipus",
 
 print("\n2) Mentés és új-hiányzás számítás")
 ok(vals.get("BEFORE") == "0", f"kezdetben nincs hiányzás: {vals.get('BEFORE')}")
-ok(vals.get("AFTER") == "4", f"a duplikált sor nem került be (4 sor): {vals.get('AFTER')}")
+ok(vals.get("AFTER") == "5", f"a duplikált sor nem került be (5 sor): {vals.get('AFTER')}")
 diff = json.loads(vals.get("DIFF", "{}"))
-ok(diff.get("db") == 4, f"4 új hiányzás: {diff.get('db')}")
-ok(diff.get("igazolatlan_ora") == 4, f"4 új igazolatlan óra (késés nélkül): {diff.get('igazolatlan_ora')}")
+ok(diff.get("db") == 5, f"5 új hiányzás: {diff.get('db')}")
+ok(diff.get("igazolatlan_ora") == 4, f"4 új igazolatlan óra (késés és tanórai célú nélkül): {diff.get('igazolatlan_ora')}")
 
 print("\n3) API és havi összesítő")
 ok(vals.get("API_STATUS") == "200", f"a /api/hianyzasok válasza: {vals.get('API_STATUS')}")
-ok(vals.get("API_ROWS") == "4", f"októberi sorok: {vals.get('API_ROWS')}")
+ok(vals.get("API_ROWS") == "5", f"októberi sorok: {vals.get('API_ROWS')}")
 o = json.loads(vals.get("API_O", "{}"))
-ok(o.get("hianyzas_db") == 3, f"3 hiányzás-sor (késés külön): {o.get('hianyzas_db')}")
+ok(o.get("hianyzas_db") == 3, f"3 hiányzás-sor (késés és tanórai célú külön): {o.get('hianyzas_db')}")
 ok(o.get("igazolt_ora") == 2, f"2 igazolt óra: {o.get('igazolt_ora')}")
 ok(o.get("igazolatlan_ora") == 4, f"4 igazolatlan óra: {o.get('igazolatlan_ora')}")
+ok(o.get("tanorai_celu_db") == 1, f"1 tanórai célú mulasztás: {o.get('tanorai_celu_db')}")
+ok(o.get("tanorai_celu_ora") == 2, f"2 tanórai célú óra: {o.get('tanorai_celu_ora')}")
 ok(o.get("keses_db") == 1, f"1 késés: {o.get('keses_db')}")
 ok(o.get("keses_perc") == 5, f"5 perc késés: {o.get('keses_perc')}")
-ok(vals.get("API_ALL_ROWS") == "4", f"szűrés nélkül is 4 sor: {vals.get('API_ALL_ROWS')}")
+ok(vals.get("API_ALL_ROWS") == "5", f"szűrés nélkül is 5 sor: {vals.get('API_ALL_ROWS')}")
 ok(vals.get("NOV_ROWS") == "0", f"novemberben nincs sor: {vals.get('NOV_ROWS')}")
 ok(vals.get("IG_ROWS") == "1", f"októberi igazolás: {vals.get('IG_ROWS')}")
 ok(vals.get("IG_SEPT") == "1", f"szeptemberi igazolás: {vals.get('IG_SEPT')}")

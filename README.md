@@ -60,6 +60,8 @@ a saját szerveren maradnak.
 - Részletes hiányzás-/késés-táblázat (dátum, típus, óraszám, tantárgy, téma, igazolt?,
   igazolás típusa) és külön **igazolás-lista** (érvényesség, típus, megjegyzés).
 - A késéseket a KRÉTA „(N perc)” adatából ismeri fel; a havi összesítő külön kezeli őket.
+- A **tanórai célú (iskolai program/verseny) mulasztásokat** külön kártyán mutatja, és nem
+  számolja bele az igazolt/igazolatlan hiányzó órákba (sem a push-ban).
 
 ### 🗓️ Feladatok naptár
 - Házik és számonkérések határidő szerint (FullCalendar 6), színkódolva;
@@ -269,7 +271,7 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**8 csomag, 175 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**8 csomag, 177 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, hiányzások/igazolások, **mobil elrendezés** (valódi böngésző, 393 px).
 Részletek: [`tests/README.md`](tests/README.md).
