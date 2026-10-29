@@ -67,7 +67,13 @@ def init_db():
     """Létrehozza az események, üzenetek és órarend táblákat az adatbázisban, és kezeli a sémafrissítéseket."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    
+
+    # WAL: az app és a scraper párhuzamos írása ne akadjon össze.
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.Error:
+        pass
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS esemenyek (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

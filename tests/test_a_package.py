@@ -2,14 +2,16 @@
 """A-csomag tesztek: részleges hiba, ntfy, napló-rotáció/tail, konzisztencia."""
 import os, sys
 from pathlib import Path
-import json, tempfile, shutil, time, re
+import json, sqlite3, tempfile, shutil, time, re
 
 work = tempfile.mkdtemp(prefix="kreta_a_")
 log_path = os.path.join(work, "sync.log")
+db_path = os.path.join(work, "kreta_adatok.db")
+sqlite3.connect(db_path).close()
 
 os.environ.update({
     "KRETA_DATA_DIR": work,
-    "KRETA_DB_FILE": os.path.join(work, "nincs.db"),
+    "KRETA_DB_FILE": db_path,
     "KRETA_CONFIG_FILE": os.path.join(work, "config.json"),
     "KRETA_LOG_FILE": log_path,
     "KRETA_CSATOLMANYOK_DIR": os.path.join(work, "csat"),
@@ -19,6 +21,8 @@ os.environ.update({
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import app as kreta
+
+kreta.init_db_extensions()
 
 _hibak = []
 
@@ -180,14 +184,19 @@ ok("Nem volt új esemény" in _body3, f"üres eset szövege: {_body3!r}")
 # elavult adat riasztás + throttle
 sent.clear()
 now = kreta._now()
-kreta.save_scheduler_state({"last_run_started": (now - kreta.timedelta(hours=13)).strftime(kreta.SCHEDULER_TS_FMT)})
+_conn = kreta.get_db_connection()
+_conn.execute("DELETE FROM sync_runs")
+_conn.commit(); _conn.close()
+_rid = kreta.record_run_start("manual", (now - kreta.timedelta(hours=13)).strftime(kreta.SCHEDULER_TS_FMT))
+kreta.record_run_finish(_rid, "done")
 cfg = {"stale_alert_hours": 12}
 ok(kreta._maybe_notify_stale(cfg) is True, "13 órás adat + 12 órás küszöb -> riaszt")
 time.sleep(0.4)
 ok(len(sent) == 1, "riasztás elment")
 ok(kreta._maybe_notify_stale(cfg) is False, "6 órán belül nem riaszt újra (throttle)")
-ok(kreta.load_scheduler_state().get("last_stale_alert"), "a riasztás ideje perzisztálva")
-kreta.save_scheduler_state({"last_run_started": now.strftime(kreta.SCHEDULER_TS_FMT)})
+ok(kreta.get_meta("last_stale_alert"), "a riasztás ideje perzisztálva (app_meta)")
+_rid2 = kreta.record_run_start("manual", now.strftime(kreta.SCHEDULER_TS_FMT))
+kreta.record_run_finish(_rid2, "done")
 ok(kreta._maybe_notify_stale(cfg) is False, "friss adat -> nincs riaszt")
 
 

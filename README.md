@@ -178,9 +178,11 @@ mint a felületi gomb (a konzol és a `/api/sync/status` is mutatja).
 - **Nincs lemaradt futás pótlás.** Ha a konténer/deploy miatt kimarad egy
   időpont, a következő ellenőrzésnél egyszer lefut, majd visszaáll a normál
   ciklusra (30 másodpercenként ellenőriz).
-- **Perzisztált állapot:** a legutóbbi futás a data köteten lévő
-  `scheduler_state.json`-ban él, így a gyakori deploy **nem** indít azonnal
-  szinkront — a 3 órás ciklus újraindítás után is folytatódik.
+- **Perzisztált állapot:** minden futás egy sor a `kreta_adatok.db` **`sync_runs`**
+  táblájában (trigger, kezdés/vége, státusz, darabszámok, új események). Így van
+  **történet** is, és a gyakori deploy **nem** indít azonnal szinkront — a ciklus
+  újraindítás után is folytatódik. A régi `scheduler_state.json` egyszeri
+  migrációval átkerül (`.migrated` néven megmarad).
 - **Nincs átfedés:** a kézi gomb és az ütemező ugyanazt az egy belépési pontot
   (`start_sync`) használja, ami a lock alatt foglalja le a futást. Ha épp fut
   valami, az ütemezett indítás a következő tickre csúszik (nincs sorban állás).
@@ -221,6 +223,23 @@ A fejlécben a gomb alatt látszik:
 > workerre váltotok (pl. gunicorn), `--workers 1` kell, különben minden worker
 > saját ütemezőt indítana.
 
+**Futásnapló — `sync_runs` tábla (a `kreta_adatok.db`-ben):**
+
+| Oszlop | Tartalom |
+|---|---|
+| `trigger` | `manual` / `scheduled` |
+| `started_at`, `finished_at` | ISO időpontok |
+| `status` | `running`, `done`, `done_with_errors`, `error`, `stopped`, `interrupted` |
+| `ok_count` / `total_count` | hány diák frissült |
+| `failed_students` | JSON lista |
+| `new_events` / `new_messages` | JSON: diákonkénti új események / üzenetek |
+| `duration_sec` | futásidő |
+
+A „legutóbbi futás" és „legutóbbi ütemezett futás" állapot ebből **levezethető**
+(nincs külön állapotfájl). Induláskor a beragadt `running` sorok `interrupted`-ra
+váltanak. Az adatbázis **WAL módban** fut, hogy az app és a scraper párhuzamos
+írása ne akadjon össze.
+
 ---
 
 ## 📁 Mappa Szerkezet
@@ -229,7 +248,7 @@ A fejlécben a gomb alatt látszik:
 ├── app.py                  # Flask webszerver, API és PDF generáló végpontok
 ├── kreta_playwright.py     # Playwright scraper script a KRÉTA adatgyűjtéshez
 ├── config.json             # Konfigurációs fájl (belépési adatok, zsebpénz szabályok)
-├── scheduler_state.json    # Ütemező állapota (legutóbbi futás) — automatikusan jön létre
+├── scheduler_state.json    # CSAK migrációhoz: a régi állapot (.migrated néven marad meg)
 ├── kreta_adatok.db         # SQLite adatbázis (automatikusan jön létre)
 ├── static/
 │   ├── favicon.svg         # Weboldal ikonja
@@ -304,7 +323,7 @@ up --build` több percig tart (pip + Chromium letöltés) — ez normális.
 | `KRETA_DB_FILE` / `KRETA_CONFIG_FILE` / `KRETA_LOG_FILE` | data-könyvtáron belül | Egyedi fájlutak |
 | `KRETA_CSATOLMANYOK_DIR` | `static/csatolmanyok` | Csatolmányok könyvtára |
 | `KRETA_BROWSER_DATA_DIR` | `./browser_user_data` | Chromium profil (sütik, munkamenetek) |
-| `KRETA_SCHEDULER_STATE_FILE` | data-könyvtáron belül `scheduler_state.json` | Az ütemező állapota (legutóbbi futás) |
+| `KRETA_SCHEDULER_STATE_FILE` | data-könyvtáron belül `scheduler_state.json` | **Csak kompatibilitás:** a régi JSON-állapot egyszeri migrációjához (utána `.migrated`) |
 | `KRETA_HOST` / `KRETA_PORT` / `KRETA_DEBUG` | `127.0.0.1` / `5000` / ki | Flask szerver beállításai |
 | `KRETA_SERVER` | `flask` | `waitress` = produkciós WSGI szerver (a compose így indítja); `flask` = dev szerver |
 | `KRETA_WAITRESS_THREADS` | `8` | A waitress szálainak száma |
