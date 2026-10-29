@@ -177,7 +177,7 @@
                 gap: .2rem !important;
                 padding: .5rem .6rem !important;
             }
-            #schedulerInfo > div > .text-secondary { display: none; }   /* elválasztó | jelek */
+            #schedulerInfo > div > .sched-sep { display: none; }   /* csak az elválasztó | jelek */
             #schedulerInfo > div > span { font-size: .78rem; }
             #schedulerInfo > div > .badge { align-self: flex-start; }
             #btnSync { width: 100%; padding: .65rem; font-size: .95rem; }
@@ -303,11 +303,11 @@
         <div id="schedulerInfo" class="col-12 col-lg-5 d-none">
             <div class="d-flex flex-wrap align-items-center justify-content-center gap-3 bg-light border rounded px-3 py-2 small">
                 <span id="schedulerState" class="badge bg-secondary"><i class="fa-solid fa-clock me-1"></i>Ütemező: KI</span>
-                <span class="text-secondary">|</span>
+                <span class="text-secondary sched-sep">|</span>
                 <span id="schedulerWindowText" class="text-nowrap"></span>
-                <span class="text-secondary">|</span>
+                <span class="text-secondary sched-sep">|</span>
                 <span id="schedulerNextText"></span>
-                <span class="text-secondary">|</span>
+                <span class="text-secondary sched-sep">|</span>
                 <span id="schedulerLastText" class="text-secondary"
                       title="A legutóbbi szinkron (kézi vagy automatikus) és a legutóbbi automatikus futás időpontja és eredménye"></span>
             </div>

@@ -155,6 +155,11 @@ try:
             ok(av["n"] > 0, f"a diák oszlopban avatar van ({av['n']} db, pl. '{av['text']}')")
             ok(len(av["text"]) in (2, 3), f"a monogram 2-3 betűs ('{av['text']}')")
             ok(av["dateVisible"], "a bejegyzés dátuma oszlop látszik mobilon")
+            # 7) a fejlécben mobilon is látszik az utolsó frissítés
+            sched_txt = await page.evaluate("() => document.querySelector('#schedulerInfo').innerText")
+            ok("Utolsó frissítés" in sched_txt, "a fejlécben mobilon is látszik az utolsó frissítés")
+            ok("Ütemező" in sched_txt and "időablak" in sched_txt, "az ütemező állapota és az időablak is látszik")
+
             # 5) a fülek tördelődnek — minden fül látszik, nem fut ki
             tabs_info = await page.evaluate("""() => {
                 const nav = document.getElementById('mainTab');

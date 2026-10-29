@@ -462,7 +462,7 @@ adatokat nem érintik.
 | v1.3.0 | 2026-10-29 | Futásnapló a DB-ben (`sync_runs`, `app_meta`) |
 | **v1.3.1** | **2026-10-29** | WAL alapból kikapcsolva (FUSE kötet), induláskori integritás-ellenőrzés, **ez a dokumentum** |
 | **v1.4.0** | **2026-10-29** | **Mobilra optimalizált felület** (Redmi 12/13/14): összecsukható táblázatok, **napi naptárnézet lapozással**, 2 sorba tördelődő fülek, teljes szélességű vezérlők + mobil elrendezés-teszt |
-| **v1.4.1** | **2026-10-29** | Mobil finomítás: **monogram-avatar** a diák oszlopban (szabad hely a **bejegyzés dátumának**), a naptár két lista-gombja külön névvel (Havi/Heti lista), rövidebb mobil fejléc-címkék |
+| **v1.4.1** | **2026-10-29** | Mobil finomítás: **monogram-avatar** a diák oszlopban (szabad hely a **bejegyzés dátumának**), a naptár két lista-gombja külön névvel (Havi/Heti lista), rövidebb mobil fejléc-címkék, **az utolsó frissítés sora mobilon is látszik** (korábban a CSS elrejtette) |
 
 ---
 
