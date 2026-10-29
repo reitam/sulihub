@@ -379,13 +379,33 @@ futnak, a valódi adatokat nem érintik.
 
 ## 11. Továbbfejlesztési lehetőségek (backlog)
 
-1. **Hiányzások / késések modul** (jelenleg nincs ilyen adat).
-2. **Órarend-változás figyelés** (terem/tanár/helyettesítés) + értesítés.
-3. **Napi/heti digest** összefoglaló.
-4. **Mobilos „Ma" nézet**.
-5. **Futástörténet a felületen** (a `sync_runs` már támogatja).
-6. CDN-ek vendorolása, hitelesítés, `app.py`/`index.html` bontása.
-7. Tesztek CI-ban (GitHub Actions).
+### B) Funkciók
+
+| # | Lehetőség | Üzleti haszon | Becsült ráfordítás |
+|---|---|---|---|
+| B1 | **Hiányzások / késések modul** (jelenleg nincs ilyen adat) | a legfontosabb hiányzó szülői információ | 3–5 nap |
+| B2 | **Órarend-változás figyelés** (terem/tanár/helyettesítés) + értesítés | „mi változott ma" azonnal | 1–2 nap |
+| B3 | **Napi/heti digest** összefoglaló | egy üzenetben a nap lényege | 1–2 nap |
+| B4 | **Mobilos „Ma" nézet** | gyors használat telefonon | 1–2 nap |
+| B5 | **Futástörténet a felületen** (a `sync_runs` már tárolja) | átlátható előzmények | 0,5–1 nap |
+| B6 | Üzenet-keresés, olvasott/olvasatlan, zsebpénz CSV export | kényelem | 1–2 nap |
+
+### C) Karbantarthatóság / kockázatok
+
+| # | Lehetőség | Miért fontos | Becsült ráfordítás |
+|---|---|---|---|
+| C1 | **CDN-ek vendorolása** (`static/` alá) | internet nélkül most nem indul a felület | 0,5 nap |
+| C2 | **CI** (GitHub Actions; a tesztek megvannak, pytest-alakítás) | automatikus ellenőrzés minden commitnál | 0,5–1 nap |
+| C3 | `app.py` / `index.html` szétbontása | karbantarthatóság | 3–5 nap |
+| C4 | DB-migrációs keret + indexek | hosszú távú stabilitás | 1 nap |
+| C5 | **Hitelesítés** (basic auth / reverse proxy) | gyerek-adatok védelme | 0,5–1 nap |
+| C6 | Apróságok: `SyntaxWarning`, `config.json.example` vessző, halott `autoSyncAlert` | tisztaság | 2–3 óra |
+
+> **Elvetett irány:** a KRÉTA JSON-végpontok használata a DOM-scraping helyett — a fejlesztés
+> során sok helyen kipróbálták és nem működött, ezért marad a Playwright-alapú megoldás.
+
+> A részletes, naprakész lista a munkamemóriában: `~/.config/opencode/memory/kreta.md`
+> („Backlog" szakasz).
 
 ---
 
