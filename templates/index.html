@@ -273,6 +273,18 @@
             .fc .fc-header-toolbar { flex-direction: column; align-items: stretch; }
             .fc .fc-toolbar-chunk { display: flex; justify-content: center; flex-wrap: wrap; gap: .3rem; }
         }
+
+        /* Hiányzások / igazolások: a hosszú szövegek több sorban, ne legyenek levágva */
+        @media (min-width: 768px) {
+            #hianyzasokTable tbody tr, #igazolasokTable tbody tr { height: auto !important; }
+            #hianyzasokTable tbody td:nth-child(8),
+            #igazolasokTable tbody td:nth-child(4),
+            #igazolasokTable tbody td:nth-child(5) {
+                white-space: normal !important;
+                overflow: visible !important;
+                text-overflow: clip !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -586,14 +598,14 @@
                 <table id="hianyzasokTable" class="table table-striped table-hover w-100">
                     <thead>
                         <tr>
-                            <th style="width: 150px;">Diák</th>
+                            <th style="width: 180px;">Diák</th>
                             <th style="width: 110px;">Dátum</th>
                             <th style="width: 150px;">Típus</th>
                             <th style="width: 90px;" title="A napon belüli órasorszám — 1 sor = 1 tanóra">Óra</th>
                             <th style="width: 130px;">Tantárgy</th>
                             <th>Téma</th>
                             <th style="width: 110px;">Igazolt?</th>
-                            <th style="width: 140px;">Igazolás típusa</th>
+                            <th style="width: 190px;">Igazolás típusa</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -606,10 +618,10 @@
                 <table id="igazolasokTable" class="table table-striped table-hover w-100">
                     <thead>
                         <tr>
-                            <th style="width: 150px;">Diák</th>
+                            <th style="width: 180px;">Diák</th>
                             <th style="width: 110px;">Kezdete</th>
                             <th style="width: 110px;">Vége</th>
-                            <th style="width: 160px;">Igazolás típusa</th>
+                            <th style="width: 220px;">Igazolás típusa</th>
                             <th>Megjegyzés</th>
                         </tr>
                     </thead>
@@ -968,7 +980,7 @@ function avatarColor(name) {
 function renderDiakAvatar(name) {
     const c = avatarColor(name);
     const safe = String(name || '').replace(/"/g, '&quot;');
-    return `<span class="d-inline-flex align-items-center gap-2 avatar-cell">
+    return `<span class="d-inline-flex align-items-center gap-2 avatar-cell" title="${safe}">
         <span class="avatar" style="background:${c[0]};color:${c[1]}" title="${safe}">${avatarInitials(name)}</span>
         <span class="avatar-name">${name}</span>
     </span>`;
@@ -1321,8 +1333,8 @@ $(document).ready(function() {
                 }
             },
             { data: 'ora_sorszam', render: function (data) { return Number(data) ? data + '. óra' : '-'; } },
-            { data: 'tantargy', render: function (data) { return escapeHtml(data || '-'); } },
-            { data: 'tema', render: function (data) { return escapeHtml(data || '-'); } },
+            { data: 'tantargy', render: function (data) { let t = data || '-'; return `<span title="${escapeHtml(t)}">${escapeHtml(t)}</span>`; } },
+            { data: 'tema', render: function (data) { let t = data || '-'; return `<span title="${escapeHtml(t)}">${escapeHtml(t)}</span>`; } },
             {
                 data: 'igazolt',
                 render: function (data, type) {
@@ -1332,7 +1344,7 @@ $(document).ready(function() {
                         : '<span class="badge bg-danger">Igazolatlan</span>';
                 }
             },
-            { data: 'igazolas_tipus', render: function (data) { return escapeHtml(data || '-'); } }
+            { data: 'igazolas_tipus', render: function (data) { let t = data || '-'; return `<span title="${escapeHtml(t)}">${escapeHtml(t)}</span>`; } }
         ],
         drawCallback: function () {
             setTimeout(function () {
@@ -1358,8 +1370,8 @@ $(document).ready(function() {
             { data: 'diak_nev', render: function (data, type) { return type === 'display' ? renderDiakAvatar(data) : data; } },
             { data: 'kezdete', render: function (data, type) { return type === 'display' ? fmtIsoToHu(data) : data; } },
             { data: 'vege', render: function (data, type) { return type === 'display' ? fmtIsoToHu(data) : data; } },
-            { data: 'igazolas_tipus', render: function (data) { return escapeHtml(data || '-'); } },
-            { data: 'megjegyzes', render: function (data) { return escapeHtml(htmlToText(data) || '-'); } }
+            { data: 'igazolas_tipus', render: function (data) { let t = data || '-'; return `<span title="${escapeHtml(t)}">${escapeHtml(t)}</span>`; } },
+            { data: 'megjegyzes', render: function (data) { let t = htmlToText(data) || '-'; return `<span title="${escapeHtml(t)}">${escapeHtml(t)}</span>`; } }
         ],
         drawCallback: function () {
             setTimeout(function () {
