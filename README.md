@@ -54,8 +54,8 @@ A rendszer emellett átlátható felületet nyújt az órarendek megjelenítés�
 
 - **📱 Letisztult UI / UX Design:**
   - A fejlécben a **telepített verzió** is látszik (a deploy által írt `version.txt`-ből).
-  - **Mobilra optimalizált** (Redmi 12/13/14): összecsukható táblázatok, listás órarend,
-    vízszintesen görgethető fülek, teljes szélességű vezérlők.
+  - **Mobilra optimalizált** (Redmi 12/13/14): összecsukható táblázatok, napi
+    naptárnézet lapozással, 2 sorba tördelődő fülek, teljes szélességű vezérlők.
   - Összecsukható felső statisztikai és szűrőpanel (Accordion), amely automatikusan bezáródik a naptárra, órarendre vagy üzenetekre váltáskor.
   - Az e-Ügyintézés üzeneteinek felesleges halmozott sortöréseit automatikusan letisztítja a jobb olvashatóság érdekében.
 

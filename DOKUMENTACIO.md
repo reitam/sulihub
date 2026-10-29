@@ -80,12 +80,14 @@ A felület **mobilra is optimalizált** (Redmi 12/13/14 méret, ~393 CSS px):
 
 - a fejléc egymás alá rendeződik, a frissítés gomb teljes szélességű,
 - a statisztika-kártyák 2 oszlopban, tömören jelennek meg,
-- a fülek **vízszintesen görgethetők** (nem tördelődnek több sorba),
+- a fülek **2 sorba tördelődnek**, minden fül látszik (nem fut ki a képernyőből),
+  a szűrőpanel mobilon alapból csukva van, hogy a fülek rögtön elérhetők legyenek,
 - a szűrők teljes szélességűek, a dátumtartomány egymás alatt,
 - a **táblázatok összecsukhatók**: csak a legfontosabb 2–3 oszlop látszik,
   a többi a sor kinyitásával (▸) érhető el,
-- az **órarend és a feladatnaptár mobilon lista nézetben** indul (időrendben),
-  a heti/rácsszerű nézet a „Hét/Nap” váltóval érhető el,
+- az **órarend mobilon napi naptárnézet** (időrács), ‹ › gombokkal és „Ma"-val
+  lehet napot léptetni; a „Hét" váltóval a heti nézet érhető el,
+- a **feladatnaptár mobilon listanézetben** indul (időrendben, napokra bontva),
 - a modálok szinte teljes képernyőn nyílnak, a napló pedig tördelve olvasható,
 - a koppintható elemek (gombok, mezők) legalább ~40 px magasak.
 
@@ -456,7 +458,7 @@ adatokat nem érintik.
 | v1.2.3 | 2026-10-29 | Új események a push-üzenetben |
 | v1.3.0 | 2026-10-29 | Futásnapló a DB-ben (`sync_runs`, `app_meta`) |
 | **v1.3.1** | **2026-10-29** | WAL alapból kikapcsolva (FUSE kötet), induláskori integritás-ellenőrzés, **ez a dokumentum** |
-| **v1.4.0** | **2026-10-29** | **Mobilra optimalizált felület** (Redmi 12/13/14): összecsukható táblázatok, listás órarend, görgethető fülek, teljes szélességű vezérlők + mobil elrendezés-teszt |
+| **v1.4.0** | **2026-10-29** | **Mobilra optimalizált felület** (Redmi 12/13/14): összecsukható táblázatok, **napi naptárnézet lapozással**, 2 sorba tördelődő fülek, teljes szélességű vezérlők + mobil elrendezés-teszt |
 
 ---
 

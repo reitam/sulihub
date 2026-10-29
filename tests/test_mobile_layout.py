@@ -139,14 +139,20 @@ try:
             }""")
             ok(0 < vis <= 4, f"a táblázat mobilon összecsukott ({vis} látható oszlop)")
 
-            # 5) a fülek görgethetők, nem tördelődnek
+            # 5) a fülek tördelődnek — minden fül látszik, nem fut ki
             tabs_info = await page.evaluate("""() => {
                 const nav = document.getElementById('mainTab');
+                const items = [...nav.querySelectorAll('.nav-link')];
                 return {scroll: nav.scrollWidth, client: nav.clientWidth,
-                        wrap: getComputedStyle(nav).flexWrap};
+                        wrap: getComputedStyle(nav).flexWrap,
+                        count: items.length,
+                        lastRight: Math.round(items[items.length - 1].getBoundingClientRect().right),
+                        rows: new Set(items.map(i => Math.round(i.getBoundingClientRect().top))).size};
             }""")
-            ok(tabs_info["scroll"] > tabs_info["client"] and tabs_info["wrap"] == "nowrap",
-               f"a fülek vízszintesen görgethetők ({tabs_info['scroll']} > {tabs_info['client']})")
+            ok(tabs_info["scroll"] <= tabs_info["client"] + 1,
+               f"a fül-sáv nem csúszik ki ({tabs_info['scroll']} <= {tabs_info['client']})")
+            ok(tabs_info["lastRight"] <= 394, f"az utolsó fül is a képernyőn belül van (jobb szél: {tabs_info['lastRight']})")
+            ok(tabs_info["rows"] >= 1, f"a fülek {tabs_info['rows']} sorba rendeződnek")
 
             await b.close()
 
