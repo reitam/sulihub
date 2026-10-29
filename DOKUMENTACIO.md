@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Dokumentum verziója** | 1.0 |
-| **A rendszer verziója** | v1.3.1 |
+| **A rendszer verziója** | v1.4.0 |
 | **Utolsó frissítés** | 2026-10-29 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
@@ -74,7 +74,25 @@ továbbítanak.
 **Fejléc:** ütemező állapota (BE/KI), időablak, következő futás, utolsó futás eredménye
 (kézi/ütemezett, sikeres/részleges hiba/hiba), valamint a **telepített verzió**.
 
-### 2.4. Értesítések (push)
+### 2.4. Mobil használat (telefon)
+
+A felület **mobilra is optimalizált** (Redmi 12/13/14 méret, ~393 CSS px):
+
+- a fejléc egymás alá rendeződik, a frissítés gomb teljes szélességű,
+- a statisztika-kártyák 2 oszlopban, tömören jelennek meg,
+- a fülek **vízszintesen görgethetők** (nem tördelődnek több sorba),
+- a szűrők teljes szélességűek, a dátumtartomány egymás alatt,
+- a **táblázatok összecsukhatók**: csak a legfontosabb 2–3 oszlop látszik,
+  a többi a sor kinyitásával (▸) érhető el,
+- az **órarend és a feladatnaptár mobilon lista nézetben** indul (időrendben),
+  a heti/rácsszerű nézet a „Hét/Nap” váltóval érhető el,
+- a modálok szinte teljes képernyőn nyílnak, a napló pedig tördelve olvasható,
+- a koppintható elemek (gombok, mezők) legalább ~40 px magasak.
+
+A mobil elrendezést automatizált teszt ellenőrzi (nincs vízszintes túlcsordulás,
+a fő elemek a képernyőn belül vannak, a táblázat összecsukott).
+
+### 2.5. Értesítések (push)
 
 | Esemény | Értesítés |
 |---|---|
@@ -87,7 +105,7 @@ továbbítanak.
 Az értesítések az **ntfy** szolgáltatáson keresztül mennek a telefonra. Diáknevek alapból
 **nem** kerülnek ki; a részletes bontás a felületen és a naplóban látható.
 
-### 2.5. Zsebpénz / jutalom modul (üzleti szabályok)
+### 2.6. Zsebpénz / jutalom modul (üzleti szabályok)
 
 A rendszer a jegyekhez és viselkedési bejegyzésekhez **forintértéket** rendel, és havi
 elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állítható):
@@ -350,9 +368,10 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **124 automatikus ellenőrzés** hat csomagban: ütemező, részleges hiba/ntfy/napló,
-PDF-betűk, útvonalak, új események kimutatása, migráció. A tesztek izolált temp könyvtárban
-futnak, a valódi adatokat nem érintik.
+Jelenleg **136 automatikus ellenőrzés** hét csomagban: ütemező, részleges hiba/ntfy/napló,
+PDF-betűk, útvonalak, új események kimutatása, migráció, **mobil elrendezés** (valódi
+böngészőben, 393 px szélességen). A tesztek izolált temp könyvtárban futnak, a valódi
+adatokat nem érintik.
 
 ### 9.4. Kiadási folyamat
 
@@ -386,7 +405,7 @@ futnak, a valódi adatokat nem érintik.
 | B1 | **Hiányzások / késések modul** (jelenleg nincs ilyen adat) | a legfontosabb hiányzó szülői információ | 3–5 nap |
 | B2 | **Órarend-változás figyelés** (terem/tanár/helyettesítés) + értesítés | „mi változott ma" azonnal | 1–2 nap |
 | B3 | **Napi/heti digest** összefoglaló | egy üzenetben a nap lényege | 1–2 nap |
-| B4 | **Mobilos „Ma" nézet** | gyors használat telefonon | 1–2 nap |
+| B4 | **Mobilos „Ma" nézet** — kompakt napi kártya | *(a reszponzív mobil elrendezés már elkészült a v1.4.0-ban; ez egy külön napi összefoglaló nézet)* | 1–2 nap |
 | B5 | **Futástörténet a felületen** (a `sync_runs` már tárolja) | átlátható előzmények | 0,5–1 nap |
 | B6 | Üzenet-keresés, olvasott/olvasatlan, zsebpénz CSV export | kényelem | 1–2 nap |
 
@@ -437,6 +456,7 @@ futnak, a valódi adatokat nem érintik.
 | v1.2.3 | 2026-10-29 | Új események a push-üzenetben |
 | v1.3.0 | 2026-10-29 | Futásnapló a DB-ben (`sync_runs`, `app_meta`) |
 | **v1.3.1** | **2026-10-29** | WAL alapból kikapcsolva (FUSE kötet), induláskori integritás-ellenőrzés, **ez a dokumentum** |
+| **v1.4.0** | **2026-10-29** | **Mobilra optimalizált felület** (Redmi 12/13/14): összecsukható táblázatok, listás órarend, görgethető fülek, teljes szélességű vezérlők + mobil elrendezés-teszt |
 
 ---
 

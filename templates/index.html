@@ -12,6 +12,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- DataTables CSS -->
     <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <!-- DataTables Responsive: mobilon a sorok összecsukhatók -->
+    <link href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css" rel="stylesheet">
     <!-- FontAwesome Ikonok -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
@@ -139,6 +141,123 @@
         .accordion-button:focus {
             box-shadow: none;
         }
+
+        /* ══════════════════════════════════════════════════════════════════
+           MOBIL NÉZET (Redmi 12/13/14 ~393 CSS px, ≤ 767 px)
+           Cél: minden tartalom olvasható, görgethető, koppintható.
+           ══════════════════════════════════════════════════════════════════ */
+        @media (max-width: 767.98px) {
+            body { font-size: 15px; }
+            .container-fluid { padding-left: .5rem !important; padding-right: .5rem !important; }
+
+            /* Fejléc */
+            .app-header { padding: .75rem !important; }
+            .app-header .app-title { font-size: 1.05rem; line-height: 1.2; }
+            .app-header .app-subtitle { font-size: .78rem; }
+            #schedulerInfo > div {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                text-align: left !important;
+                gap: .2rem !important;
+                padding: .5rem .6rem !important;
+            }
+            #schedulerInfo > div > .text-secondary { display: none; }   /* elválasztó | jelek */
+            #schedulerInfo > div > span { font-size: .78rem; }
+            #schedulerInfo > div > .badge { align-self: flex-start; }
+            #btnSync { width: 100%; padding: .65rem; font-size: .95rem; }
+
+            /* Dátum-tartomány: mobilegymás alatt egymás alatt, címkék nélkül */
+            .date-range-group { flex-wrap: wrap; }
+            .date-range-group .input-group-text { display: none; }
+            .date-range-group input[type="date"] { flex: 1 1 100%; min-height: 40px; }
+
+            /* Koppintható méretek (min. ~40 px) */
+            .quick-filters .btn, .btn-sm { min-height: 38px; }
+            .form-select-sm, .form-control-sm { min-height: 38px; }
+
+            /* Statisztika kártyák: 2 oszlop, tömör */
+            .card-stat { padding: .45rem .6rem !important; }
+            .card-stat .fs-5 { font-size: 1.05rem !important; }
+            .card-stat .small { font-size: .72rem; line-height: 1.15; }
+
+            /* Fülek: vízszintesen görgethető, egy sorban */
+            #mainTab {
+                flex-wrap: nowrap !important;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                padding-bottom: 2px;
+            }
+            #mainTab::-webkit-scrollbar { display: none; }
+            #mainTab .nav-link { white-space: nowrap; font-size: .82rem; padding: .5rem .7rem; }
+            #mainTab .nav-link i { margin-right: .35rem !important; }
+
+            /* Szűrők */
+            .quick-filters .btn { flex: 1 1 auto; font-size: .8rem !important; }
+            .btn-clear-filters { width: 100%; }
+
+            /* Táblázatok (DataTables) */
+            .table-container { padding: .5rem !important; }
+            /* A desktopos fix táblázat + nowrap miatt a tábla nem tud összecsukni */
+            table.dataTable { table-layout: auto !important; font-size: .78rem; }
+            table.dataTable tbody tr { height: auto !important; }
+            table.dataTable tbody td, table.dataTable thead th {
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                padding: .3rem .35rem !important;
+            }
+            .resizer { display: none !important; }   /* oszlop-átméretezés csak egéren */
+            div.dataTables_wrapper div.dataTables_filter { text-align: left !important; }
+            div.dataTables_wrapper div.dataTables_filter input { width: 100% !important; margin-left: 0 !important; }
+            div.dataTables_wrapper div.dataTables_length { margin-bottom: .4rem; }
+            div.dataTables_wrapper div.dataTables_info { font-size: .76rem; }
+            div.dataTables_wrapper .pagination { font-size: .8rem; flex-wrap: wrap; }
+            table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before { margin-right: .4rem; }
+            .dtr-details { width: 100%; font-size: .84rem; }
+            .dtr-details li { padding: .1rem 0; }
+            .dtr-title { font-weight: 600; }
+
+            /* FullCalendar */
+            .fc .fc-toolbar { flex-wrap: wrap; gap: .35rem; margin-bottom: .5rem; }
+            .fc .fc-toolbar-title { font-size: 1rem !important; }
+            .fc .fc-button { padding: .28rem .5rem; font-size: .78rem; }
+            .fc .fc-list-day-cushion { padding: .4rem .5rem; }
+            .fc .fc-list-event td { padding: .35rem .4rem; }
+
+            /* Rendszernapló fejléc gombok */
+            .log-toolbar { flex-wrap: wrap; gap: .4rem; }
+            .log-toolbar .btn { flex: 1 1 auto; }
+
+            /* Egyéb gombok */
+            .pdf-actions .btn, .pdf-actions .form-select { width: 100% !important; }
+
+            /* Üzenetek táblázat: a tárgy és a diák is férjen ki */
+            #uzenetekTable td, #uzenetekTable th { max-width: 150px; }
+
+            /* DataTables fejléc-eszköztár: egymás alatt */
+            div.dataTables_wrapper div.dataTables_length,
+            div.dataTables_wrapper div.dataTables_filter { width: 100%; text-align: left !important; }
+            div.dataTables_wrapper div.dataTables_filter label { display: block; width: 100%; }
+
+            /* Zsebpénz kártya: a nagy összeg és a lábléc egymás alatt */
+            .balance-head { flex-wrap: wrap; gap: .25rem; }
+            .balance-head .text-end { text-align: left !important; }
+            .balance-footer { flex-direction: column !important; align-items: stretch !important; gap: .5rem; }
+            .balance-footer > div { width: 100%; }
+            .balance-footer .text-end { text-align: left !important; }
+            .balance-footer .btn { width: 100%; }
+
+            /* Modálok: szinte teljes képernyő */
+            .modal-dialog { margin: .35rem; }
+            .modal-body { padding: .75rem; }
+        }
+
+        @media (max-width: 575.98px) {
+            .fc .fc-header-toolbar { flex-direction: column; align-items: stretch; }
+            .fc .fc-toolbar-chunk { display: flex; justify-content: center; flex-wrap: wrap; gap: .3rem; }
+        }
     </style>
 </head>
 <body>
@@ -158,15 +277,15 @@
     </div>
 
     <!-- FEJLÉC ÉS SZINKRONIZÁLÓ GOMB -->
-    <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm gap-3">
-        <div class="flex-shrink-0">
-            <h4 class="m-0 text-primary fw-bold"><i class="fa-solid fa-graduation-cap me-2"></i>KRÉTA Adatbázis Áttekintő</h4>
-            <small class="text-muted">Központi SQLite Adatlekérő, Szűrő és Üzenetolvasó</small>
+    <div class="row g-2 align-items-center mb-3 bg-white p-3 rounded shadow-sm app-header">
+        <div class="col-12 col-lg-4">
+            <h4 class="m-0 text-primary fw-bold app-title"><i class="fa-solid fa-graduation-cap me-2"></i>KRÉTA Adatbázis Áttekintő</h4>
+            <small class="text-muted app-subtitle">Központi SQLite Adatlekérő, Szűrő és Üzenetolvasó</small>
             <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle ms-2 align-middle fw-normal"
                   title="Telepített verzió">{{ app_version }}</span>
         </div>
 
-        <div id="schedulerInfo" class="flex-grow-1 d-none">
+        <div id="schedulerInfo" class="col-12 col-lg-5 d-none">
             <div class="d-flex flex-wrap align-items-center justify-content-center gap-3 bg-light border rounded px-3 py-2 small">
                 <span id="schedulerState" class="badge bg-secondary"><i class="fa-solid fa-clock me-1"></i>Ütemező: KI</span>
                 <span class="text-secondary">|</span>
@@ -179,7 +298,7 @@
             </div>
         </div>
 
-        <div class="flex-shrink-0">
+        <div class="col-12 col-lg-3 text-lg-end">
             <button id="btnSync" class="btn btn-success">
                 <i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból
             </button>
@@ -223,31 +342,31 @@
                 <div class="accordion-body p-3 bg-light">
                     <!-- STATISZTIKAI KÁRTYÁK -->
                     <div class="row g-2 mb-3">
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <div class="card card-stat bg-white p-2 px-3 border-start border-success border-3">
                                 <div class="text-muted small">Értékelések</div>
                                 <div class="fs-5 fw-bold text-success" id="statErtekeles">0 db</div>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <div class="card card-stat bg-white p-2 px-3 border-start border-primary border-3">
                                 <div class="text-muted small">Házi feladatok</div>
                                 <div class="fs-5 fw-bold text-primary" id="statHazi">0 db</div>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-6 col-md-2">
                             <div class="card card-stat bg-white p-2 px-3 border-start border-danger border-3">
                                 <div class="text-muted small">Számonkérések</div>
                                 <div class="fs-5 fw-bold text-danger" id="statSzamonkeres">0 db</div>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-6 col-md-3">
                             <div class="card card-stat bg-white p-2 px-3 border-start border-warning border-3">
                                 <div class="text-muted small">Feljegyzések</div>
                                 <div class="fs-5 fw-bold text-warning" id="statFeljegyzes">0 db</div>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-12 col-md-3">
                             <div class="card card-stat bg-white p-2 px-3 border-start border-info border-3">
                                 <div class="text-muted small">Üzenetek (e-Ügyintézés)</div>
                                 <div class="fs-5 fw-bold text-info" id="statUzenetek">0 db</div>
@@ -257,8 +376,8 @@
 
                     <!-- SZŰRŐ PANEL -->
                     <div class="card p-2 px-3 card-stat bg-white border">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-2 flex-wrap quick-filters">
                                 <span class="text-secondary fw-bold small me-1"><i class="fa-solid fa-filter me-1"></i>Szűrőfeltételek</span>
                                 <button id="btnQuickToday" class="btn btn-sm btn-outline-warning py-0 px-2 fw-bold" style="font-size: 0.8rem;">
                                     <i class="fa-solid fa-calendar-day me-1"></i>Mai események
@@ -273,13 +392,13 @@
                                     <i class="fa-solid fa-clock me-1"></i>Aktív események
                                 </button>
                             </div>
-                            <button id="btnResetFilters" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size: 0.8rem;">
+                            <button id="btnResetFilters" class="btn btn-sm btn-outline-danger py-0 px-2 btn-clear-filters" style="font-size: 0.8rem;">
                                 <i class="fa-solid fa-filter-circle-xmark me-1"></i>Szűrők törlése
                             </button>
                         </div>
 
                         <div class="row g-2 mb-2">
-                            <div class="col-md-3">
+                            <div class="col-12 col-sm-6 col-md-3">
                                 <select id="filterDiak" class="form-select form-select-sm">
                                     <option value="">-- Összes gyermek --</option>
                                     {% for d in diakok %}
@@ -287,7 +406,7 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-12 col-sm-6 col-md-3">
                                 <select id="filterTipus" class="form-select form-select-sm">
                                     <option value="">-- Összes típus --</option>
                                     {% for t in tipusok %}
@@ -295,7 +414,7 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-12 col-sm-6 col-md-3">
                                 <select id="filterTantargy" class="form-select form-select-sm">
                                     <option value="">-- Összes tantárgy --</option>
                                     {% for t in tantargyak %}
@@ -303,7 +422,7 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-12 col-sm-6 col-md-3">
                                 <select id="filterStatus" class="form-select form-select-sm">
                                     <option value="">-- Összes időszak --</option>
                                     <option value="aktiv">🟢 Csak AKTÍV (Jövőbeli / Mai)</option>
@@ -313,8 +432,8 @@
                         </div>
 
                         <div class="row g-2 align-items-center">
-                            <div class="col-md-6">
-                                <div class="input-group input-group-sm">
+                            <div class="col-12 col-md-6">
+                                <div class="input-group input-group-sm date-range-group">
                                     <span class="input-group-text bg-light text-secondary fw-bold" style="font-size: 0.75rem;">Bejegyzés kelte (-tól)</span>
                                     <input type="date" id="filterBejKezdoDatum" class="form-control">
                                     <span class="input-group-text bg-light text-secondary fw-bold" style="font-size: 0.75rem;">(-ig)</span>
@@ -390,7 +509,7 @@
         <div class="tab-pane fade" id="orarend-pane" role="tabpanel">
             <div class="card p-3 bg-white card-stat">
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="d-flex align-items-center gap-2 flex-wrap pdf-actions">
                         <span class="fw-bold text-secondary small"><i class="fa-solid fa-user-graduate me-1 text-primary"></i>Órarend szűrése gyermek szerint:</span>
                         <select id="orarendFilterDiak" class="form-select form-select-sm fw-bold border-warning" style="width: 220px;">
                             <option value="">-- Összes gyermek --</option>
@@ -556,7 +675,7 @@
 
                 <div class="card card-stat overflow-hidden border-0 shadow-sm" id="cardVegosszegContainer">
                     <div class="p-2 px-3 balance-card-positive" id="cardHeaderBg">
-                        <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex justify-content-between align-items-center balance-head">
                             <div>
                                 <h6 class="m-0 fw-bold fs-6"><i class="fa-solid fa-wallet me-2"></i>Zsebpénz / Jutalomegyenleg</h6>
                                 <small id="rewardDiakNevText" class="opacity-75" style="font-size: 0.75rem;">Elszámolás részletei</small>
@@ -566,7 +685,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="card-footer bg-light border-top p-2 px-3 d-flex justify-content-between align-items-center">
+                    <div class="card-footer bg-light border-top p-2 px-3 d-flex justify-content-between align-items-center balance-footer">
                         <div class="form-check form-switch m-0 d-flex align-items-center">
                             <input class="form-check-input me-2" type="checkbox" role="switch" id="chkKifizetve" style="cursor: pointer; width: 2.2em; height: 1.2em;">
                             <label class="form-check-label fw-bold text-dark" for="chkKifizetve" style="cursor: pointer; font-size: 0.85rem;" id="lblKifizetve">
@@ -622,7 +741,7 @@
         <!-- 6. FÜL: RENDSZERNAPLÓ TARTALOM -->
         <div class="tab-pane fade" id="logs-pane" role="tabpanel">
             <div class="card card-stat bg-white p-3 shadow-sm">
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 log-toolbar">
                     <div>
                         <h6 class="m-0 fw-bold text-secondary"><i class="fa-solid fa-file-lines me-2 text-primary"></i>sync.log - Rendszerszintű Eseménynapló</h6>
                         <small class="text-muted">A háttérfolyamatok és szinkronizációk teljes története</small>
@@ -644,7 +763,7 @@
 
 <!-- MODAL ÜZENET OLVASÁSÁHOZ -->
 <div class="modal fade" id="uzenetModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header bg-info text-white p-2 px-3">
         <h6 class="modal-title m-0" id="uzenetModalTitle"><i class="fa-solid fa-envelope-open me-2"></i>Üzenet részletei</h6>
@@ -672,7 +791,7 @@
 
 <!-- MODAL ESEMÉNY LEÍRÁS RÉSZLETES OLVASÁSÁHOZ -->
 <div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header bg-primary text-white p-2 px-3">
         <h6 class="modal-title m-0" id="detailsModalTitle"><i class="fa-solid fa-circle-info me-2"></i>Esemény részletei</h6>
@@ -694,8 +813,26 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
 
 <script>
+// DataTables magyar szövegek beépítve (a korábbi CDN-es JSON CORS-hibát adott,
+// és így internet nélkül is működik).
+const HU_DT_LANG = {
+    emptyTable: "Nincs megjeleníthető adat",
+    info: "_START_–_END_ / _TOTAL_ bejegyzés",
+    infoEmpty: "0 bejegyzés",
+    infoFiltered: "(szűrve: _MAX_ összesből)",
+    lengthMenu: "_MENU_ bejegyzés",
+    loadingRecords: "Betöltés...",
+    processing: "Feldolgozás...",
+    search: "Keresés:",
+    zeroRecords: "Nincs találat",
+    paginate: { first: "Első", last: "Utolsó", next: "Következő", previous: "Előző" },
+    aria: { sortAscending: ": növekvő rendezés", sortDescending: ": csökkenő rendezés" }
+};
+
 function enableResizableTable(tableId) {
     let $table = $('#' + tableId);
     let $headers = $table.find('thead th');
@@ -777,7 +914,14 @@ $(document).ready(function() {
     }
 
     let dataTable = $('#esemenyekTable').DataTable({
-        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/hu.json' },
+        responsive: true,
+        language: HU_DT_LANG,
+        // Mobilon ezek az oszlopok maradnak legtovább láthatók (1 = legfontosabb)
+        columnDefs: [
+            { targets: 0, responsivePriority: 1 },   // Diák
+            { targets: 1, responsivePriority: 2 },   // Típus
+            { targets: 2, responsivePriority: 3 }    // Tantárgy
+        ],
         pageLength: 25,
         order: [[4, 'desc']],
         autoWidth: false,
@@ -801,7 +945,9 @@ $(document).ready(function() {
                     else if (data === 'Feljegyzés') cls = 'badge-feljegyzes';
                     else if (data === 'Házi feladat') cls = 'badge-hazi';
                     else if (data === 'Bejelentett számonkérés') cls = 'badge-szamonkeres';
-                    return `<span class="badge ${cls}">${data}</span>`;
+                    return `<span class="badge ${cls}">${data === 'Bejelentett számonkérés'
+                        ? '<span class="d-none d-md-inline">Bejelentett </span>számonkérés'
+                        : data}</span>`;
                 }
             },
             { data: 'tantargy' },
@@ -895,11 +1041,31 @@ $(document).ready(function() {
         ],
         drawCallback: function() {
             enableResizableTable('esemenyekTable');
+
+    // A Responsive a betöltéskori szélességgel számol — mobilon újra kell számolni,
+    // különben a táblázat szélesebb marad az ablaktörzsnál.
+    setTimeout(function() {
+        try { if (dataTable.responsive) dataTable.responsive.recalc(); } catch (e) {}
+    }, 120);
+    $(window).on('resize orientationchange', function() {
+        clearTimeout(window.__kretaResizeT);
+        window.__kretaResizeT = setTimeout(function() {
+            try { if (dataTable.responsive) dataTable.responsive.recalc(); } catch (e) {}
+            try { if (typeof uzenetekTable !== 'undefined' && uzenetekTable.responsive) uzenetekTable.responsive.recalc(); } catch (e) {}
+        }, 200);
+    });
         }
     });
 
     let uzenetekTable = $('#uzenetekTable').DataTable({
-        language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/hu.json' },
+        responsive: true,
+        language: HU_DT_LANG,
+        columnDefs: [
+            { targets: 2, responsivePriority: 1 },   // Tárgy (a legfontosabb)
+            { targets: 0, responsivePriority: 2 },   // Diák
+            { targets: 1, responsivePriority: 3 },   // Feladó
+            { targets: 5, responsivePriority: 4 }    // Művelet
+        ],
         pageLength: 25,
         order: [[3, 'desc']],
         autoWidth: false,
@@ -952,6 +1118,10 @@ $(document).ready(function() {
         ],
         drawCallback: function() {
             enableResizableTable('uzenetekTable');
+
+    setTimeout(function() {
+        try { if (uzenetekTable.responsive) uzenetekTable.responsive.recalc(); } catch (e) {}
+    }, 120);
         }
     });
 
@@ -962,7 +1132,7 @@ $(document).ready(function() {
 
         orarendCalendar = new FullCalendar.Calendar(calendarEl, {
             locale: 'hu',
-            initialView: 'timeGridWeek',
+            initialView: window.innerWidth < 768 ? 'listWeek' : 'timeGridWeek',
             slotDuration: '00:15:00',
             slotLabelInterval: '01:00:00',
             slotMinTime: '07:00:00',
@@ -974,7 +1144,7 @@ $(document).ready(function() {
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
-                right: 'timeGridWeek,timeGridDay'
+                right: window.innerWidth < 768 ? 'listWeek,timeGridDay' : 'timeGridWeek,timeGridDay'
             },
             buttonText: {
                 today: 'Ma',
@@ -1012,13 +1182,13 @@ $(document).ready(function() {
 
         calendar = new FullCalendar.Calendar(calendarEl, {
             locale: 'hu',
-            initialView: 'dayGridWeek',
+            initialView: window.innerWidth < 768 ? 'listWeek' : 'dayGridWeek',
             height: 'auto',
             displayEventTime: false,
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
-                right: 'dayGridMonth,dayGridWeek,listMonth'
+                right: window.innerWidth < 768 ? 'listMonth,listWeek' : 'dayGridMonth,dayGridWeek,listMonth'
             },
             buttonText: {
                 today: 'Ma',
@@ -1608,6 +1778,15 @@ $(document).ready(function() {
         } else {
             collapseFilterInstance.hide();
         }
+
+        // A rejtett fülben inicializált táblázatoknál a Responsive nem tud
+        // összecsukni — itt újraszámoljuk (mobil nézet).
+        setTimeout(function() {
+            try {
+                if (typeof dataTable !== 'undefined' && dataTable.responsive) dataTable.responsive.recalc();
+                if (typeof uzenetekTable !== 'undefined' && uzenetekTable.responsive) uzenetekTable.responsive.recalc();
+            } catch (err) { /* csendben */ }
+        }, 60);
 
         if (e.target.id === 'orarend-tab') {
             if (!orarendCalendar) {
