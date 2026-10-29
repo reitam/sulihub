@@ -383,7 +383,7 @@ def init_db_extensions():
                     diak_nev TEXT,
                     kreta_id TEXT,
                     mulasztas_datum TEXT,
-                    oraszam INTEGER DEFAULT 0,
+                    ora_sorszam INTEGER DEFAULT 0,
                     perc INTEGER,
                     tantargy TEXT,
                     tema TEXT,
@@ -396,6 +396,15 @@ def init_db_extensions():
                 )
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_hianyzasok_diak ON hianyzasok(diak_nev, mulasztas_datum)")
+            # Régi séma: az 'oraszam' valójában a napon belüli órasorszám volt.
+            cursor.execute("PRAGMA table_info(hianyzasok)")
+            hianyzas_cols = [row["name"] for row in cursor.fetchall()]
+            if "oraszam" in hianyzas_cols and "ora_sorszam" not in hianyzas_cols:
+                try:
+                    cursor.execute("ALTER TABLE hianyzasok RENAME COLUMN oraszam TO ora_sorszam")
+                    print("[Adatbázis séma frissítve]: hianyzasok.oraszam -> ora_sorszam")
+                except sqlite3.Error as ex:
+                    print(f"[Sémafrissítési figyelmeztetés]: {ex}")
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS igazolasok (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1795,7 +1804,11 @@ def _is_tanorai_celu(row):
 
 
 def hianyzas_osszesito(rows):
-    """Havi/összesített mutatók a hiányzás-sorokból."""
+    """Havi/összesített mutatók a hiányzás-sorokból.
+
+    A KRÉTA egy sora egy tanórát jelent (az 'Óra' oszlop a napon belüli
+    órasorszám), ezért az órákat soronként 1-ként számoljuk.
+    """
     o = {
         "hianyzas_db": 0,
         "igazolt_ora": 0,
@@ -1815,13 +1828,13 @@ def hianyzas_osszesito(rows):
             continue
         if _is_tanorai_celu(r):
             o["tanorai_celu_db"] += 1
-            o["tanorai_celu_ora"] += int(r.get("oraszam") or 0)
+            o["tanorai_celu_ora"] += 1
             continue
         o["hianyzas_db"] += 1
         if int(r.get("igazolt") or 0):
-            o["igazolt_ora"] += int(r.get("oraszam") or 0)
+            o["igazolt_ora"] += 1
         else:
-            o["igazolatlan_ora"] += int(r.get("oraszam") or 0)
+            o["igazolatlan_ora"] += 1
     return o
 
 
@@ -1868,7 +1881,7 @@ def api_hianyzasok():
 
     for r in rows:
         r["igazolt"] = int(r.get("igazolt") or 0)
-        r["oraszam"] = int(r.get("oraszam") or 0)
+        r["ora_sorszam"] = int(r.get("ora_sorszam") or 0)
         r["keses"] = 1 if _is_keses(r) else 0
     return jsonify({"rows": rows, "osszesito": hianyzas_osszesito(rows)})
 

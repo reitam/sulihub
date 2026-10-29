@@ -57,7 +57,7 @@ továbbítanak.
 | **Feljegyzések** | Dicséretek, megrovások, hiányok, egyéb bejegyzések |
 | **Házi feladatok** | Tantárgy, tanár, leírás, rögzítés, határidő |
 | **Bejelentett számonkérések** | Tantárgy, mód, téma, bejelentés és a számonkérés napja |
-| **Hiányzások / késések** | Dátum, óraszám, tantárgy, téma, mulasztás típusa (késésnél percek), igazolt/igazolatlan, **tanórai célú (iskolai program)**, igazolás típusa, rögzítés dátuma |
+| **Hiányzások / késések** | Dátum, **aznap hányadik óra** (1 sor = 1 tanóra), tantárgy, téma, mulasztás típusa (késésnél percek), igazolt/igazolatlan, **tanórai célú (iskolai program)**, igazolás típusa, rögzítés dátuma |
 | **Igazolások** | Érvényesség kezdete–vége, igazolás típusa, megjegyzés |
 | **Heti órarend** | Aktuális és következő hét: tanár, terem, időpont, esetleg egész napos esemény |
 | **e-Ügyintézés üzenetek** | Beérkezett üzenetek + csatolt dokumentumok (csak az újak) |
@@ -67,7 +67,7 @@ továbbítanak.
 | Fül | Mire való |
 |---|---|
 | **Iskolai események** | Szűrhető, kereshető táblázat: jegyek, feljegyzések, házik, számonkérések |
-| **Hiányzások** | Hiányzások és késések havi bontásban, igazolt/igazolatlan órák, késés-percek + igazolások listája; a **tanórai célú (iskolai program/verseny)** mulasztások külön mutató, nem számítanak hiányzó órának |
+| **Hiányzások** | Hiányzások és késések havi bontásban, igazolt/igazolatlan órák, késés-percek + igazolások listája; a **tanórai célú (iskolai program/verseny)** mulasztások külön mutató, nem számítanak hiányzó órának. Alapból a **teljes előzmény** látszik, a havi bontás hónapválasztóval / „Aktuális hónap" gombbal |
 | **Heti órarend** | Idősávos heti nézet, gyermekszínekkel; **A4 PDF export** |
 | **Feladatok naptár nézet** | Házik és számonkérések határidő szerint, színkódolva |
 | **Beérkezett üzenetek** | Üzenetek olvasása, csatolmányok letöltése |
@@ -215,6 +215,8 @@ Az adatok egyetlen SQLite adatbázisban (`kreta_adatok.db`) vannak, a data köte
 - A jegyek és feljegyzések futásonként **újratöltődnek** (a KRÉTA az igazság forrása).
 - A **hiányzások és igazolások** szintén futásonként **teljes cserével** töltődnek újra
   (a KRÉTA mindig a teljes listát adja); a késést a `perc` mező különbözteti meg.
+- **Egy hiányzás-sor = egy tanóra.** Az `ora_sorszam` a napon belüli órasorszám
+  (a KRÉTA „Óra" oszlopa), **nem** óraszám — ezért a havi összesítő a sorokat számolja.
 - **Tanórai célú mulasztás** (`tanorai_celu = "Igen"`, pl. iskolai verseny/program): a havi
   összesítő külön kategóriaként mutatja, **nem számít igazolt/igazolatlan hiányzó órának**,
   és a push-ban sem jelenik meg igazolatlan óraként.
@@ -393,7 +395,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **177 automatikus ellenőrzés** nyolc csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **178 automatikus ellenőrzés** nyolc csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **mobil elrendezés** (valódi böngészőben, 393 px szélességen).
 A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
@@ -439,7 +441,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | # | Lehetőség | Miért fontos | Becsült ráfordítás |
 |---|---|---|---|
 | C1 | **CDN-ek vendorolása** (`static/` alá) | internet nélkül most nem indul a felület | 0,5 nap |
-| C2 | **CI** (GitHub Actions; a tesztek megvannak — 177 ellenőrzés, 8 csomag, pytest-alakítás) | automatikus ellenőrzés minden commitnál | 0,5–1 nap |
+| C2 | **CI** (GitHub Actions; a tesztek megvannak — 178 ellenőrzés, 8 csomag, pytest-alakítás) | automatikus ellenőrzés minden commitnál | 0,5–1 nap |
 | C3 | `app.py` / `index.html` szétbontása | karbantarthatóság | 3–5 nap |
 | C4 | DB-migrációs keret + indexek | hosszú távú stabilitás | 1 nap |
 | C5 | **Hitelesítés** (basic auth / reverse proxy) | gyerek-adatok védelme | 0,5–1 nap |

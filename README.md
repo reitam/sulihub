@@ -57,8 +57,11 @@ a saját szerveren maradnak.
 ### 🚸 Hiányzások és késések
 - Saját „Hiányzások" fül: **havi összesítő** (igazolt óra, igazolatlan óra, késések
   darabszáma és percei) gyermek- és hónapválasztóval, „Összes" nézettel.
-- Részletes hiányzás-/késés-táblázat (dátum, típus, óraszám, tantárgy, téma, igazolt?,
-  igazolás típusa) és külön **igazolás-lista** (érvényesség, típus, megjegyzés).
+- Részletes hiányzás-/késés-táblázat (dátum, **aznap hányadik óra**, tantárgy, téma,
+  igazolt?, igazolás típusa) és külön **igazolás-lista** (érvényesség, típus, megjegyzés).
+  Egy KRÉTA-sor **egy tanórát** jelent (az „Óra” a napon belüli órasorszám).
+- Alapból a **teljes előzmény** látszik; a havi bontás a hónapválasztóval vagy az
+  „Aktuális hónap” gombbal érhető el.
 - A késéseket a KRÉTA „(N perc)” adatából ismeri fel; a havi összesítő külön kezeli őket.
 - A **tanórai célú (iskolai program/verseny) mulasztásokat** külön kártyán mutatja, és nem
   számolja bele az igazolt/igazolatlan hiányzó órákba (sem a push-ban).
@@ -271,7 +274,7 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**8 csomag, 177 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**8 csomag, 178 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, hiányzások/igazolások, **mobil elrendezés** (valódi böngésző, 393 px).
 Részletek: [`tests/README.md`](tests/README.md).

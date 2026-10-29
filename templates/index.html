@@ -551,6 +551,7 @@
                         <button id="btnHianyzasAll" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;">Összes</button>
                     </div>
                 </div>
+                <div class="small text-muted mt-2" id="hianyzasModHint"></div>
             </div>
 
             <div class="card card-stat bg-white p-2 px-3 mb-3">
@@ -586,13 +587,14 @@
 
             <div class="table-container overflow-auto mb-3">
                 <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>Hiányzások és késések</h6>
+                <div id="hianyzasEmptyHint" class="alert alert-info py-2 px-3 d-none mb-2 small"></div>
                 <table id="hianyzasokTable" class="table table-striped table-hover w-100">
                     <thead>
                         <tr>
                             <th style="width: 150px;">Diák</th>
                             <th style="width: 110px;">Dátum</th>
                             <th style="width: 150px;">Típus</th>
-                            <th style="width: 80px;">Óra</th>
+                            <th style="width: 90px;" title="A napon belüli órasorszám — 1 sor = 1 tanóra">Óra</th>
                             <th style="width: 130px;">Tantárgy</th>
                             <th>Téma</th>
                             <th style="width: 110px;">Igazolt?</th>
@@ -605,6 +607,7 @@
 
             <div class="table-container overflow-auto">
                 <h6 class="fw-bold text-info mb-2"><i class="fa-solid fa-file-medical me-1"></i>Igazolások</h6>
+                <div id="igazolasEmptyHint" class="alert alert-info py-2 px-3 d-none mb-2 small"></div>
                 <table id="igazolasokTable" class="table table-striped table-hover w-100">
                     <thead>
                         <tr>
@@ -1326,7 +1329,7 @@ $(document).ready(function() {
                     return html;
                 }
             },
-            { data: 'oraszam', render: function (data) { return Number(data) ? data + ' óra' : '-'; } },
+            { data: 'ora_sorszam', render: function (data) { return Number(data) ? data + '. óra' : '-'; } },
             { data: 'tantargy', render: function (data) { return escapeHtml(data || '-'); } },
             { data: 'tema', render: function (data) { return escapeHtml(data || '-'); } },
             {
@@ -1397,17 +1400,40 @@ $(document).ready(function() {
             $('#stTanoraiCeluDb').text((o.tanorai_celu_db || 0) + ' db');
             $('#stKesesDb').text((o.keses_db || 0) + ' db');
             $('#stKesesPerc').text((o.keses_perc || 0) + ' perc');
+
+            let honapSzoveg = honap ? (honap.replace('-', '. ') + '.') : '';
+            $('#hianyzasModHint').html(honap
+                ? `<i class="fa-solid fa-filter me-1"></i>Csak a(z) <b>${escapeHtml(honapSzoveg)}</b> hiányzásai látszanak.`
+                : '<i class="fa-solid fa-list me-1"></i><b>Összes időszak</b> — havi bontáshoz válassz hónapot.');
+
+            let hint = $('#hianyzasEmptyHint');
+            if (!rows.length && honap) {
+                hint.removeClass('d-none').html(
+                    `<i class="fa-solid fa-circle-info me-1"></i>Ebben a hónapban (${escapeHtml(honapSzoveg)}) nincs hiányzás. ` +
+                    'Az <b>Összes</b> gombbal a teljes előzményt látod.');
+            } else {
+                hint.addClass('d-none');
+            }
         });
 
         $.getJSON('/api/igazolasok?' + params.toString(), function (rows) {
             let lista = rows || [];
             igazolasokTable.clear().rows.add(lista).draw();
             $('#stIgazolasDb').text(lista.length + ' db');
+
+            let hint = $('#igazolasEmptyHint');
+            if (!lista.length && honap) {
+                hint.removeClass('d-none').html(
+                    '<i class="fa-solid fa-circle-info me-1"></i>Ebben a hónapban nincs igazolás — az <b>Összes</b> gombbal a teljes lista látható.');
+            } else {
+                hint.addClass('d-none');
+            }
         });
     }
 
-    setDefaultHianyzasMonth();
-
+    // Alapból a teljes előzmény látszik (nehogy egy üres aktuális hónap miatt
+    // úgy tűnjön, mintha nem jöttek volna le az adatok). A havi bontás a
+    // "Aktuális hónap" gombbal vagy a hónapválasztóval érhető el.
     $('#hianyzasFilterDiak, #hianyzasHonap').change(function () {
         loadHianyzasok();
     });
