@@ -139,6 +139,22 @@ try:
             }""")
             ok(0 < vis <= 4, f"a táblázat mobilon összecsukott ({vis} látható oszlop)")
 
+            # 6) avatar a diák oszlopban + a dátum oszlop látszik
+            await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('esemenyek-tab')).show()")
+            await page.wait_for_timeout(800)
+            av = await page.evaluate("""() => {
+                const t = document.querySelector('#esemenyekTable');
+                const avatars = [...t.querySelectorAll('tbody .avatar')];
+                const ths = [...t.querySelectorAll('thead th')];
+                const dateIdx = ths.findIndex(th => /dátuma/i.test(th.textContent));
+                return {n: avatars.length,
+                        text: avatars.length ? avatars[0].textContent.trim() : '',
+                        bg: avatars.length ? getComputedStyle(avatars[0]).backgroundColor : '',
+                        dateVisible: dateIdx >= 0 && ths[dateIdx].getBoundingClientRect().width > 0};
+            }""")
+            ok(av["n"] > 0, f"a diák oszlopban avatar van ({av['n']} db, pl. '{av['text']}')")
+            ok(len(av["text"]) in (2, 3), f"a monogram 2-3 betűs ('{av['text']}')")
+            ok(av["dateVisible"], "a bejegyzés dátuma oszlop látszik mobilon")
             # 5) a fülek tördelődnek — minden fül látszik, nem fut ki
             tabs_info = await page.evaluate("""() => {
                 const nav = document.getElementById('mainTab');

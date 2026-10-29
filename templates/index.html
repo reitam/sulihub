@@ -24,6 +24,22 @@
     <style>
         body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 0.9rem; }
         .card-stat { border-radius: 8px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+        /* Monogramos avatar (diák oszlop) */
+        .avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .66rem;
+            font-weight: 700;
+            letter-spacing: .02em;
+            flex: 0 0 auto;
+            line-height: 1;
+        }
+        .avatar-cell { white-space: nowrap; }
         .table-container { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .badge-ertekeles { background-color: #198754 !important; }
         .badge-feljegyzes { background-color: #fd7e14 !important; }
@@ -196,6 +212,8 @@
 
             /* Táblázatok (DataTables) */
             .table-container { padding: .5rem !important; }
+            /* Mobilon csak az avatar látszik, a név nem (hely a dátumnak) */
+            .avatar-name { display: none !important; }
             /* A desktopos fix táblázat + nowrap miatt a tábla nem tud összecsukni */
             table.dataTable { table-layout: auto !important; font-size: .78rem; }
             table.dataTable tbody tr { height: auto !important; }
@@ -491,7 +509,7 @@
                             <th style="width: 130px;">Típus</th>
                             <th style="width: 140px;">Tantárgy</th>
                             <th style="width: 130px;">Érték / Mód</th>
-                            <th style="width: 120px;">Bejegyzés dátuma</th>
+                            <th style="width: 120px;"><span class="d-none d-sm-inline">Bejegyzés </span>dátuma</th>
                             <th style="width: 150px;">Határidő / Státusz</th>
                             <th style="width: 140px;">Értékelő / Tanár</th>
                             <th>Részletek / Leírás</th>
@@ -830,6 +848,34 @@ const HU_DT_LANG = {
     aria: { sortAscending: ": növekvő rendezés", sortDescending: ": csökkenő rendezés" }
 };
 
+// ── Monogramos avatar a diák oszlophoz ────────────────────────────────
+const AVATAR_COLORS = [
+    ['#dbeafe', '#1d4ed8'], ['#dcfce7', '#15803d'], ['#fee2e2', '#b91c1c'],
+    ['#fef3c7', '#b45309'], ['#ede9fe', '#6d28d9'], ['#cffafe', '#0e7490'],
+    ['#fce7f3', '#be185d'], ['#e2e8f0', '#334155']
+];
+function avatarInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 3) return (parts[0][0] + parts[1][0] + parts[2][0]).toUpperCase();
+    if (parts.length === 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return '?';
+}
+function avatarColor(name) {
+    let h = 0;
+    const s = String(name || '');
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+function renderDiakAvatar(name) {
+    const c = avatarColor(name);
+    const safe = String(name || '').replace(/"/g, '&quot;');
+    return `<span class="d-inline-flex align-items-center gap-2 avatar-cell">
+        <span class="avatar" style="background:${c[0]};color:${c[1]}" title="${safe}">${avatarInitials(name)}</span>
+        <span class="avatar-name">${name}</span>
+    </span>`;
+}
+
 function enableResizableTable(tableId) {
     let $table = $('#' + tableId);
     let $headers = $table.find('thead th');
@@ -915,9 +961,10 @@ $(document).ready(function() {
         language: HU_DT_LANG,
         // Mobilon ezek az oszlopok maradnak legtovább láthatók (1 = legfontosabb)
         columnDefs: [
-            { targets: 0, responsivePriority: 1 },   // Diák
+            { targets: 0, responsivePriority: 1 },   // Diák (avatar)
             { targets: 1, responsivePriority: 2 },   // Típus
-            { targets: 2, responsivePriority: 3 }    // Tantárgy
+            { targets: 2, responsivePriority: 3 },   // Tantárgy
+            { targets: 4, responsivePriority: 4 }    // Bejegyzés dátuma
         ],
         pageLength: 25,
         order: [[4, 'desc']],
@@ -933,8 +980,8 @@ $(document).ready(function() {
             }
         },
         columns: [
-            { data: 'diak_nev' },
-            { 
+            { data: 'diak_nev', render: function (data, type) { return type === 'display' ? renderDiakAvatar(data) : data; } },
+            {
                 data: 'esemeny_tipus',
                 render: function(data) {
                     let cls = 'bg-secondary';
@@ -1074,7 +1121,7 @@ $(document).ready(function() {
             }
         },
         columns: [
-            { data: 'diak_nev' },
+            { data: 'diak_nev', render: function (data, type) { return type === 'display' ? renderDiakAvatar(data) : data; } },
             { data: 'felado' },
             { 
                 data: 'targy',
@@ -1185,13 +1232,17 @@ $(document).ready(function() {
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
-                right: window.innerWidth < 768 ? 'listMonth,listWeek' : 'dayGridMonth,dayGridWeek,listMonth'
+                right: window.innerWidth < 768 ? 'monthList,weekList' : 'dayGridMonth,dayGridWeek,listMonth'
+            },
+            // Külön névvel ellátott lista-nézetek (különben mindkét gomb "Lista" lenne)
+            views: {
+                weekList: { type: 'listWeek', buttonText: 'Heti lista' },
+                monthList: { type: 'listMonth', buttonText: 'Havi lista' }
             },
             buttonText: {
                 today: 'Ma',
                 month: 'Hónap',
-                week: 'Hét',
-                list: 'Lista'
+                week: 'Hét'
             },
             events: function(info, successCallback, failureCallback) {
                 let selectedDiak = $('#naptarFilterDiak').val();
