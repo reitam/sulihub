@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 import os, sys
 from pathlib import Path
-import json, tempfile, shutil, threading, time
+import json, sqlite3, tempfile, shutil, threading, time
 from datetime import datetime, timedelta
 
 work = tempfile.mkdtemp(prefix="kreta_sched_")
 cfg_path = os.path.join(work, "config.json")
+log_path = os.path.join(work, "sync.log")
+db_path = os.path.join(work, "kreta_adatok.db")
 
 def write_cfg(sched):
     with open(cfg_path, "w", encoding="utf-8") as f:
@@ -13,11 +15,14 @@ def write_cfg(sched):
 
 write_cfg({"ENABLED": True, "INTERVAL_MINUTES": 180, "START_HOUR": 0, "END_HOUR": 24})
 
+# valódi DB (a futásnapló mostantól ott van)
+sqlite3.connect(db_path).close()
+
 os.environ.update({
     "KRETA_DATA_DIR": work,
-    "KRETA_DB_FILE": os.path.join(work, "nincs.db"),
+    "KRETA_DB_FILE": db_path,
     "KRETA_CONFIG_FILE": cfg_path,
-    "KRETA_LOG_FILE": os.path.join(work, "sync.log"),
+    "KRETA_LOG_FILE": log_path,
     "KRETA_CSATOLMANYOK_DIR": os.path.join(work, "csat"),
     "KRETA_SCHEDULER_STATE_FILE": os.path.join(work, "scheduler_state.json"),
 })
@@ -25,12 +30,27 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import app as kreta
 
+kreta.init_db_extensions()   # létrehozza a táblákat (WAL, sync_runs, app_meta)
+
 _hibak = []
 
 def ok(c, m):
     print(("  OK   " if c else "  HIBA ") + m)
     if not c:
         _hibak.append(m)
+
+def clear_runs():
+    conn = kreta.get_db_connection()
+    conn.execute("DELETE FROM sync_runs")
+    conn.execute("DELETE FROM app_meta")
+    conn.commit()
+    conn.close()
+
+def seed_run(trigger, started, status="done", finished=None, ok_n=None, total=None, failed=None):
+    rid = kreta.record_run_start(trigger, started)
+    kreta.record_run_finish(rid, status, finished_at=finished or started,
+                            ok_count=ok_n, total_count=total, failed_students=failed or [])
+    return rid
 
 print("1) config parse + határolás")
 c = kreta.scheduler_config()
@@ -74,13 +94,13 @@ n = kreta.scheduler_next_run(
     config=kreta.scheduler_config(), now=datetime(2026,10,28,14,5,0))
 ok(n == datetime(2026,10,28,15,30), f"14:00-as KÉZI futás ellenére is 15:30 az automata: {n}")
 
-# Visszafelé kompatibilitás: régi állapotfájl, ahol a last_run_started ütemezett volt.
+# Visszafelé kompatibilitás: olyan állapot, ahol a last_run_started ütemezett volt.
 n = kreta.scheduler_next_run(
     state={"last_run_started": "2026-10-28T12:30:00", "last_trigger": "scheduled"},
     config=kreta.scheduler_config(), now=datetime(2026,10,28,14,0,0))
-ok(n == datetime(2026,10,28,15,30), f"régi formátum (last_trigger=scheduled) -> 15:30: {n}")
+ok(n == datetime(2026,10,28,15,30), f"kompatibilitás (legacy dict) -> 15:30: {n}")
 
-# Régi formátum, de az utolsó futás kézi volt: nem számít ciklusalapnak.
+# Csak kézi előzmény: nem számít ciklusalapnak.
 n = kreta.scheduler_next_run(
     state={"last_run_started": "2026-10-28T13:50:00", "last_trigger": "manual"},
     config=kreta.scheduler_config(), now=datetime(2026,10,28,14,0,0))
@@ -109,23 +129,32 @@ n = kreta.scheduler_next_run(state={"last_scheduled_run": "2026-10-29T16:00:00",
                              now=datetime(2026,10,29,17,0,0))
 ok(n == datetime(2026,10,29,19,0), f"16:00 + 3h = 19:00, még nyitva -> 19:00: {n}")
 
-# Átforduló ablak (22-6): hajnali esedékesség beleesik
 write_cfg({"ENABLED": True, "INTERVAL_MINUTES": 180, "START_HOUR": 22, "END_HOUR": 6})
 n = kreta.scheduler_next_run(state={"last_scheduled_run": "2026-10-29T01:00:00", "last_trigger": "scheduled"},
                              now=datetime(2026,10,29,2,0,0))
 ok(n == datetime(2026,10,29,4,0), f"átforduló ablakban a 04:00 érvényes: {n}")
 
-print("\n4) állapot perzisztencia (atomikus írás)")
-kreta.save_scheduler_state({"last_run_started": "2026-10-28T12:30:00", "last_status": "done", "magyar": "ékezet"})
-st = kreta.load_scheduler_state()
-ok(st.get("magyar") == "ékezet" and st.get("last_status") == "done", f"visszaolvasva: {st}")
-ok(not os.path.exists(kreta.SCHEDULER_STATE_FILE + ".tmp"), "nincs .tmp maradvány")
-with open(kreta.SCHEDULER_STATE_FILE, "w", encoding="utf-8") as f:
-    f.write("{ torott json")
-ok(kreta.load_scheduler_state() == {}, "sérült állapotfájl -> üres dict (nem omlik össze)")
+print("\n4) futásnapló a DB-ben (nem JSON)")
+clear_runs()
+seed_run("scheduled", "2026-10-28T12:30:00", "done", ok_n=3, total=3)
+st = kreta.scheduler_state()
+ok(st.get("last_status") == "done" and st.get("last_trigger") == "scheduled",
+   f"visszaolvasva: {st.get('last_status')}/{st.get('last_trigger')}")
+ok(st.get("last_scheduled_run") == "2026-10-28T12:30:00", f"ütemezett futás is: {st.get('last_scheduled_run')}")
 
-print("\n5) dupla indítás elleni védelem + állapotírás")
-kreta.save_scheduler_state({})
+conn = kreta.get_db_connection()
+ok(str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower() == "wal", "WAL mód aktív")
+cols = [r[1] for r in conn.execute("PRAGMA table_info(sync_runs)")]
+ok(all(c in cols for c in ("trigger", "started_at", "status", "new_events", "duration_sec")), f"sync_runs séma: {cols}")
+conn.close()
+
+kreta.set_meta("teszt_kulcs", "ertek")
+ok(kreta.get_meta("teszt_kulcs") == "ertek", "app_meta írás/olvasás")
+ok(kreta.get_meta("nincs_ilyen", "alap") == "alap", "app_meta default")
+ok(not os.path.exists(os.path.join(work, "scheduler_state.json")), "nem keletkezik scheduler_state.json")
+
+print("\n5) dupla indítás elleni védelem")
+clear_runs()
 started = []
 def fake_run(trigger="manual"):
     started.append(trigger)
@@ -140,48 +169,47 @@ ok(r1 is True and r2 is False, f"első indítás OK, második elutasítva (r1={r
 time.sleep(0.6)
 ok(started == ["manual"], f"csak egy futás indult: {started}")
 ok(not kreta.sync_state["running"], "futás után running=False")
-_log = open(os.environ["KRETA_LOG_FILE"], encoding="utf-8").read()
+_log = open(log_path, encoding="utf-8").read()
 ok("KÉZI SZINKRONIZÁCIÓ INDÍTÁSA" in _log, "a napló jelzi, hogy kézi indítás volt")
 
 print("\n6) API végpontok (nincs holtpont)")
-kreta.save_scheduler_state({"last_run_started": "2026-10-28T12:30:00", "last_status": "done", "last_trigger": "scheduled"})
+clear_runs()
+seed_run("scheduled", "2026-10-28T12:30:00", "done")
 cl = kreta.app.test_client()
 r = cl.get("/api/scheduler/status")
 d = r.get_json()
 ok(r.status_code == 200 and "next_run_iso" in d and "interval_minutes" in d, f"/api/scheduler/status -> {d}")
 r = cl.get("/api/sync/status")
 d = r.get_json()
-ok(r.status_code == 200 and isinstance(d.get("scheduler"), dict) and "logs" in d, f"/api/sync/status -> scheduler kulcs OK, {len(d.get('logs', []))} log sor")
+ok(r.status_code == 200 and isinstance(d.get("scheduler"), dict) and "logs" in d,
+   f"/api/sync/status -> scheduler kulcs OK, {len(d.get('logs', []))} log sor")
 r = cl.get("/api/sync/status")   # második hívás: a lock nem maradt zárva
 ok(r.status_code == 200, "második /api/sync/status is válaszol (lock felszabadult)")
 
-# Futás közben ne az előző eredmény látszódjon
-kreta.save_scheduler_state({"last_run_started": "2026-10-28T22:12:00", "last_status": "running", "last_trigger": "manual"})
+# Nyitva hagyott (running) sor + nincs futó folyamat -> interrupted
+clear_runs()
+kreta.record_run_start("manual", "2026-10-28T22:12:00")
 d = cl.get("/api/scheduler/status").get_json()
-ok(d["last_status"] == "interrupted", f"running allapot, de nincs futo folyamat -> interrupted: {d['last_status']}")
+ok(d["last_status"] == "interrupted", f"running sor, de nincs folyamat -> interrupted: {d['last_status']}")
 with kreta.sync_lock:
     kreta.sync_state["running"] = True
 d = cl.get("/api/scheduler/status").get_json()
-ok(d["last_status"] == "running", f"tényleg futo folyamat -> running: {d['last_status']}")
+ok(d["last_status"] == "running", f"tényleg futó folyamat -> running: {d['last_status']}")
 with kreta.sync_lock:
     kreta.sync_state["running"] = False
 
-# Az ütemezett futás eredménye külön mezőben (kézi futás után is megmarad)
-kreta.save_scheduler_state({"last_run_started": "2026-10-28T22:19:00", "last_trigger": "manual",
-                            "last_status": "done",
-                            "last_scheduled_run": "2026-10-28T22:16:00", "last_scheduled_status": "error"})
+# Kézi és ütemezett eredmény egyszerre
+clear_runs()
+seed_run("scheduled", "2026-10-28T22:16:00", "error")
+seed_run("manual", "2026-10-28T22:19:00", "done")
 d = cl.get("/api/scheduler/status").get_json()
 ok(d["last_status"] == "done" and d["last_scheduled_status"] == "error",
    f"kézi=sikeres, automatikus=hiba egyszerre: {d['last_status']} / {d['last_scheduled_status']}")
-# Régi állapotfájl (nincs last_scheduled_status, az utolsó futás ütemezett volt)
-kreta.save_scheduler_state({"last_run_started": "2026-10-28T22:16:00", "last_trigger": "scheduled", "last_status": "done"})
-d = cl.get("/api/scheduler/status").get_json()
-ok(d["last_scheduled_status"] == "done", f"régi formátum: last_scheduled_status a last_status-ból: {d['last_scheduled_status']}")
 
 print("\n7) ütemező ciklus tényleg elindítja a szinkront")
-kreta.save_scheduler_state({"last_scheduled_run": (datetime.now() - timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%S"),
-                            "last_run_started": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-                            "last_trigger": "manual"})
+clear_runs()
+seed_run("manual", datetime.now().strftime("%Y-%m-%dT%H:%M:%S"), "done")
+seed_run("scheduled", (datetime.now() - timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%S"), "done")
 write_cfg({"ENABLED": True, "INTERVAL_MINUTES": 180, "START_HOUR": 0, "END_HOUR": 24})
 triggered = []
 def fake_run2(trigger="manual"):
@@ -202,39 +230,31 @@ finally:
     kreta.time.sleep = orig_sleep
 
 ok(triggered == ["scheduled"], f"ciklus indított ütemezett futást: {triggered}")
-log = open(os.environ["KRETA_LOG_FILE"], encoding="utf-8").read()
+log = open(log_path, encoding="utf-8").read()
 ok("ÜTEMEZETT SZINKRONIZÁCIÓ INDÍTÁSA" in log, "sync.log kapott ütemezett-indítás sort")
 
 print("\n8) futás közben nem indít másodikat")
-kreta.save_scheduler_state({"last_scheduled_run": (datetime.now() - timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%S"), "last_trigger": "scheduled"})
+clear_runs()
+seed_run("scheduled", (datetime.now() - timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%S"), "done")
 with kreta.sync_lock:
     kreta.sync_state["running"] = True
 ok(kreta.start_sync("scheduled") is False, "futó szinkron mellett az ütemező nem indít újat")
 with kreta.sync_lock:
     kreta.sync_state["running"] = False
 
-print("\n9) ha az állapotfájl nem írható: nincs végtelen újraindítás")
+print("\n9) ha a DB nem elérhető: memória-beli fallback")
 kreta._scheduler_boot = datetime(2026, 10, 28, 14, 0, 0)
 kreta._last_scheduled_memo = datetime(2026, 10, 28, 13, 0, 0)
 n = kreta.scheduler_next_run(state={}, config=kreta.scheduler_config(), now=datetime(2026,10,28,14,10,0))
 ok(n == datetime(2026, 10, 28, 16, 0), f"memória-beli utolsó futásból számol (13:00+3h): {n}")
 kreta._last_scheduled_memo = None
 
-print("\n10) régi állapotfájl: az ütemezett futás eredménye a sync.log-ból pótolható")
-with open(os.environ["KRETA_LOG_FILE"], "a", encoding="utf-8") as f:
+print("\n10) hiányzó ütemezett eredmény pótlása a sync.log-ból")
+with open(log_path, "a", encoding="utf-8") as f:
     f.write("2026-10-28 22:18:20 [INFO] SZINKRONIZÁCIÓ VÉGE (ütemezett): done, 2.2 perc\n")
 kreta._scheduled_status_cache.clear()
-kreta.save_scheduler_state({"last_run_started": "2026-10-28T22:19:58", "last_trigger": "manual",
-                            "last_status": "done", "last_scheduled_run": "2026-10-28T22:16:10"})
-d = cl.get("/api/scheduler/status").get_json()
-ok(d["last_scheduled_status"] == "done", f"naplóból pótolt ütemezett eredmény: {d['last_scheduled_status']}")
-
-# Ha nincs hozzá tartozó naplósor, ne találgasson
-kreta._scheduled_status_cache.clear()
-kreta.save_scheduler_state({"last_run_started": "2026-10-28T22:19:58", "last_trigger": "manual",
-                            "last_status": "done", "last_scheduled_run": "2026-10-29T09:00:00"})
-d = cl.get("/api/scheduler/status").get_json()
-ok(d["last_scheduled_status"] is None, f"nincs naplósor -> nincs kitalált eredmény: {d['last_scheduled_status']}")
+ok(kreta._scheduled_status_from_log("2026-10-28T22:16:10") == "done", "a naplóból kiolvassa")
+ok(kreta._scheduled_status_from_log("2026-10-29T09:00:00") is None, "nincs naplósor -> nem találgat")
 
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")

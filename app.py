@@ -66,11 +66,263 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+# ==============================================================================
+# === FUTÁS-NAPLÓ (sync_runs) ÉS ALKALMAZÁS-META (app_meta) =====================
+# ==============================================================================
+# Korábban a "legutóbbi futás" egy scheduler_state.json fájlban élt (olvasd-
+# módosítsd-írd vissza, felülírással). Mostantól minden futás egy sor a DB-ben:
+# van történet, tranzakció-védelem, és a mentés is DB-szintű.
+SYNC_RUNNING_STATUS = "running"
+
+
+def ensure_run_tables(conn):
+    """Létrehozza a futás-napló és meta táblákat (idempotens)."""
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS sync_runs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            trigger         TEXT NOT NULL,
+            started_at      TEXT NOT NULL,
+            finished_at     TEXT,
+            status          TEXT NOT NULL DEFAULT 'running',
+            ok_count        INTEGER,
+            total_count     INTEGER,
+            failed_students TEXT,
+            new_events      TEXT,
+            new_messages    TEXT,
+            duration_sec    REAL
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sync_runs_started ON sync_runs(started_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_sync_runs_trigger ON sync_runs(trigger, started_at)")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS app_meta (
+            key        TEXT PRIMARY KEY,
+            value      TEXT,
+            updated_at TEXT
+        )
+    """)
+    conn.commit()
+
+
+def enable_wal(conn):
+    """WAL mód: az app és a scraper párhuzamos írása ne akadjon össze."""
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.Error:
+        pass
+
+
+def migrate_state_file(conn):
+    """
+    Egyszeri átvétel: ha még nincs futás a DB-ben, de van régi
+    scheduler_state.json, abból létrehozunk egy lezárt sort.
+    """
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM sync_runs")
+        if cur.fetchone()[0] > 0:
+            return
+        if not os.path.exists(SCHEDULER_STATE_FILE):
+            return
+        with open(SCHEDULER_STATE_FILE, "r", encoding="utf-8") as f:
+            old = json.load(f)
+        if not isinstance(old, dict) or not old.get("last_run_started"):
+            return
+        cur.execute("""
+            INSERT INTO sync_runs (trigger, started_at, finished_at, status,
+                                   ok_count, total_count, failed_students)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            old.get("last_trigger") or "manual",
+            old.get("last_run_started"),
+            old.get("last_run_finished"),
+            old.get("last_status") or "done",
+            old.get("last_ok"),
+            old.get("last_total"),
+            json.dumps(old.get("last_failed_students") or [], ensure_ascii=False),
+        ))
+        if old.get("last_stale_alert"):
+            cur.execute(
+                "INSERT OR REPLACE INTO app_meta (key, value, updated_at) VALUES (?, ?, ?)",
+                ("last_stale_alert", old.get("last_stale_alert"), _now_iso()),
+            )
+        conn.commit()
+        # a régi fájlt nem töröljük, csak elnevezzük — így visszakereshető
+        try:
+            os.replace(SCHEDULER_STATE_FILE, SCHEDULER_STATE_FILE + ".migrated")
+        except OSError:
+            pass
+        print(f"[Futásnapló] A régi {SCHEDULER_STATE_FILE} átemelve a DB-be.")
+    except (sqlite3.Error, ValueError, OSError) as e:
+        print(f"[Futásnapló] Migráció kihagyva: {e}")
+
+
+def _now_iso():
+    return datetime.now().replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _db_ready():
+    """Ne hozzunk létre 'üres' adatbázist csak azért, mert futásnaplót írnánk."""
+    return os.path.exists(DB_FILE)
+
+
+def record_run_start(trigger, started_at=None):
+    """Új futás sora (status=running); visszaadja az id-t vagy None-t."""
+    if not _db_ready():
+        return None
+    started_at = started_at or _now_iso()
+    try:
+        conn = get_db_connection()
+        ensure_run_tables(conn)
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO sync_runs (trigger, started_at, status) VALUES (?, ?, ?)",
+            (trigger, started_at, SYNC_RUNNING_STATUS),
+        )
+        conn.commit()
+        run_id = cur.lastrowid
+        conn.close()
+        return run_id
+    except sqlite3.Error as e:
+        print(f"[Futásnapló] Indítás mentése nem sikerült: {e}")
+        return None
+
+
+def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_count=None,
+                      failed_students=None, new_events=None, new_messages=None,
+                      duration_sec=None):
+    """A futás sorának lezárása."""
+    if run_id is None or not _db_ready():
+        return
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE sync_runs SET finished_at = ?, status = ?, ok_count = ?, total_count = ?,
+                   failed_students = ?, new_events = ?, new_messages = ?, duration_sec = ?
+            WHERE id = ?
+        """, (
+            finished_at or _now_iso(), status, ok_count, total_count,
+            json.dumps(failed_students or [], ensure_ascii=False),
+            json.dumps(new_events or {}, ensure_ascii=False),
+            json.dumps(new_messages or {}, ensure_ascii=False),
+            duration_sec, run_id,
+        ))
+        conn.commit()
+        conn.close()
+    except sqlite3.Error as e:
+        print(f"[Futásnapló] Lezárás mentése nem sikerült: {e}")
+
+
+def mark_interrupted_runs():
+    """Induláskor: a beragadt 'running' sorok megszakadtak (a folyamat már nincs)."""
+    try:
+        conn = get_db_connection()
+        ensure_run_tables(conn)
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE sync_runs SET status = 'interrupted' WHERE status = ?", (SYNC_RUNNING_STATUS,)
+        )
+        if cur.rowcount:
+            print(f"[Futásnapló] {cur.rowcount} megszakadt futás jelölve.")
+        conn.commit()
+        conn.close()
+    except sqlite3.Error as e:
+        print(f"[Futásnapló] A megszakadt futások jelölése nem sikerült: {e}")
+
+
+def get_meta(key, default=None):
+    if not _db_ready():
+        return default
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM app_meta WHERE key = ?", (key,))
+        row = cur.fetchone()
+        conn.close()
+        return row[0] if row else default
+    except sqlite3.Error:
+        return default
+
+
+def set_meta(key, value):
+    if not _db_ready():
+        return
+    try:
+        conn = get_db_connection()
+        ensure_run_tables(conn)
+        conn.execute(
+            "INSERT OR REPLACE INTO app_meta (key, value, updated_at) VALUES (?, ?, ?)",
+            (key, value, _now_iso()),
+        )
+        conn.commit()
+        conn.close()
+    except sqlite3.Error as e:
+        print(f"[Meta] Írás nem sikerült ({key}): {e}")
+
+
+def _row_to_state(row):
+    if row is None:
+        return {}
+    def _loads(value, fallback):
+        try:
+            return json.loads(value) if value else fallback
+        except (ValueError, TypeError):
+            return fallback
+    return {
+        "id": row["id"],
+        "last_run_started": row["started_at"],
+        "last_run_finished": row["finished_at"],
+        "last_status": row["status"],
+        "last_trigger": row["trigger"],
+        "last_ok": row["ok_count"],
+        "last_total": row["total_count"],
+        "last_failed_students": _loads(row["failed_students"], []),
+        "last_new_events": _loads(row["new_events"], {}),
+        "last_new_messages": _loads(row["new_messages"], {}),
+        "last_duration_sec": row["duration_sec"],
+    }
+
+
+def scheduler_state():
+    """A 'legutóbbi futás' állapot a DB-ből (a régi JSON-állapot helyett)."""
+    state = {}
+    try:
+        conn = get_db_connection()
+        ensure_run_tables(conn)
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM sync_runs ORDER BY started_at DESC, id DESC LIMIT 1")
+        state = _row_to_state(cur.fetchone())
+
+        cur.execute(
+            "SELECT * FROM sync_runs WHERE trigger = 'scheduled' ORDER BY started_at DESC, id DESC LIMIT 1"
+        )
+        scheduled = _row_to_state(cur.fetchone())
+        if scheduled:
+            state["last_scheduled_run"] = scheduled.get("last_run_started")
+            state["last_scheduled_status"] = scheduled.get("last_status")
+            state["last_scheduled_finished"] = scheduled.get("last_run_finished")
+            state["last_scheduled_failed_students"] = scheduled.get("last_failed_students") or []
+
+        state["last_stale_alert"] = get_meta("last_stale_alert")
+        conn.close()
+    except sqlite3.Error as e:
+        print(f"[Futásnapló] Olvasás nem sikerült: {e}")
+    return state
+
+
 def init_db_extensions():
     if os.path.exists(DB_FILE):
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
+
+            # WAL + futásnapló táblák + egyszeri átvétel a régi JSON-ból
+            enable_wal(conn)
+            ensure_run_tables(conn)
+            migrate_state_file(conn)
+            mark_interrupted_runs()
             
             # Kifizetések tábla
             cursor.execute("""
@@ -189,26 +441,13 @@ def scheduler_config():
 
 
 def load_scheduler_state():
-    try:
-        with open(SCHEDULER_STATE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        return {}
+    """Kompatibilitási név: a 'legutóbbi futás' állapota most a DB-ből jön."""
+    return scheduler_state()
 
 
 def save_scheduler_state(state):
-    """Atomikus írás (tmp + replace), hogy félig írt fájl ne maradjon."""
-    try:
-        directory = os.path.dirname(SCHEDULER_STATE_FILE)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        tmp = SCHEDULER_STATE_FILE + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(state, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, SCHEDULER_STATE_FILE)
-    except OSError as e:
-        print(f"[Ütemező] Az állapotfájl írása nem sikerült: {e}")
+    """Már nem használt (a futásnapló a DB-ben van); a régi hívások nem törjenek el."""
+    return None
 
 
 def _parse_scheduler_dt(value):
@@ -278,7 +517,7 @@ def scheduler_next_run(state=None, config=None, now=None):
     if not cfg["enabled"]:
         return None
     now = now or _now()
-    state = load_scheduler_state() if state is None else state
+    state = scheduler_state() if state is None else state
 
     # FONTOS: a ciklus KIZÁRÓLAG az utolsó ÜTEMEZETT futáshoz igazodik — egy
     # kézi "Adatok frissítése" nem tolja el az automatikus időzítést.
@@ -306,14 +545,14 @@ def scheduler_next_run(state=None, config=None, now=None):
 
 def scheduler_status():
     cfg = scheduler_config()
-    state = load_scheduler_state()
+    state = scheduler_state()
     nxt = scheduler_next_run(state=state, config=cfg)
     with sync_lock:
         running = sync_state["running"]
         trigger = sync_state.get("trigger")
 
-    # Ha az állapotfájl "running"-ot tartalmaz, de nincs futó folyamat (pl. a
-    # konténer közben újraindult), akkor az előző futás félbeszakadt.
+    # Ha a DB-ben "running" van, de nincs futó folyamat (pl. a konténer közben
+    # újraindult), akkor az előző futás félbeszakadt.
     last_status = state.get("last_status")
     if last_status == "running" and not running:
         last_status = "interrupted"
@@ -548,7 +787,7 @@ def _maybe_notify_stale(cfg):
     stale_hours = cfg.get("stale_alert_hours", 12)
     if not stale_hours or stale_hours <= 0 or not NTFY_TOPIC:
         return False
-    state = load_scheduler_state()
+    state = scheduler_state()
     last = _parse_scheduler_dt(state.get("last_run_started"))
     if not last:
         return False
@@ -565,8 +804,7 @@ def _maybe_notify_stale(cfg):
         ["hourglass"],
     )
     if sent:
-        state["last_stale_alert"] = _now().strftime(SCHEDULER_TS_FMT)
-        save_scheduler_state(state)
+        set_meta("last_stale_alert", _now().strftime(SCHEDULER_TS_FMT))
     return sent
 
 
@@ -663,19 +901,9 @@ def run_scraper_thread(trigger="manual"):
     # futás nem tolja el az ütemezést. Az ütemező ciklusához CSAK az ütemezett
     # futás számít — a kézi indítás csak a "legutóbbi frissítés" infóhoz kell.
     started_at = _now()
-    run_state = load_scheduler_state()
-    run_state["last_run_started"] = started_at.strftime(SCHEDULER_TS_FMT)
-    run_state["last_trigger"] = trigger
-    # A futás alatt ne a KORÁBBI eredmény látszódjon a felületen: amíg tart,
-    # "running", a végén pedig a tényleges státusz íródik be.
-    run_state["last_status"] = "running"
-    run_state["last_run_finished"] = None
+    run_id = record_run_start(trigger, started_at.strftime(SCHEDULER_TS_FMT))
     if trigger == "scheduled":
         _last_scheduled_memo = started_at
-        run_state["last_scheduled_run"] = started_at.strftime(SCHEDULER_TS_FMT)
-        run_state["last_scheduled_status"] = "running"
-        run_state["last_scheduled_finished"] = None
-    save_scheduler_state(run_state)
 
     failed_students = []
     try:
@@ -768,22 +996,19 @@ def run_scraper_thread(trigger="manual"):
             final_new_events = sync_state.get("new_events") or {}
             final_new_messages = sync_state.get("new_messages") or {}
 
-        # Az eredményt is perzisztáljuk (a "legutóbbi futás" időpontja már fent
-        # megtörtént, ez csak az UI/napló visszajelzéséhez kell).
-        run_state = load_scheduler_state()
-        run_state["last_run_finished"] = _now().strftime(SCHEDULER_TS_FMT)
-        run_state["last_status"] = final_status
-        run_state["last_failed_students"] = final_failed
-        run_state["last_ok"] = final_ok
-        run_state["last_total"] = final_total
-        if trigger == "scheduled":
-            run_state["last_scheduled_status"] = final_status
-            run_state["last_scheduled_finished"] = run_state["last_run_finished"]
-            run_state["last_scheduled_failed_students"] = final_failed
-        save_scheduler_state(run_state)
+        # A futás sorát lezárjuk a DB-ben (ez a "legutóbbi futás" állapot is).
+        duration_sec = (_now() - started_at).total_seconds()
+        record_run_finish(
+            run_id, final_status,
+            finished_at=_now().strftime(SCHEDULER_TS_FMT),
+            ok_count=final_ok, total_count=final_total,
+            failed_students=final_failed,
+            new_events=final_new_events, new_messages=final_new_messages,
+            duration_sec=duration_sec,
+        )
 
         # Záró sor a naplóba: látszik a trigger (kézi/ütemezett) és az eredmény.
-        duration_min = (_now() - started_at).total_seconds() / 60
+        duration_min = duration_sec / 60
         _append_sync_log(
             f"SZINKRONIZÁCIÓ VÉGE ({trigger_label(trigger)}): {final_status}, {duration_min:.1f} perc"
             + (f" — hibás diák: {', '.join(final_failed)}" if final_failed else "")
