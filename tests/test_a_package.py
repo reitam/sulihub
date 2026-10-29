@@ -103,10 +103,11 @@ time.sleep(0.4)
 ok(len(sent) == 1, f"egy kérés ment el ({len(sent)})")
 url, data, headers, timeout = sent[0]
 payload = json.loads(data.decode("utf-8"))
-ok(url == "https://ntfy.example/teszt-topic", f"URL: {url}")
+ok(url == "https://ntfy.example", f"URL (szerver gyökér): {url}")
+ok(not url.rstrip("/").endswith("teszt-topic"), "nem a topic URL-re POST-ol (különben nyers JSON jönne)")
 ok(payload["topic"] == "teszt-topic", "payload.topic")
 ok(payload["title"] == "Cím ő/ű" and payload["message"] == "Üzenet Ő/Ű", "UTF-8 cím/üzenet helyes")
-ok(payload["priority"] == "high" and payload["tags"] == ["warning"], "priority/tags")
+ok(payload["priority"] == 4 and payload["tags"] == ["warning"], "priority (szám!) / tags")
 ok("application/json" in headers.get("Content-Type", ""), "Content-Type JSON")
 
 sent.clear()
@@ -148,7 +149,7 @@ kreta.NTFY_TOPIC = "https://ntfy.sh/kreta-teszt-123"
 ok(kreta.send_notification("URL forma", "test"), "teljes URL-es NTFY_TOPIC is működik")
 time.sleep(0.4)
 url2, data2, _, _ = sent[0]
-ok(url2 == "https://ntfy.sh/kreta-teszt-123", f"URL forma: {url2}")
+ok(url2 == "https://ntfy.sh", f"URL forma (szerver gyökér): {url2}")
 ok(json.loads(data2.decode())["topic"] == "kreta-teszt-123", "a topic a URL utolsó szegmense")
 kreta.NTFY_TOPIC = "teszt-topic"
 
