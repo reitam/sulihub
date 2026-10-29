@@ -55,7 +55,9 @@ sync_state = {
     "trigger": None,
     "failed_students": [],
     "ok_count": None,
-    "total_students": None
+    "total_students": None,
+    "new_events": {},
+    "new_messages": {}
 }
 sync_lock = threading.Lock()
 
@@ -416,6 +418,37 @@ def _ntfy_target():
 
 _NTFY_PRIORITIES = {"min": 1, "low": 2, "default": 3, "high": 4, "max": 5, "urgent": 5}
 
+# Az eseménytípusok rövid, üzenetbarát nevei (a DB-ben tárolt értékek)
+EVENT_TYPE_LABELS = {
+    "Értékelés": "jegy",
+    "Feljegyzés": "feljegyzés",
+    "Házi feladat": "házi",
+    "Bejelentett számonkérés": "számonkérés",
+}
+EVENT_TYPE_ORDER = ["Értékelés", "Házi feladat", "Bejelentett számonkérés", "Feljegyzés"]
+
+
+def format_new_events(new_events, new_messages=None):
+    """
+    Emberi olvasású bontás a push-üzenethez:
+        ["Teszt Elek: 2 jegy, 1 házi", "Teszt Anna: 1 üzenet"]
+    Csak azt a diákot írja ki, akinél történt valami.
+    """
+    new_messages = new_messages or {}
+    lines = []
+    for diak, counts in (new_events or {}).items():
+        parts = []
+        for tipus in EVENT_TYPE_ORDER:
+            n = int((counts or {}).get(tipus, 0) or 0)
+            if n:
+                parts.append(f"{n} {EVENT_TYPE_LABELS.get(tipus, tipus)}")
+        n_msg = int(new_messages.get(diak, 0) or 0)
+        if n_msg:
+            parts.append(f"{n_msg} üzenet")
+        if parts:
+            lines.append(f"{diak}: {', '.join(parts)}")
+    return lines
+
 
 def _ntfy_priority(value):
     """A JSON API számot vár (1-5); a szöveges neveket is elfogadjuk."""
@@ -464,9 +497,13 @@ def send_notification(title, message, priority=3, tags=None):
     return True
 
 
-def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=None, total=None):
+def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=None, total=None,
+                       new_events=None, new_messages=None):
     """A szinkron eredményéről szóló push (hiba / részleges hiba / sikeres)."""
     failed_txt = ", ".join(failed_students) if failed_students else ""
+    event_lines = format_new_events(new_events, new_messages)
+    events_block = ("\n\n" + "\n".join(event_lines)) if event_lines else ""
+
     if status == "done_with_errors":
         if failed_students and NTFY_INCLUDE_NAMES:
             detail = f"Nem frissült: {failed_txt}"
@@ -476,7 +513,7 @@ def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=
             detail = "Részletek a Rendszernaplóban"
         return send_notification(
             "KRÉTA szinkron: részleges hiba",
-            f"{trigger_label(trigger)} futás · {duration_min:.1f} perc · {detail}",
+            f"{trigger_label(trigger)} futás · {duration_min:.1f} perc · {detail}" + events_block,
             3,
             ["warning"],
         )
@@ -489,7 +526,8 @@ def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=
             detail = "Minden diák adata frissült."
         return send_notification(
             "KRÉTA szinkron: sikeres",
-            f"{trigger_label(trigger)} futás · {duration_min:.1f} perc · {detail}",
+            f"{trigger_label(trigger)} futás · {duration_min:.1f} perc · {detail}"
+            + (events_block or "\n\nNem volt új esemény."),
             2,
             ["white_check_mark"],
         )
@@ -497,7 +535,8 @@ def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=
         return send_notification(
             "KRÉTA szinkron: HIBA",
             f"A {trigger_label(trigger)} szinkron hibával ért véget ({duration_min:.1f} perc). "
-            f"Részletek a Rendszernaplóban.",
+            f"Részletek a Rendszernaplóban."
+            + events_block,
             4,
             ["rotating_light"],
         )
@@ -617,6 +656,8 @@ def run_scraper_thread(trigger="manual"):
         sync_state["failed_students"] = []
         sync_state["ok_count"] = None
         sync_state["total_students"] = None
+        sync_state["new_events"] = {}
+        sync_state["new_messages"] = {}
 
     # A ciklus alapja a futás KEZDEMÉNYEZÉSE (nem a vége), így a ~2,2 perces
     # futás nem tolja el az ütemezést. Az ütemező ciklusához CSAK az ütemezett
@@ -676,6 +717,8 @@ def run_scraper_thread(trigger="manual"):
         failed_students = []
         ok_count = None
         total_students = None
+        new_events = {}
+        new_messages = {}
         with sync_lock:
             log_lines = list(sync_state["logs"])
         for line in log_lines:
@@ -685,6 +728,8 @@ def run_scraper_thread(trigger="manual"):
                     failed_students = [str(n) for n in payload.get("failed", [])]
                     ok_count = payload.get("ok")
                     total_students = payload.get("total")
+                    new_events = payload.get("new_events") or {}
+                    new_messages = payload.get("new_messages") or {}
                 except (ValueError, AttributeError, TypeError):
                     pass
 
@@ -692,6 +737,8 @@ def run_scraper_thread(trigger="manual"):
             sync_state["failed_students"] = failed_students
             sync_state["ok_count"] = ok_count
             sync_state["total_students"] = total_students
+            sync_state["new_events"] = new_events
+            sync_state["new_messages"] = new_messages
             if sync_state["status"] != "stopped":
                 if process.returncode == 0:
                     sync_state["status"] = "done"
@@ -718,6 +765,8 @@ def run_scraper_thread(trigger="manual"):
             final_failed = list(sync_state.get("failed_students") or [])
             final_ok = sync_state.get("ok_count")
             final_total = sync_state.get("total_students")
+            final_new_events = sync_state.get("new_events") or {}
+            final_new_messages = sync_state.get("new_messages") or {}
 
         # Az eredményt is perzisztáljuk (a "legutóbbi futás" időpontja már fent
         # megtörtént, ez csak az UI/napló visszajelzéséhez kell).
@@ -741,7 +790,8 @@ def run_scraper_thread(trigger="manual"):
         )
 
         # Push értesítés: hiba / részleges hiba / sikeres (beállítástól függően).
-        notify_sync_result(final_status, final_failed, trigger, duration_min, final_ok, final_total)
+        notify_sync_result(final_status, final_failed, trigger, duration_min, final_ok, final_total,
+                           final_new_events, final_new_messages)
 
 @app.route("/")
 def index():

@@ -153,6 +153,30 @@ ok(url2 == "https://ntfy.sh", f"URL forma (szerver gyökér): {url2}")
 ok(json.loads(data2.decode())["topic"] == "kreta-teszt-123", "a topic a URL utolsó szegmense")
 kreta.NTFY_TOPIC = "teszt-topic"
 
+print("\n4) Új események bontása az üzenetben")
+_lines = kreta.format_new_events(
+    {"Teszt Elek": {"Értékelés": 2, "Házi feladat": 1},
+     "Teszt Anna": {"Bejelentett számonkérés": 1, "Feljegyzés": 0}},
+    {"Teszt Anna": 2},
+)
+ok(_lines == ["Teszt Elek: 2 jegy, 1 házi", "Teszt Anna: 1 számonkérés, 2 üzenet"],
+   f"bontás: {_lines}")
+ok(kreta.format_new_events({}, {}) == [], "nincs új esemény -> üres lista")
+
+sent.clear()
+kreta.notify_sync_result("done", [], "manual", 2.0, 3, 3,
+                         {"Teszt Elek": {"Értékelés": 2, "Házi feladat": 1}},
+                         {"Teszt Elek": 1})
+time.sleep(0.4)
+_body2 = json.loads(sent[0][1].decode())["message"]
+ok("Teszt Elek: 2 jegy, 1 házi, 1 üzenet" in _body2, f"a push tartalmazza a bontást: {_body2!r}")
+
+sent.clear()
+kreta.notify_sync_result("done", [], "scheduled", 2.0, 3, 3, {}, {})
+time.sleep(0.4)
+_body3 = json.loads(sent[0][1].decode())["message"]
+ok("Nem volt új esemény" in _body3, f"üres eset szövege: {_body3!r}")
+
 # elavult adat riasztás + throttle
 sent.clear()
 now = kreta._now()

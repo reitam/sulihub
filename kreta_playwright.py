@@ -221,6 +221,42 @@ def clear_student_data(diak_nev):
     conn.commit()
     conn.close()
 
+# ── Új események kimutatása a szinkron során ─────────────────────────────────
+# A Flask app ezt küldi ki a push-értesítésben (diákonként, típusonként).
+NEW_EVENT_COUNTS = {}
+NEW_MESSAGE_COUNTS = {}
+
+_EVENT_KEY_COLUMNS = (
+    "esemeny_tipus, tantargy, bej_datum, hatarido, ertek, szam_ertek, tema, cim, tartalom"
+)
+
+
+def get_event_key_set(diak_nev):
+    """Az adott diák összes eseményének tartalom-alapú kulcsa (összehasonlításhoz)."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    keys = set()
+    try:
+        cursor.execute(
+            f"SELECT {_EVENT_KEY_COLUMNS} FROM esemenyek WHERE diak_nev = ?", (diak_nev,)
+        )
+        for row in cursor.fetchall():
+            keys.add(tuple("" if v is None else str(v) for v in row))
+    except Exception as ex:
+        log(f"  [DB hiba - esemény kulcsok]: {ex}")
+    finally:
+        conn.close()
+    return keys
+
+
+def diff_event_counts(before_keys, after_keys):
+    """Új események típusonként: after - before."""
+    counts = {}
+    for key in (after_keys - before_keys):
+        tipus = key[0] if key else "?"
+        counts[tipus] = counts.get(tipus, 0) + 1
+    return counts
+
 def save_esemenyek_to_db(diak_nev, esemenyek, completed_set):
     """Menti az adott diák kinyert eseményeit az adatbázisba megőrizve a korábbi 'kesz' státuszt és elkerülve a duplikációkat."""
     conn = sqlite3.connect(DB_FILE)
@@ -432,7 +468,8 @@ async def scrape_orarend(page, diak_nev, institute_code):
 async def scrape_uzenetek(page, diak_nev):
     """Be- és letölti az e-Ügyintézés felületről az új üzeneteket és csatolmányokat."""
     log("\n6. Navigáció az e-Ügyintézés (Üzenetek) oldalra...")
-    
+    uj_cnt = 0
+
     try:
         eugy_page = page
         
@@ -548,9 +585,11 @@ async def scrape_uzenetek(page, diak_nev):
 
         if eugy_page != page:
             await eugy_page.close()
+        return uj_cnt
 
     except Exception as ex:
         log(f"Figyelmeztetés az üzenetek lekérésekor: {ex}")
+        return 0
 
 async def process_student(page, student):
     diak_nev = student.get("diak_nev", "Ismeretlen")
@@ -563,6 +602,9 @@ async def process_student(page, student):
     log("\n" + "=" * 70)
     log(f"  FELDOLGOZÁS: {diak_nev.upper()} (Iskola: {institute_code})")
     log("=" * 70)
+
+    # A frissítés ELŐTTI állapot — a végén ebből számoljuk az új eseményeket.
+    before_event_keys = get_event_key_set(diak_nev)
 
     # Korábban elkészült házi feladatok és a DB-ben meglévő házi / számonkérés kulcsok kimentése
     completed_hazi = get_completed_hazi_map(diak_nev)
@@ -945,9 +987,14 @@ async def process_student(page, student):
 
     # --- 6. E-ÜGYINTÉZÉS ÜZENETEK KINYERÉSE ---
     if student_scrape_messages:
-        await scrape_uzenetek(page, diak_nev)
+        new_msg_count = await scrape_uzenetek(page, diak_nev) or 0
+        NEW_MESSAGE_COUNTS[diak_nev] = new_msg_count
     else:
+        NEW_MESSAGE_COUNTS[diak_nev] = 0
         log(f"\n6. Üzenetek lekérése KI VAN KAPCSOLVA ennél a diáknál ({diak_nev}).")
+
+    # Új események (a frissítés előtti és utáni állapot különbsége)
+    NEW_EVENT_COUNTS[diak_nev] = diff_event_counts(before_event_keys, get_event_key_set(diak_nev))
 
     # --- 7. KIJELENTKEZÉS A FIÓKBÓL ---
     log(f"\nKijelentkezés ({diak_nev})...")
@@ -1008,7 +1055,13 @@ async def main():
         await context.close()
 
     # Géppel olvasható összegzés a Flask appnak (stdout-ra, a naplóba nem kell).
-    summary = {"total": len(active_students), "ok": ok_count, "failed": failed}
+    summary = {
+        "total": len(active_students),
+        "ok": ok_count,
+        "failed": failed,
+        "new_events": NEW_EVENT_COUNTS,
+        "new_messages": NEW_MESSAGE_COUNTS,
+    }
     print(RESULT_MARKER + json.dumps(summary, ensure_ascii=False), flush=True)
 
     # Kilépési kód: 0 = minden diák rendben, 2 = részleges hiba, 1 = végzetes.
