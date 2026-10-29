@@ -189,7 +189,9 @@ mint a felületi gomb (a konzol és a `/api/sync/status` is mutatja).
   „részleges hiba", a hibás diák nevével; a naplóban is látszik). A scraper ehhez
   `##KRETA_RESULT##{...}` összegzést ír a kimenetére és 2-es kilépési kóddal tér vissza.
 - **ntfy értesítés** hiba / részleges hiba / elavult adat esetén (lásd `NTFY_TOPIC`),
-  valamint **sikeres futásnál** is (`NTFY_NOTIFY_SUCCESS`, alapból be).
+  valamint **sikeres futásnál** is (`NTFY_NOTIFY_SUCCESS`, alapból be). A futás utáni
+  push tartalmazza a **diákonkénti új eseményeket** is (jegy / házi / számonkérés /
+  feljegyzés / üzenet darabszám), pl. `Teszt Elek: 2 jegy, 1 házi`.
 - **Hibánál nincs újrapróbálkozás-vihar:** a következő kísérlet a normál
   intervallum után lesz.
 - **Első indítás:** ha még sosem futott (nincs állapotfájl), 5 perc múlva indul.

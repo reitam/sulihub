@@ -12,7 +12,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-TESTS = ["test_scheduler.py", "test_a_package.py", "test_pdf_fonts.py", "test_paths.py"]
+TESTS = ["test_scheduler.py", "test_a_package.py", "test_pdf_fonts.py", "test_paths.py", "test_new_events.py"]
 
 failed = []
 for name in TESTS:
