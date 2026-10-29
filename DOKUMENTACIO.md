@@ -419,11 +419,12 @@ adatokat nem érintik.
 | # | Lehetőség | Miért fontos | Becsült ráfordítás |
 |---|---|---|---|
 | C1 | **CDN-ek vendorolása** (`static/` alá) | internet nélkül most nem indul a felület | 0,5 nap |
-| C2 | **CI** (GitHub Actions; a tesztek megvannak, pytest-alakítás) | automatikus ellenőrzés minden commitnál | 0,5–1 nap |
+| C2 | **CI** (GitHub Actions; a tesztek megvannak — 143 ellenőrzés, 7 csomag, pytest-alakítás) | automatikus ellenőrzés minden commitnál | 0,5–1 nap |
 | C3 | `app.py` / `index.html` szétbontása | karbantarthatóság | 3–5 nap |
 | C4 | DB-migrációs keret + indexek | hosszú távú stabilitás | 1 nap |
 | C5 | **Hitelesítés** (basic auth / reverse proxy) | gyerek-adatok védelme | 0,5–1 nap |
 | C6 | Apróságok: `SyntaxWarning`, `config.json.example` vessző, halott `autoSyncAlert` | tisztaság | 2–3 óra |
+| C7 | **Egylemezes üzemeltetési kockázat** — a kód és a Docker a rendszerlemezen; lemezhiba esetén a deploy elakad, a dockerd elérhetetlen (2026-10-29-i incidens) | work dir (+ Docker data-root) áthelyezése a HDD-re, SMART-figyelés + ntfy riasztás | 0,5–1 nap |
 
 > **Elvetett irány:** a KRÉTA JSON-végpontok használata a DOM-scraping helyett — a fejlesztés
 > során sok helyen kipróbálták és nem működött, ezért marad a Playwright-alapú megoldás.
