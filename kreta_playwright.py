@@ -561,7 +561,7 @@ def hianyzas_api_window(diak_nev):
         log(f"  [DB lekérdezési hiba - hiányzás ablak]: {ex}")
     finally:
         conn.close()
-    return kreta_api_sync.omission_window(earliest)
+    return kreta_api_sync.api_window(earliest)
 
 
 def api_provider_hianyzasok(student, client_factory=None):
@@ -592,7 +592,42 @@ def api_provider_igazolasok(student, client_factory=None):
     log(f"  [IGAZOLÁSOK OK] {len(rows)} db igazolás az API-ból.")
 
 
+def evaluation_api_window(diak_nev):
+    """A jegyek API-ablaka a DB legkorábbi értékeléséhez igazítva."""
+    conn = sqlite3.connect(DB_FILE)
+    earliest = None
+    try:
+        row = conn.execute(
+            "SELECT MIN(bej_datum) FROM esemenyek "
+            "WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'",
+            (diak_nev,),
+        ).fetchone()
+        earliest = row[0] if row else None
+    except Exception as ex:
+        log(f"  [DB lekérdezési hiba - jegy ablak]: {ex}")
+    finally:
+        conn.close()
+    return kreta_api_sync.api_window(earliest)
+
+
+def api_provider_jegyek(student, client_factory=None):
+    """Jegyek/értékelések frissítése a mobil API-ból (teljes csere a szeleten belül).
+
+    A Magatartás és a Szorgalom az API-ban két külön sor (0 számértékkel), így az
+    átlag/zsebpénz számítást nem módosítják; a webes egy soros megjelenés helyett
+    két sor jelenik meg.
+    """
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+    start, end = evaluation_api_window(diak_nev)
+    log(f"\n[API] Jegyek lekérése: {start} .. {end} ...")
+    client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
+    rows = kreta_api_sync.fetch_evaluations(client, start, end)
+    save_esemenyek_by_type(diak_nev, rows, set(), ["Értékelés"])
+    log(f"  [JEGYEK OK] {len(rows)} db értékelés az API-ból.")
+
+
 API_PROVIDERS = {
+    "jegyek": api_provider_jegyek,
     "hianyzasok": api_provider_hianyzasok,
     "igazolasok": api_provider_igazolasok,
 }

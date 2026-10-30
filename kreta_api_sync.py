@@ -12,15 +12,19 @@ A klienseket diákonként egyszer hozza létre és újrahasználja (`client_for`
 """
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 
 from kreta_api import (
     KretaApiClient,
     lesson_index,
+    normalize_evaluation,
     normalize_justification,
     normalize_omission,
     pick_lesson,
 )
+
+_DATE_HU_RE = re.compile(r"^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.")
 
 # Az API-lekérés alapablaka: legalább egy tanév (a DB legkorábbi sora ezt tágíthatja).
 DEFAULT_LOOKBACK_DAYS = 366
@@ -48,24 +52,35 @@ def close_clients() -> None:
     _CLIENTS.clear()
 
 
-def omission_window(earliest_stored: str | None, today: date | None = None,
-                    lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> tuple[date, date]:
+def parse_stored_date(value) -> date | None:
+    """A DB-ben tárolt dátum ('YYYY. MM. DD.' vagy ISO) -> date; hibás -> None."""
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        if len(text) >= 10 and text[4] == "-":
+            return date.fromisoformat(text[:10])
+        match = _DATE_HU_RE.match(text)
+        if match:
+            return date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+    except ValueError:
+        return None
+    return None
+
+
+def api_window(earliest_stored: str | None, today: date | None = None,
+               lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> tuple[date, date]:
     """Az API-lekérés ablaka: legalább egy tanévnyi, de a DB legkorábbi soráig.
 
     A KRÉTA a szeleten belül a teljes listát adja; a mentés a szeleten kívüli
-    sorokhoz nem nyúl, ezért a kezdő dátumot a DB legkorábbi hiányzásához
-    igazítjuk — így nincs adatvesztés és nincs felesleges lekérés.
+    sorokhoz nem nyúl, ezért a kezdő dátumot a DB legkorábbi sorához igazítjuk —
+    így nincs adatvesztés és nincs felesleges lekérés.
     """
     today = today or date.today()
     start = today - timedelta(days=lookback_days)
-    text = str(earliest_stored or "")[:10]
-    if text:
-        try:
-            stored = date.fromisoformat(text)
-        except ValueError:
-            stored = None
-        if stored is not None and stored < start:
-            start = stored
+    stored = parse_stored_date(earliest_stored)
+    if stored is not None and stored < start:
+        start = stored
     return start, today
 
 
@@ -104,3 +119,13 @@ def fetch_omissions(client, start: date, end: date) -> list[dict]:
 def fetch_justifications(client) -> list[dict]:
     """Igazolások normalizált sorai (a KRÉTA ID a kulcs)."""
     return [normalize_justification(item) for item in client.fetch_justifications()]
+
+
+def fetch_evaluations(client, start: date, end: date) -> list[dict]:
+    """Jegyek/értékelések normalizált sorai (a webes oszlopok jelentésével).
+
+    A `bej_datum` a rögzítés napja (helyi idő), így egyezik a webes „Bej. dátum”
+    oszloppal. A Magatartás és a Szorgalom az API-ban két külön értékelés
+    (0 számértékkel), ezért két sorban tárolódik — az átlagot nem befolyásolja.
+    """
+    return [normalize_evaluation(item) for item in client.fetch_evaluations(start, end)]

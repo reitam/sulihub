@@ -287,10 +287,10 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**11 csomag, 294 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**11 csomag, 311 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron**
-(hiányzás/igazolás), **szinkronmód/fallback**, **mobil elrendezés** (valódi böngésző, 393 px).
+(hiányzás/igazolás/jegy), **szinkronmód/fallback**, **mobil elrendezés** (valódi böngésző, 393 px).
 Részletek: [`tests/README.md`](tests/README.md).
 
 ---
