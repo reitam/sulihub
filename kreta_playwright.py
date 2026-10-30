@@ -673,8 +673,33 @@ def api_provider_szamonkeresek(student, client_factory=None):
     log(f"  [SZÁMONKÉRÉS OK] {len(rows)} db számonkérés az API-ból ({uj} db új).")
 
 
+def api_provider_feljegyzesek(student, client_factory=None):
+    """Feljegyzések frissítése az API-ból (teljes csere a szeleten belül)."""
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+    start, end = events_api_window(diak_nev, "Feljegyzés")
+    log(f"\n[API] Feljegyzések lekérése: {start} .. {end} ...")
+    client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
+    rows = kreta_api_sync.fetch_notes(client, start, end)
+    save_esemenyek_by_type(diak_nev, rows, set(), ["Feljegyzés"])
+    log(f"  [FELJEGYZÉS OK] {len(rows)} db feljegyzés az API-ból.")
+
+
+def api_provider_orarend(student, client_factory=None):
+    """Órarend frissítése az API-ból (aktuális + következő hét, fogadóórákkal)."""
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+    start, end = kreta_api_sync.week_window()
+    log(f"\n[API] Órarend lekérése: {start} .. {end} ...")
+    client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
+    rows = kreta_api_sync.fetch_lessons(client, start, end)
+    consultations = kreta_api_sync.fetch_consultations(client, start, end)
+    save_orarend_to_db(diak_nev, rows + consultations)
+    log(f"  [ÓRAREND OK] {len(rows)} db órarendi elem + {len(consultations)} fogadóóra az API-ból.")
+
+
 API_PROVIDERS = {
+    "orarend": api_provider_orarend,
     "jegyek": api_provider_jegyek,
+    "feljegyzesek": api_provider_feljegyzesek,
     "hazi": api_provider_hazi,
     "szamonkeresek": api_provider_szamonkeresek,
     "hianyzasok": api_provider_hianyzasok,

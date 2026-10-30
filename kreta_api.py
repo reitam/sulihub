@@ -379,11 +379,13 @@ class KretaApiClient:
             raise KretaResponseError("A válasz nem érvényes JSON.") from exc
 
     def _api_get(self, path: str, params: dict | None = None) -> Any:
+        self._ensure_token()  # az első hívásnál belép, később csak frissít
         assert self.token is not None
         url = f"https://{self.token.institute_code}.e-kreta.hu/ellenorzo/v3/{path.lstrip('/')}"
         return self._request(url, params=params, headers={"apiKey": API_KEY})
 
     def _eadmin_get(self, path: str, params: dict | None = None) -> Any:
+        self._ensure_token()
         url = f"{EADMIN_BASE}/{path.lstrip('/')}"
         return self._request(url, params=params,
                              headers={"X-Uzenet-Lokalizacio": "hu-HU"})
@@ -447,6 +449,13 @@ class KretaApiClient:
         data = self._api_get("sajat/Igazolasok")
         return list(data or [])
 
+    def fetch_consultations(self, start: date, end: date) -> list[dict]:
+        """Fogadóórák tanáronként (a webes naptár is mutatja őket)."""
+        data = self._api_get("sajat/Fogadoorak", {
+            "datumTol": start.isoformat(), "datumIg": end.isoformat(),
+        })
+        return list(data or [])
+
     def fetch_messages(self) -> list[dict]:
         data = self._eadmin_get("kommunikacio/postaladaelemek/sajat")
         return [
@@ -484,6 +493,67 @@ def normalize_omission(item: dict) -> dict:
         "rogzites_datum": iso_date(item.get("KeszitesDatuma")),
         "rogzito": _text(item.get("RogzitoTanarNeve")),
     }
+
+
+def normalize_lesson(item: dict) -> dict:
+    """API órarend-elem -> az `orarend` tábla sorformátuma (a webes egyezéssel).
+
+    - tanóra: helyi `YYYY-MM-DDTHH:MM:SS` kezdet/vég, a tantárgy neve az
+      osztály/csoport megnevezésével (`Történelem-6.A`, ahogy a webes naptár);
+    - egész napos esemény (tanév rendje): kezdet = helyi dátum, vég = üres.
+    """
+    start_source = _text(item.get("KezdetIdopont") or item.get("Datum"))
+    end_source = _text(item.get("VegIdopont"))
+    tipus = _descriptor(item.get("Tipus"))
+    all_day = tipus == "TanevRendjeEsemeny" or (start_source and start_source == end_source)
+
+    start = _local_moment(start_source)
+    end = _local_moment(end_source)
+    tantargy = _nev(item.get("Tantargy"))
+    osztaly = _nev(item.get("OsztalyCsoport"))
+    title = f"{tantargy}-{osztaly}" if tantargy and osztaly else (tantargy or _text(item.get("Nev")))
+
+    if all_day:
+        start_text = start.date().isoformat() if start else start_source[:10]
+        end_text = ""
+    else:
+        start_text = start.strftime("%Y-%m-%dT%H:%M:%S") if start else start_source
+        end_text = end.strftime("%Y-%m-%dT%H:%M:%S") if end else end_source
+
+    return {
+        "start": start_text,
+        "end": end_text,
+        "title": title,
+        "tanarNev": _text(item.get("TanarNeve")),
+        "teremNev": _text(item.get("TeremNeve")),
+        "allDay": all_day,
+    }
+
+
+def normalize_consultations(blocks: list[dict]) -> list[dict]:
+    """Fogadóóra-blokkok -> az `orarend` tábla sorai (egy tanár / blokk = 1 sor).
+
+    A `/sajat/Fogadoorak` tanáronként adja a fogadóóra-időszakot; a webes naptár
+    is ezt mutatja „Fogadóóra” címmel. A 7–10 perces jelentkezési slotok nem
+    kerülnek a naptárba.
+    """
+    rows = []
+    for block in blocks or []:
+        tanar = _nev(block.get("Tanar"))
+        for slot in block.get("Fogadoorak") or []:
+            start = _local_moment(slot.get("KezdoIdopont"))
+            end = _local_moment(slot.get("VegIdopont"))
+            if start is None:
+                continue
+            rows.append({
+                "start": start.strftime("%Y-%m-%dT%H:%M:%S"),
+                "end": end.strftime("%Y-%m-%dT%H:%M:%S") if end else "",
+                "title": "Fogadóóra",
+                "tanarNev": tanar,
+                "teremNev": _nev(slot.get("Terem")),
+                "allDay": False,
+            })
+    return rows
 
 
 def lesson_index(lessons: list[dict]) -> dict[tuple[str, int], list[dict]]:
