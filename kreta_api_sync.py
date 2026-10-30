@@ -23,6 +23,7 @@ from kreta_api import (
     normalize_homework,
     normalize_justification,
     normalize_lesson,
+    normalize_message,
     normalize_note,
     normalize_omission,
     normalize_test,
@@ -170,3 +171,12 @@ def fetch_lessons(client, start: date, end: date) -> list[dict]:
 def fetch_consultations(client, start: date, end: date) -> list[dict]:
     """Fogadóórák az `orarend` tábla sorformátumában (a webes naptárral egyezően)."""
     return normalize_consultations(client.fetch_consultations(start, end))
+
+
+def fetch_messages(client) -> list[dict]:
+    """Beérkezett üzenetek normalizált sorai (a lista a teljes szöveget adja).
+
+    A csatolmányok csak nevet/azonosítót adnak, letöltési URL-t nem — a fájlok
+    letöltéséhez a webes eÜgyintézés-flow kell (lásd a szolgáltatót).
+    """
+    return [normalize_message(item) for item in client.fetch_messages()]

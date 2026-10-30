@@ -696,6 +696,57 @@ def api_provider_orarend(student, client_factory=None):
     log(f"  [ÓRAREND OK] {len(rows)} db órarendi elem + {len(consultations)} fogadóóra az API-ból.")
 
 
+def api_provider_uzenetek(student, client_factory=None):
+    """Beérkezett üzenetek frissítése az eAdmin API-ból (csak az újakat menti).
+
+    A KRÉTA üzenet-lista a teljes szöveget adja, a csatolmányokhoz viszont nincs
+    letöltési URL (csak név + azonosító). Ezért:
+
+    - ha nincs új csatolmányos üzenet: minden API-ból megy, böngésző nélkül;
+    - ha van új csatolmányos üzenet és a mód engedi a Playwrightot
+      (`api_first`), szándékosan hibát dobunk, hogy a webes eÜgyintézés-flow
+      töltse le a fájlokat is (a naplóban látszik az ok);
+    - tiszta `api` módban a fájl nélkül mentjük az üzenetet, és figyelmeztetünk.
+    """
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+    if not student.get("scrape_messages", GLOBAL_SCRAPE_MESSAGES):
+        NEW_MESSAGE_COUNTS[diak_nev] = 0
+        log(f"  [ÜZENETEK] kikapcsolva ennél a diáknál ({diak_nev}).")
+        return
+
+    log("\n[API] Üzenetek lekérése ...")
+    client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
+    messages = kreta_api_sync.fetch_messages(client)
+
+    new_messages = [
+        m for m in messages
+        if not is_uzenet_saved(diak_nev, m["felado"], m["targy"], m["idopont"])
+    ]
+    with_attachment = [m for m in new_messages if m.get("csatolmanyok")]
+
+    if with_attachment and kreta_sync.needs_playwright(SYNC_MODE):
+        names = ", ".join(
+            (m["csatolmanyok"][0] or {}).get("fajlNev", "?") for m in with_attachment[:3]
+        )
+        raise RuntimeError(
+            f"{len(with_attachment)} új üzenet csatolmánnyal ({names}) — "
+            "a fájlok letöltéséhez a webes eÜgyintézés-flow kell"
+        )
+
+    uj = 0
+    for m in new_messages:
+        attachments = m.get("csatolmanyok") or []
+        csatolmany_nev = (attachments[0] or {}).get("fajlNev", "") if attachments else ""
+        save_uzenet_to_db(diak_nev, m["felado"], m["targy"], m["idopont"], m["szoveg"],
+                          csatolmany_nev, "")
+        uj += 1
+        if csatolmany_nev:
+            log(f"    [FIGYELEM] a csatolmány nem lett letöltve: {csatolmany_nev}")
+
+    NEW_MESSAGE_COUNTS[diak_nev] = uj
+    log(f"  [ÜZENETEK OK] {len(messages)} üzenet az API-ból ({uj} új).")
+
+
 API_PROVIDERS = {
     "orarend": api_provider_orarend,
     "jegyek": api_provider_jegyek,
@@ -704,6 +755,7 @@ API_PROVIDERS = {
     "szamonkeresek": api_provider_szamonkeresek,
     "hianyzasok": api_provider_hianyzasok,
     "igazolasok": api_provider_igazolasok,
+    "uzenetek": api_provider_uzenetek,
 }
 
 
