@@ -186,6 +186,11 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 | `api` | Csak a mobil API (böngésző nélkül); egy adatkör hibája részleges hiba. |
 | `api_first` | Adatkörönként API, hiba esetén automatikus Playwright fallback. |
 
+**`SYNC_SHADOW`** — `api_first` mellett a Playwright is lefut egy **DB-másolaton**, és a
+szinkron csak összehasonlítja a kettőt (a `sync.log`-ban `[ÁRNYÉK]` sorok). A valódi
+adatbázishoz csak az API ír, így nincs dupla írás. Élesítés előtt 1–2 hétig érdemes
+bekapcsolva hagyni, utána kikapcsolható.
+
 A forrás és a fallback oka a `sync.log`-ban és a futásnapló `sources` mezőjében látszik
 (`DOKUMENTACIO.md` 3.2.1). Amelyik adatkörhöz még nincs API-implementáció, azt a
 Playwright fedi le.
@@ -287,10 +292,11 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**11 csomag, 396 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**12 csomag, 409 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
-adatkör, üzenet-csatolmány fallback), **szinkronmód/fallback**, **mobil elrendezés**.
+adatkör, üzenet-csatolmány fallback), **szinkronmód/fallback**, **árnyék mód**,
+**mobil elrendezés**.
 Részletek: [`tests/README.md`](tests/README.md).
 
 ---

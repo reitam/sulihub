@@ -3,6 +3,7 @@ import json
 import sqlite3
 import os
 import re
+import shutil
 import sys
 import logging
 import logging.handlers
@@ -10,6 +11,7 @@ from datetime import datetime, timedelta
 from playwright.async_api import async_playwright
 
 import kreta_api_sync
+import kreta_shadow
 import kreta_sync
 
 # --- KONFIGURÁCIÓ ÉS LOGGING BEÁLLÍTÁSA ---
@@ -65,6 +67,9 @@ STUDENTS = config.get("STUDENTS", [])
 GLOBAL_SCRAPE_MESSAGES = config.get("SCRAPE_MESSAGES", True)
 # Szinkron forrása: playwright | api | api_first (lásd kreta_sync.py).
 SYNC_MODE = kreta_sync.resolve_sync_mode(config)
+# Árnyék/ellenőrző mód: api_first mellett a Playwright is lefut egy DB-másolaton,
+# és csak összehasonlítunk (a valódi DB-hez nem nyúl).
+SYNC_SHADOW = str(config.get("SYNC_SHADOW", False)).strip().lower() in ("1", "true", "yes", "on")
 
 # Adatkör-szintű API-szolgáltatók: kulcs -> függvény(diák dict) -> None.
 # A szolgáltató lekér és ment (nincs benne Playwright); hibát dobhat, arra a
@@ -1901,6 +1906,7 @@ async def process_student(page, student, skip=None, tracker=None,
         log(f"Kijelentkezési figyelmeztetés: {e}")
 
 SYNC_SOURCES = {}
+SYNC_SHADOW_REPORTS = {}
 
 
 def _finalize_student_counts(diak_nev, before_event_keys):
@@ -1908,6 +1914,66 @@ def _finalize_student_counts(diak_nev, before_event_keys):
     NEW_EVENT_COUNTS[diak_nev] = diff_event_counts(before_event_keys, get_event_key_set(diak_nev))
     NEW_HIANYZAS_COUNTS.setdefault(diak_nev, {})
     NEW_MESSAGE_COUNTS.setdefault(diak_nev, 0)
+
+
+async def run_shadow_student(student, page):
+    """Árnyék-ellenőrzés: a Playwright egy DB-másolaton fut, csak összehasonlítunk.
+
+    A valódi DB-hez csak az API ír, így nincs dupla írás és dupla értesítés.
+    A `NEW_*` számlálókat a végén visszaállítjuk, hogy az API eredménye maradjon.
+    """
+    global DB_FILE
+
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+    if page is None:
+        return None
+
+    main_db = DB_FILE
+    shadow_db = main_db + ".shadow"
+    log(f"\n[ÁRNYÉK] Playwright-ellenőrzés külön DB-másolaton ({diak_nev}) ...")
+    try:
+        if os.path.exists(shadow_db):
+            os.remove(shadow_db)
+        shutil.copyfile(main_db, shadow_db)
+    except OSError as exc:
+        log(f"  [ÁRNYÉK] a DB másolása nem sikerült: {exc}")
+        return None
+
+    saved = (dict(NEW_EVENT_COUNTS), dict(NEW_MESSAGE_COUNTS), dict(NEW_HIANYZAS_COUNTS))
+    try:
+        DB_FILE = shadow_db
+        await process_student(page, student, tracker=kreta_sync.SourceTracker(diak_nev))
+    except Exception as exc:
+        log(f"  [ÁRNYÉK] a Playwright-ellenőrzés hibával futott: {exc}")
+        return None
+    finally:
+        DB_FILE = main_db
+        NEW_EVENT_COUNTS.clear()
+        NEW_EVENT_COUNTS.update(saved[0])
+        NEW_MESSAGE_COUNTS.clear()
+        NEW_MESSAGE_COUNTS.update(saved[1])
+        NEW_HIANYZAS_COUNTS.clear()
+        NEW_HIANYZAS_COUNTS.update(saved[2])
+
+    report = kreta_shadow.compare_databases(main_db, shadow_db, diak_nev)
+    for line in kreta_shadow.format_report(report):
+        log(line)
+    log(f"  [ÁRNYÉK] összes eltérés: {report['total_diffs']}"
+        + (" — minden egyezik" if report["is_match"] else " — FIGYELEM, ellenőrizni kell"))
+    SYNC_SHADOW_REPORTS[diak_nev] = {
+        "is_match": report["is_match"],
+        "total_diffs": report["total_diffs"],
+        "tables": {
+            name: {"primary": data.get("primary"), "shadow": data.get("shadow"),
+                   "diffs": data.get("diffs")}
+            for name, data in report.get("tables", {}).items()
+        },
+    }
+    try:
+        os.remove(shadow_db)
+    except OSError:
+        pass
+    return report
 
 
 async def run_student(student, page, tracker):
@@ -1922,6 +1988,9 @@ async def run_student(student, page, tracker):
         await kreta_sync.run_api_datasets(student, API_PROVIDERS, tracker, log)
         if kreta_sync.needs_playwright(SYNC_MODE):
             kreta_sync.log_playwright_plan(tracker, SYNC_MODE, log)
+
+    if SYNC_SHADOW and kreta_sync.needs_playwright(SYNC_MODE):
+        await run_shadow_student(student, page)
 
     skip = tracker.api_done()
 
@@ -1981,6 +2050,8 @@ async def main():
     active_students = [s for s in STUDENTS if s.get("active", True)]
     log(f"Készülődés {len(active_students)} diák adatainak lekérésére...")
     log(f"Szinkron mód: {SYNC_MODE} (playwright | api | api_first)")
+    if SYNC_SHADOW:
+        log("Árnyék/ellenőrző mód: BE (a Playwright külön DB-másolaton fut, csak összehasonlítás)")
     if kreta_sync.needs_playwright(SYNC_MODE):
         log(f"Böngésző üzemmód: {'Háttérben (Headless)' if HEADLESS_MODE else 'Látható (Headed)'}")
     log(f"Globális üzenet-szinkronizálás: {'BE' if GLOBAL_SCRAPE_MESSAGES else 'KI'}")
@@ -2029,6 +2100,7 @@ async def main():
         "new_messages": NEW_MESSAGE_COUNTS,
         "new_hianyzasok": NEW_HIANYZAS_COUNTS,
         "sources": SYNC_SOURCES,
+        "shadow": SYNC_SHADOW_REPORTS,
     }
     print(RESULT_MARKER + json.dumps(summary, ensure_ascii=False), flush=True)
 
