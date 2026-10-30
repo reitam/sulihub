@@ -2,6 +2,7 @@
   "HEADLESS": true,
   "SCRAPE_MESSAGES": true,
   "SYNC_MODE": "playwright",
+  "SYNC_SHADOW": false,
   "ENABLE_REWARDS": true,
   "SCHEDULER": {
     "ENABLED": true,

@@ -200,6 +200,12 @@ hiányzások/késések, igazolások, üzenetek. A sikeres API-adatkörök `skip`
 A forrás és a fallback oka a `sync.log`-ba, a gép-olvasható összegzés `sources` mezőjébe és
 a `sync_runs.sources` oszlopba kerül; a `/api/sync/status` is átadja.
 
+**Árnyék/ellenőrző mód (`SYNC_SHADOW`):** `api_first` mellett a Playwright is lefut — de egy
+**másolt** adatbázison, és csak összehasonlítunk (táblánként kulcs + mezők, a POC logikája
+szerint). A valódi DB-hez csak az API ír, így nincs dupla írás/értesítés; az eltérések a
+`sync.log`-ba kerülnek (`[ÁRNYÉK]` sorok). Élesítés előtt 1–2 hétig érdemes bekapcsolva
+hagyni, utána kikapcsolható — a Playwright csak fallback marad.
+
 > A D3–D7-tel a **hiányzások/késések, az igazolások, a jegyek, a házi feladatok, a
 > bejelentett számonkérések, a feljegyzések, az órarend** (fogadóórákkal) és az
 > **üzenetek** már API-ból jönnek (táboros hiányzásnál a korábbi téma megmarad, a házi
@@ -278,6 +284,7 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 | `HEADLESS` | A böngésző háttérben fusson-e (élesben igen) |
 | `SCRAPE_MESSAGES` | Üzenetek gyűjtése globálisan |
 | `SYNC_MODE` | A szinkron forrása: `playwright` (alap) / `api` / `api_first` — lásd 3.2.1 |
+| `SYNC_SHADOW` | `api_first` mellett a Playwright is lefut egy DB-másolaton, csak összehasonlítás (lásd 3.2.1) |
 | `ENABLE_REWARDS` | Zsebpénz modul globálisan |
 | `REWARDS` | A 2.5. pont tarifái |
 | `KEYWORDS` | A feljegyzések kategorizálásához használt kulcsszavak |
@@ -422,13 +429,14 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **396 automatikus ellenőrzés** tizenegy csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **409 automatikus ellenőrzés** tizenkét csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
 fogadóóra, üzenet-inkrementálás és csatolmány-fallback), **szinkronmód és fallback**
-(mód-feloldás + valódi SQLite-on duplikációvédelem), **mobil elrendezés** (valódi
-böngészőben, 393 px).
+(mód-feloldás + valódi SQLite-on duplikációvédelem), **árnyék mód** (DB-másolat,
+összehasonlítás, a valódi DB érintetlensége), **mobil elrendezés** (valódi böngészőben,
+393 px).
 A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 
 ### 9.4. Kiadási folyamat
@@ -519,7 +527,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.4.1** | **2026-10-29** | Mobil finomítás: **monogram-avatar** a diák oszlopban (szabad hely a **bejegyzés dátumának**), a naptár két lista-gombja külön névvel (Havi/Heti lista), rövidebb mobil fejléc-címkék, **az utolsó frissítés sora mobilon is látszik** (korábban a CSS elrejtette) |
 | **v1.5.0** | **2026-10-29** | **Hiányzások / késések modul:** új `hianyzasok` és `igazolasok` tábla, scraper, „Hiányzások" fül havi összesítővel (igazolt/igazolatlan óra, késés db/perc) és igazolás-listával; **inkrementális mentés dátum + órasorszám alapján** (stabil sor-ID); az új hiányzások és igazolatlan órák a push-üzenetben is megjelennek |
 | **v1.5.1** | **2026-10-30** | Hiányzások fül finomítás: az összesítő első kártyája **„Összes hiányzás" órában** (nem db); a hosszú igazolás-típus és megjegyzés teljes szöveggel, több sorban látszik (tooltipek a többi hosszú mezőn) |
-| **v1.6.0** *(fejlesztés alatt)* | **2026-10-30** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 8 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba. **Kész: D1–D7** (kliens, mód/fallback, mind a 8 adatkör API-ból, fogadóórákkal és üzenet-csatolmány fallbackkel); a D8–D9 (árnyék-tesztelés, dokumentáció/deploy) következik |
+| **v1.6.0** *(fejlesztés alatt)* | **2026-10-30** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 8 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba; **`SYNC_SHADOW` árnyék/ellenőrző mód** (Playwright DB-másolaton, összehasonlítás). **Kész: D1–D8**; a D9 (dokumentáció, config, deploy v1.6.0) következik |
 
 ---
 
