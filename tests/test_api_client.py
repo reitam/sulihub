@@ -28,8 +28,10 @@ from kreta_api import (  # noqa: E402
     normalize_evaluation,
     normalize_homework,
     normalize_justification,
+    normalize_lesson,
     normalize_message,
     normalize_note,
+    normalize_consultations,
     normalize_omission,
     normalize_test,
     pick_lesson,
@@ -106,6 +108,12 @@ ok(token.refresh_token == "refresh-1", "refresh token megérkezett")
 ok(token.institute_code == "iskola", "iskolakód megmaradt")
 ok(len(client.session.calls) == 4, f"4 login lépés történt ({len(client.session.calls)})")
 ok("__RequestVerificationToken" in client.session.calls[1][2]["data"], "RVT elküldve a POST-ban")
+
+print("\n1b) Első API-hívás automatikus belépéssel")
+client = make_client(login_responses() + [FakeResponse(200, json_data=[{"Uid": "1"}])])
+result = client._api_get("sajat/Mulasztasok", {"datumTol": "2026-09-01", "datumIg": "2026-09-20"})
+ok(result == [{"Uid": "1"}], "token nélkül is lefut (belépés a háttérben)")
+ok(len(client.session.calls) == 5, f"4 login lépés + 1 API hívás ({len(client.session.calls)})")
 
 print("\n2) Tokenfrissítés 401 után")
 client = make_client([
@@ -262,6 +270,48 @@ client.token = ApiToken("a", "r", "iskola", time.time() + 3600)
 messages = client.fetch_messages()
 ok(len(messages) == 1 and messages[0]["azonosito"] == 1, "küldött/törölt üzenet kiszűrve")
 ok("X-Uzenet-Lokalizacio" in client.session.calls[0][2]["headers"], "eAdmin lokalizációs header")
+
+print("\n8b) Órarend-elem normalizálása")
+lesson = normalize_lesson({
+    "Uid": "433184,OrarendiOra,2026-11-02T23:00:00Z",
+    "KezdetIdopont": "2026-11-03T09:45:00Z", "VegIdopont": "2026-11-03T10:30:00Z",
+    "Nev": "Történelem", "Oraszam": 4,
+    "OsztalyCsoport": {"Nev": "6.B"},
+    "TanarNeve": "Szőke Gáborné", "Tantargy": {"Nev": "Történelem"},
+    "Tema": None, "TeremNeve": "S-F6", "Tipus": {"Nev": "OrarendiOra"},
+})
+ok(lesson["start"] == "2026-11-03T10:45:00", f"kezdet helyi idő: {lesson['start']}")
+ok(lesson["end"] == "2026-11-03T11:30:00", f"vég helyi idő: {lesson['end']}")
+ok(lesson["title"] == "Történelem-6.B", f"tantárgy + osztály: {lesson['title']}")
+ok(lesson["tanarNev"] == "Szőke Gáborné", "tanár")
+ok(lesson["teremNev"] == "S-F6", "terem")
+ok(lesson["allDay"] is False, "tanóra nem egész napos")
+
+all_day = normalize_lesson({
+    "Uid": "s1", "KezdetIdopont": "2026-10-25T23:00:00Z", "VegIdopont": "2026-10-25T23:00:00Z",
+    "Nev": "Őszi szünet (Nem órarendi nap) (Hétfő)",
+    "Tipus": {"Nev": "TanevRendjeEsemeny"},
+})
+ok(all_day["start"] == "2026-10-26", f"egész napos kezdet helyi dátum: {all_day['start']}")
+ok(all_day["end"] == "", "egész napos eseménynek nincs záró időpontja")
+ok(all_day["title"].startswith("Őszi szünet"), "a tanév rendje esemény neve megmarad")
+ok(all_day["allDay"] is True, "egész napos jelölés")
+
+print("\n8c) Fogadóóra normalizálása")
+consultations = normalize_consultations([{
+    "Tanar": {"Nev": "Szentkirályi Zsuzsanna"},
+    "Fogadoorak": [{
+        "Uid": "1239", "Terem": {"Nev": "S-F6"},
+        "KezdoIdopont": "2026-11-05T15:30:00Z", "VegIdopont": "2026-11-05T17:30:00Z",
+        "Idopontok": [{"Uid": "1"}],
+    }],
+}])
+ok(len(consultations) == 1, "egy fogadóóra-blokk -> egy sor")
+ok(consultations[0]["start"] == "2026-11-05T16:30:00", "fogadóóra helyi kezdete")
+ok(consultations[0]["end"] == "2026-11-05T18:30:00", "fogadóóra helyi vége")
+ok(consultations[0]["title"] == "Fogadóóra", "fogadóóra cím")
+ok(consultations[0]["tanarNev"] == "Szentkirályi Zsuzsanna", "fogadóóra tanára")
+ok(consultations[0]["teremNev"] == "S-F6", "fogadóóra terme")
 
 print("\n9) Nincs Playwright-függés")
 source = (ROOT / "kreta_api.py").read_text(encoding="utf-8")

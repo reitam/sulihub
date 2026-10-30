@@ -25,11 +25,15 @@ from kreta_api_sync import (  # noqa: E402
     api_window,
     apply_lesson_join,
     fetch_announced_tests,
+    fetch_consultations,
     fetch_evaluations,
     fetch_homeworks,
     fetch_justifications,
+    fetch_lessons,
+    fetch_notes,
     fetch_omissions,
     parse_stored_date,
+    week_window,
 )
 
 _hibak = []
@@ -45,13 +49,15 @@ class FakeClient:
     """Csak a D3–D5-höz szükséges végpontokat utánozza (nincs hálózat)."""
 
     def __init__(self, omissions=None, lessons=None, justifications=None, evaluations=None,
-                 homeworks=None, announced_tests=None):
+                 homeworks=None, announced_tests=None, notes=None, consultations=None):
         self._omissions = omissions or []
         self._lessons = lessons or []
         self._justifications = justifications or []
         self._evaluations = evaluations or []
         self._homeworks = homeworks or []
         self._announced_tests = announced_tests or []
+        self._notes = notes or []
+        self._consultations = consultations or []
         self.calls = []
 
     def fetch_omissions(self, start, end):
@@ -77,6 +83,14 @@ class FakeClient:
     def fetch_announced_tests(self, start, end):
         self.calls.append(("announced_tests", start, end))
         return list(self._announced_tests)
+
+    def fetch_notes(self, start, end):
+        self.calls.append(("notes", start, end))
+        return list(self._notes)
+
+    def fetch_consultations(self, start, end):
+        self.calls.append(("consultations", start, end))
+        return list(self._consultations)
 
 
 print("1) Lekérési ablak")
@@ -195,6 +209,52 @@ ok(trows[0]["bej_datum"] == "2026. 09. 22.", "számonkérés bejelentése helyi"
 ok(trows[0]["mod"] == "Írásbeli témazáró dolgozat", "számonkérés módja")
 ok(trows[0]["tema"] == "Halmazok", "számonkérés témája")
 
+print("\n4c) Feljegyzés és órarend")
+note_client = FakeClient(
+    notes=[{
+        "Uid": "3", "Datum": "2026-10-08T22:00:00Z",
+        "Tipus": {"Leiras": "Osztályfőnöki dicséret"}, "KeszitoTanarNeve": "Szőke Gáborné",
+        "Cim": "Rajzpályázat", "Tartalom": "<b>Szép</b> munka",
+    }],
+    lessons=[
+        {"KezdetIdopont": "2026-11-03T09:45:00Z", "VegIdopont": "2026-11-03T10:30:00Z",
+         "Nev": "Történelem", "OsztalyCsoport": {"Nev": "6.B"},
+         "TanarNeve": "Szőke Gáborné", "Tantargy": {"Nev": "Történelem"},
+         "TeremNeve": "S-F6", "Tipus": {"Nev": "OrarendiOra"}},
+        {"KezdetIdopont": "2026-10-25T23:00:00Z", "VegIdopont": "2026-10-25T23:00:00Z",
+         "Nev": "Őszi szünet (Nem órarendi nap) (Hétfő)",
+         "Tipus": {"Nev": "TanevRendjeEsemeny"}},
+    ],
+)
+nrows = fetch_notes(note_client, today, today)
+ok(nrows[0]["bej_datum"] == "2026. 10. 09.", f"feljegyzés helyi dátuma: {nrows[0]['bej_datum']}")
+ok(nrows[0]["tipus"] == "Osztályfőnöki dicséret", "feljegyzés típusa")
+ok(nrows[0]["tartalom"] == "Szép munka", "feljegyzés HTML-mentes")
+ok(nrows[0]["ertekelo"] == "Szőke Gáborné", "feljegyzés készítője")
+
+lrows = fetch_lessons(note_client, *week_window(today))
+ok(len(lrows) == 2, f"2 órarendi elem: {len(lrows)}")
+ok(lrows[0]["start"] == "2026-11-03T10:45:00" and lrows[0]["end"] == "2026-11-03T11:30:00",
+   "tanóra helyi idővel")
+ok(lrows[0]["title"] == "Történelem-6.B", "tantárgy + osztály a címben")
+ok(lrows[1]["start"] == "2026-10-26" and lrows[1]["end"] == "", "egész napos esemény dátuma")
+ok(week_window(date(2026, 11, 4)) == (date(2026, 11, 2), date(2026, 11, 15)),
+   "aktuális + következő hét (hétfő..vasárnap)")
+ok(week_window(date(2026, 11, 2))[0] == date(2026, 11, 2), "hétfőn a hét eleje önmaga")
+
+consult_client = FakeClient(consultations=[{
+    "Tanar": {"Nev": "Szentkirályi Zsuzsanna"},
+    "Fogadoorak": [{"Uid": "1", "Terem": {"Nev": "S-F6"},
+                    "KezdoIdopont": "2026-11-05T15:30:00Z",
+                    "VegIdopont": "2026-11-05T17:30:00Z"}],
+}])
+crows = fetch_consultations(consult_client, today, today)
+ok(len(crows) == 1, "1 fogadóóra")
+ok(crows[0]["start"] == "2026-11-05T16:30:00" and crows[0]["title"] == "Fogadóóra",
+   "fogadóóra helyi idővel, címmel")
+ok(crows[0]["tanarNev"] == "Szentkirályi Zsuzsanna" and crows[0]["teremNev"] == "S-F6",
+   "fogadóóra tanára és terme")
+
 print("\n5) Igazolások fake klienssel")
 just = FakeClient(justifications=[{
     "Id": 563578, "Kezdete": "2026-09-13T22:00:00Z", "Vege": "2026-09-16T22:00:00Z",
@@ -255,8 +315,25 @@ OMISSIONS = [
       "KeszitesDatuma": "2026-10-06T22:00:00Z"}},
 ]
 LESSONS = [
-    {{"KezdetIdopont": "2026-10-06T22:00:00Z", "Oraszam": 3,
-      "Tantargy": {{"Nev": "matematika"}}, "Tema": "Halmazok", "TanarNeve": "Erl Andrea"}},
+    {{"KezdetIdopont": "2026-10-07T07:45:00Z", "VegIdopont": "2026-10-07T08:30:00Z",
+      "Oraszam": 3, "Tantargy": {{"Nev": "matematika"}},
+      "OsztalyCsoport": {{"Nev": "6.B"}}, "Tema": "Halmazok",
+      "TanarNeve": "Erl Andrea", "TeremNeve": "S-F6",
+      "Tipus": {{"Nev": "OrarendiOra"}}}},
+    {{"KezdetIdopont": "2026-10-25T23:00:00Z", "VegIdopont": "2026-10-25T23:00:00Z",
+      "Nev": "Őszi szünet (Nem órarendi nap) (Hétfő)",
+      "Tipus": {{"Nev": "TanevRendjeEsemeny"}}}},
+]
+NOTES = [
+    {{"Uid": "3", "Datum": "2026-10-08T22:00:00Z",
+      "Tipus": {{"Leiras": "Osztályfőnöki dicséret"}}, "KeszitoTanarNeve": "Szőke Gáborné",
+      "Cim": "Rajzpályázat", "Tartalom": "<b>Szép</b> munka"}},
+]
+CONSULTATIONS = [
+    {{"Tanar": {{"Nev": "Szentkirályi Zsuzsanna"}},
+      "Fogadoorak": [{{"Uid": "1", "Terem": {{"Nev": "S-F6"}},
+                       "KezdoIdopont": "2026-11-05T15:30:00Z",
+                       "VegIdopont": "2026-11-05T17:30:00Z"}}]}},
 ]
 JUSTIFICATIONS = [
     {{"Id": 563578, "Kezdete": "2026-09-13T22:00:00Z", "Vege": "2026-09-16T22:00:00Z",
@@ -311,6 +388,12 @@ class FakeClient:
     def fetch_announced_tests(self, start, end):
         return ANNOUNCED
 
+    def fetch_notes(self, start, end):
+        return NOTES
+
+    def fetch_consultations(self, start, end):
+        return CONSULTATIONS
+
 
 def grades_snapshot():
     conn = sqlite3.connect(k.DB_FILE)
@@ -338,6 +421,25 @@ def szamonkeres_snapshot():
         "SELECT tantargy, hatarido, bej_datum, mod, tema FROM esemenyek"
         " WHERE diak_nev='Teszt' AND esemeny_tipus='Bejelentett számonkérés'"
         " ORDER BY hatarido, tantargy").fetchall()
+    conn.close()
+    return rows
+
+
+def feljegyzes_snapshot():
+    conn = sqlite3.connect(k.DB_FILE)
+    rows = conn.execute(
+        "SELECT bej_datum, tipus, ertekelo, cim, tartalom FROM esemenyek"
+        " WHERE diak_nev='Teszt' AND esemeny_tipus='Feljegyzés'"
+        " ORDER BY bej_datum").fetchall()
+    conn.close()
+    return rows
+
+
+def orarend_snapshot():
+    conn = sqlite3.connect(k.DB_FILE)
+    rows = conn.execute(
+        "SELECT kezdo_idopont, zaro_idopont, nap, tantargy, tanar, terem FROM orarend"
+        " WHERE diak_nev='Teszt' ORDER BY kezdo_idopont").fetchall()
     conn.close()
     return rows
 
@@ -378,6 +480,14 @@ k.api_provider_szamonkeresek({{"diak_nev": "Teszt"}}, client_factory=factory)
 szk1 = szamonkeres_snapshot()
 k.api_provider_szamonkeresek({{"diak_nev": "Teszt"}}, client_factory=factory)
 szk2 = szamonkeres_snapshot()
+k.api_provider_feljegyzesek({{"diak_nev": "Teszt"}}, client_factory=factory)
+note1 = feljegyzes_snapshot()
+k.api_provider_feljegyzesek({{"diak_nev": "Teszt"}}, client_factory=factory)
+note2 = feljegyzes_snapshot()
+k.api_provider_orarend({{"diak_nev": "Teszt"}}, client_factory=factory)
+ora1 = orarend_snapshot()
+k.api_provider_orarend({{"diak_nev": "Teszt"}}, client_factory=factory)
+ora2 = orarend_snapshot()
 start, end = k.hianyzas_api_window("Teszt")
 
 print("RESULT=" + json.dumps({{
@@ -394,6 +504,10 @@ print("RESULT=" + json.dumps({{
     "hazi_second": hazi2,
     "szk_first": szk1,
     "szk_second": szk2,
+    "note_first": note1,
+    "note_second": note2,
+    "ora_first": ora1,
+    "ora_second": ora2,
     "window_start": str(start),
     "window_end": str(end),
 }}, ensure_ascii=False))
@@ -476,6 +590,31 @@ ok(szk_first and szk_first[0][1] == "2026. 10. 07.", "a számonkérés napja hel
 ok(szk_first and szk_first[0][3] == "Írásbeli témazáró dolgozat", "a mód az API-ból")
 ok(szk_first and szk_first[0][4] == "Halmazok", "a téma az API-ból")
 ok(payload.get("szk_second") == szk_first, "ismételt futás nem duplikál számonkérést")
+
+print("\n7e) Feljegyzés a valódi DB-ben")
+note_first = payload.get("note_first") or []
+ok(len(note_first) == 1, f"1 feljegyzés mentve: {len(note_first)}")
+ok(note_first and note_first[0][0] == "2026. 10. 09.", "feljegyzés helyi dátuma")
+ok(note_first and note_first[0][1] == "Osztályfőnöki dicséret", "feljegyzés típusa")
+ok(note_first and note_first[0][4] == "Szép munka", "feljegyzés HTML-mentes tartalma")
+ok(payload.get("note_second") == note_first, "ismételt futás nem duplikál feljegyzést")
+
+print("\n7f) Órarend a valódi DB-ben")
+ora_first = payload.get("ora_first") or []
+ok(len(ora_first) == 3, f"3 órarendi elem (2 tanóra + 1 fogadóóra): {len(ora_first)}")
+lesson = next((o for o in ora_first if o[2] == "szerda"), None)
+all_day = next((o for o in ora_first if o[2] == "hétfő"), None)
+fogado = next((o for o in ora_first if o[3] == "Fogadóóra"), None)
+ok(lesson and lesson[0] == "2026-10-07T09:45:00", f"tanóra kezdete helyi: {lesson}")
+ok(lesson and lesson[1] == "2026-10-07T10:30:00", "tanóra vége helyi")
+ok(lesson and lesson[3] == "matematika-6.B", "tantárgy + osztály")
+ok(lesson and lesson[4] == "Erl Andrea" and lesson[5] == "S-F6", "tanár és terem")
+ok(all_day and all_day[0] == "2026-10-26" and all_day[1] == "",
+   "egész napos esemény: dátum, nincs záró idő")
+ok(all_day and all_day[3].startswith("Őszi szünet"), "egész napos esemény neve")
+ok(fogado and fogado[0] == "2026-11-05T16:30:00", f"fogadóóra a naptárban: {fogado}")
+ok(fogado and fogado[4] == "Szentkirályi Zsuzsanna", "fogadóóra tanára")
+ok(payload.get("ora_second") == ora_first, "ismételt futás nem duplikál órarendet")
 
 print("\n8) Igazolások")
 ok(len(payload.get("just_first") or []) == 1, "1 igazolás mentve")

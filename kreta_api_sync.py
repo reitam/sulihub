@@ -18,9 +18,12 @@ from datetime import date, timedelta
 from kreta_api import (
     KretaApiClient,
     lesson_index,
+    normalize_consultations,
     normalize_evaluation,
     normalize_homework,
     normalize_justification,
+    normalize_lesson,
+    normalize_note,
     normalize_omission,
     normalize_test,
     pick_lesson,
@@ -145,3 +148,25 @@ def fetch_homeworks(client, start: date, end: date) -> list[dict]:
 def fetch_announced_tests(client, start: date, end: date) -> list[dict]:
     """Bejelentett számonkérések (dátumok helyi időben)."""
     return [normalize_test(item) for item in client.fetch_announced_tests(start, end)]
+
+
+def week_window(today: date | None = None) -> tuple[date, date]:
+    """Az aktuális és a következő hét: hétfő .. vasárnap (14 nap, helyi idő)."""
+    today = today or date.today()
+    monday = today - timedelta(days=today.weekday())
+    return monday, monday + timedelta(days=13)
+
+
+def fetch_notes(client, start: date, end: date) -> list[dict]:
+    """Feljegyzések normalizált sorai (HTML-mentes tartalom)."""
+    return [normalize_note(item) for item in client.fetch_notes(start, end)]
+
+
+def fetch_lessons(client, start: date, end: date) -> list[dict]:
+    """Órarendi elemek az `orarend` tábla sorformátumában (helyi idő)."""
+    return [normalize_lesson(item) for item in client.fetch_lessons(start, end)]
+
+
+def fetch_consultations(client, start: date, end: date) -> list[dict]:
+    """Fogadóórák az `orarend` tábla sorformátumában (a webes naptárral egyezően)."""
+    return normalize_consultations(client.fetch_consultations(start, end))
