@@ -135,7 +135,8 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 {
   "HEADLESS": true,
   "SCRAPE_MESSAGES": true,
-  "SYNC_MODE": "playwright",
+  "SYNC_MODE": "api_first",
+  "SYNC_SHADOW": false,
   "ENABLE_REWARDS": true,
   "SCHEDULER": {
     "ENABLED": true,
@@ -182,9 +183,9 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 
 | Érték | Jelentés |
 |---|---|
-| `playwright` | **Alap.** Csak a böngészős scraper fut. |
+| `playwright` | Csak a böngészős scraper fut. **Ha a kulcs hiányzik, ez az alap** (biztonságos visszaesés). |
 | `api` | Csak a mobil API (böngésző nélkül); egy adatkör hibája részleges hiba. |
-| `api_first` | Adatkörönként API, hiba esetén automatikus Playwright fallback. |
+| `api_first` | **Ajánlott éles beállítás:** adatkörönként API, hiba esetén automatikus Playwright fallback. |
 
 **`SYNC_SHADOW`** — `api_first` mellett a Playwright is lefut egy **DB-másolaton**, és a
 szinkron csak összehasonlítja a kettőt (a `sync.log`-ban `[ÁRNYÉK]` sorok). A valódi

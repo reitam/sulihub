@@ -349,6 +349,20 @@ derül ki.
 **A deploy NEM másolja** a `config.json`-t, az adatbázist és a `sync.log`-ot (ezek a data
 köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data kötetre másolni.
 
+#### 7.3.1. v1.6.0 (API-first) élesítési ellenőrzőlista
+
+1. `.\deploy.ps1 -Release v1.6.0` — a Chromium **benne marad** az image-ben
+   (`kreta_playwright.py` fallback), a DB/config érintetlen.
+2. A data köteten a `config.json`-ba `"SYNC_MODE": "api_first"` (az első API-s futás
+   utáni ellenőrzéshez `"SYNC_SHADOW": true` is bekapcsolható).
+3. Kézi szinkron indítása a felületről, majd a naplóban ellenőrizni:
+   `Szinkron mód: api_first`, adatkörönként `[API OK]`, a diák végén
+   `adatforrások: API: 8, Playwright: 0`, illetve `[ÁRNYÉK]` sorok (ha be volt kapcsolva).
+4. `/health` a várt verziót adja; a fejlécben is ez látszik.
+5. Fallback-próba (opcionális): ideiglenesen rossz jelszóval/API-hibával futtatni —
+   a naplóban `[API HIBA]` + Playwright-forrás, az adatok nem duplikálódnak.
+6. 1–2 hét után a `SYNC_SHADOW` kikapcsolható; a Playwright csak fallback marad.
+
 ### 7.4. Mentés és visszaállítás
 
 - **Automatikus:** naponta **03:00-kor** (host cron), a konténerből konzisztens
@@ -455,7 +469,11 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 |---|---|---|
 | Nincs felhasználói hitelesítés | belső hálózaton belül bárki eléri | tudatos kompromisszum |
 | Egy processzes ütemező | több worker esetén duplikálódna | Dockerben egy processz fut |
-| KRÉTA DOM-scraping | a KRÉTA felületváltása törheti | az API-first út (v1.6.0) ezt hivatott kiváltani; a Playwright fallback megmarad |
+| KRÉTA DOM-scraping | a KRÉTA felületváltása törheti | az API-first út (v1.6.0) ezt kiváltja; a Playwright fallback megmarad |
+| Táboros hiányzás témája | az API nem ad rá témát (nincs órarendi elem) | a meglévő DB-érték megmarad; új táboros sornál üres |
+| Üzenet-csatolmány letöltése | az eAdmin API nem ad letöltési URL-t | `api_first` módban ilyenkor a webes eÜgyintézés-flow fut (fallback); tiszta `api` módban a fájl kimarad (naplózott figyelmeztetés) |
+| Nincs `MESSAGE_LIMIT` | az első API-s futás az összes üzenetet letölti (nálunk ~76 sor), utána már csak az újakat | tudatos döntés: az inkrementális futások így is 1–5 üzenetet hoznak |
+| Chromium az image-ben | nagyobb image | a Playwright fallback miatt szükséges, amíg az API hosszú távon nem bizonyít |
 | CDN-függő frontend | internet nélkül nem indul a felület | vendorolás a backlogban |
 | `config.json` egyszerű szöveg | jelszavak olvashatók a fájlból | a data kötet védett |
 | WAL nem használt | párhuzamos írások ritkák | FUSE kötet miatt biztonságosabb |
