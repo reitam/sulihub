@@ -169,6 +169,11 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
    ntfy.sh (push)                                  Host: napi mentés (03:00)
 ```
 
+Az API-first szinkron bevezetésével a scraper mellett megjelent a **böngésző nélküli út**
+is: `kreta_api.py` (mobil v3 / eAdmin végpontok + normalizálás a meglévő DB-sémákra) és
+`kreta_sync.py` (forrásmód és adatkör-szintű fallback). A `SYNC_MODE` dönti el, melyik út
+fut — lásd 3.2.1.
+
 ### 3.2. Adatfolyam egy futásnál
 
 1. Az ütemező (vagy a gomb) elindítja a szinkront → a DB-ben létrejön egy `sync_runs` sor
@@ -180,6 +185,23 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
 4. Az alkalmazás lezárja a `sync_runs` sort (státusz, darabszámok, új események, futásidő),
    naplózza, és **push értesítést** küld.
 5. A felület a következő frissítéskor már az új adatokat mutatja.
+
+#### 3.2.1. Forrásmódok (`SYNC_MODE`)
+
+| Mód | Mit jelent |
+|---|---|
+| `playwright` | **Alapértelmezés.** Csak a DOM-scraper fut (a korábbi viselkedés). |
+| `api` | Csak a mobil API; böngésző nem indul. Egy adatkör hibája részleges hiba, a többi adatkör és diák megy tovább. |
+| `api_first` | Adatkörönként először az API; hiba/timeout/parse hiba esetén **automatikus Playwright fallback** arra az adatkörre. |
+
+Az adatkörök: órarend, jegyek, feljegyzések, házi feladatok, bejelentett számonkérések,
+hiányzások/késések, igazolások, üzenetek. A sikeres API-adatkörök `skip` halmazba kerülnek,
+így a Playwright **nem írja felül** őket (nincs dupla írás és dupla „új esemény” értesítés).
+A forrás és a fallback oka a `sync.log`-ba, a gép-olvasható összegzés `sources` mezőjébe és
+a `sync_runs.sources` oszlopba kerül; a `/api/sync/status` is átadja.
+
+> A D3–D7 jegyek állítják át az egyes adatköröket az API-ra. Amíg egy adatkörhöz nincs
+> API-implementáció, az `api`/`api_first` módban is a Playwright fedi le (a napló jelzi).
 
 ### 3.3. Futásállapotok
 
@@ -251,6 +273,7 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 |---|---|
 | `HEADLESS` | A böngésző háttérben fusson-e (élesben igen) |
 | `SCRAPE_MESSAGES` | Üzenetek gyűjtése globálisan |
+| `SYNC_MODE` | A szinkron forrása: `playwright` (alap) / `api` / `api_first` — lásd 3.2.1 |
 | `ENABLE_REWARDS` | Zsebpénz modul globálisan |
 | `REWARDS` | A 2.5. pont tarifái |
 | `KEYWORDS` | A feljegyzések kategorizálásához használt kulcsszavak |
@@ -395,9 +418,11 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **180 automatikus ellenőrzés** nyolc csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **258 automatikus ellenőrzés** tíz csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
-(mentés, összesítő, API, push), **mobil elrendezés** (valódi böngészőben, 393 px szélességen).
+(mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48 ellenőrzés),
+**szinkronmód és fallback** (mód-feloldás + valódi SQLite-on duplikációvédelem),
+**mobil elrendezés** (valódi böngészőben, 393 px szélességen).
 A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 
 ### 9.4. Kiadási folyamat
@@ -416,7 +441,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 |---|---|---|
 | Nincs felhasználói hitelesítés | belső hálózaton belül bárki eléri | tudatos kompromisszum |
 | Egy processzes ütemező | több worker esetén duplikálódna | Dockerben egy processz fut |
-| KRÉTA DOM-scraping | a KRÉTA felületváltása törheti | a JSON API korábban nem bizonyult működőképesnek |
+| KRÉTA DOM-scraping | a KRÉTA felületváltása törheti | az API-first út (v1.6.0) ezt hivatott kiváltani; a Playwright fallback megmarad |
 | CDN-függő frontend | internet nélkül nem indul a felület | vendorolás a backlogban |
 | `config.json` egyszerű szöveg | jelszavak olvashatók a fájlból | a data kötet védett |
 | WAL nem használt | párhuzamos írások ritkák | FUSE kötet miatt biztonságosabb |
@@ -488,6 +513,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.4.1** | **2026-10-29** | Mobil finomítás: **monogram-avatar** a diák oszlopban (szabad hely a **bejegyzés dátumának**), a naptár két lista-gombja külön névvel (Havi/Heti lista), rövidebb mobil fejléc-címkék, **az utolsó frissítés sora mobilon is látszik** (korábban a CSS elrejtette) |
 | **v1.5.0** | **2026-10-29** | **Hiányzások / késések modul:** új `hianyzasok` és `igazolasok` tábla, scraper, „Hiányzások" fül havi összesítővel (igazolt/igazolatlan óra, késés db/perc) és igazolás-listával; **inkrementális mentés dátum + órasorszám alapján** (stabil sor-ID); az új hiányzások és igazolatlan órák a push-üzenetben is megjelennek |
 | **v1.5.1** | **2026-10-30** | Hiányzások fül finomítás: az összesítő első kártyája **„Összes hiányzás" órában** (nem db); a hosszú igazolás-típus és megjegyzés teljes szöveggel, több sorban látszik (tooltipek a többi hosszú mezőn) |
+| **v1.6.0** *(fejlesztés alatt)* | **2026-10-30** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 7 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba. D1–D2 kész, a D3–D7 adatkör-átállások következnek |
 
 ---
 

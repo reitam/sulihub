@@ -61,7 +61,8 @@ sync_state = {
     "total_students": None,
     "new_events": {},
     "new_messages": {},
-    "new_hianyzasok": {}
+    "new_hianyzasok": {},
+    "sources": {}
 }
 sync_lock = threading.Lock()
 
@@ -95,6 +96,7 @@ def ensure_run_tables(conn):
             new_events      TEXT,
             new_messages    TEXT,
             new_hianyzasok  TEXT,
+            sources         TEXT,
             duration_sec    REAL
         )
     """)
@@ -103,6 +105,9 @@ def ensure_run_tables(conn):
     run_cols = [row[1] for row in cur.fetchall()]
     if "new_hianyzasok" not in run_cols:
         cur.execute("ALTER TABLE sync_runs ADD COLUMN new_hianyzasok TEXT")
+    if "sources" not in run_cols:
+        # Adatkörönkénti forrás (API / Playwright) és a fallback oka.
+        cur.execute("ALTER TABLE sync_runs ADD COLUMN sources TEXT")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sync_runs_started ON sync_runs(started_at)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sync_runs_trigger ON sync_runs(trigger, started_at)")
     cur.execute("""
@@ -224,7 +229,7 @@ def record_run_start(trigger, started_at=None):
 
 def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_count=None,
                       failed_students=None, new_events=None, new_messages=None,
-                      new_hianyzasok=None, duration_sec=None):
+                      new_hianyzasok=None, sources=None, duration_sec=None):
     """A futás sorának lezárása."""
     if run_id is None or not _db_ready():
         return
@@ -234,7 +239,7 @@ def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_cou
         cur.execute("""
             UPDATE sync_runs SET finished_at = ?, status = ?, ok_count = ?, total_count = ?,
                    failed_students = ?, new_events = ?, new_messages = ?, new_hianyzasok = ?,
-                   duration_sec = ?
+                   sources = ?, duration_sec = ?
             WHERE id = ?
         """, (
             finished_at or _now_iso(), status, ok_count, total_count,
@@ -242,6 +247,7 @@ def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_cou
             json.dumps(new_events or {}, ensure_ascii=False),
             json.dumps(new_messages or {}, ensure_ascii=False),
             json.dumps(new_hianyzasok or {}, ensure_ascii=False),
+            json.dumps(sources or {}, ensure_ascii=False),
             duration_sec, run_id,
         ))
         conn.commit()
@@ -317,6 +323,7 @@ def _row_to_state(row):
         "last_new_events": _loads(row["new_events"], {}),
         "last_new_messages": _loads(row["new_messages"], {}),
         "last_new_hianyzasok": _loads(row["new_hianyzasok"], {}),
+        "last_sources": _loads(row["sources"], {}),
         "last_duration_sec": row["duration_sec"],
     }
 
@@ -987,6 +994,7 @@ def run_scraper_thread(trigger="manual"):
         sync_state["new_events"] = {}
         sync_state["new_messages"] = {}
         sync_state["new_hianyzasok"] = {}
+        sync_state["sources"] = {}
 
     # A ciklus alapja a futás KEZDEMÉNYEZÉSE (nem a vége), így a ~2,2 perces
     # futás nem tolja el az ütemezést. Az ütemező ciklusához CSAK az ütemezett
@@ -1039,6 +1047,7 @@ def run_scraper_thread(trigger="manual"):
         new_events = {}
         new_messages = {}
         new_hianyzasok = {}
+        sources = {}
         with sync_lock:
             log_lines = list(sync_state["logs"])
         for line in log_lines:
@@ -1051,6 +1060,7 @@ def run_scraper_thread(trigger="manual"):
                     new_events = payload.get("new_events") or {}
                     new_messages = payload.get("new_messages") or {}
                     new_hianyzasok = payload.get("new_hianyzasok") or {}
+                    sources = payload.get("sources") or {}
                 except (ValueError, AttributeError, TypeError):
                     pass
 
@@ -1061,6 +1071,7 @@ def run_scraper_thread(trigger="manual"):
             sync_state["new_events"] = new_events
             sync_state["new_messages"] = new_messages
             sync_state["new_hianyzasok"] = new_hianyzasok
+            sync_state["sources"] = sources
             if sync_state["status"] != "stopped":
                 if process.returncode == 0:
                     sync_state["status"] = "done"
@@ -1090,6 +1101,7 @@ def run_scraper_thread(trigger="manual"):
             final_new_events = sync_state.get("new_events") or {}
             final_new_messages = sync_state.get("new_messages") or {}
             final_new_hianyzasok = sync_state.get("new_hianyzasok") or {}
+            final_sources = sync_state.get("sources") or {}
 
         # A futás sorát lezárjuk a DB-ben (ez a "legutóbbi futás" állapot is).
         duration_sec = (_now() - started_at).total_seconds()
@@ -1100,6 +1112,7 @@ def run_scraper_thread(trigger="manual"):
             failed_students=final_failed,
             new_events=final_new_events, new_messages=final_new_messages,
             new_hianyzasok=final_new_hianyzasok,
+            sources=final_sources,
             duration_sec=duration_sec,
         )
 
@@ -2148,6 +2161,7 @@ def api_sync_status():
             "status": sync_state["status"],
             "trigger": sync_state.get("trigger"),
             "failed_students": list(sync_state.get("failed_students") or []),
+            "sources": dict(sync_state.get("sources") or {}),
             "logs": list(sync_state["logs"]),
         }
     payload["scheduler"] = sched
