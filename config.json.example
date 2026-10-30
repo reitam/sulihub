@@ -1,7 +1,7 @@
 {
   "HEADLESS": true,
   "SCRAPE_MESSAGES": true,
-  "SYNC_MODE": "playwright",
+  "SYNC_MODE": "api_first",
   "SYNC_SHADOW": false,
   "ENABLE_REWARDS": true,
   "SCHEDULER": {
