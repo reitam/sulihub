@@ -137,9 +137,12 @@ async def run_api_datasets(diak: dict, providers: dict[str, ApiProvider],
             continue
         label = LABELS.get(key, key)
         try:
-            result = provider(diak)
-            if asyncio.iscoroutine(result):
-                await result
+            if asyncio.iscoroutinefunction(provider):
+                await provider(diak)
+            else:
+                # A szolgáltatók szinkron HTTP-t és SQLite-ot használnak; a
+                # szálba tesszük, hogy ne blokkolják a Playwright eseményhurkát.
+                await asyncio.to_thread(provider, diak)
         except Exception as exc:  # noqa: BLE001 — az API bármit dobhat
             reason = describe_error(exc)
             tracker.record(key, "api", ok=False, reason=reason)

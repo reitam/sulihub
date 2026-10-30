@@ -9,6 +9,7 @@ import logging.handlers
 from datetime import datetime, timedelta
 from playwright.async_api import async_playwright
 
+import kreta_api_sync
 import kreta_sync
 
 # --- KONFIGURÁCIÓ ÉS LOGGING BEÁLLÍTÁSA ---
@@ -68,8 +69,8 @@ SYNC_MODE = kreta_sync.resolve_sync_mode(config)
 # Adatkör-szintű API-szolgáltatók: kulcs -> függvény(diák dict) -> None.
 # A szolgáltató lekér és ment (nincs benne Playwright); hibát dobhat, arra a
 # hívó (kreta_sync.run_api_datasets) fallbackot indít vagy hibát naplóz.
-# A D3–D7 jegyek töltik fel; az üresen maradó adatkör Playwrighttal megy.
-API_PROVIDERS = {}
+# A szolgáltatók a fájl alján, a mentő függvények után vannak regisztrálva;
+# az üresen maradó adatkör Playwrighttal megy.
 
 if not STUDENTS:
     log("HIBA: A config.json nem tartalmaz 'STUDENTS' listát!")
@@ -498,6 +499,103 @@ def diff_hianyzas_counts(before_keys, rows):
             continue  # késés — nem számít hiányzó órának
         igazolatlan += 1
     return {"db": len(new_rows), "igazolatlan_ora": igazolatlan}
+
+
+# ── API-szolgáltatók (D3–D7) ────────────────────────────────────────────────
+PRESERVED_HIANYZAS_FIELDS = ("tema", "tanar", "tanorai_celu")
+
+
+def get_existing_hianyzas_fields(diak_nev):
+    """A meglévő hiányzás-sorok megőrzendő mezői: kulcs -> {téma, tanár, tanórai cél}."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    existing = {}
+    try:
+        cursor.execute(
+            "SELECT kreta_id, mulasztas_datum, ora_sorszam, tantargy, mulasztas_tipus, "
+            "perc, tema, tanar, tanorai_celu FROM hianyzasok WHERE diak_nev = ?",
+            (diak_nev,),
+        )
+        for r in cursor.fetchall():
+            key = hianyzas_key({
+                "kreta_id": r[0], "mulasztas_datum": r[1], "ora_sorszam": r[2],
+                "tantargy": r[3], "mulasztas_tipus": r[4], "perc": r[5],
+            })
+            existing[key] = {
+                "tema": r[6] or "", "tanar": r[7] or "", "tanorai_celu": r[8] or "",
+            }
+    except Exception as ex:
+        log(f"  [DB lekérdezési hiba - meglévő hiányzás mezők]: {ex}")
+    finally:
+        conn.close()
+    return existing
+
+
+def merge_existing_hianyzas_fields(rows, existing):
+    """Az API-ból hiányzó mezőket (pl. táboros téma) a meglévő DB-sorból pótolja.
+
+    A `/sajat/Mulasztasok` nem ad témát a tanórai célú (táboros) hiányzásokhoz,
+    és az órarendi join sem talál hozzá órát — ilyenkor a korábbi webes érték
+    marad, nem törlődik.
+    """
+    for row in rows:
+        old = existing.get(hianyzas_key(row))
+        if not old:
+            continue
+        for field in PRESERVED_HIANYZAS_FIELDS:
+            if not str(row.get(field) or "").strip() and str(old.get(field) or "").strip():
+                row[field] = old[field]
+    return rows
+
+
+def hianyzas_api_window(diak_nev):
+    """Az API-lekérés ablaka a DB legkorábbi hiányzásához igazítva."""
+    conn = sqlite3.connect(DB_FILE)
+    earliest = None
+    try:
+        row = conn.execute(
+            "SELECT MIN(mulasztas_datum) FROM hianyzasok WHERE diak_nev = ?", (diak_nev,)
+        ).fetchone()
+        earliest = row[0] if row else None
+    except Exception as ex:
+        log(f"  [DB lekérdezési hiba - hiányzás ablak]: {ex}")
+    finally:
+        conn.close()
+    return kreta_api_sync.omission_window(earliest)
+
+
+def api_provider_hianyzasok(student, client_factory=None):
+    """Hiányzások/késések frissítése a mobil API-ból (inkrementális, stabil ID)."""
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+    start, end = hianyzas_api_window(diak_nev)
+    log(f"\n[API] Hiányzások lekérése: {start} .. {end} ...")
+    client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
+    rows = kreta_api_sync.fetch_omissions(client, start, end)
+    merge_existing_hianyzas_fields(rows, get_existing_hianyzas_fields(diak_nev))
+    before = get_hianyzas_key_set(diak_nev)
+    save_hianyzasok_to_db(diak_nev, rows)
+    uj = diff_hianyzas_counts(before, rows)
+    NEW_HIANYZAS_COUNTS[diak_nev] = uj
+    if uj.get("db"):
+        log(f"    [ÚJ HIÁNYZÁS]: {uj['db']} db (ebből {uj.get('igazolatlan_ora', 0)} igazolatlan óra)")
+    keses = sum(1 for r in rows if r.get("perc") is not None)
+    log(f"  [HIÁNYZÁSOK OK] {len(rows)} db mulasztás az API-ból ({keses} db késés).")
+
+
+def api_provider_igazolasok(student, client_factory=None):
+    """Igazolások frissítése a mobil API-ból (KRÉTA ID a kulcs)."""
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+    log("\n[API] Igazolások lekérése ...")
+    client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
+    rows = kreta_api_sync.fetch_justifications(client)
+    save_igazolasok_to_db(diak_nev, rows)
+    log(f"  [IGAZOLÁSOK OK] {len(rows)} db igazolás az API-ból.")
+
+
+API_PROVIDERS = {
+    "hianyzasok": api_provider_hianyzasok,
+    "igazolasok": api_provider_igazolasok,
+}
 
 
 VOLATILE_EVENT_TYPES = ("Értékelés", "Feljegyzés")
@@ -1709,6 +1807,7 @@ async def run_students(active_students, page):
             SYNC_SOURCES[diak_nev] = tracker.as_dict()
             if tracker.outcomes:
                 log(f"  {diak_nev} adatforrások: {tracker.summary_line()}")
+    kreta_api_sync.close_clients()
     return ok_count, failed
 
 
