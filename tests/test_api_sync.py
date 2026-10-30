@@ -22,10 +22,12 @@ sys.path.insert(0, str(ROOT))
 
 from kreta_api_sync import (  # noqa: E402
     DEFAULT_LOOKBACK_DAYS,
+    api_window,
     apply_lesson_join,
+    fetch_evaluations,
     fetch_justifications,
     fetch_omissions,
-    omission_window,
+    parse_stored_date,
 )
 
 _hibak = []
@@ -38,12 +40,13 @@ def ok(condition, message):
 
 
 class FakeClient:
-    """Csak a D3-hoz szükséges végpontokat utánozza (nincs hálózat)."""
+    """Csak a D3–D4-hez szükséges végpontokat utánozza (nincs hálózat)."""
 
-    def __init__(self, omissions=None, lessons=None, justifications=None):
+    def __init__(self, omissions=None, lessons=None, justifications=None, evaluations=None):
         self._omissions = omissions or []
         self._lessons = lessons or []
         self._justifications = justifications or []
+        self._evaluations = evaluations or []
         self.calls = []
 
     def fetch_omissions(self, start, end):
@@ -58,18 +61,27 @@ class FakeClient:
         self.calls.append(("justifications",))
         return list(self._justifications)
 
+    def fetch_evaluations(self, start, end):
+        self.calls.append(("evaluations", start, end))
+        return list(self._evaluations)
+
 
 print("1) Lekérési ablak")
 today = date(2026, 10, 30)
-start, end = omission_window(None, today=today)
+start, end = api_window(None, today=today)
 ok(end == today, "a záró dátum a mai nap")
 ok((today - start).days == DEFAULT_LOOKBACK_DAYS, f"alap visszatekintés: {DEFAULT_LOOKBACK_DAYS} nap")
-start2, _ = omission_window("2025-01-15", today=today)
+start2, _ = api_window("2025-01-15", today=today)
 ok(start2 == date(2025, 1, 15), "a DB legkorábbi sora tágítja az ablakot")
-start3, _ = omission_window("2026-09-01", today=today)
+start3, _ = api_window("2026-09-01", today=today)
 ok(start3 == start, "a későbbi DB-dátum nem szűkíti az ablakot")
-start4, _ = omission_window("hibás-dátum", today=today)
+start4, _ = api_window("hibás-dátum", today=today)
 ok(start4 == start, "értelmezhetetlen DB-dátum -> alap ablak")
+ok(parse_stored_date("2024. 05. 10.") == date(2024, 5, 10), "magyar formátumú dátum olvasása")
+ok(parse_stored_date("2026-09-14") == date(2026, 9, 14), "ISO dátum olvasása")
+ok(parse_stored_date("2026. 13. 40.") is None, "érvénytelen dátum -> None")
+start5, _ = api_window("2024. 05. 10.", today=today)
+ok(start5 == date(2024, 5, 10), "a magyar formátumú DB-dátum is tágítja az ablakot")
 
 print("\n2) Órarendi join (párhuzamos csoportok)")
 lessons = [
@@ -118,7 +130,32 @@ ok(fetched[1]["tema"] == "Halmazok", "a rendes hiányzás témája az órarendb�
 ok(fetched[1]["igazolt"] == 0, "Igazolando -> még nem igazolt")
 ok(fetched[0]["tema"] == "", "a táboros sor témája üres az API-ból")
 
-print("\n4) Igazolások fake klienssel")
+print("\n4) Jegyek normalizálása (Magatartás/Szorgalom)")
+grades = FakeClient(evaluations=[
+    {"Uid": "1", "Tantargy": {"Nev": "Irodalom"}, "Tema": "Dolgozat",
+     "SzovegesErtek": "Jeles(5)", "SzamErtek": 5, "ErtekeloTanarNeve": "Minta Gáborné",
+     "Tipus": {"Leiras": "Évközi jegy/értékelés"}, "Mod": {"Leiras": "Órai munka"},
+     "RogzitesDatuma": "2026-09-13T22:00:00Z",
+     "KeszitesDatuma": "2026-09-14T08:01:56Z"},
+    {"Uid": "2", "Tantargy": {"Nev": "Magatartás"}, "Tema": None,
+     "SzovegesErtek": "Példás", "SzamErtek": 0, "ErtekeloTanarNeve": "Osztályfőnök",
+     "Tipus": {"Leiras": "Évközi jegy/értékelés"}, "RogzitesDatuma": "2026-10-06T22:00:00Z"},
+    {"Uid": "3", "Tantargy": {"Nev": "Szorgalom"}, "Tema": None,
+     "SzovegesErtek": "Példás", "SzamErtek": 0, "ErtekeloTanarNeve": "Osztályfőnök",
+     "Tipus": {"Leiras": "Évközi jegy/értékelés"}, "RogzitesDatuma": "2026-10-06T22:00:00Z"},
+])
+grows = fetch_evaluations(grades, today, today)
+ok(len(grows) == 3, f"3 értékelés: {len(grows)}")
+ok(all(g["esemeny_tipus"] == "Értékelés" for g in grows), "mind Értékelés típus")
+ok(grows[0]["bej_datum"] == "2026. 09. 14.", f"bej_datum helyi idő: {grows[0]['bej_datum']}")
+ok(grows[0]["szam_ertek"] == 5 and grows[0]["ertek"] == "Jeles(5)", "szöveges + szám érték")
+ok(grows[0]["ertekelo"] == "Minta Gáborné", "értékelő tanár")
+ok(grows[1]["tantargy"] == "Magatartás" and grows[1]["szam_ertek"] == 0,
+   "a Magatartás külön sor, 0 számértékkel (nem rontja az átlagot)")
+ok(grows[2]["tantargy"] == "Szorgalom" and grows[2]["szam_ertek"] == 0,
+   "a Szorgalom külön sor, 0 számértékkel")
+
+print("\n5) Igazolások fake klienssel")
 just = FakeClient(justifications=[{
     "Id": 563578, "Kezdete": "2026-09-13T22:00:00Z", "Vege": "2026-09-16T22:00:00Z",
     "Tipusa": {"Leiras": "Orvosi igazolás"}, "Megjegyzes": "<p>EESZT</p>",
@@ -179,6 +216,16 @@ JUSTIFICATIONS = [
     {{"Id": 563578, "Kezdete": "2026-09-13T22:00:00Z", "Vege": "2026-09-16T22:00:00Z",
       "Tipusa": {{"Leiras": "Orvosi igazolás"}}, "Megjegyzes": "EESZT"}},
 ]
+EVALUATIONS = [
+    {{"Uid": "1", "Tantargy": {{"Nev": "Irodalom"}}, "Tema": "Dolgozat",
+      "SzovegesErtek": "Jeles(5)", "SzamErtek": 5, "ErtekeloTanarNeve": "Minta Gáborné",
+      "Tipus": {{"Leiras": "Évközi jegy/értékelés"}}, "Mod": {{"Leiras": "Órai munka"}},
+      "RogzitesDatuma": "2026-09-13T22:00:00Z"}},
+    {{"Uid": "2", "Tantargy": {{"Nev": "Magatartás"}}, "Tema": None,
+      "SzovegesErtek": "Példás", "SzamErtek": 0, "ErtekeloTanarNeve": "Osztályfőnök",
+      "Tipus": {{"Leiras": "Évközi jegy/értékelés"}},
+      "RogzitesDatuma": "2026-10-06T22:00:00Z"}},
+]
 
 
 class FakeClient:
@@ -195,6 +242,19 @@ class FakeClient:
 
     def fetch_justifications(self):
         return JUSTIFICATIONS
+
+    def fetch_evaluations(self, start, end):
+        return EVALUATIONS
+
+
+def grades_snapshot():
+    conn = sqlite3.connect(k.DB_FILE)
+    rows = conn.execute(
+        "SELECT tantargy, ertek, szam_ertek, bej_datum FROM esemenyek"
+        " WHERE diak_nev='Teszt' AND esemeny_tipus='Értékelés'"
+        " ORDER BY bej_datum, tantargy").fetchall()
+    conn.close()
+    return rows
 
 
 def snapshot():
@@ -221,6 +281,10 @@ k.api_provider_igazolasok({{"diak_nev": "Teszt"}}, client_factory=factory)
 _, ig1 = snapshot()
 k.api_provider_igazolasok({{"diak_nev": "Teszt"}}, client_factory=factory)
 _, ig2 = snapshot()
+k.api_provider_jegyek({{"diak_nev": "Teszt"}}, client_factory=factory)
+grades1 = grades_snapshot()
+k.api_provider_jegyek({{"diak_nev": "Teszt"}}, client_factory=factory)
+grades2 = grades_snapshot()
 start, end = k.hianyzas_api_window("Teszt")
 
 print("RESULT=" + json.dumps({{
@@ -231,6 +295,8 @@ print("RESULT=" + json.dumps({{
     "counts_first": counts_first,
     "just_first": ig1,
     "just_second": ig2,
+    "grades_first": grades1,
+    "grades_second": grades2,
     "window_start": str(start),
     "window_end": str(end),
 }}, ensure_ascii=False))
@@ -257,7 +323,7 @@ for line in out.splitlines():
     if line.startswith("RESULT="):
         payload = json.loads(line.split("=", 1)[1])
 
-print("\n5) Táboros téma megőrzése (valódi DB)")
+print("\n6) Táboros téma megőrzése (valódi DB)")
 ok(result.returncode == 0, f"a próba lefutott (exit={result.returncode})")
 rows_first = payload.get("rows_first") or []
 ok(len(rows_first) == 2, f"2 hiányzás a mentés után: {len(rows_first)}")
@@ -272,7 +338,7 @@ ok(regular and regular[5] == "Halmazok", f"a rendes hiányzás témája az órar
 ok(regular and regular[6] == "Minta Andrea", "a rendes hiányzás tanára az órarendből")
 ok(regular and regular[8] == 0, "az Igazolando sor igazolatlan")
 
-print("\n6) Inkrementális, stabil ID")
+print("\n7) Inkrementális, stabil ID")
 ok(payload.get("same_rows") is True, "ismételt futás után a sorok változatlanok")
 ok(payload.get("same_ids") is True, "a sor-ID-k stabilak")
 ok((payload.get("counts_first") or {}).get("Teszt", {}).get("db") == 1,
@@ -281,12 +347,26 @@ ok((payload.get("counts_first") or {}).get("Teszt", {}).get("db") == 1,
 ok((payload.get("counts_first") or {}).get("Teszt", {}).get("igazolatlan_ora") == 1,
    "1 új igazolatlan óra")
 
-print("\n7) Igazolások")
+print("\n7b) Jegyek a valódi DB-ben")
+grades_first = payload.get("grades_first") or []
+ok(len(grades_first) == 2, f"2 értékelés mentve: {len(grades_first)}")
+by_subject = {g[0]: g for g in grades_first}
+ok(by_subject.get("Irodalom", [None, None, None, None])[3] == "2026. 09. 14.",
+   "a jegy bej_datum helyi dátum")
+ok(by_subject.get("Irodalom", [None] * 4)[2] == 5, "az Irodalom számértéke 5")
+ok(by_subject.get("Magatartás", [None] * 4)[2] == 0,
+   "a Magatartás 0 számértékkel (nem számít az átlagba)")
+ok(payload.get("grades_second") == grades_first, "ismételt futás nem duplikál jegyet")
+numeric = [g[2] for g in grades_first if g[2] in (1, 2, 3, 4, 5)]
+ok(numeric and round(sum(numeric) / len(numeric), 2) == 5.0,
+   f"az átlag csak a numerikus jegyekből: {numeric}")
+
+print("\n8) Igazolások")
 ok(len(payload.get("just_first") or []) == 1, "1 igazolás mentve")
 ok(payload.get("just_second") == payload.get("just_first"), "ismételt futás nem duplikál")
 ok((payload.get("just_first") or [[None]])[0][0] == "563578", "igazolás ID a kulcs")
 
-print("\n8) Lekérési ablak a DB-ből")
+print("\n9) Lekérési ablak a DB-ből")
 ok(payload.get("window_start") == str(date.today() - timedelta(days=DEFAULT_LOOKBACK_DAYS)),
    f"ablak kezdete egy évvel korábbra esik: {payload.get('window_start')}")
 ok(payload.get("window_end") == str(date.today()), "ablak vége a mai nap")
