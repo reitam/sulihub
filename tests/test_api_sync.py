@@ -30,6 +30,7 @@ from kreta_api_sync import (  # noqa: E402
     fetch_homeworks,
     fetch_justifications,
     fetch_lessons,
+    fetch_messages,
     fetch_notes,
     fetch_omissions,
     parse_stored_date,
@@ -49,7 +50,8 @@ class FakeClient:
     """Csak a D3–D5-höz szükséges végpontokat utánozza (nincs hálózat)."""
 
     def __init__(self, omissions=None, lessons=None, justifications=None, evaluations=None,
-                 homeworks=None, announced_tests=None, notes=None, consultations=None):
+                 homeworks=None, announced_tests=None, notes=None, consultations=None,
+                 messages=None):
         self._omissions = omissions or []
         self._lessons = lessons or []
         self._justifications = justifications or []
@@ -58,6 +60,7 @@ class FakeClient:
         self._announced_tests = announced_tests or []
         self._notes = notes or []
         self._consultations = consultations or []
+        self._messages = messages or []
         self.calls = []
 
     def fetch_omissions(self, start, end):
@@ -91,6 +94,10 @@ class FakeClient:
     def fetch_consultations(self, start, end):
         self.calls.append(("consultations", start, end))
         return list(self._consultations)
+
+    def fetch_messages(self):
+        self.calls.append(("messages",))
+        return list(self._messages)
 
 
 print("1) Lekérési ablak")
@@ -255,6 +262,23 @@ ok(crows[0]["start"] == "2026-11-05T16:30:00" and crows[0]["title"] == "Fogadó�
 ok(crows[0]["tanarNev"] == "Szentkirályi Zsuzsanna" and crows[0]["teremNev"] == "S-F6",
    "fogadóóra tanára és terme")
 
+print("\n4d) Üzenet normalizálása")
+msg_client = FakeClient(messages=[
+    {"azonosito": 1, "isElolvasva": True, "uzenet": {
+        "azonosito": 10, "feladoNev": "Szőke Gáborné", "feladoTitulus": "tanár",
+        "targy": "Első üzenet", "kuldesDatum": "2026-09-22T01:33:31",
+        "szoveg": "<p>Első</p><p>üzenet</p>",
+        "csatolmanyok": [{"azonosito": 5, "fajlNev": "tajekoztato.pdf"}],
+    }},
+])
+mrows = fetch_messages(msg_client)
+ok(len(mrows) == 1, "1 üzenet")
+ok(mrows[0]["felado"] == "Szőke Gáborné (tanár)", "feladó + titulus")
+ok(mrows[0]["idopont"] == "2026. 09. 22. 1:33", "üzenet helyi ideje")
+ok(mrows[0]["szoveg"] == "Első üzenet", "üzenet HTML-mentes")
+ok(mrows[0]["csatolmanyok"][0]["fajlNev"] == "tajekoztato.pdf", "csatolmány neve")
+ok(mrows[0]["olvasott"] is True, "olvasottság")
+
 print("\n5) Igazolások fake klienssel")
 just = FakeClient(justifications=[{
     "Id": 563578, "Kezdete": "2026-09-13T22:00:00Z", "Vege": "2026-09-16T22:00:00Z",
@@ -335,6 +359,17 @@ CONSULTATIONS = [
                        "KezdoIdopont": "2026-11-05T15:30:00Z",
                        "VegIdopont": "2026-11-05T17:30:00Z"}}]}},
 ]
+MESSAGES = [
+    {{"azonosito": 1, "isElolvasva": True, "uzenet": {{
+        "azonosito": 10, "feladoNev": "Szőke Gáborné", "feladoTitulus": "tanár",
+        "targy": "Első üzenet", "kuldesDatum": "2026-09-22T01:33:31",
+        "szoveg": "<p>Első</p><p>üzenet</p>", "csatolmanyok": []}}}},
+    {{"azonosito": 2, "isElolvasva": False, "uzenet": {{
+        "azonosito": 11, "feladoNev": "Turzáné Papp Erika", "feladoTitulus": "főigazgató",
+        "targy": "Csatolmányos", "kuldesDatum": "2026-10-21T14:46:00",
+        "szoveg": "Csatolmányos üzenet",
+        "csatolmanyok": [{{"azonosito": 5, "fajlNev": "tajekoztato.pdf"}}]}}}},
+]
 JUSTIFICATIONS = [
     {{"Id": 563578, "Kezdete": "2026-09-13T22:00:00Z", "Vege": "2026-09-16T22:00:00Z",
       "Tipusa": {{"Leiras": "Orvosi igazolás"}}, "Megjegyzes": "EESZT"}},
@@ -394,6 +429,9 @@ class FakeClient:
     def fetch_consultations(self, start, end):
         return CONSULTATIONS
 
+    def fetch_messages(self):
+        return MESSAGES
+
 
 def grades_snapshot():
     conn = sqlite3.connect(k.DB_FILE)
@@ -444,6 +482,15 @@ def orarend_snapshot():
     return rows
 
 
+def uzenet_snapshot():
+    conn = sqlite3.connect(k.DB_FILE)
+    rows = conn.execute(
+        "SELECT felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal"
+        " FROM uzenetek WHERE diak_nev='Teszt' ORDER BY idopont").fetchall()
+    conn.close()
+    return rows
+
+
 def snapshot():
     conn = sqlite3.connect(k.DB_FILE)
     rows = conn.execute(
@@ -488,6 +535,34 @@ k.api_provider_orarend({{"diak_nev": "Teszt"}}, client_factory=factory)
 ora1 = orarend_snapshot()
 k.api_provider_orarend({{"diak_nev": "Teszt"}}, client_factory=factory)
 ora2 = orarend_snapshot()
+
+# --- D7: üzenetek ---
+k.SYNC_MODE = "api"
+k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
+uz1 = uzenet_snapshot()
+uj1 = k.NEW_MESSAGE_COUNTS.get("Teszt")
+k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
+uz2 = uzenet_snapshot()
+uj2 = k.NEW_MESSAGE_COUNTS.get("Teszt")
+
+# új csatolmányos üzenet: api_first módban Playwright-fallbackot kér
+MESSAGES.append({{"azonosito": 3, "isElolvasva": False, "uzenet": {{
+    "azonosito": 12, "feladoNev": "Szentkirályi Zsuzsanna", "feladoTitulus": "tanár",
+    "targy": "Új csatolmányos", "kuldesDatum": "2026-10-29T08:00:00",
+    "szoveg": "Új üzenet", "csatolmanyok": [{{"azonosito": 6, "fajlNev": "uj.pdf"}}]}}}})
+k.SYNC_MODE = "api_first"
+try:
+    k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
+    fallback_error = ""
+except Exception as exc:
+    fallback_error = str(exc)
+uz3 = uzenet_snapshot()
+
+# api módban a fájl nélkül menti
+k.SYNC_MODE = "api"
+k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
+uz4 = uzenet_snapshot()
+
 start, end = k.hianyzas_api_window("Teszt")
 
 print("RESULT=" + json.dumps({{
@@ -508,6 +583,13 @@ print("RESULT=" + json.dumps({{
     "note_second": note2,
     "ora_first": ora1,
     "ora_second": ora2,
+    "uz_first": uz1,
+    "uz_second": uz2,
+    "uz_after_fallback": uz3,
+    "uz_api_mode": uz4,
+    "uj_first": uj1,
+    "uj_second": uj2,
+    "fallback_error": fallback_error,
     "window_start": str(start),
     "window_end": str(end),
 }}, ensure_ascii=False))
@@ -615,6 +697,30 @@ ok(all_day and all_day[3].startswith("Őszi szünet"), "egész napos esemény ne
 ok(fogado and fogado[0] == "2026-11-05T16:30:00", f"fogadóóra a naptárban: {fogado}")
 ok(fogado and fogado[4] == "Szentkirályi Zsuzsanna", "fogadóóra tanára")
 ok(payload.get("ora_second") == ora_first, "ismételt futás nem duplikál órarendet")
+
+print("\n7g) Üzenetek a valódi DB-ben")
+uz_first = payload.get("uz_first") or []
+ok(len(uz_first) == 2, f"2 üzenet mentve: {len(uz_first)}")
+elso = next((u for u in uz_first if u[1] == "Első üzenet"), None)
+csat = next((u for u in uz_first if u[1] == "Csatolmányos"), None)
+ok(elso and elso[0] == "Szőke Gáborné (tanár)", f"feladó + titulus: {elso}")
+ok(elso and elso[2] == "2026. 09. 22. 1:33", "üzenet helyi ideje")
+ok(elso and elso[3] == "Első üzenet", "üzenet szövege HTML-mentes")
+ok(csat and csat[4] == "tajekoztato.pdf", "a csatolmány neve mentve")
+ok(csat and csat[5] == "", "api módban a fájl útvonala üres")
+ok(payload.get("uj_first") == 2, f"első futás: 2 új üzenet: {payload.get('uj_first')}")
+ok(payload.get("uz_second") == uz_first, "ismételt futás nem duplikál üzenetet")
+ok(payload.get("uj_second") == 0, "ismételt futás: 0 új üzenet")
+
+print("\n7h) Új csatolmányos üzenet: fallback kérés")
+ok("csatolmánnyal" in (payload.get("fallback_error") or ""),
+   f"api_first módban hibát dob (fallback): {payload.get('fallback_error')}")
+ok(payload.get("uz_after_fallback") == uz_first,
+   "a fallback előtt nem menti el az üzenetet (nincs fájl nélküli sor)")
+uz_api = payload.get("uz_api_mode") or []
+ok(len(uz_api) == 3, f"api módban a fájl nélkül is menti: {len(uz_api)}")
+ok(any(u[1] == "Új csatolmányos" and u[4] == "uj.pdf" for u in uz_api),
+   "az új üzenet csatolmány-neve is megvan")
 
 print("\n8) Igazolások")
 ok(len(payload.get("just_first") or []) == 1, "1 igazolás mentve")
