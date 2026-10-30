@@ -135,6 +135,7 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 {
   "HEADLESS": true,
   "SCRAPE_MESSAGES": true,
+  "SYNC_MODE": "playwright",
   "ENABLE_REWARDS": true,
   "SCHEDULER": {
     "ENABLED": true,
@@ -176,6 +177,18 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 
 > A fájl **UTF-8 BOM**-mal is olvasható (Notepad-barát). A jelszavak sima szövegben
 > vannak — a fájl a data köteten, védett könyvtárban él.
+
+**`SYNC_MODE`** — a szinkron forrása:
+
+| Érték | Jelentés |
+|---|---|
+| `playwright` | **Alap.** Csak a böngészős scraper fut. |
+| `api` | Csak a mobil API (böngésző nélkül); egy adatkör hibája részleges hiba. |
+| `api_first` | Adatkörönként API, hiba esetén automatikus Playwright fallback. |
+
+A forrás és a fallback oka a `sync.log`-ban és a futásnapló `sources` mezőjében látszik
+(`DOKUMENTACIO.md` 3.2.1). Amelyik adatkörhöz még nincs API-implementáció, azt a
+Playwright fedi le.
 
 ### Környezeti változók
 
@@ -274,9 +287,10 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**8 csomag, 180 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**10 csomag, 258 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
-migráció, hiányzások/igazolások, **mobil elrendezés** (valódi böngésző, 393 px).
+migráció, hiányzások/igazolások, **API-kliens** (fake HTTP), **szinkronmód/fallback**,
+**mobil elrendezés** (valódi böngésző, 393 px).
 Részletek: [`tests/README.md`](tests/README.md).
 
 ---

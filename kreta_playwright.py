@@ -9,6 +9,8 @@ import logging.handlers
 from datetime import datetime, timedelta
 from playwright.async_api import async_playwright
 
+import kreta_sync
+
 # --- KONFIGURÁCIÓ ÉS LOGGING BEÁLLÍTÁSA ---
 # Az útvonalak felülírhatók környezeti változókkal (Docker): alapból a régi,
 # relatív elrendezés él (lokális futtatás), a konténerben KRETA_DATA_DIR=/app/data.
@@ -60,6 +62,14 @@ except ValueError as e:
 HEADLESS_MODE = config.get("HEADLESS", True)
 STUDENTS = config.get("STUDENTS", [])
 GLOBAL_SCRAPE_MESSAGES = config.get("SCRAPE_MESSAGES", True)
+# Szinkron forrása: playwright | api | api_first (lásd kreta_sync.py).
+SYNC_MODE = kreta_sync.resolve_sync_mode(config)
+
+# Adatkör-szintű API-szolgáltatók: kulcs -> függvény(diák dict) -> None.
+# A szolgáltató lekér és ment (nincs benne Playwright); hibát dobhat, arra a
+# hívó (kreta_sync.run_api_datasets) fallbackot indít vagy hibát naplóz.
+# A D3–D7 jegyek töltik fel; az üresen maradó adatkör Playwrighttal megy.
+API_PROVIDERS = {}
 
 if not STUDENTS:
     log("HIBA: A config.json nem tartalmaz 'STUDENTS' listát!")
@@ -490,53 +500,101 @@ def diff_hianyzas_counts(before_keys, rows):
     return {"db": len(new_rows), "igazolatlan_ora": igazolatlan}
 
 
+VOLATILE_EVENT_TYPES = ("Értékelés", "Feljegyzés")
+
+
+def _insert_esemeny(cursor, diak_nev, e, completed_set, existing_hazi, existing_szamonkeres):
+    """Egy eseménysor beszúrása; visszaadja, hogy történt-e beszúrás."""
+    es_tipus = e.get('esemeny_tipus', '')
+    kesz_val = 0
+
+    if es_tipus == 'Házi feladat':
+        key = f"{e.get('tantargy', '')}|{e.get('bej_datum', '')}|{e.get('hatarido', '')}"
+        if key in existing_hazi:
+            return False
+        if key in completed_set:
+            kesz_val = 1
+
+    elif es_tipus == 'Bejelentett számonkérés':
+        key = f"{e.get('tantargy', '')}|{e.get('bej_datum', '')}|{e.get('hatarido', '')}"
+        if key in existing_szamonkeres:
+            return False
+
+    cursor.execute('''
+        INSERT INTO esemenyek 
+        (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        diak_nev, 
+        es_tipus,
+        e.get('tantargy', ''),
+        e.get('ertek', ''),
+        e.get('szam_ertek', 0),
+        e.get('bej_datum', ''),
+        e.get('hatarido', ''),
+        e.get('ertekelo', ''),
+        e.get('tipus', ''),
+        e.get('mod', ''),
+        e.get('tema', ''),
+        e.get('cim', ''),
+        e.get('tartalom', ''),
+        kesz_val
+    ))
+    return True
+
+
 def save_esemenyek_to_db(diak_nev, esemenyek, completed_set):
     """Menti az adott diák kinyert eseményeit az adatbázisba megőrizve a korábbi 'kesz' státuszt és elkerülve a duplikációkat."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    
-    existing_hazi = get_existing_hazi_keys(diak_nev)
-    existing_szamonkeres = get_existing_szamonkeres_keys(diak_nev)
+    try:
+        existing_hazi = get_existing_hazi_keys(diak_nev)
+        existing_szamonkeres = get_existing_szamonkeres_keys(diak_nev)
+        for e in esemenyek:
+            _insert_esemeny(cursor, diak_nev, e, completed_set,
+                            existing_hazi, existing_szamonkeres)
+        conn.commit()
+    except Exception as ex:
+        log(f"  [Hiba az események mentésekor]: {ex}")
+    finally:
+        conn.close()
 
-    for e in esemenyek:
-        es_tipus = e.get('esemeny_tipus', '')
-        kesz_val = 0
-        
-        if es_tipus == 'Házi feladat':
-            key = f"{e.get('tantargy', '')}|{e.get('bej_datum', '')}|{e.get('hatarido', '')}"
-            if key in existing_hazi:
+
+def save_esemenyek_by_type(diak_nev, esemenyek, completed_set, tipusok):
+    """Típusonkénti mentés: az API-ból már frissült típusokat ki lehet hagyni.
+
+    - `Értékelés` / `Feljegyzés`: teljes csere (a KRÉTA-ból eltűnt sor törlődik);
+    - `Házi feladat` / `Bejelentett számonkérés`: inkrementális, a korábbi
+      `kesz` jelölés és a duplikátumvédelem megmarad.
+
+    Csak a `tipusok` listában szereplő sorok íródnak ki, így a Playwright és az
+    API út ugyanabban a futásban nem írja felül egymást.
+    """
+    tipusok = tuple(tipusok)
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        for tipus in tipusok:
+            if tipus in VOLATILE_EVENT_TYPES:
+                cursor.execute(
+                    "DELETE FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus = ?",
+                    (diak_nev, tipus),
+                )
+        existing_hazi = get_existing_hazi_keys(diak_nev) if 'Házi feladat' in tipusok else set()
+        existing_szamonkeres = (
+            get_existing_szamonkeres_keys(diak_nev)
+            if 'Bejelentett számonkérés' in tipusok else set()
+        )
+        for e in esemenyek:
+            if e.get('esemeny_tipus') not in tipusok:
                 continue
-            if key in completed_set:
-                kesz_val = 1
-
-        elif es_tipus == 'Bejelentett számonkérés':
-            key = f"{e.get('tantargy', '')}|{e.get('bej_datum', '')}|{e.get('hatarido', '')}"
-            if key in existing_szamonkeres:
-                continue
-
-        cursor.execute('''
-            INSERT INTO esemenyek 
-            (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            diak_nev, 
-            es_tipus,
-            e.get('tantargy', ''),
-            e.get('ertek', ''),
-            e.get('szam_ertek', 0),
-            e.get('bej_datum', ''),
-            e.get('hatarido', ''),
-            e.get('ertekelo', ''),
-            e.get('tipus', ''),
-            e.get('mod', ''),
-            e.get('tema', ''),
-            e.get('cim', ''),
-            e.get('tartalom', ''),
-            kesz_val
-        ))
-        
-    conn.commit()
-    conn.close()
+            _insert_esemeny(cursor, diak_nev, e, completed_set,
+                            existing_hazi, existing_szamonkeres)
+        conn.commit()
+    except Exception as ex:
+        log(f"  [Hiba az események mentésekor]: {ex}")
+    finally:
+        conn.close()
 
 def is_uzenet_saved(diak_nev, felado, targy, idopont):
     """Ellenőrzi, hogy egy adott üzenet el van-e már mentve az SQLite adatbázisba."""
@@ -1083,57 +1141,14 @@ async def scrape_uzenetek(page, diak_nev):
         log(f"Figyelmeztetés az üzenetek lekérésekor: {ex}")
         return 0
 
-async def process_student(page, student):
-    diak_nev = student.get("diak_nev", "Ismeretlen")
-    institute_code = student.get("institute_code", "")
-    username = student.get("username", "")
-    password = student.get("password", "")
+async def scrape_esemenyek(page, diak_nev, institute_code,
+                           existing_hazi_keys, existing_szamonkeres_keys):
+    """Értékelések, feljegyzések, házi feladatok és számonkérések kiolvasása.
 
-    student_scrape_messages = student.get("scrape_messages", GLOBAL_SCRAPE_MESSAGES)
-
-    log("\n" + "=" * 70)
-    log(f"  FELDOLGOZÁS: {diak_nev.upper()} (Iskola: {institute_code})")
-    log("=" * 70)
-
-    # A frissítés ELŐTTI állapot — a végén ebből számoljuk az új eseményeket.
-    before_event_keys = get_event_key_set(diak_nev)
-    before_hianyzas_keys = get_hianyzas_key_set(diak_nev)
-
-    # Korábban elkészült házi feladatok és a DB-ben meglévő házi / számonkérés kulcsok kimentése
-    completed_hazi = get_completed_hazi_map(diak_nev)
-    existing_hazi_keys = get_existing_hazi_keys(diak_nev)
-    existing_szamonkeres_keys = get_existing_szamonkeres_keys(diak_nev)
-
-    # --- 1. BELÉPÉS ---
-    login_url = f"https://{institute_code}.e-kreta.hu"
-    log(f"1. Kapcsolódás: {login_url} ...")
-    await page.goto(login_url)
-
-    try:
-        cookie_btn = await page.wait_for_selector(
-            'form[action*="acceptnecessarycookies"] button, button:has-text("Az összes kötelező cookie elfogadása")',
-            timeout=3000
-        )
-        if cookie_btn:
-            log("  -> Süti tájékoztató elfogadása...")
-            await cookie_btn.click()
-            await page.wait_for_load_state("networkidle")
-            await asyncio.sleep(1)
-    except Exception:
-        pass
-
-    await page.wait_for_selector('input[name="UserName"]', timeout=15000)
-    await page.fill('input[name="UserName"]', username)
-    await page.fill('input[name="Password"]', password)
-    await page.press('input[name="Password"]', 'Enter')
-
-    await page.wait_for_url(lambda url: "login" not in url.lower(), timeout=30000)
-    await page.wait_for_load_state("networkidle")
-    log("Sikeres belépés!")
-
-    # --- ÓRAREND KINYERÉSE ---
-    await scrape_orarend(page, diak_nev, institute_code)
-
+    A négy adatkör egy navigációs sorozatban jön le; a mentés típusonként
+    történik (save_esemenyek_by_type), hogy az API-ból már frissült típusokat
+    ki lehessen hagyni, és ne legyen dupla írás.
+    """
     # --- 2. OSZTÁLYZATOK KINYERÉSE ---
     log("\n2. Navigáció az 'Osztályzatok' oldalra...")
     await page.goto(f"https://{institute_code}.e-kreta.hu/TanuloErtekeles/Osztalyzatok")
@@ -1468,34 +1483,150 @@ async def process_student(page, student):
     else:
         log(f"Siker! Beolvasva {len(szamonkeresek)} db bejelentett számonkérés (Nem volt új számonkérés).")
 
-    # Mentés az adatbázisba
-    clear_student_data(diak_nev)
-    osszes_esemeny = jegyek + feljegyzesek + hazifeladatok + szamonkeresek
+    return {
+        "jegyek": jegyek,
+        "feljegyzesek": feljegyzesek,
+        "hazi": hazifeladatok,
+        "szamonkeresek": szamonkeresek,
+    }
 
-    if len(osszes_esemeny) > 0:
-        save_esemenyek_to_db(diak_nev, osszes_esemeny, completed_hazi)
-        log(f"\n{diak_nev} adataiból {len(osszes_esemeny)} db esemény sikeresen elmentve!")
+
+async def process_student(page, student, skip=None, tracker=None,
+                          before_event_keys=None, before_hianyzas_keys=None):
+    """Egy diák teljes Playwright-szinkronja.
+
+    `skip`: azon adatkörök kulcsai, amelyeket az API már sikeresen frissített —
+    ezeket itt nem írjuk felül (nincs dupla írás). `tracker`: forrásnapló.
+    A `before_*` kulcsokat a hívó rögzítheti az API-szakasz ELŐTT, hogy az új
+    események kimutatása az API-mentést is helyesen beszámolja.
+    """
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+    institute_code = student.get("institute_code", "")
+    username = student.get("username", "")
+    password = student.get("password", "")
+
+    skip = set(skip or ())
+    if tracker is None:
+        tracker = kreta_sync.SourceTracker(diak_nev)
+
+    student_scrape_messages = student.get("scrape_messages", GLOBAL_SCRAPE_MESSAGES)
+
+    log("\n" + "=" * 70)
+    log(f"  FELDOLGOZÁS: {diak_nev.upper()} (Iskola: {institute_code})")
+    log("=" * 70)
+    if skip:
+        log("  API-ból már frissült adatkörök: " + ", ".join(
+            kreta_sync.LABELS.get(key, key)
+            for key in kreta_sync.DATASET_KEYS if key in skip))
+
+    # A frissítés ELŐTTI állapot — a végén ebből számoljuk az új eseményeket.
+    if before_event_keys is None:
+        before_event_keys = get_event_key_set(diak_nev)
+    if before_hianyzas_keys is None:
+        before_hianyzas_keys = get_hianyzas_key_set(diak_nev)
+
+    # Korábban elkészült házi feladatok és a DB-ben meglévő házi / számonkérés kulcsok kimentése
+    completed_hazi = get_completed_hazi_map(diak_nev)
+    existing_hazi_keys = get_existing_hazi_keys(diak_nev)
+    existing_szamonkeres_keys = get_existing_szamonkeres_keys(diak_nev)
+
+    # --- 1. BELÉPÉS ---
+    login_url = f"https://{institute_code}.e-kreta.hu"
+    log(f"1. Kapcsolódás: {login_url} ...")
+    await page.goto(login_url)
+
+    try:
+        cookie_btn = await page.wait_for_selector(
+            'form[action*="acceptnecessarycookies"] button, button:has-text("Az összes kötelező cookie elfogadása")',
+            timeout=3000
+        )
+        if cookie_btn:
+            log("  -> Süti tájékoztató elfogadása...")
+            await cookie_btn.click()
+            await page.wait_for_load_state("networkidle")
+            await asyncio.sleep(1)
+    except Exception:
+        pass
+
+    await page.wait_for_selector('input[name="UserName"]', timeout=15000)
+    await page.fill('input[name="UserName"]', username)
+    await page.fill('input[name="Password"]', password)
+    await page.press('input[name="Password"]', 'Enter')
+
+    await page.wait_for_url(lambda url: "login" not in url.lower(), timeout=30000)
+    await page.wait_for_load_state("networkidle")
+    log("Sikeres belépés!")
+
+    # --- ÓRAREND KINYERÉSE ---
+    if "orarend" in skip:
+        log("[ÓRAREND] API-ból már frissült — a Playwright lépés kihagyva.")
     else:
+        await scrape_orarend(page, diak_nev, institute_code)
+        kreta_sync.mark_playwright(tracker, "orarend")
+
+    # --- 2-5. ESEMÉNYEK KINYERÉSE (a már API-ból frissült típusok kihagyásával) ---
+    esemenyek = {}
+    if any(key not in skip for key in kreta_sync.EVENT_DATASETS):
+        esemenyek = await scrape_esemenyek(
+            page, diak_nev, institute_code, existing_hazi_keys, existing_szamonkeres_keys
+        )
+        for key in kreta_sync.EVENT_DATASETS:
+            if key not in skip:
+                kreta_sync.mark_playwright(tracker, key)
+    else:
+        log("\n[ESEMÉNYEK] Minden eseménytípus API-ból frissült — a Playwright blokk kihagyva.")
+
+    # --- ESEMÉNYEK MENTÉSE (csak a Playwrightból jött típusok) ---
+    tipus_parok = (
+        ("jegyek", "Értékelés"),
+        ("feljegyzesek", "Feljegyzés"),
+        ("hazi", "Házi feladat"),
+        ("szamonkeresek", "Bejelentett számonkérés"),
+    )
+    mentendo_tipusok = [tipus for key, tipus in tipus_parok if key not in skip]
+    mentendo = [row for key, _ in tipus_parok if key not in skip
+                for row in esemenyek.get(key, [])]
+
+    if mentendo_tipusok:
+        save_esemenyek_by_type(diak_nev, mentendo, completed_hazi, mentendo_tipusok)
+
+    if mentendo:
+        log(f"\n{diak_nev} adataiból {len(mentendo)} db esemény sikeresen elmentve!")
+    elif mentendo_tipusok:
         log(f"Figyelem: {diak_nev} fiókjából nem sikerült eseményadatot kinyerni.")
 
     # --- 6. HIÁNYZÁSOK / KÉSÉSEK ÉS IGAZOLÁSOK KINYERÉSE ---
-    hianyzasok = await scrape_hianyzasok(page, diak_nev, institute_code)
-    if hianyzasok is not None:
-        NEW_HIANYZAS_COUNTS[diak_nev] = diff_hianyzas_counts(before_hianyzas_keys, hianyzasok)
-        uj = NEW_HIANYZAS_COUNTS[diak_nev]
-        if uj.get("db"):
-            log(f"    [ÚJ HIÁNYZÁS]: {uj['db']} db (ebből {uj.get('igazolatlan_ora', 0)} igazolatlan óra)")
+    if "hianyzasok" in skip:
+        log("[HIÁNYZÁSOK] API-ból már frissült — a Playwright lépés kihagyva.")
     else:
-        NEW_HIANYZAS_COUNTS[diak_nev] = {"db": 0, "igazolatlan_ora": 0}
+        hianyzasok = await scrape_hianyzasok(page, diak_nev, institute_code)
+        if hianyzasok is not None:
+            NEW_HIANYZAS_COUNTS[diak_nev] = diff_hianyzas_counts(before_hianyzas_keys, hianyzasok)
+            uj = NEW_HIANYZAS_COUNTS[diak_nev]
+            kreta_sync.mark_playwright(tracker, "hianyzasok")
+            if uj.get("db"):
+                log(f"    [ÚJ HIÁNYZÁS]: {uj['db']} db (ebből {uj.get('igazolatlan_ora', 0)} igazolatlan óra)")
+        else:
+            NEW_HIANYZAS_COUNTS[diak_nev] = {"db": 0, "igazolatlan_ora": 0}
+            tracker.record("hianyzasok", "playwright", ok=False,
+                           reason="a hiányzás grid nem olvasható")
 
-    await scrape_igazolasok(page, diak_nev, institute_code)
+    if "igazolasok" in skip:
+        log("[IGAZOLÁSOK] API-ból már frissült — a Playwright lépés kihagyva.")
+    else:
+        await scrape_igazolasok(page, diak_nev, institute_code)
+        kreta_sync.mark_playwright(tracker, "igazolasok")
 
     # --- 7. E-ÜGYINTÉZÉS ÜZENETEK KINYERÉSE ---
-    if student_scrape_messages:
+    if "uzenetek" in skip:
+        log("\n7. Üzenetek: API-ból már frissült — a Playwright lépés kihagyva.")
+    elif student_scrape_messages:
         new_msg_count = await scrape_uzenetek(page, diak_nev) or 0
         NEW_MESSAGE_COUNTS[diak_nev] = new_msg_count
+        kreta_sync.mark_playwright(tracker, "uzenetek")
     else:
         NEW_MESSAGE_COUNTS[diak_nev] = 0
+        kreta_sync.mark_playwright(tracker, "uzenetek", reason="üzenet-szinkron kikapcsolva")
         log(f"\n7. Üzenetek lekérése KI VAN KAPCSOLVA ennél a diáknál ({diak_nev}).")
 
     # Új események (a frissítés előtti és utáni állapot különbsége)
@@ -1510,54 +1641,124 @@ async def process_student(page, student):
     except Exception as e:
         log(f"Kijelentkezési figyelmeztetés: {e}")
 
+SYNC_SOURCES = {}
+
+
+def _finalize_student_counts(diak_nev, before_event_keys):
+    """Az új események/számlálók lezárása akkor is, ha nincs Playwright-szakasz."""
+    NEW_EVENT_COUNTS[diak_nev] = diff_event_counts(before_event_keys, get_event_key_set(diak_nev))
+    NEW_HIANYZAS_COUNTS.setdefault(diak_nev, {})
+    NEW_MESSAGE_COUNTS.setdefault(diak_nev, 0)
+
+
+async def run_student(student, page, tracker):
+    """Egy diák szinkronja a beállított mód szerint (API és/vagy Playwright)."""
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+
+    # Az "előtte" állapotot az API-szakasz ELŐTT kell rögzíteni.
+    before_events = get_event_key_set(diak_nev)
+    before_hianyzas = get_hianyzas_key_set(diak_nev)
+
+    if kreta_sync.needs_api(SYNC_MODE):
+        await kreta_sync.run_api_datasets(student, API_PROVIDERS, tracker, log)
+        if kreta_sync.needs_playwright(SYNC_MODE):
+            kreta_sync.log_playwright_plan(tracker, SYNC_MODE, log)
+
+    skip = tracker.api_done()
+
+    if not kreta_sync.needs_playwright(SYNC_MODE):
+        _finalize_student_counts(diak_nev, before_events)
+        failures = tracker.failures()
+        if failures:
+            raise RuntimeError(
+                "API-ból nem frissült: " + ", ".join(
+                    f"{kreta_sync.LABELS.get(key, key)} ({reason})"
+                    for key, reason in failures.items()))
+        return
+
+    missing = [key for key in kreta_sync.DATASET_KEYS if key not in skip]
+    if not missing:
+        log(f"  {diak_nev}: minden adatkör API-ból frissült — Playwright nélkül.")
+        _finalize_student_counts(diak_nev, before_events)
+        return
+
+    if page is None:
+        raise RuntimeError("Nincs böngésző a Playwright-szakaszhoz.")
+
+    await process_student(page, student, skip=skip, tracker=tracker,
+                          before_event_keys=before_events,
+                          before_hianyzas_keys=before_hianyzas)
+
+
+async def run_students(active_students, page):
+    """A diákon végigmenő ciklus; az egyik diák hibája nem állítja meg a többit."""
+    failed = []
+    ok_count = 0
+    for student in active_students:
+        diak_nev = student.get("diak_nev", "Ismeretlen")
+        tracker = kreta_sync.SourceTracker(diak_nev)
+        try:
+            await run_student(student, page, tracker)
+            ok_count += 1
+            if page is not None:
+                await asyncio.sleep(2)
+        except Exception as err:
+            failed.append(diak_nev)
+            log(f"\nHIBA történt {diak_nev} feldolgozása során: {err}")
+        finally:
+            SYNC_SOURCES[diak_nev] = tracker.as_dict()
+            if tracker.outcomes:
+                log(f"  {diak_nev} adatforrások: {tracker.summary_line()}")
+    return ok_count, failed
+
+
 async def main():
     log("=" * 70)
     log(f"SZINKRONIZÁCIÓ INDÍTÁSA - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     log("=" * 70)
     init_db()
-    
+
     active_students = [s for s in STUDENTS if s.get("active", True)]
     log(f"Készülődés {len(active_students)} diák adatainak lekérésére...")
-    log(f"Böngésző üzemmód: {'Háttérben (Headless)' if HEADLESS_MODE else 'Látható (Headed)'}")
+    log(f"Szinkron mód: {SYNC_MODE} (playwright | api | api_first)")
+    if kreta_sync.needs_playwright(SYNC_MODE):
+        log(f"Böngésző üzemmód: {'Háttérben (Headless)' if HEADLESS_MODE else 'Látható (Headed)'}")
     log(f"Globális üzenet-szinkronizálás: {'BE' if GLOBAL_SCRAPE_MESSAGES else 'KI'}")
 
-    user_data_dir = os.environ.get("KRETA_BROWSER_DATA_DIR", os.path.join(DATA_DIR, "browser_user_data"))
+    ok_count = 0
+    failed = []
 
-    async with async_playwright() as p:
-        # launch_persistent_context használata a sütik és munkamenetek megőrzéséhez
-        # és az automatizációs/headless jelek teljes elrejtéséhez
-        context = await p.chromium.launch_persistent_context(
-            user_data_dir,
-            headless=HEADLESS_MODE,
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            viewport={'width': 1280, 'height': 800},
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox"
-            ],
-            ignore_default_args=["--enable-automation"]
-        )
-        page = context.pages[0] if context.pages else await context.new_page()
+    if kreta_sync.needs_playwright(SYNC_MODE):
+        user_data_dir = os.environ.get("KRETA_BROWSER_DATA_DIR",
+                                       os.path.join(DATA_DIR, "browser_user_data"))
+        async with async_playwright() as p:
+            # launch_persistent_context használata a sütik és munkamenetek megőrzéséhez
+            # és az automatizációs/headless jelek teljes elrejtéséhez
+            context = await p.chromium.launch_persistent_context(
+                user_data_dir,
+                headless=HEADLESS_MODE,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={'width': 1280, 'height': 800},
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox"
+                ],
+                ignore_default_args=["--enable-automation"]
+            )
+            page = context.pages[0] if context.pages else await context.new_page()
+            ok_count, failed = await run_students(active_students, page)
 
-        failed = []
-        ok_count = 0
-        for student in active_students:
-            try:
-                await process_student(page, student)
-                ok_count += 1
-                await asyncio.sleep(2)
-            except Exception as err:
-                failed.append(student.get("diak_nev", "?"))
-                log(f"\nHIBA történt {student.get('diak_nev')} feldolgozása során: {err}")
+            await asyncio.sleep(2)
+            await context.close()
+    else:
+        # Tiszta API mód: böngésző nélkül.
+        ok_count, failed = await run_students(active_students, None)
 
-        log("\n" + "=" * 70)
-        log("MINDEN DIÁK FELDOLGOZÁSA BEFEJEZŐDÖTT!")
-        if failed:
-            log(f"FIGYELEM: {len(failed)} diák adata NEM frissült: {', '.join(failed)}")
-        log("=" * 70)
-        
-        await asyncio.sleep(2)
-        await context.close()
+    log("\n" + "=" * 70)
+    log("MINDEN DIÁK FELDOLGOZÁSA BEFEJEZŐDÖTT!")
+    if failed:
+        log(f"FIGYELEM: {len(failed)} diák adata NEM frissült: {', '.join(failed)}")
+    log("=" * 70)
 
     # Géppel olvasható összegzés a Flask appnak (stdout-ra, a naplóba nem kell).
     summary = {
@@ -1567,6 +1768,7 @@ async def main():
         "new_events": NEW_EVENT_COUNTS,
         "new_messages": NEW_MESSAGE_COUNTS,
         "new_hianyzasok": NEW_HIANYZAS_COUNTS,
+        "sources": SYNC_SOURCES,
     }
     print(RESULT_MARKER + json.dumps(summary, ensure_ascii=False), flush=True)
 

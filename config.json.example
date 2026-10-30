@@ -1,6 +1,7 @@
 {
   "HEADLESS": true,
   "SCRAPE_MESSAGES": true,
+  "SYNC_MODE": "playwright",
   "ENABLE_REWARDS": true,
   "SCHEDULER": {
     "ENABLED": true,
@@ -57,7 +58,7 @@
       "active": true,
       "scrape_messages": true,
       "enable_rewards": true
-    }
+    },
 	{
       "diak_nev": "Esti Tesztike",
       "institute_code": "mintaiskola",
