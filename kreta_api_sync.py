@@ -19,8 +19,10 @@ from kreta_api import (
     KretaApiClient,
     lesson_index,
     normalize_evaluation,
+    normalize_homework,
     normalize_justification,
     normalize_omission,
+    normalize_test,
     pick_lesson,
 )
 
@@ -129,3 +131,17 @@ def fetch_evaluations(client, start: date, end: date) -> list[dict]:
     (0 számértékkel), ezért két sorban tárolódik — az átlagot nem befolyásolja.
     """
     return [normalize_evaluation(item) for item in client.fetch_evaluations(start, end)]
+
+
+def fetch_homeworks(client, start: date, end: date) -> list[dict]:
+    """Házi feladatok: `bej_datum` = rögzítés napja, `hatarido` = határidő (helyi).
+
+    A szöveg HTML-mentes; az API a teljes leírást adja (a webes grid néha
+    csonkol, ezért ott külön ablakban kell kinyerni).
+    """
+    return [normalize_homework(item) for item in client.fetch_homeworks(start, end)]
+
+
+def fetch_announced_tests(client, start: date, end: date) -> list[dict]:
+    """Bejelentett számonkérések (dátumok helyi időben)."""
+    return [normalize_test(item) for item in client.fetch_announced_tests(start, end)]

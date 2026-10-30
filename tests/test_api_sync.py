@@ -24,7 +24,9 @@ from kreta_api_sync import (  # noqa: E402
     DEFAULT_LOOKBACK_DAYS,
     api_window,
     apply_lesson_join,
+    fetch_announced_tests,
     fetch_evaluations,
+    fetch_homeworks,
     fetch_justifications,
     fetch_omissions,
     parse_stored_date,
@@ -40,13 +42,16 @@ def ok(condition, message):
 
 
 class FakeClient:
-    """Csak a D3–D4-hez szükséges végpontokat utánozza (nincs hálózat)."""
+    """Csak a D3–D5-höz szükséges végpontokat utánozza (nincs hálózat)."""
 
-    def __init__(self, omissions=None, lessons=None, justifications=None, evaluations=None):
+    def __init__(self, omissions=None, lessons=None, justifications=None, evaluations=None,
+                 homeworks=None, announced_tests=None):
         self._omissions = omissions or []
         self._lessons = lessons or []
         self._justifications = justifications or []
         self._evaluations = evaluations or []
+        self._homeworks = homeworks or []
+        self._announced_tests = announced_tests or []
         self.calls = []
 
     def fetch_omissions(self, start, end):
@@ -64,6 +69,14 @@ class FakeClient:
     def fetch_evaluations(self, start, end):
         self.calls.append(("evaluations", start, end))
         return list(self._evaluations)
+
+    def fetch_homeworks(self, start, end):
+        self.calls.append(("homeworks", start, end))
+        return list(self._homeworks)
+
+    def fetch_announced_tests(self, start, end):
+        self.calls.append(("announced_tests", start, end))
+        return list(self._announced_tests)
 
 
 print("1) Lekérési ablak")
@@ -155,6 +168,33 @@ ok(grows[1]["tantargy"] == "Magatartás" and grows[1]["szam_ertek"] == 0,
 ok(grows[2]["tantargy"] == "Szorgalom" and grows[2]["szam_ertek"] == 0,
    "a Szorgalom külön sor, 0 számértékkel")
 
+print("\n4b) Házi és számonkérés normalizálása")
+hw_client = FakeClient(
+    homeworks=[{
+        "Uid": "1", "TantargyNeve": "Magyar nyelv", "RogzitoTanarNeve": "Szőke Gáborné",
+        "Szoveg": "<p>Első</p><p>Második</p>",
+        "RogzitesIdopontja": "2026-09-13T22:00:00Z",
+        "HataridoDatuma": "2026-09-20T22:00:00Z",
+    }],
+    announced_tests=[{
+        "Uid": "2", "TantargyNeve": "Matematika", "RogzitoTanarNeve": "Bagó Orsolya",
+        "Modja": {"Leiras": "Írásbeli témazáró dolgozat"}, "Temaja": "Halmazok",
+        "Datum": "2026-09-29T22:00:00Z", "BejelentesDatuma": "2026-09-22T10:19:39Z",
+    }],
+)
+hrows = fetch_homeworks(hw_client, today, today)
+ok(hrows[0]["bej_datum"] == "2026. 09. 14.", f"házi rögzítés helyi: {hrows[0]['bej_datum']}")
+ok(hrows[0]["hatarido"] == "2026. 09. 21.", f"házi határidő helyi: {hrows[0]['hatarido']}")
+ok(hrows[0]["tartalom"] == "Első Második", "házi szöveg HTML-mentes")
+ok(hrows[0]["ertekelo"] == "Szőke Gáborné", "házi rögzítő tanár")
+ok(hrows[0]["esemeny_tipus"] == "Házi feladat", "házi típus")
+
+trows = fetch_announced_tests(hw_client, today, today)
+ok(trows[0]["hatarido"] == "2026. 09. 30.", f"számonkérés napja helyi: {trows[0]['hatarido']}")
+ok(trows[0]["bej_datum"] == "2026. 09. 22.", "számonkérés bejelentése helyi")
+ok(trows[0]["mod"] == "Írásbeli témazáró dolgozat", "számonkérés módja")
+ok(trows[0]["tema"] == "Halmazok", "számonkérés témája")
+
 print("\n5) Igazolások fake klienssel")
 just = FakeClient(justifications=[{
     "Id": 563578, "Kezdete": "2026-09-13T22:00:00Z", "Vege": "2026-09-16T22:00:00Z",
@@ -192,6 +232,12 @@ def ins_existing():
         ("11391408", "2026-09-09", 1, None, "Osztályfőnöki", "Erzsébet-tábor",
          "Szentkirályi Zsuzsanna", "Hiányzás", 1, "Igen", "Orvosi igazolás",
          "2026-09-09", "Teszt"))
+    conn.execute(
+        "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
+        " bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        ("Teszt", "Házi feladat", "Magyar nyelv", "", 0, "2026. 09. 14.",
+         "2026. 09. 21.", "Szőke Gáborné", "", "", "", "", "Kézzel megjelölt házi", 1))
     conn.commit(); conn.close()
 
 OMISSIONS = [
@@ -226,6 +272,19 @@ EVALUATIONS = [
       "Tipus": {{"Leiras": "Évközi jegy/értékelés"}},
       "RogzitesDatuma": "2026-10-06T22:00:00Z"}},
 ]
+HOMEWORKS = [
+    {{"Uid": "1", "TantargyNeve": "Magyar nyelv", "RogzitoTanarNeve": "Szőke Gáborné",
+      "Szoveg": "API szöveg", "RogzitesIdopontja": "2026-09-13T22:00:00Z",
+      "HataridoDatuma": "2026-09-20T22:00:00Z"}},
+    {{"Uid": "2", "TantargyNeve": "Történelem", "RogzitoTanarNeve": "Szőke Gáborné",
+      "Szoveg": "Új házi", "RogzitesIdopontja": "2026-09-20T22:00:00Z",
+      "HataridoDatuma": "2026-09-27T22:00:00Z"}},
+]
+ANNOUNCED = [
+    {{"Uid": "10167", "TantargyNeve": "Matematika", "RogzitoTanarNeve": "Bagó Orsolya",
+      "Modja": {{"Leiras": "Írásbeli témazáró dolgozat"}}, "Temaja": "Halmazok",
+      "Datum": "2026-10-06T22:00:00Z", "BejelentesDatuma": "2026-09-30T10:15:13Z"}},
+]
 
 
 class FakeClient:
@@ -246,6 +305,12 @@ class FakeClient:
     def fetch_evaluations(self, start, end):
         return EVALUATIONS
 
+    def fetch_homeworks(self, start, end):
+        return HOMEWORKS
+
+    def fetch_announced_tests(self, start, end):
+        return ANNOUNCED
+
 
 def grades_snapshot():
     conn = sqlite3.connect(k.DB_FILE)
@@ -253,6 +318,26 @@ def grades_snapshot():
         "SELECT tantargy, ertek, szam_ertek, bej_datum FROM esemenyek"
         " WHERE diak_nev='Teszt' AND esemeny_tipus='Értékelés'"
         " ORDER BY bej_datum, tantargy").fetchall()
+    conn.close()
+    return rows
+
+
+def hazi_snapshot():
+    conn = sqlite3.connect(k.DB_FILE)
+    rows = conn.execute(
+        "SELECT tantargy, bej_datum, hatarido, tartalom, kesz FROM esemenyek"
+        " WHERE diak_nev='Teszt' AND esemeny_tipus='Házi feladat'"
+        " ORDER BY bej_datum, tantargy").fetchall()
+    conn.close()
+    return rows
+
+
+def szamonkeres_snapshot():
+    conn = sqlite3.connect(k.DB_FILE)
+    rows = conn.execute(
+        "SELECT tantargy, hatarido, bej_datum, mod, tema FROM esemenyek"
+        " WHERE diak_nev='Teszt' AND esemeny_tipus='Bejelentett számonkérés'"
+        " ORDER BY hatarido, tantargy").fetchall()
     conn.close()
     return rows
 
@@ -285,6 +370,14 @@ k.api_provider_jegyek({{"diak_nev": "Teszt"}}, client_factory=factory)
 grades1 = grades_snapshot()
 k.api_provider_jegyek({{"diak_nev": "Teszt"}}, client_factory=factory)
 grades2 = grades_snapshot()
+k.api_provider_hazi({{"diak_nev": "Teszt"}}, client_factory=factory)
+hazi1 = hazi_snapshot()
+k.api_provider_hazi({{"diak_nev": "Teszt"}}, client_factory=factory)
+hazi2 = hazi_snapshot()
+k.api_provider_szamonkeresek({{"diak_nev": "Teszt"}}, client_factory=factory)
+szk1 = szamonkeres_snapshot()
+k.api_provider_szamonkeresek({{"diak_nev": "Teszt"}}, client_factory=factory)
+szk2 = szamonkeres_snapshot()
 start, end = k.hianyzas_api_window("Teszt")
 
 print("RESULT=" + json.dumps({{
@@ -297,6 +390,10 @@ print("RESULT=" + json.dumps({{
     "just_second": ig2,
     "grades_first": grades1,
     "grades_second": grades2,
+    "hazi_first": hazi1,
+    "hazi_second": hazi2,
+    "szk_first": szk1,
+    "szk_second": szk2,
     "window_start": str(start),
     "window_end": str(end),
 }}, ensure_ascii=False))
@@ -360,6 +457,25 @@ ok(payload.get("grades_second") == grades_first, "ismételt futás nem duplikál
 numeric = [g[2] for g in grades_first if g[2] in (1, 2, 3, 4, 5)]
 ok(numeric and round(sum(numeric) / len(numeric), 2) == 5.0,
    f"az átlag csak a numerikus jegyekből: {numeric}")
+
+print("\n7c) Házi: kesz megmarad, nincs duplikáció")
+hazi_first = payload.get("hazi_first") or []
+ok(len(hazi_first) == 2, f"2 házi a mentés után: {len(hazi_first)}")
+kept = next((h for h in hazi_first if h[1] == "2026. 09. 14."), None)
+new = next((h for h in hazi_first if h[1] == "2026. 09. 21."), None)
+ok(kept and kept[4] == 1, f"a kézzel késznek jelölt házi kesz=1 maradt: {kept}")
+ok(kept and kept[3] == "Kézzel megjelölt házi", "a meglévő házi szövegét nem írja felül")
+ok(new and new[4] == 0, "az új házi kesz=0")
+ok(new and new[3] == "Új házi", "az új házi szövege az API-ból jön")
+ok(payload.get("hazi_second") == hazi_first, "ismételt futás nem duplikál házit")
+
+print("\n7d) Számonkérés")
+szk_first = payload.get("szk_first") or []
+ok(len(szk_first) == 1, f"1 számonkérés mentve: {len(szk_first)}")
+ok(szk_first and szk_first[0][1] == "2026. 10. 07.", "a számonkérés napja helyi")
+ok(szk_first and szk_first[0][3] == "Írásbeli témazáró dolgozat", "a mód az API-ból")
+ok(szk_first and szk_first[0][4] == "Halmazok", "a téma az API-ból")
+ok(payload.get("szk_second") == szk_first, "ismételt futás nem duplikál számonkérést")
 
 print("\n8) Igazolások")
 ok(len(payload.get("just_first") or []) == 1, "1 igazolás mentve")

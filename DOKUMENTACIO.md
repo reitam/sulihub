@@ -200,8 +200,9 @@ hiányzások/késések, igazolások, üzenetek. A sikeres API-adatkörök `skip`
 A forrás és a fallback oka a `sync.log`-ba, a gép-olvasható összegzés `sources` mezőjébe és
 a `sync_runs.sources` oszlopba kerül; a `/api/sync/status` is átadja.
 
-> A D3–D4-gyel a **hiányzások/késések, az igazolások és a jegyek** már API-ból jönnek
-> (táboros hiányzásnál a korábbi téma megmarad). A D5–D7 jegyek állítják át a többi
+> A D3–D5-gyel a **hiányzások/késések, az igazolások, a jegyek, a házi feladatok és a
+> bejelentett számonkérések** már API-ból jönnek (táboros hiányzásnál a korábbi téma
+> megmarad, a házi „kész” jelölése megmarad). A D6–D7 jegyek állítják át a többi
 > adatkört; amíg egy adatkörhöz nincs API-implementáció, az `api`/`api_first` módban is
 > a Playwright fedi le (a napló jelzi).
 
@@ -420,12 +421,12 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **311 automatikus ellenőrzés** tizenegy csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **331 automatikus ellenőrzés** tizenegy csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48 ellenőrzés),
-**API-szinkron** (hiányzás/igazolás/jegy, órarend-join, táboros téma megőrzése),
-**szinkronmód és fallback** (mód-feloldás + valódi SQLite-on duplikációvédelem),
-**mobil elrendezés** (valódi böngészőben, 393 px szélességen).
+**API-szinkron** (hiányzás/igazolás/jegy/házi/számonkérés, órarend-join, táboros téma és
+`kesz` megőrzése), **szinkronmód és fallback** (mód-feloldás + valódi SQLite-on
+duplikációvédelem), **mobil elrendezés** (valódi böngészőben, 393 px szélességen).
 A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 
 ### 9.4. Kiadási folyamat
@@ -516,7 +517,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.4.1** | **2026-10-29** | Mobil finomítás: **monogram-avatar** a diák oszlopban (szabad hely a **bejegyzés dátumának**), a naptár két lista-gombja külön névvel (Havi/Heti lista), rövidebb mobil fejléc-címkék, **az utolsó frissítés sora mobilon is látszik** (korábban a CSS elrejtette) |
 | **v1.5.0** | **2026-10-29** | **Hiányzások / késések modul:** új `hianyzasok` és `igazolasok` tábla, scraper, „Hiányzások" fül havi összesítővel (igazolt/igazolatlan óra, késés db/perc) és igazolás-listával; **inkrementális mentés dátum + órasorszám alapján** (stabil sor-ID); az új hiányzások és igazolatlan órák a push-üzenetben is megjelennek |
 | **v1.5.1** | **2026-10-30** | Hiányzások fül finomítás: az összesítő első kártyája **„Összes hiányzás" órában** (nem db); a hosszú igazolás-típus és megjegyzés teljes szöveggel, több sorban látszik (tooltipek a többi hosszú mezőn) |
-| **v1.6.0** *(fejlesztés alatt)* | **2026-10-30** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 7 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba. **Kész: D1–D4** (kliens, mód/fallback, hiányzások + igazolások + jegyek API-ból); a D5–D7 adatkör-átállások következnek |
+| **v1.6.0** *(fejlesztés alatt)* | **2026-10-30** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 7 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba. **Kész: D1–D5** (kliens, mód/fallback, hiányzások + igazolások + jegyek + házi/számonkérés API-ból); a D6–D7 adatkör-átállások következnek |
 
 ---
 
