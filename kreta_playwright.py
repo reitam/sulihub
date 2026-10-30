@@ -626,8 +626,57 @@ def api_provider_jegyek(student, client_factory=None):
     log(f"  [JEGYEK OK] {len(rows)} db értékelés az API-ból.")
 
 
+def events_api_window(diak_nev, tipus):
+    """Az eseménytípus API-ablaka a DB legkorábbi `bej_datum`-jához igazítva."""
+    conn = sqlite3.connect(DB_FILE)
+    earliest = None
+    try:
+        row = conn.execute(
+            "SELECT MIN(bej_datum) FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus = ?",
+            (diak_nev, tipus),
+        ).fetchone()
+        earliest = row[0] if row else None
+    except Exception as ex:
+        log(f"  [DB lekérdezési hiba - {tipus} ablak]: {ex}")
+    finally:
+        conn.close()
+    return kreta_api_sync.api_window(earliest)
+
+
+def _hazi_key(row):
+    return f"{row.get('tantargy', '')}|{row.get('bej_datum', '')}|{row.get('hatarido', '')}"
+
+
+def api_provider_hazi(student, client_factory=None):
+    """Házi feladatok frissítése az API-ból (csak új sorok, `kesz` megmarad)."""
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+    start, end = events_api_window(diak_nev, "Házi feladat")
+    log(f"\n[API] Házi feladatok lekérése: {start} .. {end} ...")
+    client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
+    rows = kreta_api_sync.fetch_homeworks(client, start, end)
+    before = get_existing_hazi_keys(diak_nev)
+    save_esemenyek_by_type(diak_nev, rows, get_completed_hazi_map(diak_nev), ["Házi feladat"])
+    uj = len({_hazi_key(r) for r in rows} - before)
+    log(f"  [HÁZI OK] {len(rows)} db házi feladat az API-ból ({uj} db új).")
+
+
+def api_provider_szamonkeresek(student, client_factory=None):
+    """Bejelentett számonkérések frissítése az API-ból (dedupe a meglévő kulcsokkal)."""
+    diak_nev = student.get("diak_nev", "Ismeretlen")
+    start, end = events_api_window(diak_nev, "Bejelentett számonkérés")
+    log(f"\n[API] Bejelentett számonkérések lekérése: {start} .. {end} ...")
+    client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
+    rows = kreta_api_sync.fetch_announced_tests(client, start, end)
+    before = get_existing_szamonkeres_keys(diak_nev)
+    save_esemenyek_by_type(diak_nev, rows, set(), ["Bejelentett számonkérés"])
+    uj = len({_hazi_key(r) for r in rows} - before)
+    log(f"  [SZÁMONKÉRÉS OK] {len(rows)} db számonkérés az API-ból ({uj} db új).")
+
+
 API_PROVIDERS = {
     "jegyek": api_provider_jegyek,
+    "hazi": api_provider_hazi,
+    "szamonkeresek": api_provider_szamonkeresek,
     "hianyzasok": api_provider_hianyzasok,
     "igazolasok": api_provider_igazolasok,
 }
