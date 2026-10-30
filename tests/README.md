@@ -18,6 +18,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_migration.py` | Egyszeri migráció: régi `scheduler_state.json` → `sync_runs`/`app_meta` |
 | `test_hianyzasok.py` | Hiányzások/igazolások: táblák, mentés + dedupe, új-hiányzás számítás, havi API-összesítő (igazolt/igazolatlan óra, késés), push-szöveg |
 | `test_api_client.py` | Termelési API-kliens (`kreta_api.py`): login/refresh/401-retry fake HTTP-vel, dátumszeletek, dátum/HTML konverzió, normalizálás, órarend-join, üzenetszűrés |
+| `test_api_sync.py` | API-szinkron adatkörök: lekérési ablak, órarend-join párhuzamos csoportokkal, táboros téma megőrzése, inkrementális mentés stabil ID-vel, igazolások |
 | `test_sync_mode.py` | `SYNC_MODE` feloldás, forrásnapló, API-hiba → Playwright fallback, duplikációvédelem valódi SQLite-on |
 | `test_mobile_layout.py` | Mobil elrendezés valódi böngészőben (393 px): nincs vízszintes túlcsordulás egyik fülön sem, avatar, összecsukott táblázat, hiányzások fül |
 
