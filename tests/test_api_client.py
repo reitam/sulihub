@@ -36,6 +36,7 @@ from kreta_api import (  # noqa: E402
     normalize_test,
     pick_lesson,
     plain_text,
+    safe_fajlnev,
 )
 
 _hibak = []
@@ -48,11 +49,12 @@ def ok(condition, message):
 
 
 class FakeResponse:
-    def __init__(self, status_code=200, json_data=None, text="", headers=None):
+    def __init__(self, status_code=200, json_data=None, text="", headers=None, content=b""):
         self.status_code = status_code
         self._json = json_data
         self.text = text
         self.headers = headers or {}
+        self.content = content
 
     def json(self):
         if self._json is None:
@@ -312,6 +314,66 @@ ok(consultations[0]["end"] == "2026-11-05T18:30:00", "fogadóóra helyi vége")
 ok(consultations[0]["title"] == "Fogadóóra", "fogadóóra cím")
 ok(consultations[0]["tanarNev"] == "Minta Zsuzsanna", "fogadóóra tanára")
 ok(consultations[0]["teremNev"] == "101", "fogadóóra terme")
+
+print("\n8d) Csatolmány-letöltés (eAdmin → files nonce)")
+client = make_client([
+    FakeResponse(302, headers={"Location": "https://files.e-kreta.hu/fajlok/?nonce=ABC"}),
+    FakeResponse(200, content=b"%PDF-1.7 tartalom",
+                 headers={"Content-Type": "application/octet-stream"}),
+])
+client.token = ApiToken("a", "r", "iskola", time.time() + 3600)
+content, ctype = client.download_attachment(96649499)
+ok(content == b"%PDF-1.7 tartalom", "a fájl bájtjai megérkeztek")
+ok(ctype == "application/octet-stream", "a tartalomtípus megmarad")
+ok("dokumentumok/uzenetek/96649499" in client.session.calls[0][1], "a dokumentum-végpontot hívja")
+ok(client.session.calls[0][2]["allow_redirects"] is False, "a 302-t nem követi automatikusan")
+ok(client.session.calls[1][1].startswith("https://files.e-kreta.hu/fajlok/"), "a nonce URL-t tölti le")
+ok("Authorization" not in (client.session.calls[1][2].get("headers") or {}),
+   "a bearer token nem megy a fájlszolgáltatáshoz")
+
+client = make_client([
+    FakeResponse(401, text="unauthorized"),
+    FakeResponse(200, json_data={"access_token": "access-2", "refresh_token": "refresh-2",
+                                 "expires_in": 1800}),
+    FakeResponse(302, headers={"Location": "https://files.e-kreta.hu/fajlok/?nonce=DEF"}),
+    FakeResponse(200, content=b"PK\x03\x04"),
+])
+client.token = ApiToken("a", "r", "iskola", time.time() + 3600)
+content, _ = client.download_attachment("123")
+ok(content.startswith(b"PK"), "401 után tokenfrissítéssel is működik")
+ok(len(client.session.calls) == 4, "401 -> refresh -> dokumentum -> fájl")
+
+client = make_client([FakeResponse(200, content=b"nincs redirect")])
+client.token = ApiToken("a", "r", "iskola", time.time() + 3600)
+content, _ = client.download_attachment("123")
+ok(content == b"nincs redirect", "közvetlen 200-at is kezeli")
+
+client = make_client([FakeResponse(403, text="forbidden")])
+client.token = ApiToken("a", "r", "iskola", time.time() + 3600)
+try:
+    client.download_attachment("123")
+    ok(False, "403 esetén kivétel kell")
+except KretaResponseError:
+    ok(True, "403 -> KretaResponseError")
+
+client = make_client([
+    FakeResponse(302, headers={"Location": "https://files.e-kreta.hu/fajlok/?nonce=BIG"}),
+    FakeResponse(200, content=b"x" * 50),
+])
+client.token = ApiToken("a", "r", "iskola", time.time() + 3600)
+try:
+    client.download_attachment("123", max_bytes=10)
+    ok(False, "túl nagy fájl esetén kivétel kell")
+except KretaResponseError:
+    ok(True, "méretkorlát -> KretaResponseError")
+
+print("\n8e) Csatolmány-fájlnév biztonságosítása")
+ok(safe_fajlnev("../../etc/passwd").find("/") == -1, "path traversal kiszűrve")
+ok(safe_fajlnev("a\\b:c*d?.pdf") == "a_b_c_d_.pdf", "tiltott karakterek cserélve")
+ok(safe_fajlnev("  ..hmm.pdf  ") == "hmm.pdf", "vezető pont/szóköz levágva")
+ok(safe_fajlnev("") == "csatolmany", "üres név helyére alapérték")
+ok(safe_fajlnev("x" * 200 + ".pdf").endswith(".pdf"), "hosszú név: a kiterjesztés megmarad")
+ok(len(safe_fajlnev("x" * 200 + ".pdf")) <= 120, "hosszú név 120 karakterre vágva")
 
 print("\n9) Nincs Playwright-függés")
 source = (ROOT / "kreta_api.py").read_text(encoding="utf-8")

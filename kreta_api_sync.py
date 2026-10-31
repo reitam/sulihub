@@ -176,7 +176,16 @@ def fetch_consultations(client, start: date, end: date) -> list[dict]:
 def fetch_messages(client) -> list[dict]:
     """Beérkezett üzenetek normalizált sorai (a lista a teljes szöveget adja).
 
-    A csatolmányok csak nevet/azonosítót adnak, letöltési URL-t nem — a fájlok
-    letöltéséhez a webes eÜgyintézés-flow kell (lásd a szolgáltatót).
+    A csatolmányok a `csatolmanyok` mezőben `{azonosito, fajlNev}` alakban
+    jönnek; a fájl tartalmát a `fetch_attachment` hozza.
     """
     return [normalize_message(item) for item in client.fetch_messages()]
+
+
+def fetch_attachment(client, attachment_id) -> tuple[bytes, str]:
+    """Csatolmány tartalma az API-ból: `(bytes, content_type)`, böngésző nélkül.
+
+    A lánc: eAdmin `dokumentumok/uzenetek/{id}` → 302 → `files.e-kreta.hu`
+    nonce URL. A kliens kezeli a tokenfrissítést és a méretkorlátot.
+    """
+    return client.download_attachment(attachment_id)

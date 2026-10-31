@@ -60,7 +60,7 @@ továbbítanak.
 | **Hiányzások / késések** | Dátum, **aznap hányadik óra** (1 sor = 1 tanóra), tantárgy, téma, mulasztás típusa (késésnél percek), igazolt/igazolatlan, igazolás típusa, rögzítés dátuma. A „tanórai célú” jelző is tárolva van, de a felületen nem jelenik meg |
 | **Igazolások** | Érvényesség kezdete–vége, igazolás típusa, megjegyzés |
 | **Heti órarend** | Aktuális és következő hét: tanár, terem, időpont, esetleg egész napos esemény; **fogadóórák** is |
-| **e-Ügyintézés üzenetek** | Beérkezett üzenetek (csak az újak). Az API-first út a teljes szöveget hozza; **csatolmányos új üzenetnél** `api_first` módban a webes eÜgyintézés-flow tölti le a fájlt, tiszta `api` módban a fájl kimarad (figyelmeztetés a naplóban) |
+| **e-Ügyintézés üzenetek** | Beérkezett üzenetek (csak az újak) a teljes szöveggel, **a csatolmányokkal együtt** — a fájl API-ból töltődik le (`dokumentumok/uzenetek/{id}` → `files.e-kreta.hu` nonce URL), böngésző nélkül |
 
 ### 2.3. Felület (fő nézetek)
 
@@ -209,9 +209,12 @@ hagyni, utána kikapcsolható — a Playwright csak fallback marad.
 > A D3–D7-tel a **hiányzások/késések, az igazolások, a jegyek, a házi feladatok, a
 > bejelentett számonkérések, a feljegyzések, az órarend** (fogadóórákkal) és az
 > **üzenetek** már API-ból jönnek (táboros hiányzásnál a korábbi téma megmarad, a házi
-> „kész” jelölése megmarad). Az üzenet-csatolmányokhoz nincs API-letöltési URL: új
-> csatolmányos üzenetnél `api_first` módban automatikusan a webes eÜgyintézés-flow fut
-> (fallback), tiszta `api` módban a fájl kimarad. Minden más esetben nincs böngésző.
+> „kész” jelölése megmarad). **Az üzenet-csatolmányok is API-ból töltődnek** (2026-10-31
+> óta): a kliens a `dokumentumok/uzenetek/{csatolmanyAzonosito}` végpontról kapott 302-es
+> átirányítást követi a `files.e-kreta.hu/fajlok/?nonce=…` címre, és a bájtokat a
+> `csatolmanyok/<diák>/` alá menti. Így **tiszta `api` módban sincs böngésző**; ha egy
+> letöltés mégis elhal, `api_first` módban a teljes üzenet-adatkör Playwright-fallbackre
+> megy (nincs félkész mentés), `api` módban a fájl kimarad (figyelmeztetés a naplóban).
 
 ### 3.3. Futásállapotok
 
@@ -264,7 +267,7 @@ Az adatok egyetlen SQLite adatbázisban (`kreta_adatok.db`) vannak, a data köte
 | Integráció | Mire használjuk | Megjegyzés |
 |---|---|---|
 | **KRÉTA** (`<intézmény>.e-kreta.hu`) | Adatgyűjtés böngésző-automatizálással (Playwright) | több iskolai azonosító; a bejelentkezés sütiképre támaszkodik |
-| **e-Ügyintézés** (`eugyintezes.e-kreta.hu`) | Üzenetek + csatolmányok | Csak az új üzeneteket nyitja meg |
+| **e-Ügyintézés** (`eugyintezes.e-kreta.hu`) | Üzenetek + csatolmányok | API-ból (mobil token), `X-Uzenet-Lokalizacio` illesztő; a Playwright-út csak fallback |
 | **ntfy** (`ntfy.sh`) | Push értesítések | Csak állapotinformáció; diáknév alapból nem megy ki |
 | **Docker / Docker Compose** | Futtatás a szerveren | Konténer: `kreta-app`, port **8085** |
 | **Samba + SSH** | Deploy Windowsról a szerverre | `deploy.ps1` (staging másolás + SSH parancsok) |
@@ -443,11 +446,11 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **409 automatikus ellenőrzés** tizenkét csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **433 automatikus ellenőrzés** tizenkét csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
-fogadóóra, üzenet-inkrementálás és csatolmány-fallback), **szinkronmód és fallback**
+fogadóóra, üzenet-inkrementálás, **csatolmány-letöltés API-ból** és fallback-hiba), **szinkronmód és fallback**
 (mód-feloldás + valódi SQLite-on duplikációvédelem), **árnyék mód** (DB-másolat,
 összehasonlítás, a valódi DB érintetlensége), **mobil elrendezés** (valódi böngészőben,
 393 px).
@@ -471,7 +474,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | Egy processzes ütemező | több worker esetén duplikálódna | Dockerben egy processz fut |
 | KRÉTA DOM-scraping | a KRÉTA felületváltása törheti | az API-first út (v1.6.0) ezt kiváltja; a Playwright fallback megmarad |
 | Táboros hiányzás témája | az API nem ad rá témát (nincs órarendi elem) | a meglévő DB-érték megmarad; új táboros sornál üres |
-| Üzenet-csatolmány letöltése | az eAdmin API nem ad letöltési URL-t | `api_first` módban ilyenkor a webes eÜgyintézés-flow fut (fallback); tiszta `api` módban a fájl kimarad (naplózott figyelmeztetés) |
+| Üzenet-csatolmány letöltése | az eAdmin API csak fájl-metadatot ad, a fájl egy rövid életű `nonce` URL-en jön | a kliens a `dokumentumok/uzenetek/{id}` 302-jét követi, és a `files.e-kreta.hu/fajlok/?nonce=…` címről tölt (2026-10-31 óta API-ból, böngésző nélkül); hiba esetén `api_first` fallback |
 | Nincs `MESSAGE_LIMIT` | az első API-s futás az összes üzenetet letölti (nálunk ~76 sor), utána már csak az újakat | tudatos döntés: az inkrementális futások így is 1–5 üzenetet hoznak |
 | Chromium az image-ben | nagyobb image | a Playwright fallback miatt szükséges, amíg az API hosszú távon nem bizonyít |
 | CDN-függő frontend | internet nélkül nem indul a felület | vendorolás a backlogban |
@@ -545,7 +548,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.4.1** | **2026-10-29** | Mobil finomítás: **monogram-avatar** a diák oszlopban (szabad hely a **bejegyzés dátumának**), a naptár két lista-gombja külön névvel (Havi/Heti lista), rövidebb mobil fejléc-címkék, **az utolsó frissítés sora mobilon is látszik** (korábban a CSS elrejtette) |
 | **v1.5.0** | **2026-10-29** | **Hiányzások / késések modul:** új `hianyzasok` és `igazolasok` tábla, scraper, „Hiányzások" fül havi összesítővel (igazolt/igazolatlan óra, késés db/perc) és igazolás-listával; **inkrementális mentés dátum + órasorszám alapján** (stabil sor-ID); az új hiányzások és igazolatlan órák a push-üzenetben is megjelennek |
 | **v1.5.1** | **2026-10-30** | Hiányzások fül finomítás: az összesítő első kártyája **„Összes hiányzás" órában** (nem db); a hosszú igazolás-típus és megjegyzés teljes szöveggel, több sorban látszik (tooltipek a többi hosszú mezőn) |
-| **v1.6.0** *(fejlesztés alatt)* | **2026-10-30** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 8 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba; **`SYNC_SHADOW` árnyék/ellenőrző mód** (Playwright DB-másolaton, összehasonlítás). **Kész: D1–D8**; a D9 (dokumentáció, config, deploy v1.6.0) következik |
+| **v1.6.0** *(fejlesztés alatt)* | **2026-10-31** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 8 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba; **`SYNC_SHADOW` árnyék/ellenőrző mód** (Playwright DB-másolaton, összehasonlítás); **üzenet-csatolmányok letöltése API-ból** (`dokumentumok/uzenetek/{id}` → `files.e-kreta.hu` nonce URL, `safe_fajlnev` + méretkorlát), böngésző nélkül; a scraper kimenete UTF-8-ként olvasva, árva gyerekprocessz nem marad. **Kész: D1–D8**; a D9 (dokumentáció, config, deploy v1.6.0) következik |
 
 ---
 

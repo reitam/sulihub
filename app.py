@@ -1015,27 +1015,53 @@ def run_scraper_thread(trigger="manual"):
         child_env["KRETA_LOG_FILE"] = LOG_FILE
         child_env["KRETA_CSATOLMANYOK_DIR"] = CSATOLMANYOK_DIR
 
+        # A scraper mindig UTF-8-at írjon és a Flask is UTF-8-ként olvassa: a
+        # Windows alapértelmezett kódlapja (cp1250) és a Docker locale eltérhet,
+        # ettől korábban a kimenet-olvasó szál elszállt (UnicodeDecodeError),
+        # a futás "hiba" állapotba került, a scraper gyerekprocessz pedig árva
+        # maradt és megakadt a teli pipe-on.
+        child_env["PYTHONIOENCODING"] = "utf-8"
+        child_env["PYTHONUTF8"] = "1"
+
         process = subprocess.Popen(
             [sys.executable, "-u", "kreta_playwright.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
             env=child_env
         )
-        
+
         with sync_lock:
             sync_state["process"] = process
 
-        for line in iter(process.stdout.readline, ''):
-            if line:
-                cleaned_line = line.strip()
-                with sync_lock:
-                    sync_state["logs"].append(cleaned_line)
-                    if len(sync_state["logs"]) > 500:
-                        sync_state["logs"].pop(0)
+        try:
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    cleaned_line = line.strip()
+                    with sync_lock:
+                        sync_state["logs"].append(cleaned_line)
+                        if len(sync_state["logs"]) > 500:
+                            sync_state["logs"].pop(0)
+        finally:
+            # Ha az olvasás bármiért megszakad, ne maradjon futó scraper
+            # (böngészőprofil-ütközés és megakadt pipe nélkül).
+            try:
+                process.stdout.close()
+            except Exception:
+                pass
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pass
 
-        process.stdout.close()
         process.wait()
 
         # A scraper gép-olvasható összegzése + kilépési kódja:

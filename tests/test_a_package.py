@@ -46,14 +46,27 @@ class FakeProc:
     def __init__(self, lines, code):
         self.stdout = FakeStdout(lines)
         self.returncode = code
-    def wait(self):
+    def wait(self, timeout=None):
         return self.returncode
+    def poll(self):
+        # a futás végén az app ezzel dönti el, kell-e leállítani a gyereket
+        return self.returncode
+    def terminate(self):
+        pass
     def kill(self):
         pass
 
 
+POPEN_KWARGS = {}
+
+
 def fake_popen(lines, code):
-    return lambda *a, **k: FakeProc(lines, code)
+    def _popen(*args, **kwargs):
+        POPEN_KWARGS.clear()
+        POPEN_KWARGS.update(kwargs)
+        POPEN_KWARGS["_argv"] = args
+        return FakeProc(lines, code)
+    return _popen
 
 
 print("1) Részleges hiba (A1)")
@@ -68,6 +81,9 @@ kreta.subprocess.Popen = fake_popen(lines, 2)
 kreta.run_scraper_thread("manual")
 ok(kreta.sync_state["status"] == "done_with_errors", f"exit 2 -> done_with_errors ({kreta.sync_state['status']})")
 ok(kreta.sync_state["failed_students"] == ["Teszt Elek"], f"hibás diák kiolvasva: {kreta.sync_state['failed_students']}")
+ok(POPEN_KWARGS.get("encoding") == "utf-8", "a scraper kimenetét UTF-8-ként olvassa")
+ok((POPEN_KWARGS.get("env") or {}).get("PYTHONIOENCODING") == "utf-8",
+   "a scraper UTF-8-ra kényszerítve indul (cp1250-ütközés ellen)")
 ok(any("RÉSZBEN SIKERES" in l for l in kreta.sync_state["logs"]), "a konzol jelzi a részleges hibát")
 st = kreta.load_scheduler_state()
 ok(st.get("last_failed_students") == ["Teszt Elek"], f"állapotfájlban is megvan: {st.get('last_failed_students')}")

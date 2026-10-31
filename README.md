@@ -25,7 +25,8 @@ a saját szerveren maradnak.
 - Kezeli a sütikezelő ablakot; perzisztens böngészőprofilt használ (kevesebb bejelentkezés).
 - Lekéri az **aktuális és következő hét** órarendjét (tanár, terem, csengetési időpontok).
 - Jegyek, feljegyzések, házik, számonkérések, **hiányzások/késések és igazolások** mentése;
-  az e-Ügyintézés üzenetei **inkrementálisan** (csak az újak) töltődnek, a csatolmányokkal együtt.
+  az e-Ügyintézés üzenetei **inkrementálisan** (csak az újak) töltődnek, **a csatolmányokkal
+  együtt — API-ból, böngésző nélkül** (`api`/`api_first` módban).
 - **Részleges hiba ≠ siker:** ha egy gyermek adata nem jön le, a többi frissül, a futás
   „részleges hiba" állapotba kerül, és a hibás gyermek neve megjelenik.
 
@@ -184,7 +185,7 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 | Érték | Jelentés |
 |---|---|
 | `playwright` | Csak a böngészős scraper fut. **Ha a kulcs hiányzik, ez az alap** (biztonságos visszaesés). |
-| `api` | Csak a mobil API (böngésző nélkül); egy adatkör hibája részleges hiba. |
+| `api` | Csak a mobil API (böngésző nélkül); egy adatkör hibája részleges hiba. **Az üzenet-csatolmányokat is letölti** (`files.e-kreta.hu` nonce URL). |
 | `api_first` | **Ajánlott éles beállítás:** adatkörönként API, hiba esetén automatikus Playwright fallback. |
 
 **`SYNC_SHADOW`** — `api_first` mellett a Playwright is lefut egy **DB-másolaton**, és a
@@ -293,10 +294,10 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**12 csomag, 409 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**12 csomag, 433 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
-adatkör, üzenet-csatolmány fallback), **szinkronmód/fallback**, **árnyék mód**,
+adatkör, **csatolmány-letöltés API-ból** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
 **mobil elrendezés**.
 Részletek: [`tests/README.md`](tests/README.md).
 

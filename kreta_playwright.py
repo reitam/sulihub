@@ -10,6 +10,7 @@ import logging.handlers
 from datetime import datetime, timedelta
 from playwright.async_api import async_playwright
 
+import kreta_api
 import kreta_api_sync
 import kreta_shadow
 import kreta_sync
@@ -702,16 +703,18 @@ def api_provider_orarend(student, client_factory=None):
 
 
 def api_provider_uzenetek(student, client_factory=None):
-    """Beérkezett üzenetek frissítése az eAdmin API-ból (csak az újakat menti).
+    """Beérkezett üzenetek + csatolmányok frissítése az API-ból (csak az újakat).
 
-    A KRÉTA üzenet-lista a teljes szöveget adja, a csatolmányokhoz viszont nincs
-    letöltési URL (csak név + azonosító). Ezért:
+    A csatolmányok tartalma is API-ból jön (2026-10-31 óta):
 
-    - ha nincs új csatolmányos üzenet: minden API-ból megy, böngésző nélkül;
-    - ha van új csatolmányos üzenet és a mód engedi a Playwrightot
-      (`api_first`), szándékosan hibát dobunk, hogy a webes eÜgyintézés-flow
-      töltse le a fájlokat is (a naplóban látszik az ok);
-    - tiszta `api` módban a fájl nélkül mentjük az üzenetet, és figyelmeztetünk.
+    1. `dokumentumok/uzenetek/{csatolmanyAzonosito}` → 302 a
+       `files.e-kreta.hu/fajlok/?nonce=...` címre, onnan a fájl bájtjai;
+    2. a fájl a `CSATOLMANYOK_DIR/<diák>/` alá kerül, a DB-be a könyvtárhoz
+       viszonyított relatív út megy (mint a webes útnál).
+
+    Ha egy letöltés elhal, `api_first` módban szándékosan hibát dobunk, hogy a
+    Playwright végezze el a teljes üzenet-adatkört (nincs félkész mentés);
+    tiszta `api` módban a fájl nélkül mentjük az üzenetet és figyelmeztetünk.
     """
     diak_nev = student.get("diak_nev", "Ismeretlen")
     if not student.get("scrape_messages", GLOBAL_SCRAPE_MESSAGES):
@@ -727,29 +730,72 @@ def api_provider_uzenetek(student, client_factory=None):
         m for m in messages
         if not is_uzenet_saved(diak_nev, m["felado"], m["targy"], m["idopont"])
     ]
-    with_attachment = [m for m in new_messages if m.get("csatolmanyok")]
 
-    if with_attachment and kreta_sync.needs_playwright(SYNC_MODE):
-        names = ", ".join(
-            (m["csatolmanyok"][0] or {}).get("fajlNev", "?") for m in with_attachment[:3]
-        )
-        raise RuntimeError(
-            f"{len(with_attachment)} új üzenet csatolmánnyal ({names}) — "
-            "a fájlok letöltéséhez a webes eÜgyintézés-flow kell"
-        )
+    # A csatolmányokat ELŐBB töltjük le, hogy hiba esetén még semmi ne kerüljön
+    # a DB-be (a Playwright-fallback így teljes adatkört kap).
+    downloads: dict[str, list[tuple[str, bytes]]] = {}
+    expected_names: dict[str, list[str]] = {}
+    for m in new_messages:
+        for attachment in m.get("csatolmanyok") or []:
+            attachment = attachment or {}
+            attachment_id = attachment.get("azonosito")
+            if not attachment_id:
+                continue
+            fajlnev = kreta_api.safe_fajlnev(
+                attachment.get("fajlNev") or f"csatolmany_{attachment_id}")
+            expected_names.setdefault(m["uzenet_id"], []).append(fajlnev)
+            try:
+                content, _content_type = kreta_api_sync.fetch_attachment(client, attachment_id)
+            except Exception as exc:  # noqa: BLE001 — hálózat/parse/méret bármi
+                reason = kreta_sync.describe_error(exc)
+                if kreta_sync.needs_playwright(SYNC_MODE):
+                    raise RuntimeError(
+                        f"csatolmány letöltés nem sikerült ({fajlnev}): {reason}") from exc
+                log(f"    [FIGYELEM] a csatolmány nem lett letöltve: {fajlnev} ({reason})")
+                continue
+            downloads.setdefault(m["uzenet_id"], []).append((fajlnev, content))
+            log(f"      -> Csatolmány letöltve: {fajlnev} ({len(content)} B)")
 
     uj = 0
     for m in new_messages:
-        attachments = m.get("csatolmanyok") or []
-        csatolmany_nev = (attachments[0] or {}).get("fajlNev", "") if attachments else ""
+        csatolmany_nev = ""
+        csatolmany_utvonal = ""
+        files = downloads.get(m["uzenet_id"]) or []
+        if files:
+            target_dir = os.path.join(CSATOLMANYOK_DIR, diak_nev.replace(" ", "_"))
+            os.makedirs(target_dir, exist_ok=True)
+            saved = []
+            for fajlnev, content in files:
+                save_path = _unique_path(os.path.join(target_dir, fajlnev))
+                with open(save_path, "wb") as handle:
+                    handle.write(content)
+                saved.append(save_path)
+            csatolmany_nev = os.path.basename(saved[0])
+            csatolmany_utvonal = os.path.relpath(saved[0], CSATOLMANYOK_DIR).replace("\\", "/")
+            if len(saved) > 1:
+                log(f"    [INFO] {len(saved)} csatolmány (a felület az elsőt linkeli): "
+                    + ", ".join(os.path.basename(p) for p in saved))
+        elif expected_names.get(m["uzenet_id"]):
+            # a fájl nem jött le (csak api módban jutunk ide): a nevet mentjük,
+            # az útvonal üres marad — a felület így is látja, hogy volt csatolmány
+            csatolmany_nev = expected_names[m["uzenet_id"]][0]
         save_uzenet_to_db(diak_nev, m["felado"], m["targy"], m["idopont"], m["szoveg"],
-                          csatolmany_nev, "")
+                          csatolmany_nev, csatolmany_utvonal)
         uj += 1
-        if csatolmany_nev:
-            log(f"    [FIGYELEM] a csatolmány nem lett letöltve: {csatolmany_nev}")
 
     NEW_MESSAGE_COUNTS[diak_nev] = uj
     log(f"  [ÜZENETEK OK] {len(messages)} üzenet az API-ból ({uj} új).")
+
+
+def _unique_path(path):
+    """Létező fájlnevet nem ír felül: `nev.pdf` -> `nev (2).pdf`."""
+    if not os.path.exists(path):
+        return path
+    stem, ext = os.path.splitext(path)
+    index = 2
+    while os.path.exists(f"{stem} ({index}){ext}"):
+        index += 1
+    return f"{stem} ({index}){ext}"
 
 
 API_PROVIDERS = {
