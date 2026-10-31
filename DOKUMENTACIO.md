@@ -391,9 +391,19 @@ köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data k�
    `Szinkron mód: api_first`, adatkörönként `[API OK]`, a diák végén
    `adatforrások: API: 8, Playwright: 0`, illetve `[ÁRNYÉK]` sorok (ha be volt kapcsolva).
 4. `/health` a várt verziót adja; a fejlécben is ez látszik.
-5. Fallback-próba (opcionális): ideiglenesen rossz jelszóval/API-hibával futtatni —
+5. **ntfy ellenőrzés:** `curl -X POST http://saját szerver:8085/api/ntfy/test` → `{"ok":true,
+   "topic":"…","url":"https://ntfy.sh","status":200}`, és a telefonon megjön a teszt-push.
+   Ha `configured:false`, a topic nem látszik a konténerben (`.env` a compose mellett van-e,
+   illetve `docker compose up -d --force-recreate` kellett-e).
+6. Fallback-próba (opcionális): ideiglenesen rossz jelszóval/API-hibával futtatni —
    a naplóban `[API HIBA]` + Playwright-forrás, az adatok nem duplikálódnak.
-6. 1–2 hét után a `SYNC_SHADOW` kikapcsolható; a Playwright csak fallback marad.
+7. 1–2 hét után a `SYNC_SHADOW` kikapcsolható; a Playwright csak fallback marad.
+
+> **Lokális (DEV) ntfy:** a repóban nincs `.env`, ezért lokálisan nincs push. Ha kell,
+> hozz létre `c:\ReiTam\AI\Gemini\Kreta\.env` fájlt az `.env.example` alapján — de
+> **más topic névvel**, mint az éles (`kreta-dev-…`), különben a két futás ugyanoda
+> küld, és nem tudod megkülönböztetni őket. Az env erősebb a `config.json` `NTFY`
+> blokkjánál.
 
 ### 7.4. Mentés és visszaállítás
 
