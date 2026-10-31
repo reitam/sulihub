@@ -115,6 +115,27 @@ a fő elemek a képernyőn belül vannak, a táblázat összecsukott).
 Az értesítések az **ntfy** szolgáltatáson keresztül mennek a telefonra. Diáknevek alapból
 **nem** kerülnek ki; a részletes bontás a felületen és a naplóban látható.
 
+**Beállítás — két helyen, az env az erősebb:**
+
+```jsonc
+// config.json (a data köteten; lokálisan is ez a kényelmes)
+"NTFY": {
+  "TOPIC": "kreta-3f9c1a7b5e2d4c60",   // üresen nincs értesítés
+  "URL": "https://ntfy.sh",             // saját ntfy szerver is lehet
+  "NOTIFY_SUCCESS": true,               // sikeres futásról is küldjön
+  "INCLUDE_NAMES": false                // diáknevek a push-ban (alapból nem)
+}
+```
+
+A szerveren a `NTFY_TOPIC` (stb.) a `/mnt/work/Kreta/.env`-ben él (a compose `env_file`-ja);
+ha ott be van állítva, az **felülírja** a config.json értékét. A topic **neve maga a cím**:
+az ntfy appban (vagy a `ntfy.sh` oldalon) ugyanerre a névre kell feliratkozni — és mivel erre
+a névre bárki küldhet/olvashat, **hosszú, véletlen nevet** használj (nincs regisztráció).
+A téma a `config.json`-ban a deploy után is szerkeszthető (a deploy nem írja felül).
+
+Beállítás-ellenőrzés (a futó appnál): `POST /api/ntfy/test` — küld egy teszt-push-t, és
+megmondja, van-e egyáltalán topic, milyen URL-lel; topic nélkül 400-at ad a hiányzó kulccsal.
+
 ### 2.6. Zsebpénz / jutalom modul (üzleti szabályok)
 
 A rendszer a jegyekhez és viselkedési bejegyzésekhez **forintértéket** rendel, és havi
@@ -311,10 +332,10 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 | `KRETA_HOST` / `KRETA_PORT` / `KRETA_DEBUG` | `127.0.0.1` / `5000` / ki | Web szerver |
 | `KRETA_SERVER` | `flask` | `waitress` = produkciós szerver (a compose így indítja) |
 | `KRETA_WAITRESS_THREADS` | `8` | Kiszolgáló szálak |
-| `NTFY_TOPIC` | *(üres)* | ntfy topic **vagy teljes URL** — üresen nincs értesítés |
-| `NTFY_URL` | `https://ntfy.sh` | ntfy szerver |
-| `NTFY_NOTIFY_SUCCESS` | `1` | Sikeres futásról is küldjön-e |
-| `NTFY_INCLUDE_NAMES` | `0` | Diáknevek a részleges hiba push-ban |
+| `NTFY_TOPIC` | *(üres)* | ntfy topic **vagy teljes URL** — üresen nincs értesítés (config.json `NTFY.TOPIC` is lehet, az env erősebb) |
+| `NTFY_URL` | `https://ntfy.sh` | ntfy szerver (config.json `NTFY.URL` is lehet) |
+| `NTFY_NOTIFY_SUCCESS` | `1` | Sikeres futásról is küldjön-e (config.json `NTFY.NOTIFY_SUCCESS`) |
+| `NTFY_INCLUDE_NAMES` | `0` | Diáknevek a részleges hiba push-ban (config.json `NTFY.INCLUDE_NAMES`) |
 | `KRETA_LOG_MAX_BYTES` / `_BACKUP_COUNT` | `1000000` / `2` | Napló rotáció |
 | `KRETA_SQLITE_WAL` | `0` | WAL mód (a FUSE kötet miatt alapból ki) |
 
@@ -363,7 +384,9 @@ köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data k�
 1. `.\deploy.ps1 -Release v1.6.0` — a Chromium **benne marad** az image-ben
    (`kreta_playwright.py` fallback), a DB/config érintetlen.
 2. A data köteten a `config.json`-ba `"SYNC_MODE": "api_first"` (az első API-s futás
-   utáni ellenőrzéshez `"SYNC_SHADOW": true` is bekapcsolható).
+   utáni ellenőrzéshez `"SYNC_SHADOW": true` is bekapcsolható). Ugyanitt érdemes az
+   `"NTFY": {"TOPIC": "…"}` blokkot is kitölteni (kényelmesebben szerkeszthető, mint a
+   szerver `.env`-je; az env érték erősebb).
 3. Kézi szinkron indítása a felületről, majd a naplóban ellenőrizni:
    `Szinkron mód: api_first`, adatkörönként `[API OK]`, a diák végén
    `adatforrások: API: 8, Playwright: 0`, illetve `[ÁRNYÉK]` sorok (ha be volt kapcsolva).
@@ -397,7 +420,7 @@ köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data k�
 | Tünet | Ok | Teendő |
 |---|---|---|
 | „A config.json fájl nem található" a futásban | a scraper nem a data könyvtárat nézte (javítva v1.2.1) | verzió ellenőrzése |
-| Nincs értesítés | `NTFY_TOPIC` nincs a `.env`-ben, vagy a konténer nem lett újralétrehozva | `.env` + `docker compose up -d --force-recreate` |
+| Nincs értesítés | `NTFY_TOPIC` nincs a `.env`-ben (lokálisan nincs is `.env`, ezért csendben nem küld), vagy a konténer nem lett újralétrehozva | topic a `.env`-be **vagy** a config.json `NTFY.TOPIC`-jába; ellenőrzés: `POST /api/ntfy/test` |
 | A fejléc „régi" adatot mutat | böngésző-gyorsítótár | Ctrl+F5 |
 | Két helyi példány ugyanazon a porton | Windows megengedi (SO_REUSEADDR) | a régi folyamat leállítása — a v1.6.0-tól az app **indításkor szól**: „a port már foglalt" és kilép |
 | DB „malformed" olvasáskor | SMB-n keresztüli olvasás futás közben | nyugalmi állapotban ellenőrizni |
