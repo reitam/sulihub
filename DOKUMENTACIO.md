@@ -120,12 +120,17 @@ Az értesítések az **ntfy** szolgáltatáson keresztül mennek a telefonra. Di
 ```jsonc
 // config.json (a data köteten; lokálisan is ez a kényelmes)
 "NTFY": {
+  "_comment": "CSA K akkor él, ha a .env-ben nincs NTFY_TOPIC (az env erősebb)",
   "TOPIC": "kreta-3f9c1a7b5e2d4c60",   // üresen nincs értesítés
   "URL": "https://ntfy.sh",             // saját ntfy szerver is lehet
   "NOTIFY_SUCCESS": true,               // sikeres futásról is küldjön
   "INCLUDE_NAMES": false                // diáknevek a push-ban (alapból nem)
 }
 ```
+
+> A JSON nem enged megjegyzést, ezért a `_comment` kulcs a „komment” (az app nem
+> használja). Ha a `.env`-ben is van `NTFY_TOPIC`, induláskor a konzol kiírja, hogy a
+> config.json topicját nem használja.
 
 A szerveren a `NTFY_TOPIC` (stb.) a `/mnt/work/Kreta/.env`-ben él (a compose `env_file`-ja);
 ha ott be van állítva, az **felülírja** a config.json értékét. A topic **neve maga a cím**:

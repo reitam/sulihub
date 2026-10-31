@@ -5,6 +5,7 @@
   "SYNC_SHADOW": false,
   "ENABLE_REWARDS": true,
   "NTFY": {
+    "_comment": "Push ertesites. CSAK akkor hasznalja, ha a .env-ben NINCS NTFY_TOPIC (az env erosebb). Ures TOPIC = nincs ertesites. A topic neve maga a cim: az ntfy appban ugyanerre a nevere kell feliratkozni, ezert hosszu, veletlen nevet hasznalj. Ellenorzes: POST /api/ntfy/test",
     "TOPIC": "",
     "URL": "https://ntfy.sh",
     "NOTIFY_SUCCESS": true,

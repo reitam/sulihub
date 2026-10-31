@@ -62,7 +62,8 @@ def run_probe(work, env_extra, body):
 print("1) config.json NTFY blokk (nincs env)")
 work = Path(tempfile.mkdtemp(prefix="kreta_ntfy_"))
 sqlite3.connect(work / "kreta_adatok.db").close()
-write_config(work, {"TOPIC": "kreta-cfg-topic", "URL": "https://ntfy.example",
+write_config(work, {"_comment": "csak akkor él, ha nincs .env",
+                    "TOPIC": "kreta-cfg-topic", "URL": "https://ntfy.example",
                     "NOTIFY_SUCCESS": False, "INCLUDE_NAMES": True})
 result = run_probe(work, {}, (
     "print('TOPIC=' + kreta.NTFY_TOPIC)\n"
@@ -95,6 +96,9 @@ for line in result2.stdout.splitlines():
         values2[key] = val
 ok(values2.get("TOPIC") == "kreta-env-topic", f"env topic nyer: {values2.get('TOPIC')}")
 ok(values2.get("URL") == "https://env.example", f"env URL nyer: {values2.get('URL')}")
+ok("A .env NTFY_TOPIC-ja él" in result2.stdout,
+   "induláskor jelzi, hogy a config.json topicját nem használja")
+ok("_comment" not in result2.stdout, "a _comment kulcs nem zavar (nincs benne a topicban)")
 
 print("\n3) Teszt-végpont (POST /api/ntfy/test)")
 probe = work / "probe_endpoint.py"
