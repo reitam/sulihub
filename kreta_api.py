@@ -430,8 +430,14 @@ class KretaApiClient:
         return list(items.values())
 
     def fetch_lessons(self, start: date, end: date) -> list[dict]:
+        # Az OrarendElemek a KezdetIdopont **UTC** dátuma szerint szűr. A helyi
+        # nap 00:00-kor kezdődő egész napos események (tanév rendje: szünetek,
+        # munkaszüneti napok) viszont előző napi 23:00Z-ként jönnek, ezért az
+        # ablak első napjának eseményei kimaradnának (pl. az őszi szünet hétfője).
+        # Egy nappal korábbra is kérünk; a normalizálás helyi dátumra vált.
         items: dict[str, dict] = {}
-        for chunk_start, chunk_end in chunk_date_range(start, end):
+        padded_start = start - timedelta(days=1)
+        for chunk_start, chunk_end in chunk_date_range(padded_start, end):
             data = self._api_get("sajat/OrarendElemek", {
                 "datumTol": chunk_start.isoformat(), "datumIg": chunk_end.isoformat(),
             })

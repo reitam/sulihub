@@ -315,7 +315,15 @@ ok(consultations[0]["title"] == "Fogadóóra", "fogadóóra cím")
 ok(consultations[0]["tanarNev"] == "Minta Zsuzsanna", "fogadóóra tanára")
 ok(consultations[0]["teremNev"] == "101", "fogadóóra terme")
 
-print("\n8d) Csatolmány-letöltés (eAdmin → files nonce)")
+print("\n8d) Órarend-ablak: az első nap eseményei (UTC-határ)")
+client = make_client([FakeResponse(200, json_data=[])])
+client.token = ApiToken("a", "r", "iskola", time.time() + 3600)
+client.fetch_lessons(date(2026, 10, 26), date(2026, 11, 8))
+params = client.session.calls[0][2]["params"]
+ok(params["datumTol"] == "2026-10-25", f"egy nappal korábbra is kér: {params['datumTol']}")
+ok(params["datumIg"] == "2026-11-08", "a záró dátum változatlan")
+
+print("\n8e) Csatolmány-letöltés (eAdmin → files nonce)")
 client = make_client([
     FakeResponse(302, headers={"Location": "https://files.e-kreta.hu/fajlok/?nonce=ABC"}),
     FakeResponse(200, content=b"%PDF-1.7 tartalom",
@@ -367,7 +375,7 @@ try:
 except KretaResponseError:
     ok(True, "méretkorlát -> KretaResponseError")
 
-print("\n8e) Csatolmány-fájlnév biztonságosítása")
+print("\n8f) Csatolmány-fájlnév biztonságosítása")
 ok(safe_fajlnev("../../etc/passwd").find("/") == -1, "path traversal kiszűrve")
 ok(safe_fajlnev("a\\b:c*d?.pdf") == "a_b_c_d_.pdf", "tiltott karakterek cserélve")
 ok(safe_fajlnev("  ..hmm.pdf  ") == "hmm.pdf", "vezető pont/szóköz levágva")

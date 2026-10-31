@@ -7,6 +7,7 @@ import json
 import threading
 import re
 import io
+import socket
 import time
 import urllib.request
 from datetime import datetime, timedelta
@@ -69,7 +70,89 @@ sync_lock = threading.Lock()
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
+    ensure_db_schema(conn)
     return conn
+
+
+# A scraper hozza létre ezeket (`kreta_playwright.init_db`); a Flask csak a
+# saját kiegészítőit (lásd APP_OWN_TABLES). Ha a DB fájlt kézzel áthelyezik/
+# törlik, eddig üres fájl keletkezett, amiben nem volt `esemenyek`/`uzenetek`
+# → minden oldal 500-as hibát adott. Ezért a hiányzó sémát itt pótoljuk.
+SCRAPER_TABLES = ("esemenyek", "uzenetek", "orarend", "hianyzasok", "igazolasok")
+APP_OWN_TABLES = ("kifizetesek", "sync_runs", "app_meta")
+CORE_TABLES = SCRAPER_TABLES + APP_OWN_TABLES
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_schema_lock = threading.Lock()
+_schema_bootstrapping = False
+_schema_failed = False
+
+
+def _missing_tables(conn, tables):
+    names = {row[0] for row in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    return [table for table in tables if table not in names]
+
+
+def ensure_db_schema(conn=None, reason=""):
+    """Teljes séma megléte; hiány esetén létrehozza (egy helyen, a scraperben).
+
+    A scraper-táblák DDL-je a `kreta_playwright.init_db`-ben él, ezért a Flask
+    nem duplikálja: külön processzben hívja meg `--init-db`-vel (böngésző
+    nélkül, ~1 s). Utána a saját tábláit (kifizetesek, sync_runs, app_meta) az
+    `init_db_extensions` hozza létre. Visszaad: True, ha most bootstrappelt.
+    """
+    global _schema_bootstrapping, _schema_failed
+    own = conn is None
+    conn = conn or sqlite3.connect(DB_FILE)
+    try:
+        missing = _missing_tables(conn, SCRAPER_TABLES)
+    except sqlite3.Error:
+        missing = list(SCRAPER_TABLES)
+    finally:
+        if own:
+            conn.close()
+    if not missing or _schema_bootstrapping or _schema_failed:
+        return False
+
+    with _schema_lock:
+        check = sqlite3.connect(DB_FILE)
+        try:
+            missing = _missing_tables(check, SCRAPER_TABLES)
+        finally:
+            check.close()
+        if not missing or _schema_bootstrapping:
+            return False
+        suffix = f" ({reason})" if reason else ""
+        print(f"[Adatbázis] Hiányzó táblák: {', '.join(missing)}{suffix} — séma létrehozása...")
+        env = os.environ.copy()
+        env["KRETA_DATA_DIR"] = DATA_DIR
+        env["KRETA_DB_FILE"] = DB_FILE
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+        _schema_bootstrapping = True
+        try:
+            result = subprocess.run(
+                [sys.executable, os.path.join(APP_DIR, "kreta_playwright.py"), "--init-db"],
+                cwd=APP_DIR, env=env, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=120)
+        except Exception as exc:  # noqa: BLE001 — a bootstrap hibája ne borítsa a kérést
+            _schema_failed = True
+            print(f"[Adatbázis] A séma létrehozása nem sikerült: {exc}")
+            return False
+        finally:
+            _schema_bootstrapping = False
+        if result.returncode != 0:
+            _schema_failed = True
+            detail = (result.stderr or result.stdout or "").strip()[-300:]
+            print(f"[Adatbázis] init-db hiba (exit {result.returncode}): {detail}")
+            return False
+        print("[Adatbázis] Séma létrehozva — üres adatbázis, az első szinkron tölti fel.")
+
+    # A saját táblák (a függvény a fájlban később van definiálva).
+    initializer = globals().get("init_db_extensions")
+    if callable(initializer):
+        initializer()
+    return True
 
 # ==============================================================================
 # === FUTÁS-NAPLÓ (sync_runs) ÉS ALKALMAZÁS-META (app_meta) =====================
@@ -451,6 +534,8 @@ def init_db_extensions():
         except Exception as e:
             print(f"[Adatbázis inicializálási figyelmeztetés]: {e}")
 
+# Ha a DB fájl hiányzik vagy üres (kézi áthelyezés/törlés), előbb a teljes séma.
+ensure_db_schema(reason="indítás")
 init_db_extensions()
 
 def get_app_version():
@@ -2255,6 +2340,18 @@ if __name__ == "__main__":
     host = os.environ.get("KRETA_HOST", "127.0.0.1")
     port = int(os.environ.get("KRETA_PORT", "5000"))
     debug = os.environ.get("KRETA_DEBUG", "0") == "1"
+    # Windows-on két process is listenelhet ugyanarra a portra (SO_REUSEADDR):
+    # ilyenkor a böngésző a RÉGI példányt éri el, és érthetetlen hibák jönnek.
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind((host, port))
+    except OSError:
+        print(f"HIBA: a(z) {port} port már foglalt — valószínűleg fut egy másik példány.")
+        print("      Zárd be a régi ablakot (vagy állítsd a KRETA_PORT környezeti változót),")
+        print("      különben a böngésző a régi kódot és a régi adatbázist szolgálja ki.")
+        sys.exit(1)
+    finally:
+        probe.close()
     print(f"Web szerver indítása: http://{host}:{port}")
     # Az ütemezőt csak egyszer indítjuk: debug módban a reloader két processzt
     # futtat, ezért ott csak a gyerek-processzben (WERKZEUG_RUN_MAIN) indul.
