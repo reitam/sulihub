@@ -216,6 +216,12 @@ hagyni, utána kikapcsolható — a Playwright csak fallback marad.
 > letöltés mégis elhal, `api_first` módban a teljes üzenet-adatkör Playwright-fallbackre
 > megy (nincs félkész mentés), `api` módban a fájl kimarad (figyelmeztetés a naplóban).
 
+> **UTC-határ az órarendnél:** az `OrarendElemek` a `KezdetIdopont` **UTC** dátuma
+> szerint szűr, a helyi nap 00:00-kor kezdődő egész napos események (szünetek,
+> munkaszüneti napok) viszont előző napi `23:00Z`-ként jönnek. Ezért a kliens az
+> órarend-ablakot **egy nappal korábbra** is kéri — enélkül az ablak első napjának
+> eseményei (pl. az őszi szünet hétfője) kimaradnának a heti nézetből.
+
 ### 3.3. Futásállapotok
 
 | Állapot | Jelentés |
@@ -393,8 +399,12 @@ köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data k�
 | „A config.json fájl nem található" a futásban | a scraper nem a data könyvtárat nézte (javítva v1.2.1) | verzió ellenőrzése |
 | Nincs értesítés | `NTFY_TOPIC` nincs a `.env`-ben, vagy a konténer nem lett újralétrehozva | `.env` + `docker compose up -d --force-recreate` |
 | A fejléc „régi" adatot mutat | böngésző-gyorsítótár | Ctrl+F5 |
-| Két helyi példány ugyanazon a porton | Windows megengedi (SO_REUSEADDR) | a régi folyamat leállítása |
+| Két helyi példány ugyanazon a porton | Windows megengedi (SO_REUSEADDR) | a régi folyamat leállítása — a v1.6.0-tól az app **indításkor szól**: „a port már foglalt" és kilép |
 | DB „malformed" olvasáskor | SMB-n keresztüli olvasás futás közben | nyugalmi állapotban ellenőrizni |
+| „Internal Server Error" üres DB-nél | a `kreta_adatok.db`-t kézzel áthelyezték/törölték; a Flask korábban csak a saját tábláit hozta létre, az `esemenyek`/`uzenetek` hiányzott | v1.6.0-tól **önjavító**: induláskor (és kérésnél) a hiányzó séma létrejön (`kreta_playwright.py --init-db`), üres adatbázissal is elindul |
+| Nem törölhető/nevezhető át a DB fájl | egy futó példány nyitva tartja (SQLite) | a KRÉTA-példány(ok) leállítása, utána a fájlművelet |
+
+**Nulláról tesztelés:** állítsd le az appot, nevezd át/áthelyezned a `kreta_adatok.db`-t, majd indítsd újra. Az app létrehozza a teljes sémát (a naplóban `[Adatbázis] Séma létrehozva`), és üres felülettel indul; az első (kézi) szinkron tölti fel. A séma önmagában is létrehozható: `python kreta_playwright.py --init-db`.
 
 ---
 
@@ -446,7 +456,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **433 automatikus ellenőrzés** tizenkét csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **448 automatikus ellenőrzés** tizenhárom csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -474,6 +484,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | Egy processzes ütemező | több worker esetén duplikálódna | Dockerben egy processz fut |
 | KRÉTA DOM-scraping | a KRÉTA felületváltása törheti | az API-first út (v1.6.0) ezt kiváltja; a Playwright fallback megmarad |
 | Táboros hiányzás témája | az API nem ad rá témát (nincs órarendi elem) | a meglévő DB-érték megmarad; új táboros sornál üres |
+| Órarend-ablak első napja | az `OrarendElemek` a `KezdetIdopont` UTC dátuma szerint szűr, az egész napos események `23:00Z`-ként jönnek | a kliens egy nappal korábbra is kér (`fetch_lessons`), így a hétfői szünet/ünnep nem marad ki |
 | Üzenet-csatolmány letöltése | az eAdmin API csak fájl-metadatot ad, a fájl egy rövid életű `nonce` URL-en jön | a kliens a `dokumentumok/uzenetek/{id}` 302-jét követi, és a `files.e-kreta.hu/fajlok/?nonce=…` címről tölt (2026-10-31 óta API-ból, böngésző nélkül); hiba esetén `api_first` fallback |
 | Nincs `MESSAGE_LIMIT` | az első API-s futás az összes üzenetet letölti (nálunk ~76 sor), utána már csak az újakat | tudatos döntés: az inkrementális futások így is 1–5 üzenetet hoznak |
 | Chromium az image-ben | nagyobb image | a Playwright fallback miatt szükséges, amíg az API hosszú távon nem bizonyít |
@@ -548,7 +559,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.4.1** | **2026-10-29** | Mobil finomítás: **monogram-avatar** a diák oszlopban (szabad hely a **bejegyzés dátumának**), a naptár két lista-gombja külön névvel (Havi/Heti lista), rövidebb mobil fejléc-címkék, **az utolsó frissítés sora mobilon is látszik** (korábban a CSS elrejtette) |
 | **v1.5.0** | **2026-10-29** | **Hiányzások / késések modul:** új `hianyzasok` és `igazolasok` tábla, scraper, „Hiányzások" fül havi összesítővel (igazolt/igazolatlan óra, késés db/perc) és igazolás-listával; **inkrementális mentés dátum + órasorszám alapján** (stabil sor-ID); az új hiányzások és igazolatlan órák a push-üzenetben is megjelennek |
 | **v1.5.1** | **2026-10-30** | Hiányzások fül finomítás: az összesítő első kártyája **„Összes hiányzás" órában** (nem db); a hosszú igazolás-típus és megjegyzés teljes szöveggel, több sorban látszik (tooltipek a többi hosszú mezőn) |
-| **v1.6.0** *(fejlesztés alatt)* | **2026-10-31** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 8 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba; **`SYNC_SHADOW` árnyék/ellenőrző mód** (Playwright DB-másolaton, összehasonlítás); **üzenet-csatolmányok letöltése API-ból** (`dokumentumok/uzenetek/{id}` → `files.e-kreta.hu` nonce URL, `safe_fajlnev` + méretkorlát), böngésző nélkül; a scraper kimenete UTF-8-ként olvasva, árva gyerekprocessz nem marad. **Kész: D1–D8**; a D9 (dokumentáció, config, deploy v1.6.0) következik |
+| **v1.6.0** | **2026-10-31** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 8 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba; **`SYNC_SHADOW` árnyék/ellenőrző mód** (Playwright DB-másolaton, összehasonlítás); **üzenet-csatolmányok letöltése API-ból** (`dokumentumok/uzenetek/{id}` → `files.e-kreta.hu` nonce URL, `safe_fajlnev` + méretkorlát), böngésző nélkül; a scraper kimenete UTF-8-ként olvasva, árva gyerekprocessz nem marad; **DB-séma önjavítás** (hiányzó/üres adatbázis), port-ütközés felismerése induláskor; az órarend-ablak egy nappal korábbra kér (UTC-határ). **D1–D9 kész** |
 
 ---
 

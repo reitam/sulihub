@@ -51,17 +51,24 @@ def log(message=""):
     """Segédfüggvény a sima print helyett, ami formázva ír a logfájlba és a konzolra is."""
     logging.info(message)
 
-if not os.path.exists(CONFIG_FILE):
-    log(f"HIBA: A {CONFIG_FILE} fájl nem található!")
-    exit(1)
+# `--init-db`: csak a sémát hozza létre (a Flask app hívja, ha a DB fájl
+# hiányzik vagy üres) — ilyenkor config és diákok nélkül is futnia kell.
+INIT_DB_ONLY = "--init-db" in sys.argv[1:]
 
-# utf-8-sig: a Windows Notepad/PowerShell által írt BOM-ot is kezeli.
-try:
-    with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
-        config = json.load(f)
-except ValueError as e:
-    log(f"HIBA: A {CONFIG_FILE} nem érvényes JSON: {e}")
-    exit(1)
+if INIT_DB_ONLY:
+    config = {}
+else:
+    if not os.path.exists(CONFIG_FILE):
+        log(f"HIBA: A {CONFIG_FILE} fájl nem található!")
+        exit(1)
+
+    # utf-8-sig: a Windows Notepad/PowerShell által írt BOM-ot is kezeli.
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
+            config = json.load(f)
+    except ValueError as e:
+        log(f"HIBA: A {CONFIG_FILE} nem érvényes JSON: {e}")
+        exit(1)
 
 HEADLESS_MODE = config.get("HEADLESS", True)
 STUDENTS = config.get("STUDENTS", [])
@@ -78,7 +85,9 @@ SYNC_SHADOW = str(config.get("SYNC_SHADOW", False)).strip().lower() in ("1", "tr
 # A szolgáltatók a fájl alján, a mentő függvények után vannak regisztrálva;
 # az üresen maradó adatkör Playwrighttal megy.
 
-if not STUDENTS:
+# `--init-db`: csak a sémát hozza létre, diákok nélkül is (ezt hívja a Flask
+# app, ha a DB fájl hiányzik vagy üres). Ezért ott nem lépünk ki.
+if not STUDENTS and not INIT_DB_ONLY:
     log("HIBA: A config.json nem tartalmaz 'STUDENTS' listát!")
     exit(1)
 
@@ -2154,4 +2163,10 @@ async def main():
     return 0 if not failed else 2
 
 if __name__ == "__main__":
+    # `--init-db`: csak a sémát hozza létre (a Flask app ezt hívja, ha a DB
+    # fájl hiányzik vagy üres), böngésző és belépés nélkül.
+    if INIT_DB_ONLY:
+        init_db()
+        print("Séma kész (init-db).")
+        sys.exit(0)
     sys.exit(asyncio.run(main()))
