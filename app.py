@@ -830,6 +830,15 @@ NTFY_INCLUDE_NAMES = _ntfy_flag("NTFY_INCLUDE_NAMES", "INCLUDE_NAMES", False)
 # Sikeres futásról is küldjünk-e push-t (alapból igen, mert ezt kérték).
 NTFY_NOTIFY_SUCCESS = _ntfy_flag("NTFY_NOTIFY_SUCCESS", "NOTIFY_SUCCESS", True)
 
+# Ha mindkét helyen van topic, induláskor jelezzük, hogy a config.json értéke
+# nem érvényesül (az env az erősebb) — így nem kell találgatni, miért nem az a
+# topic kap értesítést, amit a config.json-ba írtunk.
+_env_topic = os.environ.get("NTFY_TOPIC", "").strip()
+_cfg_topic = str(_ntfy_config("TOPIC", "") or "").strip()
+if _env_topic and _cfg_topic and _env_topic != _cfg_topic:
+    print(f"[ntfy] A .env NTFY_TOPIC-ja él ({_env_topic[:10]}…), a config.json "
+          f"NTFY.TOPIC-ot ({_cfg_topic[:10]}…) nem használom.")
+
 
 def _http_post_ntfy(url, data, headers, timeout):
     """A tényleges HTTP hívás — tesztben monkeypatch-elhető."""

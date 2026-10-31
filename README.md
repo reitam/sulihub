@@ -197,6 +197,7 @@ bekapcsolva hagyni, utána kikapcsolható.
 
 ```jsonc
 "NTFY": {
+  "_comment": "CSA K akkor él, ha a .env-ben nincs NTFY_TOPIC (az env erősebb)",
   "TOPIC": "kreta-3f9c1a7b5e2d4c60",   // üresen nincs értesítés; a név maga a cím
   "URL": "https://ntfy.sh",             // saját ntfy szerver is lehet
   "NOTIFY_SUCCESS": true,               // sikeres futásról is küldjön
