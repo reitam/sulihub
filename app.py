@@ -793,14 +793,42 @@ def _rotate_log_if_needed():
 
 # ── Értesítés (ntfy) ─────────────────────────────────────────────────────────
 # A backup-script már használ ntfy-t; ugyanaz a csatorna itt is működik.
-NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "").strip()
-NTFY_URL = os.environ.get("NTFY_URL", "https://ntfy.sh").rstrip("/")
+# A beállítás jöhet a config.json `NTFY` blokkjából (kényelmes lokálisan), de a
+# környezeti változó mindig erősebb — a szerveren a .env a hiteles forrás.
+def _ntfy_config(key, default=None):
+    """A config.json `NTFY` blokkja (pl. {"NTFY": {"TOPIC": "kreta-..."}})."""
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
+            block = (json.load(f) or {}).get("NTFY") or {}
+    except (OSError, ValueError):
+        return default
+    if not isinstance(block, dict):
+        return default
+    value = block.get(key)
+    return default if value is None else value
+
+
+def _ntfy_flag(env_name, config_key, default):
+    """Kapcsoló: env változó → config.json NTFY kulcs → alapérték."""
+    env_value = os.environ.get(env_name)
+    if env_value is not None and str(env_value).strip() != "":
+        return str(env_value).strip().lower() in ("1", "true", "yes", "on")
+    value = _ntfy_config(config_key)
+    if value is None:
+        return default
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+NTFY_TOPIC = (os.environ.get("NTFY_TOPIC", "").strip()
+              or str(_ntfy_config("TOPIC", "") or "").strip())
+NTFY_URL = (os.environ.get("NTFY_URL", "").strip()
+            or str(_ntfy_config("URL", "https://ntfy.sh") or "https://ntfy.sh")).rstrip("/")
 NTFY_TIMEOUT = int(os.environ.get("NTFY_TIMEOUT", 5))
 STALE_ALERT_REPEAT_HOURS = 6
 # A diáknevek személyes adatok — a nyilvános ntfy.sh-ra alapból NEM küldjük őket.
-NTFY_INCLUDE_NAMES = os.environ.get("NTFY_INCLUDE_NAMES", "0").strip().lower() in ("1", "true", "yes", "on")
+NTFY_INCLUDE_NAMES = _ntfy_flag("NTFY_INCLUDE_NAMES", "INCLUDE_NAMES", False)
 # Sikeres futásról is küldjünk-e push-t (alapból igen, mert ezt kérték).
-NTFY_NOTIFY_SUCCESS = os.environ.get("NTFY_NOTIFY_SUCCESS", "1").strip().lower() in ("1", "true", "yes", "on")
+NTFY_NOTIFY_SUCCESS = _ntfy_flag("NTFY_NOTIFY_SUCCESS", "NOTIFY_SUCCESS", True)
 
 
 def _http_post_ntfy(url, data, headers, timeout):
@@ -2335,6 +2363,38 @@ def download_csatolmany(filename):
 def health():
     """Docker healthcheck végpont."""
     return jsonify({"status": "ok", "version": get_app_version()})
+
+
+@app.route("/api/ntfy/test", methods=["POST"])
+def api_ntfy_test():
+    """Teszt-push az ntfy csatornára (beállítás-ellenőrzés).
+
+    Válasz: `configured` (van-e topic), `url`, `topic` és a küldés eredménye.
+    Ha nincs topic, 400 — így rögtön látszik, hogy a config/env hiányos.
+    """
+    if not NTFY_TOPIC:
+        return jsonify({
+            "ok": False, "configured": False,
+            "message": "Nincs ntfy topic beállítva: config.json → NTFY.TOPIC "
+                       "vagy NTFY_TOPIC környezeti változó.",
+        }), 400
+    url, topic = _ntfy_target()
+    payload = json.dumps({
+        "topic": topic,
+        "title": "KRÉTA – teszt értesítés",
+        "message": f"Teszt push innen: {os.environ.get('COMPUTERNAME') or 'dev'}",
+        "priority": 3,
+        "tags": ["white_check_mark"],
+    }, ensure_ascii=False).encode("utf-8")
+    try:
+        status = _http_post_ntfy(url, payload,
+                                 {"Content-Type": "application/json; charset=utf-8"},
+                                 NTFY_TIMEOUT)
+    except Exception as exc:  # noqa: BLE001 — hálózati/időtúllépés bármi lehet
+        return jsonify({"ok": False, "configured": True, "url": url, "topic": topic,
+                        "error": f"{type(exc).__name__}: {exc}"}), 502
+    return jsonify({"ok": status == 200, "configured": True, "url": url,
+                    "topic": topic, "status": status})
 
 if __name__ == "__main__":
     host = os.environ.get("KRETA_HOST", "127.0.0.1")

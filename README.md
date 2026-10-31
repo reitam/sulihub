@@ -193,6 +193,23 @@ szinkron csak összehasonlítja a kettőt (a `sync.log`-ban `[ÁRNYÉK]` sorok).
 adatbázishoz csak az API ír, így nincs dupla írás. Élesítés előtt 1–2 hétig érdemes
 bekapcsolva hagyni, utána kikapcsolható.
 
+**`NTFY`** — push értesítés (opcionális; enélkül nincs értesítés):
+
+```jsonc
+"NTFY": {
+  "TOPIC": "kreta-3f9c1a7b5e2d4c60",   // üresen nincs értesítés; a név maga a cím
+  "URL": "https://ntfy.sh",             // saját ntfy szerver is lehet
+  "NOTIFY_SUCCESS": true,               // sikeres futásról is küldjön
+  "INCLUDE_NAMES": false                // diáknevek a push-ban (alapból nem)
+}
+```
+
+A szerveren ugyanezek `NTFY_TOPIC` / `NTFY_URL` / `NTFY_NOTIFY_SUCCESS` /
+`NTFY_INCLUDE_NAMES` néven a `.env`-ben is megadhatók — **az env érték erősebb**. Az
+ntfy.sh-n nincs regisztráció: a topic nevére kell feliratkozni az appban, ezért használj
+hosszú, véletlen nevet. Ellenőrzés a futó appnál: `POST /api/ntfy/test` (teszt-push,
+és megmondja, van-e beállított topic).
+
 A forrás és a fallback oka a `sync.log`-ban és a futásnapló `sources` mezőjében látszik
 (`DOKUMENTACIO.md` 3.2.1). Amelyik adatkörhöz még nincs API-implementáció, azt a
 Playwright fedi le.
