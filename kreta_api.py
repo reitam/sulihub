@@ -21,7 +21,7 @@ import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Iterator
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 from zoneinfo import ZoneInfo
 
 import requests
@@ -86,6 +86,10 @@ EADMIN_BASE = "https://eugyintezes.e-kreta.hu/api/v1"
 
 LOCAL_TZ = ZoneInfo("Europe/Budapest")
 CHUNK_DAYS = 20  # a KRÉTA max. 3 hét / 1 hónap; 20 nap biztonságos
+
+# Csatolmány-letöltés felső korlátja (a KRÉTA fájlok jellemzően < 5 MB).
+MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+_FAJLNEV_TILTOTT = '<>:"/\\|?*'
 
 _RVT_RE = re.compile(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"')
 _RVT_RE_ALT = re.compile(r'value="([^"]+)"[^>]*name="__RequestVerificationToken"')
@@ -210,6 +214,29 @@ def hu_datetime(value) -> str:
         f"{moment.year}. {moment.month:02d}. {moment.day:02d}. "
         f"{moment.hour}:{moment.minute:02d}"
     )
+
+
+def safe_fajlnev(name, default: str = "csatolmany") -> str:
+    """A KRÉTA-ból jövő fájlnév biztonságossá tétele mentés előtt.
+
+    - path traversal és elválasztók (`/`, `\\`) nem maradhatnak benne;
+    - Windows-on tiltott karakterek `_`-ra cserélődnek;
+    - a vezető pontok/szóközök eltűnnek, a hossz 120 karakterre vágva
+      (a kiterjesztés megmarad).
+    """
+    text = _text(name)
+    for char in _FAJLNEV_TILTOTT:
+        text = text.replace(char, "_")
+    text = " ".join(text.split()).lstrip(". ").strip()
+    if not text:
+        return default
+    if len(text) > 120:
+        stem, dot, ext = text.rpartition(".")
+        if dot and 0 < len(ext) <= 8:
+            text = (stem[: 120 - len(ext) - 1] + "." + ext).strip(" .")
+        else:
+            text = text[:120].strip(" .")
+    return text or default
 
 
 def _bool_igazolt(igazolas_tipus: str, allapot: str) -> int:
@@ -466,6 +493,66 @@ class KretaApiClient:
 
     def fetch_message_detail(self, mailbox_id: str | int) -> dict:
         return self._eadmin_get(f"kommunikacio/postaladaelemek/{mailbox_id}")
+
+    def download_attachment(self, attachment_id: str | int,
+                            max_bytes: int = MAX_ATTACHMENT_BYTES) -> tuple[bytes, str]:
+        """Csatolmány tartalma böngésző nélkül: eAdmin dokumentum → files nonce lánc.
+
+        1. `GET {eAdmin}/dokumentumok/uzenetek/{csatolmanyAzonosito}` bearer tokennel
+           → **302** a `https://files.e-kreta.hu/fajlok/?nonce=...` címre;
+        2. a nonce URL letöltése — a nonce maga az engedély, ehhez nem kell token,
+           ezért külön kérésen megy (a bearer nem szivárog a fájlszolgáltatáshoz).
+
+        Visszaad: `(tartalom, content_type)`. A fájlnevet a hívó adja (a
+        `csatolmanyok[].fajlNev` mezőből).
+        """
+        self._ensure_token()
+        assert self.token is not None
+        url = f"{EADMIN_BASE}/dokumentumok/uzenetek/{attachment_id}"
+        headers = {
+            "Authorization": f"{self.token.token_type} {self.token.access_token}",
+            "User-Agent": MOBILE_UA,
+        }
+        try:
+            response = self.session.get(url, headers=headers, timeout=self.timeout,
+                                        allow_redirects=False)
+        except requests.RequestException as exc:
+            raise KretaNetworkError(f"Csatolmány-hívás nem sikerült: {exc}") from exc
+
+        if response.status_code == 401:
+            self.refresh()
+            return self.download_attachment(attachment_id, max_bytes)
+
+        location = _text(response.headers.get("Location"))
+        if response.status_code == 200 and not location:
+            # ha valaha közvetlenül a fájlt adná vissza
+            return self._check_size(response.content, max_bytes), \
+                response.headers.get("Content-Type", "application/octet-stream")
+
+        if not location:
+            body = (getattr(response, "text", "") or "")[:200].replace("\n", " ")
+            raise KretaResponseError(
+                f"HTTP {response.status_code}: a csatolmány-link nem érkezett meg ({body})")
+
+        file_url = urljoin(f"{EADMIN_BASE}/", location)
+        try:
+            file_response = self.session.get(file_url, timeout=self.timeout)
+        except requests.RequestException as exc:
+            raise KretaNetworkError(f"A fájl letöltése nem sikerült: {exc}") from exc
+        if file_response.status_code != 200:
+            raise KretaResponseError(
+                f"HTTP {file_response.status_code}: a fájl nem tölthető le")
+        return (self._check_size(file_response.content, max_bytes),
+                file_response.headers.get("Content-Type", "application/octet-stream"))
+
+    @staticmethod
+    def _check_size(content: bytes, max_bytes: int) -> bytes:
+        if max_bytes and len(content) > max_bytes:
+            raise KretaResponseError(
+                f"A csatolmány túl nagy ({len(content)} B > {max_bytes} B)")
+        if not content:
+            raise KretaResponseError("A letöltött csatolmány üres.")
+        return content
 
 
 # ── Normalizálás a meglévő DB-sémákra ───────────────────────────────────────

@@ -301,10 +301,11 @@ data.mkdir()
 probe = work / "probe.py"
 probe.write_text(
     """# -*- coding: utf-8 -*-
-import json, sqlite3, sys
+import json, os, sqlite3, sys
 sys.path.insert(0, r'{root}')
 import kreta_playwright as k
 
+FAIL_DOWNLOADS = set()
 k.init_db()
 
 def ins_existing():
@@ -432,6 +433,12 @@ class FakeClient:
     def fetch_messages(self):
         return MESSAGES
 
+    def download_attachment(self, attachment_id, max_bytes=None):
+        # Csatolmány API-ból (fake): a FAIL_DOWNLOADS-ban lévő ID-k hibát dobnak.
+        if str(attachment_id) in FAIL_DOWNLOADS:
+            raise RuntimeError("szimulált letöltési hiba")
+        return b"%PDF-1.4 teszt tartalom", "application/pdf"
+
 
 def grades_snapshot():
     conn = sqlite3.connect(k.DB_FILE)
@@ -545,23 +552,44 @@ k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
 uz2 = uzenet_snapshot()
 uj2 = k.NEW_MESSAGE_COUNTS.get("Teszt")
 
-# új csatolmányos üzenet: api_first módban Playwright-fallbackot kér
+# új csatolmányos üzenet: az API letölti a fájlt (api_first is böngésző nélkül)
 MESSAGES.append({{"azonosito": 3, "isElolvasva": False, "uzenet": {{
     "azonosito": 12, "feladoNev": "Szentkirályi Zsuzsanna", "feladoTitulus": "tanár",
     "targy": "Új csatolmányos", "kuldesDatum": "2026-10-29T08:00:00",
     "szoveg": "Új üzenet", "csatolmanyok": [{{"azonosito": 6, "fajlNev": "uj.pdf"}}]}}}})
+k.SYNC_MODE = "api_first"
+dl_first_ok = True
+try:
+    k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
+except Exception:
+    dl_first_ok = False
+uz_after_ok = uzenet_snapshot()
+
+# hibás letöltés: api_first -> hiba (Playwright-fallback), api -> fájl nélkül
+MESSAGES.append({{"azonosito": 4, "isElolvasva": False, "uzenet": {{
+    "azonosito": 13, "feladoNev": "Szentkirályi Zsuzsanna", "feladoTitulus": "tanár",
+    "targy": "Hibás csatolmány", "kuldesDatum": "2026-10-30T09:00:00",
+    "szoveg": "Hibás üzenet", "csatolmanyok": [{{"azonosito": 7, "fajlNev": "hiba.pdf"}}]}}}})
+FAIL_DOWNLOADS.add("7")
 k.SYNC_MODE = "api_first"
 try:
     k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
     fallback_error = ""
 except Exception as exc:
     fallback_error = str(exc)
-uz3 = uzenet_snapshot()
+uz_after_fallback = uzenet_snapshot()
 
 # api módban a fájl nélkül menti
 k.SYNC_MODE = "api"
 k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
 uz4 = uzenet_snapshot()
+
+csat_dir = k.CSATOLMANYOK_DIR
+csat_files = []
+for base, _dirs, files in os.walk(csat_dir):
+    for name in files:
+        csat_files.append(os.path.relpath(os.path.join(base, name), csat_dir).replace("\\\\", "/"))
+csat_files.sort()
 
 start, end = k.hianyzas_api_window("Teszt")
 
@@ -585,7 +613,10 @@ print("RESULT=" + json.dumps({{
     "ora_second": ora2,
     "uz_first": uz1,
     "uz_second": uz2,
-    "uz_after_fallback": uz3,
+    "uz_after_ok": uz_after_ok,
+    "dl_first_ok": dl_first_ok,
+    "csat_files": csat_files,
+    "uz_after_fallback": uz_after_fallback,
     "uz_api_mode": uz4,
     "uj_first": uj1,
     "uj_second": uj2,
@@ -707,20 +738,28 @@ ok(elso and elso[0] == "Szőke Gáborné (tanár)", f"feladó + titulus: {elso}"
 ok(elso and elso[2] == "2026. 09. 22. 1:33", "üzenet helyi ideje")
 ok(elso and elso[3] == "Első üzenet", "üzenet szövege HTML-mentes")
 ok(csat and csat[4] == "tajekoztato.pdf", "a csatolmány neve mentve")
-ok(csat and csat[5] == "", "api módban a fájl útvonala üres")
+ok(csat and (csat[5] or "").startswith("Teszt/"),
+   f"api módban a csatolmány a könyvtárba kerül, relatív úttal: {csat[5] if csat else None}")
+ok(csat and (csat[5] or "").endswith("tajekoztato.pdf"), "a relatív út a fájlnévre végződik")
+ok("Teszt/tajekoztato.pdf" in (payload.get("csat_files") or []), "a fájl valóban létezik a lemezen")
 ok(payload.get("uj_first") == 2, f"első futás: 2 új üzenet: {payload.get('uj_first')}")
 ok(payload.get("uz_second") == uz_first, "ismételt futás nem duplikál üzenetet")
 ok(payload.get("uj_second") == 0, "ismételt futás: 0 új üzenet")
 
-print("\n7h) Új csatolmányos üzenet: fallback kérés")
-ok("csatolmánnyal" in (payload.get("fallback_error") or ""),
-   f"api_first módban hibát dob (fallback): {payload.get('fallback_error')}")
-ok(payload.get("uz_after_fallback") == uz_first,
+print("\n7h) Új csatolmányos üzenet API-ból, illetve letöltési hiba")
+ok(payload.get("dl_first_ok") is True, "api_first: a csatolmány böngésző nélkül letöltődik")
+uz_ok = payload.get("uz_after_ok") or []
+ok(any(u[1] == "Új csatolmányos" and (u[5] or "").endswith("uj.pdf") for u in uz_ok),
+   "az új üzenet csatolmánya relatív úttal mentve")
+ok("Teszt/uj.pdf" in (payload.get("csat_files") or []), "az új fájl is a lemezen van")
+ok("csatolmány letöltés nem sikerült" in (payload.get("fallback_error") or ""),
+   f"hibás letöltés -> api_first fallback-kérés: {payload.get('fallback_error')}")
+ok(payload.get("uz_after_fallback") == uz_ok,
    "a fallback előtt nem menti el az üzenetet (nincs fájl nélküli sor)")
 uz_api = payload.get("uz_api_mode") or []
-ok(len(uz_api) == 3, f"api módban a fájl nélkül is menti: {len(uz_api)}")
-ok(any(u[1] == "Új csatolmányos" and u[4] == "uj.pdf" for u in uz_api),
-   "az új üzenet csatolmány-neve is megvan")
+ok(len(uz_api) == 4, f"api módban a fájl nélkül is menti: {len(uz_api)}")
+ok(any(u[1] == "Hibás csatolmány" and u[4] == "hiba.pdf" and (u[5] or "") == "" for u in uz_api),
+   "az új üzenet csatolmány-neve megvan, az útvonal üres")
 
 print("\n8) Igazolások")
 ok(len(payload.get("just_first") or []) == 1, "1 igazolás mentve")
