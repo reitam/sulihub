@@ -200,6 +200,18 @@ is: `kreta_api.py` (mobil v3 / eAdmin végpontok + normalizálás a meglévő DB
 `kreta_sync.py` (forrásmód és adatkör-szintű fallback). A `SYNC_MODE` dönti el, melyik út
 fut — lásd 3.2.1.
 
+**API munkamenet (token-tár).** A KRÉTA minden **új** belépésről e-mailt küld („Új
+bejelentkezésről értesítés") — a Playwright-os útnál ezt a perzisztens böngészőprofil
+kerülte el. Ezért az API-kliens a tokent a data köteten tárolja
+(`api_tokens.json`, alapból `<data>/api_tokens.json`, felülírható a
+`KRETA_API_TOKEN_FILE` változóval): a következő futás a **tárolt hozzáférési tokent**
+használja, lejárat után pedig **refresh tokennel** frissít — teljes belépés csak akkor
+történik, ha nincs/érvénytelen a token (pl. jelszócsere, visszavont session). A naplóban
+látszik, melyik út futott: `[API] munkamenet a tárolt tokenből` / `… frissítve refresh
+tokennel` / `új belépés történt`. A fájl **titkot tartalmaz** (access + refresh token),
+ezért a `.gitignore` kizárja, és a data köteten, védett könyvtárban él; törlésével
+kikényszeríthető az új belépés.
+
 ### 3.2. Adatfolyam egy futásnál
 
 1. Az ütemező (vagy a gomb) elindítja a szinkront → a DB-ben létrejön egy `sync_runs` sor
@@ -334,6 +346,7 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 | `KRETA_DB_FILE` / `KRETA_CONFIG_FILE` / `KRETA_LOG_FILE` | data-könyvtárban | Egyedi útvonalak |
 | `KRETA_CSATOLMANYOK_DIR` | `static/csatolmanyok` | Csatolmányok helye (élesben `/app/data/csatolmanyok`) |
 | `KRETA_BROWSER_DATA_DIR` | `./browser_user_data` | Chromium profil (sütik) |
+| `KRETA_API_TOKEN_FILE` | `<data>/api_tokens.json` | API munkamenet-tár (access/refresh token, **titok**) |
 | `KRETA_HOST` / `KRETA_PORT` / `KRETA_DEBUG` | `127.0.0.1` / `5000` / ki | Web szerver |
 | `KRETA_SERVER` | `flask` | `waitress` = produkciós szerver (a compose így indítja) |
 | `KRETA_WAITRESS_THREADS` | `8` | Kiszolgáló szálak |
@@ -494,7 +507,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **448 automatikus ellenőrzés** tizenhárom csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **480 automatikus ellenőrzés** tizennégy csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -524,6 +537,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | Táboros hiányzás témája | az API nem ad rá témát (nincs órarendi elem) | a meglévő DB-érték megmarad; új táboros sornál üres |
 | Órarend-ablak első napja | az `OrarendElemek` a `KezdetIdopont` UTC dátuma szerint szűr, az egész napos események `23:00Z`-ként jönnek | a kliens egy nappal korábbra is kér (`fetch_lessons`), így a hétfői szünet/ünnep nem marad ki |
 | Üzenet-csatolmány letöltése | az eAdmin API csak fájl-metadatot ad, a fájl egy rövid életű `nonce` URL-en jön | a kliens a `dokumentumok/uzenetek/{id}` 302-jét követi, és a `files.e-kreta.hu/fajlok/?nonce=…` címről tölt (2026-10-31 óta API-ból, böngésző nélkül); hiba esetén `api_first` fallback |
+| „Új bejelentkezés" e-mailek | az API-út minden futásnál belépne (a Playwright-nál a profil megjegyezte a munkamenetet) | tokentárolás a data köteten (`api_tokens.json`): a 2. futástól **nincs új belépés**, lejárat után refresh token; teljes belépés csak token nélkül/hibánál |
 | Nincs `MESSAGE_LIMIT` | az első API-s futás az összes üzenetet letölti (nálunk ~76 sor), utána már csak az újakat | tudatos döntés: az inkrementális futások így is 1–5 üzenetet hoznak |
 | Chromium az image-ben | nagyobb image | a Playwright fallback miatt szükséges, amíg az API hosszú távon nem bizonyít |
 | CDN-függő frontend | internet nélkül nem indul a felület | vendorolás a backlogban |

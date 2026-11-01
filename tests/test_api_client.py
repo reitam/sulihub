@@ -89,7 +89,8 @@ class FakeSession:
 
 def make_client(responses):
     student = {"username": "user", "password": "pass", "institute_code": "iskola"}
-    return KretaApiClient(student, timeout=5, session=FakeSession(responses))
+    # token_store="": nincs perzisztencia, a tesztek nem olvassák a valódi tárfájlt
+    return KretaApiClient(student, timeout=5, session=FakeSession(responses), token_store="")
 
 
 def login_responses():
@@ -116,6 +117,69 @@ client = make_client(login_responses() + [FakeResponse(200, json_data=[{"Uid": "
 result = client._api_get("sajat/Mulasztasok", {"datumTol": "2026-09-01", "datumIg": "2026-09-20"})
 ok(result == [{"Uid": "1"}], "token nélkül is lefut (belépés a háttérben)")
 ok(len(client.session.calls) == 5, f"4 login lépés + 1 API hívás ({len(client.session.calls)})")
+
+print("\n1c) Token-tár: munkamenet a data kötetről (nincs új belépés)")
+import json as _json  # noqa: E402
+import tempfile as _tempfile  # noqa: E402
+
+from kreta_api import load_stored_token, save_stored_token  # noqa: E402
+
+_store_dir = _tempfile.mkdtemp(prefix="kreta_token_")
+_store = str(Path(_store_dir) / "api_tokens.json")
+_store_student = {"username": "user", "password": "pass", "institute_code": "iskola"}
+
+save_stored_token(_store_student, ApiToken("access-1", "refresh-1", "iskola",
+                                           time.time() + 3600), _store)
+loaded = load_stored_token(_store_student, _store)
+ok(loaded and loaded.access_token == "access-1", "a token visszaolvasható a tárból")
+ok(loaded and loaded.refresh_token == "refresh-1", "a refresh token is megvan")
+_saved = _json.loads(Path(_store).read_text(encoding="utf-8"))
+ok(list(_saved) == ["iskola:user"], f"a kulcs iskola:felhasználónév: {list(_saved)}")
+ok(all("access-1" not in line for line in []), "a tár tartalma nem kerül a naplóba")
+
+print("   érvényes tárolt token -> nincs belépés")
+client = KretaApiClient(_store_student, timeout=5, session=FakeSession([]), token_store=_store)
+client._ensure_token()
+ok(client.auth_source == "cache", f"a munkamenet a tárból jött: {client.auth_source}")
+ok(client.session.calls == [], "egyetlen hálózati hívás sem történt (nincs e-mail)")
+
+print("   lejárt token + refresh token -> csak frissítés")
+save_stored_token(_store_student, ApiToken("access-old", "refresh-old", "iskola",
+                                           time.time() - 100), _store)
+client = KretaApiClient(_store_student, timeout=5, token_store=_store, session=FakeSession([
+    FakeResponse(200, json_data={"access_token": "access-2", "refresh_token": "refresh-2",
+                                 "expires_in": 1800}),
+]))
+client._ensure_token()
+ok(client.auth_source == "refresh", f"frissítés történt: {client.auth_source}")
+ok(client.token.access_token == "access-2", "az új access token bekerült")
+ok(len(client.session.calls) == 1, f"csak 1 hívás (refresh): {len(client.session.calls)}")
+_after = load_stored_token(_store_student, _store)
+ok(_after and _after.access_token == "access-2" and _after.refresh_token == "refresh-2",
+   "a frissített token visszakerült a tárba")
+
+print("   lejárt token refresh nélkül -> teljes belépés")
+save_stored_token(_store_student, ApiToken("access-old", "", "iskola", time.time() - 100), _store)
+client = KretaApiClient(_store_student, timeout=5, token_store=_store,
+                        session=FakeSession(login_responses()))
+client._ensure_token()
+ok(client.auth_source == "login", f"teljes belépés történt: {client.auth_source}")
+ok(len(client.session.calls) == 4, f"4 login lépés: {len(client.session.calls)}")
+
+print("   sikertelen refresh (400) -> teljes belépés")
+save_stored_token(_store_student, ApiToken("access-old", "refresh-old", "iskola",
+                                           time.time() - 100), _store)
+client = KretaApiClient(_store_student, timeout=5, token_store=_store, session=FakeSession(
+    [FakeResponse(400, text='{"error":"invalid_grant"}')] + login_responses()))
+client._ensure_token()
+ok(client.auth_source == "login", f"refresh után belépés: {client.auth_source}")
+ok(len(client.session.calls) == 5, f"1 refresh + 4 login hívás: {len(client.session.calls)}")
+
+print("   tárolt token nélkül (üres tár) -> belépés")
+client = KretaApiClient(_store_student, timeout=5, token_store="",
+                        session=FakeSession(login_responses()))
+client._ensure_token()
+ok(client.auth_source == "login", f"üres tárolóval belépés: {client.auth_source}")
 
 print("\n2) Tokenfrissítés 401 után")
 client = make_client([

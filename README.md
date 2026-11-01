@@ -185,7 +185,7 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 | Érték | Jelentés |
 |---|---|
 | `playwright` | Csak a böngészős scraper fut. **Ha a kulcs hiányzik, ez az alap** (biztonságos visszaesés). |
-| `api` | Csak a mobil API (böngésző nélkül); egy adatkör hibája részleges hiba. **Az üzenet-csatolmányokat is letölti** (`files.e-kreta.hu` nonce URL). |
+| `api` | Csak a mobil API (böngésző nélkül); egy adatkör hibája részleges hiba. **Az üzenet-csatolmányokat is letölti** (`files.e-kreta.hu` nonce URL), a munkamenetet a data köteten tárolja (`api_tokens.json`) — a futások többsége **nem lép be újra**. |
 | `api_first` | **Ajánlott éles beállítás:** adatkörönként API, hiba esetén automatikus Playwright fallback. |
 
 **`SYNC_SHADOW`** — `api_first` mellett a Playwright is lefut egy **DB-másolaton**, és a
@@ -312,10 +312,10 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**13 csomag, 448 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**14 csomag, 480 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
-adatkör, **csatolmány-letöltés API-ból** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
+adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
 **mobil elrendezés**.
 Részletek: [`tests/README.md`](tests/README.md).
 

@@ -51,6 +51,11 @@ def log(message=""):
     """Segédfüggvény a sima print helyett, ami formázva ír a logfájlba és a konzolra is."""
     logging.info(message)
 
+
+# Az API-kliens naplózza, honnan jött a munkamenet (cache / refresh / új belépés),
+# hogy a sync.log-ban látszódjon: küld-e a KRÉTA új-belépés e-mailt vagy sem.
+kreta_api.set_log_hook(log)
+
 # `--init-db`: csak a sémát hozza létre (a Flask app hívja, ha a DB fájl
 # hiányzik vagy üres) — ilyenkor config és diákok nélkül is futnia kell.
 INIT_DB_ONLY = "--init-db" in sys.argv[1:]

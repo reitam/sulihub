@@ -16,6 +16,8 @@ Titok (jelszó/token) soha nem kerül naplóba.
 from __future__ import annotations
 
 import html as html_lib
+import json
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -90,6 +92,95 @@ CHUNK_DAYS = 20  # a KRÉTA max. 3 hét / 1 hónap; 20 nap biztonságos
 # Csatolmány-letöltés felső korlátja (a KRÉTA fájlok jellemzően < 5 MB).
 MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 _FAJLNEV_TILTOTT = '<>:"/\\|?*'
+
+# ── Token-tár (munkamenet-gyorsítás, 2026-11-01) ────────────────────────────
+# A KRÉTA minden ÚJ belépésről e-mailt küld („Új bejelentkezésről értesítés").
+# A Playwright-os megoldásnál ezt a perzisztens böngészőprofil kerülte el; az
+# API-nál a refresh tokent tároljuk a data köteten, így egy szinkron sem lép be
+# újra, amíg a refresh token él (a hozzáférési token 30 percenként frissül).
+_DATA_DIR = os.environ.get("KRETA_DATA_DIR", ".")
+TOKEN_STORE_FILE = (os.environ.get("KRETA_API_TOKEN_FILE")
+                    or os.path.join(_DATA_DIR, "api_tokens.json"))
+
+_LOG_HOOK = None
+
+
+def set_log_hook(func) -> None:
+    """Naplózó hook (a scraper `log()`-ját állítja be); önálló használatnál néma."""
+    global _LOG_HOOK
+    _LOG_HOOK = func
+
+
+def _log(message: str) -> None:
+    if not _LOG_HOOK:
+        return
+    try:
+        _LOG_HOOK(message)
+    except Exception:  # noqa: BLE001 — a naplózás ne borítsa a futást
+        pass
+
+
+def _token_key(student: dict) -> str:
+    return f"{_text(student.get('institute_code'))}:{_text(student.get('username'))}"
+
+
+def load_stored_token(student: dict, path: str | None = None) -> ApiToken | None:
+    """A korábbi futásból eltárolt token (ha van és olvasható)."""
+    store_path = TOKEN_STORE_FILE if path is None else path
+    if not store_path:
+        return None
+    try:
+        with open(store_path, "r", encoding="utf-8-sig") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    entry = (data or {}).get(_token_key(student))
+    if not isinstance(entry, dict) or not entry.get("access_token"):
+        return None
+    return ApiToken(
+        access_token=_text(entry.get("access_token")),
+        refresh_token=_text(entry.get("refresh_token")),
+        institute_code=_text(entry.get("institute_code"))
+        or _text(student.get("institute_code")),
+        expires_at=float(entry.get("expires_at") or 0),
+        token_type=_text(entry.get("token_type")) or "Bearer",
+    )
+
+
+def save_stored_token(student: dict, token: ApiToken, path: str | None = None) -> None:
+    """A token mentése (atomikusan, 600-as jogosultsággal, ahol lehet)."""
+    store_path = TOKEN_STORE_FILE if path is None else path
+    if not store_path or token is None:
+        return
+    try:
+        try:
+            with open(store_path, "r", encoding="utf-8-sig") as handle:
+                data = json.load(handle)
+        except (OSError, ValueError):
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+        data[_token_key(student)] = {
+            "access_token": token.access_token,
+            "refresh_token": token.refresh_token,
+            "institute_code": token.institute_code,
+            "expires_at": token.expires_at,
+            "token_type": token.token_type,
+            "saved_at": datetime.now(LOCAL_TZ).isoformat(timespec="seconds"),
+        }
+        directory = os.path.dirname(os.path.abspath(store_path))
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+        tmp_path = f"{store_path}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=1)
+        try:
+            os.chmod(tmp_path, 0o600)
+        except OSError:
+            pass  # Windows: a jogosultság a könyvtárén múlik
+        os.replace(tmp_path, store_path)
+    except OSError as exc:
+        _log(f"    [API] a token mentése nem sikerült: {exc}")
 
 _RVT_RE = re.compile(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"')
 _RVT_RE_ALT = re.compile(r'value="([^"]+)"[^>]*name="__RequestVerificationToken"')
@@ -252,11 +343,15 @@ def _bool_igazolt(igazolas_tipus: str, allapot: str) -> int:
 class KretaApiClient:
     """Egy diák mobil API kliense. Használható context managerként."""
 
-    def __init__(self, student: dict, timeout: int = 30, session: requests.Session | None = None):
+    def __init__(self, student: dict, timeout: int = 30, session: requests.Session | None = None,
+                 token_store: str | None = None):
         self.student = student
         self.timeout = timeout
         self.session = session or requests.Session()
         self.token: ApiToken | None = None
+        # None = alapértelmezett tár (data kötet); "" = nincs perzisztencia.
+        self.token_store = TOKEN_STORE_FILE if token_store is None else token_store
+        self.auth_source = "none"  # none | cache | refresh | login
 
     # -- életciklus --
     def __enter__(self):
@@ -347,6 +442,8 @@ class KretaApiClient:
             expires_at=time.time() + int(data.get("expires_in", 1800)),
             token_type=data.get("token_type", "Bearer"),
         )
+        self.auth_source = "login"
+        save_stored_token(self.student, self.token, self.token_store)
         return self.token
 
     def refresh(self) -> ApiToken:
@@ -371,13 +468,51 @@ class KretaApiClient:
         self.token.access_token = data.get("access_token", self.token.access_token)
         self.token.refresh_token = data.get("refresh_token", self.token.refresh_token)
         self.token.expires_at = time.time() + int(data.get("expires_in", 1800))
+        self.auth_source = "refresh"
+        save_stored_token(self.student, self.token, self.token_store)
         return self.token
 
     def _ensure_token(self) -> None:
         if self.token is None:
-            self.login()
+            self._restore_or_login()
         elif self.token.is_expired():
-            self.refresh()
+            self._refresh_or_login()
+
+    def _restore_or_login(self) -> None:
+        """Tárolt token → refresh → (ha kell) teljes belépés.
+
+        A KRÉTA minden új belépésről e-mailt küld, ezért a cél, hogy a tárolt
+        refresh tokennel menjen a futás; teljes belépés csak akkor, ha nincs
+        (vagy lejárt/visszavont) a token.
+        """
+        stored = load_stored_token(self.student, self.token_store)
+        if stored is not None:
+            self.token = stored
+            if not stored.is_expired():
+                self.auth_source = "cache"
+                _log("    [API] munkamenet a tárolt tokenből (nincs új belépés)")
+                return
+            try:
+                self.refresh()
+                _log("    [API] munkamenet frissítve refresh tokennel (nincs új belépés)")
+                return
+            except (KretaAuthError, KretaResponseError, KretaNetworkError) as exc:
+                _log(f"    [API] tokenfrissítés nem sikerült, új belépés következik "
+                     f"({type(exc).__name__})")
+                self.token = None
+        self.login()
+        _log("    [API] új belépés történt (a KRÉTA erről e-mailt küld)")
+
+    def _refresh_or_login(self) -> None:
+        if self.token is not None and self.token.refresh_token:
+            try:
+                self.refresh()
+                return
+            except (KretaAuthError, KretaResponseError, KretaNetworkError) as exc:
+                _log(f"    [API] tokenfrissítés nem sikerült, új belépés "
+                     f"({type(exc).__name__})")
+                self.token = None
+        self.login()
 
     def _request(self, url: str, *, params: dict | None = None, headers: dict | None = None,
                  retry_auth: bool = True) -> Any:
@@ -395,7 +530,7 @@ class KretaApiClient:
             raise KretaNetworkError(f"API hívás nem sikerült: {exc}") from exc
 
         if response.status_code == 401 and retry_auth:
-            self.refresh()
+            self._refresh_or_login()
             return self._request(url, params=params, headers=headers, retry_auth=False)
         if response.status_code != 200:
             body = (response.text or "")[:300].replace("\n", " ")
