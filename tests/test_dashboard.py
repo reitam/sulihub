@@ -224,7 +224,12 @@ try:
                                            "rows => rows.map(r => r.innerText.replace(/\\s+/g, ' ').trim())")
         ok(len(fej) >= 4, f"a táblázat fejléce: {fej}")
         ok(any("Tantárgy" in f for f in fej), "van Tantárgy oszlop")
-        ok(any("Összes" in f for f in fej), "van Összes oszlop")
+        ok(any(f.startswith("Összes") for f in fej), "van Összes oszlop")
+        ok(not any(" 26" in f for f in fej),
+           f"a hónap-oszlopokban nincs évszám: {fej}")
+        idoszak = " ".join(page.inner_text("#atlagokIdoszak").split())
+        ok("tanév" in idoszak and "időszak" in idoszak,
+           f"az időszak/tanév felirat látszik: {idoszak}")
         mat = next((s for s in testek if s.startswith("Matematika")), "")
         fiz = next((s for s in testek if s.startswith("Fizika")), "")
         ok(bool(mat), f"Matematika sor: {mat}")

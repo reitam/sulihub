@@ -882,7 +882,8 @@
                     </div>
                     <div class="collapse" id="atlagokCollapse">
                         <div class="p-3 pt-0">
-                            <div class="d-flex justify-content-end mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                <small class="text-muted" id="atlagokIdoszak"></small>
                                 <small class="text-muted d-none d-md-block" id="atlagokOsszes"></small>
                             </div>
                             <!-- Asztali nézet: táblázat -->
@@ -1892,13 +1893,29 @@ $(document).ready(function() {
              <button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline" id="btnClearHataridoFilter">törlés</button>`);
     }
 
+    // A hónap-oszlop csak a hónap neve (a tanév az időszak-feliratban látszik);
+    // a teljes "2026. szeptember" a tooltipben van.
     function fmtHonap(yyyymm) {
         const parts = String(yyyymm || '').split('-');
         if (parts.length !== 2) return yyyymm;
         const nevek = ['jan.', 'febr.', 'márc.', 'ápr.', 'máj.', 'jún.',
                        'júl.', 'aug.', 'szept.', 'okt.', 'nov.', 'dec.'];
         const idx = parseInt(parts[1], 10) - 1;
-        return (nevek[idx] || parts[1]) + ' ' + String(parts[0]).slice(2);
+        return nevek[idx] || parts[1];
+    }
+
+    // Tanév felirat a hónapokból: szeptember–augusztus szerinti iskolaév.
+    function tanEvFelirat(honapok) {
+        let ev = null;
+        (honapok || []).forEach(function(h) {
+            const p = String(h).split('-');
+            if (p.length !== 2) return;
+            const y = parseInt(p[0], 10);
+            const m = parseInt(p[1], 10);
+            const kezdet = (m >= 9) ? y : y - 1;
+            if (ev === null || kezdet < ev) ev = kezdet;
+        });
+        return ev === null ? '' : `${ev}/${ev + 1}. tanév`;
     }
 
     function honapNev(yyyymm) {
@@ -1920,10 +1937,23 @@ $(document).ready(function() {
             let $head = $('#atlagokHeadRow').empty();
             $head.append('<th style="min-width: 130px;">Tantárgy</th>');
             honapok.forEach(function(h) {
-                $head.append(`<th class="text-center" style="min-width: 72px;">${fmtHonap(h)}</th>`);
+                $head.append(`<th class="text-center" style="min-width: 72px;" title="${honapNev(h)}">${fmtHonap(h)}</th>`);
             });
             $head.append('<th class="text-center" style="min-width: 72px;">Összes</th>');
             $head.append('<th class="text-center" style="min-width: 48px;">db</th>');
+
+            // Időszak-felirat: tanév + a kijelölt időszak (a hónap-oszlopoknál már
+            // nem ismételjük az évet).
+            let idoszakSzoveg = tanEvFelirat(honapok);
+            if (kezdo || zaro) {
+                let fmtD = function(d) {
+                    const p = String(d || '').split('-');
+                    return p.length === 3 ? `${p[0]}. ${p[1]}. ${p[2]}.` : '';
+                };
+                const t = [fmtD(kezdo), fmtD(zaro)].filter(Boolean).join(' – ');
+                idoszakSzoveg += (idoszakSzoveg ? ' · ' : '') + 'időszak: ' + t;
+            }
+            $('#atlagokIdoszak').text(idoszakSzoveg);
 
             let $body = $('#atlagokBody').empty();
             if (!tantargyak.length) {
