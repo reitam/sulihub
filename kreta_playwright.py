@@ -1567,6 +1567,12 @@ async def scrape_uzenetek(page, diak_nev):
         log(f"Figyelmeztetés az üzenetek lekérésekor: {ex}")
         return 0
 
+def _parse_suly(value) -> int:
+    """A webes tooltip súly-szövegéből ('Súly: 50%') a százalék; 0, ha nincs."""
+    match = re.search(r"(\d+)", str(value or ""))
+    return int(match.group(1)) if match else 0
+
+
 async def scrape_esemenyek(page, diak_nev, institute_code,
                            existing_hazi_keys, existing_szamonkeres_keys):
     """Értékelések, feljegyzések, házi feladatok és számonkérések kiolvasása.
@@ -1601,6 +1607,23 @@ async def scrape_esemenyek(page, diak_nev, institute_code,
         if (!grid) return lista;
         
         let masterRows = grid.tbody.find('> tr.k-master-row');
+        // A súlyszázalék ("Súly: 50%") a hónap-cellák tooltip-spanjének
+        // data-suly attribútumában van; a részletes sorokban nincs. Ezért
+        // kulcs alapján párosítjuk: dátum|tanár|mód|téma (téma nélkül is).
+        let sulyMap = {};
+        masterRows.each(function() {
+            $(this).find('td [data-suly]').each(function() {
+                let sp = $(this);
+                let d = sp.attr('data-datum') || '';
+                let t = sp.attr('data-ertekelonyomtatasinev') || '';
+                let m = sp.attr('data-tipusmod') || '';
+                let tema = (sp.attr('data-ertekelestema') || '').replace(/^Téma:\\s*/, '');
+                let suly = sp.attr('data-suly') || '';
+                sulyMap[[d, t, m, tema].join('|')] = suly;
+                let rovid = [d, t, m].join('|');
+                if (sulyMap[rovid] === undefined) sulyMap[rovid] = suly;
+            });
+        });
         masterRows.each(function() {
             let mRow = $(this);
             let dataItem = grid.dataItem(mRow);
@@ -1618,6 +1641,11 @@ async def scrape_esemenyek(page, diak_nev, institute_code,
                         let mod = cols.eq(4).text().trim();
                         let ertekStr = cols.eq(5).text().trim();
                         let tema = cols.eq(6).text().trim();
+                        // A súly a hónap-cella tooltipjéből, kulcs alapján.
+                        let sulySzoveg = sulyMap[[datum, ertekelo, mod, tema].join('|')];
+                        if (sulySzoveg === undefined) {
+                            sulySzoveg = sulyMap[[datum, ertekelo, mod].join('|')] || '';
+                        }
                         
                         if (datum && datum.length >= 8 && datum !== "Bej. dátum") {
                             let szam = 0;
@@ -1637,7 +1665,8 @@ async def scrape_esemenyek(page, diak_nev, institute_code,
                                 ertekelo: ertekelo,
                                 tipus: tipus,
                                 mod: mod,
-                                tema: tema
+                                tema: tema,
+                                suly_szoveg: sulySzoveg
                             });
                         }
                     }
@@ -1648,6 +1677,10 @@ async def scrape_esemenyek(page, diak_nev, institute_code,
     }
     """
     jegyek = await page.evaluate(js_ertekeles_extractor)
+    # A súly a webes tooltipből ("Súly: 50%") számmá alakítva (a mobil API
+    # ugyanezt SulySzazalekErteke néven adja).
+    for jegy in jegyek:
+        jegy["suly_szazalek"] = _parse_suly(jegy.pop("suly_szoveg", ""))
     log(f"Siker! Beolvasva {len(jegyek)} db osztályzat.")
 
     # --- 3. FELJEGYZÉSEK KINYERÉSE ---
