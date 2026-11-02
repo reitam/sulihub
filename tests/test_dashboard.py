@@ -234,6 +234,47 @@ try:
         ok("4" in fiz.split(), f"a Fizika átlaga 4: {fiz}")
         ok(any(s.startswith("Összesen") for s in testek), "van Összesen sor")
 
+        print("\n6) Mobil nézet: fő + havi accordionok (#39)")
+        mctx = browser.new_context(viewport={"width": 393, "height": 873})
+        mp = mctx.new_page()
+        mp.goto(base, wait_until="networkidle")
+        mp.click("#rewards-tab")
+        mp.wait_for_timeout(1500)
+        mp.click('#atlagokCard button[data-bs-target="#atlagokCollapse"]')
+        mp.wait_for_timeout(600)
+        ok(mp.is_visible("#atlagokMobil"), "mobilon az accordion nézet látszik")
+        ok(not mp.is_visible("#atlagokTable"), "a táblázat mobilon rejtve")
+        subj = mp.eval_on_selector_all(
+            "#atlagokMobil > .accordion > .accordion-item > h2 > button",
+            "els => els.map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
+        ok(len(subj) == 2 and any("Matematika" in s for s in subj),
+           f"tantárgy-főaccordionok: {subj}")
+
+        # A Matematikát nyitjuk (2 hónapja van), nem az első (Fizika, 1 hónap).
+        mp.locator("#atlagokMobil > .accordion > .accordion-item > h2 > button",
+                   has_text="Matematika").first.click()
+        mp.wait_for_timeout(600)
+        honapok_btn = mp.eval_on_selector_all(
+            "#atlagokMobil > .accordion .accordion .accordion-button",
+            "els => els.filter(e => e.offsetParent !== null).map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
+        ok(len(honapok_btn) >= 2, f"havi al-accordionok: {honapok_btn}")
+
+        mp.evaluate("""() => {
+            const els = Array.from(document.querySelectorAll(
+                '#atlagokMobil > .accordion .accordion .accordion-button'));
+            const v = els.find(function (e) { return e.offsetParent !== null; });
+            if (v) v.click();
+        }""")
+        mp.wait_for_timeout(600)
+        jegy_szovegek = mp.eval_on_selector_all(
+            "#atlagokMobil > .accordion .accordion .accordion-body",
+            "els => els.filter(e => e.offsetParent !== null).map(e => e.innerText.trim()).filter(t => t.length > 0)")
+        ok(any(("Jeles" in j) or ("Jó" in j) or ("Közepes" in j) for j in jegy_szovegek),
+           f"a hónap jegyei látszanak: {jegy_szovegek[:1]}")
+        mp.screenshot(path=str(work / "mobil_atlagok.png"))
+        print("SCREENSHOT (mobil):", work / "mobil_atlagok.png")
+        mctx.close()
+
         page.screenshot(path=str(work / "dashboard.png"))
         print("SCREENSHOT:", work / "dashboard.png")
         browser.close()

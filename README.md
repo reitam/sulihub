@@ -88,8 +88,8 @@ a saját szerveren maradnak.
   súlyadat nélkül egyszerű átlag). A statisztika **kikapcsolt zsebpénz mellett is működik** —
   ilyenkor csak a pénz-kártya rejtve, figyelmeztető sávval.
 - **Tantárgyi átlagok havi bontással:** alapból zárt accordion a Statisztika fülön —
-  kinyitva tantárgy × hónap táblázat „Összes" oszloppal; **mobilon** kártyás nézet,
-  a hónapok jelvényként (nincs vízszintes görgetés).
+  kinyitva tantárgy × hónap táblázat „Összes" oszloppal; **mobilon** több hónapos időszaknál
+  tantárgy-főaccordion + havi al-accordionok a hónap jegyeivel (nincs vízszintes görgetés).
 
 ### 📱 Mobilra optimalizált UI
 - Redmi 12/13/14 méreten (393 CSS px) ellenőrizve: nincs vízszintes túlcsordulás.
@@ -328,7 +328,7 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**21 csomag, 611 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**21 csomag, 616 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,

@@ -1936,31 +1936,78 @@ $(document).ready(function() {
                 $body.append(osszSor);
             }
 
-            // Mobil nézet: tantárgyanként egy kártya, a hónapok jelvényként —
-            // így nincs szükség vízszintes görgetésre 9-12 hónapnál sem.
+            // Mobil nézet: ha az időszak több hónapot ölel fel, tantárgyanként egy
+            // FŐ accordion (teljes átlag), alatta minden hónap külön al-accordion,
+            // benne a hónap jegyei. Egyetlen hónapnál marad az egyszerű kártya.
             let $mob = $('#atlagokMobil').empty();
             if (!tantargyak.length) {
                 $mob.append('<div class="text-center text-muted small py-2">Nincs megjeleníthető jegy erre az időszakra.</div>');
-            }
-            tantargyak.forEach(function(t) {
-                let badges = honapok.map(function(h) {
-                    let m = (t.honapok || {})[h];
-                    if (!m || m.atlag === null) return '';
-                    return `<span class="badge bg-light text-dark border me-1 mb-1">${fmtHonap(h)}: <strong>${m.atlag}</strong> (${m.db})</span>`;
-                }).join('');
-                $mob.append(`<div class="border rounded p-2 mb-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="fw-bold">${escapeHtml(t.tantargy)}</div>
-                        <div class="text-nowrap">
-                            <span class="badge bg-primary">${t.osszes && t.osszes.atlag !== null ? t.osszes.atlag : '-'}</span>
-                            <span class="text-muted small ms-1">${t.osszes ? t.osszes.db : 0} jegy</span>
+            } else if (honapok.length > 1) {
+                tantargyak.forEach(function(t, ti) {
+                    let subjId = 'atlagSubj' + ti;
+                    let honapokHtml = honapok.map(function(h, hi) {
+                        let m = (t.honapok || {})[h];
+                        if (!m || m.atlag === null) return '';
+                        let hid = 'atlagH' + ti + '_' + hi;
+                        let jegyek = (m.jegyek || []).map(function(j) {
+                            let reszletek = [j.mod, j.tema, j.suly ? j.suly + '%' : '']
+                                .filter(Boolean).join(' · ');
+                            return `<div class="border-top py-1">
+                                <div><span class="fw-bold">${escapeHtml(j.ertek || j.szam)}</span>
+                                <span class="text-muted small ms-1">${escapeHtml(j.datum || '')}</span></div>
+                                <div class="text-muted" style="font-size: 0.72rem;">${escapeHtml(reszletek)}</div>
+                            </div>`;
+                        }).join('');
+                        return `<div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed py-1 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#${hid}" style="font-size: 0.82rem;">
+                                    ${fmtHonap(h)}
+                                    <span class="badge bg-light text-dark ms-2">${m.atlag}</span>
+                                    <span class="text-muted ms-2" style="font-size: 0.72rem;">${m.db} jegy</span>
+                                </button>
+                            </h2>
+                            <div id="${hid}" class="accordion-collapse collapse">
+                                <div class="accordion-body p-2">${jegyek || '<span class="text-muted small">nincs jegy</span>'}</div>
+                            </div>
+                        </div>`;
+                    }).join('');
+                    $mob.append(`<div class="accordion mb-2">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed py-2 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#${subjId}">
+                                    <span class="fw-bold">${escapeHtml(t.tantargy)}</span>
+                                    <span class="badge bg-primary ms-2">${t.osszes && t.osszes.atlag !== null ? t.osszes.atlag : '-'}</span>
+                                    <span class="text-muted ms-2" style="font-size: 0.72rem;">${t.osszes ? t.osszes.db : 0} jegy</span>
+                                </button>
+                            </h2>
+                            <div id="${subjId}" class="accordion-collapse collapse">
+                                <div class="accordion-body p-2">
+                                    <div class="accordion">${honapokHtml}</div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="d-flex flex-wrap mt-1">${badges || '<span class="text-muted small">nincs havi adat</span>'}</div>
-                </div>`);
-            });
-            if (tantargyak.length && res.osszes) {
-                $mob.append(`<div class="text-center small fw-bold text-success">Összesített átlag: ${res.osszes.atlag} (${res.osszes.db} jegy)</div>`);
+                    </div>`);
+                });
+                // (az összesített átlag felül, a fejléc mellett látszik — nem ismételjük)
+            } else {
+                tantargyak.forEach(function(t) {
+                    let badges = honapok.map(function(h) {
+                        let m = (t.honapok || {})[h];
+                        if (!m || m.atlag === null) return '';
+                        return `<span class="badge bg-light text-dark border me-1 mb-1">${fmtHonap(h)}: <strong>${m.atlag}</strong> (${m.db})</span>`;
+                    }).join('');
+                    $mob.append(`<div class="border rounded p-2 mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="fw-bold">${escapeHtml(t.tantargy)}</div>
+                            <div class="text-nowrap">
+                                <span class="badge bg-primary">${t.osszes && t.osszes.atlag !== null ? t.osszes.atlag : '-'}</span>
+                                <span class="text-muted small ms-1">${t.osszes ? t.osszes.db : 0} jegy</span>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap mt-1">${badges || '<span class="text-muted small">nincs havi adat</span>'}</div>
+                    </div>`);
+                });
+                // (az összesített átlag felül, a fejléc mellett látszik — nem ismételjük)
             }
             $('#atlagokOsszes').text(res.osszes && res.osszes.db
                 ? `Összesített átlag: ${res.osszes.atlag} (${res.osszes.db} jegy)`

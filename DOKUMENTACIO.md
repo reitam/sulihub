@@ -172,9 +172,11 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
   „Tanulmányi átlag" mellett *(súlyozott)* jelzést mutat, tooltippel az egyszerű átlaggal.
 - **Tantárgyi átlagok havi bontással:** a Statisztika fülön **alapból zárt accordion** (kinyitva
   tantárgyanként a havi és az időszaki „Összes" súlyozott átlag + jegy-darabszám;
-  `GET /api/atlagok?diak=&kezdo_datum=&zaro_datum=`). A hónapok a jegyek bejegyzési dátuma
-  szerint csoportosulnak. **Mobilon** nem vízszintesen görgethető táblázat, hanem
-  tantárgyankénti kártya, a hónapok jelvényként (pl. „okt. 26: 4.5 (2)").
+  `GET /api/atlagok?diak=&kezdo_datum=&zaro_datum=`, a válaszban hónaponként a **jegyek is**
+  szerepelnek). A hónapok a jegyek bejegyzési dátuma szerint csoportosulnak. **Mobilon**, ha az
+  időszak **több hónapot** ölel fel: tantárgyanként egy **fő accordion** (teljes átlag), alatta
+  minden hónap **külön al-accordion**, benne a hónap jegyei (érték, dátum, mód/téma/súly).
+  Egyetlen hónapnál marad az egyszerű kártya — vízszintes görgetés sehol.
 - **A kifizetetlen zsebpénz a dashboardon** a **teljes időszak** egyenlege mínusz a
   `kifizetesek` táblában **kifizetettnek jelölt időszakok** összege (a maradék jelenik meg).
   A `GET /api/dashboard` ezt diákonként és összesen is visszaadja, a diákonkénti
@@ -563,7 +565,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **611 automatikus ellenőrzés** huszonegy csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **616 automatikus ellenőrzés** huszonegy csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
