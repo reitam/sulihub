@@ -519,7 +519,7 @@
         <!-- 0. FÜL: ÁTTEKINTÉS (DASHBOARD, Kaneo #38) -->
         <div class="tab-pane fade show active" id="attekintes-pane" role="tabpanel">
             <div class="row g-3" id="dashboardTiles">
-                <div class="col-6 col-lg-3">
+                <div class="col-6 col-md-4">
                     <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileHataridok" title="Ugrás a heti határidőkre szűrt eseménylistára">
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="text-muted small fw-bold">Heti határidők</div>
@@ -529,7 +529,7 @@
                         <div class="text-muted" id="tileHataridokInfo" style="font-size: 0.75rem;">házik / számonkérések ezen a héten</div>
                     </div>
                 </div>
-                <div class="col-6 col-lg-3">
+                <div class="col-6 col-md-4">
                     <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileUjJegyek" title="Ugrás az elmúlt 7 nap jegyeire">
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="text-muted small fw-bold">Új jegyek</div>
@@ -539,7 +539,7 @@
                         <div class="text-muted" style="font-size: 0.75rem;">az elmúlt 7 napban</div>
                     </div>
                 </div>
-                <div class="col-6 col-lg-3">
+                <div class="col-6 col-md-4">
                     <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileUjUzenetek" title="Ugrás a beérkezett üzenetekre">
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="text-muted small fw-bold">Új üzenetek</div>
@@ -549,17 +549,30 @@
                         <div class="text-muted" style="font-size: 0.75rem;">az elmúlt 7 napban</div>
                     </div>
                 </div>
-                <div class="col-6 col-lg-3">
+                <div class="col-6 col-md-4">
+                    <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileIgazolatlan" title="Ugrás a hiányzásokra">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="text-muted small fw-bold">Igazolatlan hiányzás</div>
+                            <i class="fa-solid fa-user-clock text-danger"></i>
+                        </div>
+                        <div class="fs-3 fw-bold text-danger" id="tileIgazolatlanSzam">0 óra</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">a teljes időszakban</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-4">
                     <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileZsebpenz" title="Ugrás a zsebpénz elszámolásra">
                         <div class="d-flex justify-content-between align-items-start">
                             <div class="text-muted small fw-bold">Kifizetetlen zsebpénz</div>
                             <i class="fa-solid fa-sack-dollar text-warning"></i>
                         </div>
                         <div class="fs-3 fw-bold text-warning" id="tileZsebpenzSzam">0 Ft</div>
-                        <div class="text-muted" id="tileZsebpenzInfo" style="font-size: 0.75rem;">erre a hónapra</div>
+                        <div class="text-muted" id="tileZsebpenzInfo" style="font-size: 0.75rem;">teljes egyenleg mínusz a kifizetett időszakok</div>
                     </div>
                 </div>
             </div>
+
+            <h6 class="fw-bold text-secondary mt-4 mb-2"><i class="fa-solid fa-user-graduate me-2"></i>Gyermekenkénti összesítő</h6>
+            <div class="row g-3" id="dashboardDiakCards"></div>
 
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
                 <div class="d-flex align-items-center gap-2 flex-wrap" id="dashboardDiakChips">
@@ -860,21 +873,33 @@
                     </div>
                 </div>
 
-                <div class="card card-stat bg-white p-3 mb-3" id="atlagokCard">
-                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                        <h6 class="fw-bold mb-0 text-secondary"><i class="fa-solid fa-table-cells me-2"></i>Tantárgyi átlagok (havi bontás)</h6>
-                        <small class="text-muted" id="atlagokOsszes"></small>
+                <div class="card card-stat bg-white mb-3" id="atlagokCard">
+                    <div class="card-header bg-white p-0 border-0">
+                        <button class="btn btn-link text-decoration-none w-100 text-start py-2 px-3 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#atlagokCollapse" aria-expanded="false" aria-controls="atlagokCollapse">
+                            <span class="fw-bold text-secondary"><i class="fa-solid fa-table-cells me-2"></i>Tantárgyi átlagok (havi bontás)</span>
+                            <i class="fa-solid fa-chevron-down float-end text-muted" id="iconAtlagok"></i>
+                        </button>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-striped align-middle mb-0" id="atlagokTable" style="font-size: 0.85rem;">
-                            <thead class="table-light"><tr id="atlagokHeadRow"></tr></thead>
-                            <tbody id="atlagokBody"></tbody>
-                        </table>
+                    <div class="collapse" id="atlagokCollapse">
+                        <div class="p-3 pt-0">
+                            <div class="d-flex justify-content-end mb-2">
+                                <small class="text-muted" id="atlagokOsszes"></small>
+                            </div>
+                            <!-- Asztali nézet: táblázat -->
+                            <div class="table-responsive d-none d-md-block">
+                                <table class="table table-sm table-striped align-middle mb-0" id="atlagokTable" style="font-size: 0.85rem;">
+                                    <thead class="table-light"><tr id="atlagokHeadRow"></tr></thead>
+                                    <tbody id="atlagokBody"></tbody>
+                                </table>
+                            </div>
+                            <!-- Mobil nézet: kártyák, hónapok jelvényként (nincs vízszintes görgetés) -->
+                            <div id="atlagokMobil" class="d-md-none"></div>
+                            <small class="text-muted mt-2 d-block">
+                                A súlyozott átlag a jegyek súlyszázaléka szerint számol (a 0%-os súlyú jegy kimarad);
+                                az „Összes” a kiválasztott időszak egésze.
+                            </small>
+                        </div>
                     </div>
-                    <small class="text-muted mt-2 d-block">
-                        A súlyozott átlag a jegyek súlyszázaléka szerint számol (a 0%-os súlyú jegy kimarad);
-                        az „Összes” oszlop a kiválasztott időszak egésze.
-                    </small>
                 </div>
 
                 <div id="rewardsNotEnabledAlert" class="alert alert-secondary d-none text-center p-2 mb-3">
@@ -1910,6 +1935,33 @@ $(document).ready(function() {
                 osszSor += `<td class="text-center text-muted">${res.osszes.db}</td></tr>`;
                 $body.append(osszSor);
             }
+
+            // Mobil nézet: tantárgyanként egy kártya, a hónapok jelvényként —
+            // így nincs szükség vízszintes görgetésre 9-12 hónapnál sem.
+            let $mob = $('#atlagokMobil').empty();
+            if (!tantargyak.length) {
+                $mob.append('<div class="text-center text-muted small py-2">Nincs megjeleníthető jegy erre az időszakra.</div>');
+            }
+            tantargyak.forEach(function(t) {
+                let badges = honapok.map(function(h) {
+                    let m = (t.honapok || {})[h];
+                    if (!m || m.atlag === null) return '';
+                    return `<span class="badge bg-light text-dark border me-1 mb-1">${fmtHonap(h)}: <strong>${m.atlag}</strong> (${m.db})</span>`;
+                }).join('');
+                $mob.append(`<div class="border rounded p-2 mb-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="fw-bold">${escapeHtml(t.tantargy)}</div>
+                        <div class="text-nowrap">
+                            <span class="badge bg-primary">${t.osszes && t.osszes.atlag !== null ? t.osszes.atlag : '-'}</span>
+                            <span class="text-muted small ms-1">${t.osszes ? t.osszes.db : 0} jegy</span>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap mt-1">${badges || '<span class="text-muted small">nincs havi adat</span>'}</div>
+                </div>`);
+            });
+            if (tantargyak.length && res.osszes) {
+                $mob.append(`<div class="text-center small fw-bold text-success">Összesített átlag: ${res.osszes.atlag} (${res.osszes.db} jegy)</div>`);
+            }
             $('#atlagokOsszes').text(res.osszes && res.osszes.db
                 ? `Összesített átlag: ${res.osszes.atlag} (${res.osszes.db} jegy)`
                 : '');
@@ -2118,7 +2170,7 @@ $(document).ready(function() {
         if ($('#rewards-tab').length > 0) {
             loadRewardsData();
         }
-        updateZsebpenzTile();
+        loadDashboardSummary();
     }
 
     // ── Áttekintés (dashboard) ─────────────────────────────────────────────
@@ -2172,42 +2224,67 @@ $(document).ready(function() {
         $('#tileUjUzenetekSzam').text(ujUzenet);
     }
 
-    function updateZsebpenzTile() {
-        if ($('#rewards-tab').length === 0) {
-            $('#tileZsebpenzSzam').text('-');
-            $('#tileZsebpenzInfo').text('a zsebpénz modul ki van kapcsolva');
+    function renderDiakCards(diakok) {
+        let $c = $('#dashboardDiakCards').empty();
+        if (!diakok || !diakok.length) {
+            $c.append('<div class="col-12 text-muted small">Nincs megjeleníthető diák.</div>');
             return;
         }
-        let diakok = $('#filterDiak option').map(function () { return this.value; }).get().filter(Boolean);
-        if (!diakok.length) return;
-
-        let now = new Date();
-        let y = now.getFullYear();
-        let m = now.getMonth() + 1;
-        let kezdo = `${y}-${String(m).padStart(2, '0')}-01`;
-        let utolso = new Date(y, m, 0).getDate();
-        let zaro = `${y}-${String(m).padStart(2, '0')}-${String(utolso).padStart(2, '0')}`;
-
-        let osszeg = 0, db = 0, kesz = 0;
         diakok.forEach(function (d) {
-            $.getJSON(`/api/statisztika?diak=${encodeURIComponent(d)}&kezdo_datum=${kezdo}&zaro_datum=${zaro}`)
-                .done(function (res) {
-                    if (res && res.enabled && res.rewards_enabled && !res.kifizetve && res.vegosszeg) {
-                        osszeg += Number(res.vegosszeg) || 0;
-                        db++;
-                    }
-                })
-                .always(function () {
-                    kesz++;
-                    if (kesz === diakok.length) {
-                        $('#tileZsebpenzSzam').text(fmtFtShort(osszeg));
-                        $('#tileZsebpenzInfo').text(db
-                            ? db + ' gyermeknél van elszámolatlan tétel (ebben a hónapban)'
-                            : 'nincs kifizetetlen tétel ebben a hónapban');
-                    }
-                });
+            let atlag = (d.atlag === null || d.atlag === undefined) ? '-' : d.atlag;
+            let penz;
+            if (d.rewards_enabled) {
+                penz = `<div class="mt-1 small">Kifizetetlen egyenleg: <strong>${fmtFtShort(d.hatralevo)}</strong>` +
+                    (d.kifizetve_osszeg
+                        ? ` <span class="text-muted">(már kifizetve: ${Math.abs(d.kifizetve_osszeg).toLocaleString('hu-HU')} Ft)</span>`
+                        : '') +
+                    `</div>`;
+            } else {
+                penz = '<div class="mt-1 small text-muted">zsebpénz modul kikapcsolva</div>';
+            }
+            $c.append(`<div class="col-12 col-md-6 col-xl-4">
+                <div class="card card-stat bg-white p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="fw-bold">${escapeHtml(d.diak)}</div>
+                        <span class="badge bg-light text-dark">${d.jegy_db} jegy</span>
+                    </div>
+                    <div class="d-flex align-items-baseline gap-2 flex-wrap">
+                        <div class="fs-2 fw-bold text-primary">${atlag}</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">tanulmányi átlag<br>(teljes időszak, súlyozott)</div>
+                    </div>
+                    ${penz}
+                </div>
+            </div>`);
         });
     }
+
+    function loadDashboardSummary() {
+        let diak = $('#filterDiak').val() || '';
+        $.getJSON(`/api/dashboard?diak=${encodeURIComponent(diak)}`, function (res) {
+            if (!res || !res.enabled) return;
+            $('#tileIgazolatlanSzam').text((res.igazolatlan_ora || 0) + ' óra');
+
+            if ($('#rewards-tab').length === 0) {
+                $('#tileZsebpenzSzam').text('-');
+                $('#tileZsebpenzInfo').text('a zsebpénz modul ki van kapcsolva');
+            } else {
+                $('#tileZsebpenzSzam').text(fmtFtShort(res.osszes_hatralevo || 0));
+                let db = (res.diakok || []).filter(function (d) {
+                    return d.rewards_enabled && d.hatralevo;
+                }).length;
+                $('#tileZsebpenzInfo').text(db
+                    ? db + ' gyermeknél van elszámolatlan tétel (teljes időszak)'
+                    : 'minden kifizetett időszak el van számolva');
+            }
+            renderDiakCards(res.diakok || []);
+        });
+    }
+
+    $('#atlagokCollapse').on('show.bs.collapse', function () {
+        $('#iconAtlagok').removeClass('fa-chevron-down').addClass('fa-chevron-up');
+    }).on('hide.bs.collapse', function () {
+        $('#iconAtlagok').removeClass('fa-chevron-up').addClass('fa-chevron-down');
+    });
 
     function showMainTab(tabId) {
         let el = document.getElementById(tabId);
@@ -2445,7 +2522,7 @@ $(document).ready(function() {
 
         if (e.target.id === 'attekintes-tab') {
             updateDashboard();
-            updateZsebpenzTile();
+            loadDashboardSummary();
         }
 
         // A rejtett fülben inicializált táblázatoknál a Responsive nem tud
@@ -2636,6 +2713,11 @@ $(document).ready(function() {
     $('#tileUjUzenetek').on('click keydown', function(e) {
         if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
         showMainTab('uzenetek-tab');
+    });
+
+    $('#tileIgazolatlan').on('click keydown', function(e) {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        showMainTab('hianyzasok-tab');
     });
 
     $('#tileZsebpenz').on('click keydown', function(e) {

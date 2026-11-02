@@ -94,8 +94,37 @@ for i, nap in enumerate([1, 3, 30]):
         " VALUES (?,?,?,?,?,?)",
         ("Teszt Elek", str(i), "Iskola", f"Üzenet {i}",
          f"{hu(today - timedelta(days=nap))} 10:00", "Szöveg"))
+# Hiányzások: 2 igazolatlan + 1 igazolt
+for i, igazolt in enumerate([0, 0, 1]):
+    conn.execute(
+        "INSERT INTO hianyzasok (diak_nev, mulasztas_datum, ora_sorszam, perc, tantargy,"
+        " tema, tanar, mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus,"
+        " rogzites_datum, kreta_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        ("Teszt Elek", (today - timedelta(days=i + 1)).isoformat(), i + 1, None,
+         "Matematika", "Téma", "Tanár", "Hiányzás", igazolt, "Nem", "", today.isoformat(),
+         f"h{i}"))
+# Egy már kifizetett időszak (500 Ft) — a dashboardon ezt le kell vonni
+conn.execute("""
+    CREATE TABLE IF NOT EXISTS kifizetesek (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        diak_nev TEXT NOT NULL,
+        kezdo_datum TEXT NOT NULL,
+        zaro_datum TEXT NOT NULL,
+        kifizetve INTEGER DEFAULT 0,
+        osszeg INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(diak_nev, kezdo_datum, zaro_datum)
+    )
+""")
+conn.execute(
+    "INSERT INTO kifizetesek (diak_nev, kezdo_datum, zaro_datum, kifizetve, osszeg)"
+    " VALUES (?,?,?,?,?)",
+    ("Teszt Elek", "2026-09-01", "2026-09-30", 1, 500))
 conn.commit()
 conn.close()
+
+# Zsebpénz: 5-ös +500, 4-es +200, 3-as 0 -> 700; ebből 500 kifizetve -> 200 marad.
+expected_hatralevo = 700 - 500
 
 # Várt értékek (ugyanaz a szabály, mint a frontenden)
 week_deadlines = sum(
@@ -148,6 +177,20 @@ try:
         ok(hat == str(week_deadlines), f"heti határidők: {hat} (várt {week_deadlines})")
         ok(jegy == str(new_grades), f"új jegyek: {jegy} (várt {new_grades})")
         ok(uzen == str(new_messages), f"új üzenetek: {uzen} (várt {new_messages})")
+
+        page.wait_for_timeout(800)
+        iga = page.inner_text("#tileIgazolatlanSzam").strip()
+        penz = page.inner_text("#tileZsebpenzSzam").strip()
+        ok(iga.startswith("2"), f"igazolatlan hiányzás: {iga} (várt 2 óra)")
+        ok(penz.replace(" ", "").replace("+", "").replace("Ft", "") == str(expected_hatralevo),
+           f"kifizetetlen zsebpénz: {penz} (várt {expected_hatralevo} Ft, a kifizetett időszak levonva)")
+
+        print("\n2b) Gyermekenkénti összesítő kártyák")
+        kartya = page.eval_on_selector_all("#dashboardDiakCards .card",
+                                           "els => els.map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
+        ok(len(kartya) == 1, f"1 gyermekkártya: {len(kartya)}")
+        ok(kartya and "4.67" in kartya[0], f"a tanulmányi átlag a kártyán: {kartya[0] if kartya else ''}")
+        ok(kartya and "200" in kartya[0], "a kifizetetlen egyenleg a kártyán")
         page.screenshot(path=str(work / "attekintes.png"))
         print("SCREENSHOT (áttekintés):", work / "attekintes.png")
 
@@ -171,6 +214,11 @@ try:
         print("\n5) Tantárgyi átlagok a Statisztika fülön (#39)")
         page.click("#rewards-tab")
         page.wait_for_timeout(1500)
+        # Az átlagok kártya alapból zárt accordion: kinyitjuk.
+        ok(not page.is_visible("#atlagokBody"), "az átlagok táblázat alapból zárva")
+        page.click('#atlagokCard button[data-bs-target="#atlagokCollapse"]')
+        page.wait_for_timeout(600)
+        ok(page.is_visible("#atlagokBody"), "kinyitás után látszik a táblázat")
         fej = page.eval_on_selector_all("#atlagokHeadRow th", "els => els.map(e => e.innerText.trim())")
         testek = page.eval_on_selector_all("#atlagokBody tr",
                                            "rows => rows.map(r => r.innerText.replace(/\\s+/g, ' ').trim())")
