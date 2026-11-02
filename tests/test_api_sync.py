@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 from kreta_api_sync import (  # noqa: E402
     DEFAULT_LOOKBACK_DAYS,
+    FUTURE_LOOKAHEAD_DAYS,
     api_window,
     apply_lesson_join,
     fetch_announced_tests,
@@ -592,6 +593,8 @@ for base, _dirs, files in os.walk(csat_dir):
 csat_files.sort()
 
 start, end = k.hianyzas_api_window("Teszt")
+ev_start, ev_end = k.events_api_window("Teszt", "Bejelentett számonkérés")
+note_start, note_end = k.events_api_window("Teszt", "Feljegyzés")
 
 print("RESULT=" + json.dumps({{
     "rows_first": first,
@@ -623,6 +626,9 @@ print("RESULT=" + json.dumps({{
     "fallback_error": fallback_error,
     "window_start": str(start),
     "window_end": str(end),
+    "event_start": str(ev_start),
+    "event_end": str(ev_end),
+    "note_end": str(note_end),
 }}, ensure_ascii=False))
 """.replace("{root}", str(ROOT)).replace("{{", "{").replace("}}", "}"),
     encoding="utf-8",
@@ -770,6 +776,22 @@ print("\n9) Lekérési ablak a DB-ből")
 ok(payload.get("window_start") == str(date.today() - timedelta(days=DEFAULT_LOOKBACK_DAYS)),
    f"ablak kezdete egy évvel korábbra esik: {payload.get('window_start')}")
 ok(payload.get("window_end") == str(date.today()), "ablak vége a mai nap")
+
+print("\n9b) Jövőbeli határidős események ablaka (+90 nap)")
+ok(payload.get("event_end") == str(date.today() + timedelta(days=FUTURE_LOOKAHEAD_DAYS)),
+   f"számonkérés/házi: az ablak előre nyúlik: {payload.get('event_end')}"
+   f" (várt: {date.today() + timedelta(days=FUTURE_LOOKAHEAD_DAYS)})")
+ok(payload.get("event_start") == payload.get("window_start"),
+   "a kezdő dátum ugyanaz, mint a többi adatkörnél")
+ok(payload.get("note_end") == str(date.today()),
+   f"feljegyzésnél nincs előretekintés: {payload.get('note_end')}")
+
+print("\n9c) api_window lookahead (tiszta függvény)")
+_s, _e = api_window(None, today=date(2026, 11, 2), lookahead_days=90)
+ok(_e == date(2027, 1, 31), f"2026-11-02 + 90 nap = {_e}")
+_s2, _e2 = api_window(None, today=date(2026, 11, 2))
+ok(_e2 == date(2026, 11, 2), "alapból nincs előretekintés")
+ok(FUTURE_LOOKAHEAD_DAYS >= 30, f"az előretekintés legalább 1 hónap: {FUTURE_LOOKAHEAD_DAYS}")
 
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")

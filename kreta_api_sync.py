@@ -74,20 +74,32 @@ def parse_stored_date(value) -> date | None:
     return None
 
 
+# A KRÉTA API a `datumTol`–`datumIg` ablakon belül adja vissza a sorokat, és a
+# dátum a *esemény* napja. A házi feladat és a bejelentett számonkérés viszont
+# **jövőbeli** határidőt hordoz, ezért ezeknél előre is kell kérni — enélkül a
+# következő hetek dolgozatai/házijai soha nem jönnének le API-ból.
+FUTURE_LOOKAHEAD_DAYS = 90
+FUTURE_DATED_EVENT_TYPES = ("Házi feladat", "Bejelentett számonkérés")
+
+
 def api_window(earliest_stored: str | None, today: date | None = None,
-               lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> tuple[date, date]:
+               lookback_days: int = DEFAULT_LOOKBACK_DAYS,
+               lookahead_days: int = 0) -> tuple[date, date]:
     """Az API-lekérés ablaka: legalább egy tanévnyi, de a DB legkorábbi soráig.
 
     A KRÉTA a szeleten belül a teljes listát adja; a mentés a szeleten kívüli
     sorokhoz nem nyúl, ezért a kezdő dátumot a DB legkorábbi sorához igazítjuk —
     így nincs adatvesztés és nincs felesleges lekérés.
+
+    `lookahead_days`: mennyivel nyúljon az ablak a jövőbe (jövőbeli határidős
+    eseményekhez, pl. házi feladat és bejelentett számonkérés).
     """
     today = today or date.today()
     start = today - timedelta(days=lookback_days)
     stored = parse_stored_date(earliest_stored)
     if stored is not None and stored < start:
         start = stored
-    return start, today
+    return start, today + timedelta(days=max(0, lookahead_days))
 
 
 def apply_lesson_join(rows: list[dict], lessons: list[dict]) -> list[dict]:
