@@ -2295,6 +2295,7 @@ def api_atlagok():
         return {"atlag": atlag, "db": len(items), "jegyek": jegyek}
 
     per_tantargy = {}
+    per_honap = {}
     honapok = set()
     mind = []
 
@@ -2325,6 +2326,7 @@ def api_atlagok():
         entry = per_tantargy.setdefault(tantargy, {"honapok": {}, "mind": []})
         entry["honapok"].setdefault(honap, []).append(item)
         entry["mind"].append(item)
+        per_honap.setdefault(honap, []).append(item)
         mind.append(item)
 
     tantargyak = []
@@ -2336,10 +2338,17 @@ def api_atlagok():
             "osszes": summarize(entry["mind"]),
         })
 
+    def summarize_light(items):
+        """Csak az átlag + darabszám (a havi teljes átlagokhoz, jegyek nélkül)."""
+        r = summarize(items)
+        return {"atlag": r["atlag"], "db": r["db"]}
+
     return jsonify({
         "honapok": sorted(honapok),
         "tantargyak": tantargyak,
-        "osszes": summarize(mind),
+        # Havi TELJES átlag (minden tantárgy együtt) - a fa középső szintje.
+        "honap_osszes": {h: summarize_light(v) for h, v in sorted(per_honap.items())},
+        "osszes": summarize_light(mind),
     })
 
 
