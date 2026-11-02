@@ -177,6 +177,17 @@ s, e = k.kreta_api_sync.tanev_api_window(date(2027, 9, 3))
 ok(s == date(2027, 9, 1) and e == date(2027, 9, 3),
    f"az új tanév első napjától kér: {s} .. {e}")
 
+print("\n6) Letöltött tanéven kívüli sor jelzése (nem csendes kihagyás)")
+os.environ["KRETA_TODAY"] = "2026-11-03"
+r = k.save_esemenyek_by_type("Teszt", [
+    {"esemeny_tipus": "Értékelés", "tantargy": "Német", "ertek": "Jeles(5)", "szam_ertek": 5,
+     "bej_datum": "2026. 03. 10."},  # előző tanév: az ablak csak 2026-09-01-től indul
+], set(), ["Értékelés"], window=(date(2026, 9, 1), date(2026, 11, 3)))
+ok(r.get("skipped", {}).get("Értékelés") == 1,
+   f"a kihagyott sor jelzése megvan: {r.get('skipped')}")
+ok(db_rows("SELECT id FROM esemenyek WHERE tantargy='Német'") == [],
+   "a korábbi tanévi sor nem íródott be (nincs duplikáció)")
+
 os.environ.pop("KRETA_TODAY", None)
 
 print("\n" + "=" * 60)

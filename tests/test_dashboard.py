@@ -310,6 +310,32 @@ try:
         print("SCREENSHOT (mobil):", work / "mobil_atlagok.png")
         mctx.close()
 
+        print("\n7) Tanév-választó (Kaneo #40): alapérték és 'Összes tanév' mód")
+        ok(page.input_value("#tanevValaszto") == tanev_of(today),
+           f"alapból az aktuális tanév: {page.input_value('#tanevValaszto')}")
+        opts = page.eval_on_selector_all("#tanevValaszto option",
+                                         "els => els.map(e => e.textContent.trim())")
+        ok(any("(aktuális)" in o for o in opts), f"az aktuális tanév jelölve: {opts}")
+        page.select_option("#tanevValaszto", "")
+        page.wait_for_timeout(1500)
+        page.click("#attekintes-tab")
+        page.wait_for_timeout(1200)
+        kartya2 = page.eval_on_selector_all(
+            "#dashboardDiakCards .card",
+            "els => els.map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
+        ok(kartya2 and "válassz tanévet" in kartya2[0],
+           f"'Összes tanév' módban nincs átlag: {kartya2[0] if kartya2 else ''}")
+        page.click("#rewards-tab")
+        page.wait_for_timeout(1500)
+        ok(page.inner_text("#atlagokIdoszak").strip().startswith("Összes tanév"),
+           f"az átlagok fejléce jelzi az összes tanévet: {page.inner_text('#atlagokIdoszak')}")
+        ok(page.inner_text("#atlagokBody").strip().startswith("Az átlagokhoz"),
+           "az átlagokhoz tanévválasztást kér")
+        ok(page.inner_text("#statAtlag").strip() == "–",
+           f"'Összes tanév' módban a KPI-átlag sem szám: {page.inner_text('#statAtlag')}")
+        page.select_option("#tanevValaszto", tanev_of(today))
+        page.wait_for_timeout(1200)
+
         page.screenshot(path=str(work / "dashboard.png"))
         print("SCREENSHOT:", work / "dashboard.png")
         browser.close()
