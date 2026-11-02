@@ -14,6 +14,7 @@ import kreta_api
 import kreta_api_sync
 import kreta_shadow
 import kreta_sync
+import kreta_tanev
 
 # --- KONFIGURÁCIÓ ÉS LOGGING BEÁLLÍTÁSA ---
 # Az útvonalak felülírhatók környezeti változókkal (Docker): alapból a régi,
@@ -249,8 +250,16 @@ def init_db():
             except Exception as ex:
                 log(f"  [Sémafrissítési figyelmeztetés ({col_name})]: {ex}")
 
+    # Tanév-dimenzió (Kaneo #40): oszlopok + a meglévő sorok feltöltése.
+    # Csak ALTER/UPDATE, ID-stabil; a backfill újraindítható.
+    added = kreta_tanev.ensure_tanev_schema(conn, log_fn=log)
+    if added:
+        log(f"  [Adatbázis séma frissítve]: tanév-oszlopok: {', '.join(added)}")
+    kreta_tanev.backfill_tanev(conn, log_fn=log, batch=200)
+
     conn.commit()
     conn.close()
+
 
 def get_existing_hazi_keys(diak_nev):
     """Kinyeri a DB-ben már meglévő házi feladatok azonosítóit (Tantárgy | Bejegyzés dátuma | Határidő)."""
@@ -473,18 +482,42 @@ def save_hianyzasok_to_db(diak_nev, rows):
 
 
 def save_igazolasok_to_db(diak_nev, rows):
-    """A diák igazolásainak teljes cseréje."""
+    """A diák igazolásainak mentése **adatvédelemmel** (Kaneo #42).
+
+    Teljes cserét végez, de ha az új lista a meglévő sorok `KRETA_SYNC_MIN_RATIO`
+    (alap 0,5) arányánál kevesebbet hoz — vagy teljesen üres, miközben volt adat —,
+    a törlést **kihagyja**, naplóz, és `blocked` jelzést ad vissza (az API-út ebből
+    hibát/fallbacket csinál). Így egy üres vagy részleges igazoláslista nem törli a
+    korábbi tanévek igazolásait.
+
+    Visszatérés: `{"saved": int, "blocked": {kulcs: {"old","new"}}, "error": str}`
+    """
+    result = {"saved": 0, "blocked": {}, "error": ""}
+    seen = set()
+    egyedi = []
+    for r in rows or []:
+        kreta_id = str(r.get("kreta_id") or "").strip()
+        key = kreta_id or f"{r.get('kezdete')}|{r.get('vege')}|{r.get('igazolas_tipus')}|{r.get('megjegyzes')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        egyedi.append((kreta_id, r))
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     try:
+        old_count = cursor.execute(
+            "SELECT COUNT(*) FROM igazolasok WHERE diak_nev = ?", (diak_nev,)
+        ).fetchone()[0]
+        new_count = len(egyedi)
+        if old_count > 0 and (new_count == 0 or _would_drop_too_much(old_count, new_count)):
+            log(f"  [FIGYELEM] Igazolások: {new_count} új sor a meglévő {old_count} helyett "
+                f"— a teljes cserét kihagytam (adatvédelem, küszöb: {sync_min_ratio():.2f}).")
+            result["blocked"]["igazolasok"] = {"old": old_count, "new": new_count}
+            return result
+
         cursor.execute("DELETE FROM igazolasok WHERE diak_nev = ?", (diak_nev,))
-        seen = set()
-        for r in rows:
-            kreta_id = str(r.get("kreta_id") or "").strip()
-            key = kreta_id or f"{r.get('kezdete')}|{r.get('vege')}|{r.get('igazolas_tipus')}|{r.get('megjegyzes')}"
-            if key in seen:
-                continue
-            seen.add(key)
+        for kreta_id, r in egyedi:
             cursor.execute('''
                 INSERT INTO igazolasok
                 (diak_nev, kreta_id, kezdete, vege, igazolas_tipus, megjegyzes)
@@ -498,10 +531,13 @@ def save_igazolasok_to_db(diak_nev, rows):
                 r.get("megjegyzes") or "",
             ))
         conn.commit()
+        result["saved"] = new_count
     except Exception as ex:
         log(f"  [Hiba az igazolások mentésekor]: {ex}")
+        result["error"] = str(ex)
     finally:
         conn.close()
+    return result
 
 
 def diff_hianyzas_counts(before_keys, rows):
@@ -615,7 +651,8 @@ def api_provider_igazolasok(student, client_factory=None):
     log("\n[API] Igazolások lekérése ...")
     client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
     rows = kreta_api_sync.fetch_justifications(client)
-    save_igazolasok_to_db(diak_nev, rows)
+    result = save_igazolasok_to_db(diak_nev, rows)
+    _raise_if_blocked(result, "igazolások")
     log(f"  [IGAZOLÁSOK OK] {len(rows)} db igazolás az API-ból.")
 
 
@@ -1434,8 +1471,12 @@ async def scrape_igazolasok(page, diak_nev, institute_code):
             log("  [Figyelmeztetés]: az #IgazolasGrid nem található, a korábbi adatok megmaradnak.")
             return None
 
-        save_igazolasok_to_db(diak_nev, rows)
-        log(f"  [IGAZOLÁSOK OK] {len(rows)} db igazolás rögzítve.")
+        result = save_igazolasok_to_db(diak_nev, rows)
+        if result.get("blocked"):
+            log("  [FIGYELEM] Az igazolások mentése adatvédelem miatt kimaradt "
+                "(a korábbi sorok megmaradtak).")
+        else:
+            log(f"  [IGAZOLÁSOK OK] {len(rows)} db igazolás rögzítve.")
         return rows
     except Exception as ex:
         log(f"  [Igazolás lekérési hiba]: {ex}")

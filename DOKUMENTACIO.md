@@ -307,7 +307,8 @@ adatvesztést okozna, ezért:
 |---|---|
 | Jegyek / feljegyzések | ha az új sorok száma a meglévők **50%-a alá** esik (`KRETA_SYNC_MIN_RATIO`), a törlés kimarad, `[FIGYELEM]` a naplóban |
 | Órarend | csak **teljes ürülésnél** véd (üres lista + meglévő sorok); a részleges csökkenés megengedett (szünet, év vége) |
-| Házi / számonkérés / üzenetek / hiányzások / igazolások | eleve inkrementális, nincs teljes csere |
+| **Igazolások** | teljes csere **50%-os őrrel** (Kaneo #42): üres vagy részleges lista esetén nem töröl; **üres lista `KRETA_SYNC_MIN_RATIO=0` mellett is védett** |
+| Házi / számonkérés / üzenetek / hiányzások | eleve inkrementális, nincs teljes csere |
 
 A védett mentés után az API-szolgáltató **hibát dob**, így `api_first` módban a Playwright
 fallback lefut arra az adatkörre; `api` módban a futás részleges hiba lesz, de a meglévő
@@ -344,6 +345,15 @@ Az adatok egyetlen SQLite adatbázisban (`kreta_adatok.db`) vannak, a data köte
 | `app_meta` | Kulcs–érték technikai állapotok | pl. utolsó elavultsági riasztás ideje |
 
 **Adatmennyiség (2026-10-29):** 165 esemény, 124 órarend-sor, 56 üzenet, 2 elszámolás.
+
+**Tanév-dimenzió (Kaneo #40, 1. fázis):** a `esemenyek`, `uzenetek`, `hianyzasok`,
+`igazolasok`, `kifizetesek` táblán `tanev` (`"2026/2027"`) és `tanev_forras`
+(`migracio`/`szamitott`/`kreta`) oszlop, a `sync_runs`-on `tanev` (diagnosztika); az
+**`orarend` szándékosan nem** kap tanévet (heti órarend). A tanév a rekord **saját
+dátumából** számított (szept. 1. – aug. 31.; a házi/számonkérésnél a **határidő** dönt),
+mert a KRÉTA csak a `TanuloAdatlap.TanevUid` belső azonosítót adja. A migráció a meglévő
+sorokat **csak UPDATE**-tel tölti ki (ID-stabil, újraindítható); a `tanev IS NULL` = még
+nem migrált, a `''` = ismeretlen dátum.
 
 **Fontos üzleti szabályok:**
 - A jegyek és feljegyzések futásonként **újratöltődnek** (a KRÉTA az igazság forrása).
@@ -575,6 +585,11 @@ köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data k�
 Kreta/
 ├── app.py                 # Flask: API, felület, ütemező, futásnapló, PDF
 ├── kreta_playwright.py    # scraper
+├── kreta_api.py           # mobil KRÉTA API kliens (böngésző nélkül)
+├── kreta_api_sync.py      # API adatkör-lekérők, ablakok
+├── kreta_sync.py          # SYNC_MODE, forrásnapló, fallback
+├── kreta_shadow.py        # árnyék/ellenőrző mód
+├── kreta_tanev.py         # tanév-számítás + séma-migráció (Kaneo #40)
 ├── templates/index.html   # egyfájlos dashboard
 ├── static/                # favicon, csatolmányok (lokálisan)
 ├── backup/kreta_backup.sh # napi mentés
@@ -592,7 +607,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **625 automatikus ellenőrzés** huszonegy csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **713 automatikus ellenőrzés** huszonhárom csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -637,6 +652,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | CDN-függő frontend | internet nélkül nem indul a felület | vendorolás a backlogban |
 | `config.json` egyszerű szöveg | jelszavak olvashatók a fájlból | a data kötet védett |
 | A tanárgyi átlagok forrása | a KRÉTA webes `*_HaviAtlag` mezői üresek/nullák, a `Atlag` (időszaki) viszont súlyozott | a havi bontást a saját számításunk adja a jegyek súlyából; az időszaki átlag **egyezik** a KRÉTA `Atlag` mezőjével (élő ellenőrzés) |
+| Tanév forrása (Kaneo #40) | a KRÉTA mobil API rekord-szintű tanévet nem ad (csak `TanuloAdatlap.TanevUid`, a többi tanév-végpont 403) | a tanév a **rekord dátumából számított** (szept. 1.); a `TanevUid` csak diagnosztika. A tanévváltás a naptár szerint történik |
 | WAL nem használt | párhuzamos írások ritkák | FUSE kötet miatt biztonságosabb |
 
 ---
@@ -713,6 +729,8 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 
 | **v1.6.4** | **2026-11-02** | **Dokumentáció-frissítés:** a rendszerleírás naprakésszé tétele (fejléc, új API-végpontok a megfigyelhetőség táblában, v1.6.3 élesítési ellenőrzőlista, ismert korlát a KRÉTA havi átlag-mezőiről), README verziótörténet, `rendszerterv.md` jelölése történeti dokumentumnak. Kódbeli változás nincs |
 | **v1.6.5** *(élesítésre vár)* | **2026-11-02** | **Tantárgyi átlagok finomítás:** a mátrix hónap-oszlopai csak a hónap nevét mutatják („szept.", az évszám a tooltipben), a kártya tetején **tanév + időszak** felirat (pl. „2026/2027. tanév · időszak: 2026. 10. 01. – 2026. 11. 30."), a tanévet a hónapokból számolva. Teszt: a fejléc nem tartalmaz évszámot, a felirat látszik |
+
+| **v1.7.0** *(fejlesztés alatt)* | **2026-11-02** | **Tanév-kezelés, 0–1. fázis:** új `kreta_tanev.py` (a tanév a rekord **dátumából** számítva, szept. 1. – aug. 31.; `KRETA_TODAY` / `KRETA_TANEV_KEZDO` env, tesztelhető `today=` paraméter; `teljesen_lekert` a törlési jogosultsághoz), `tanev` + `tanev_forras` oszlop a `esemenyek`/`uzenetek`/`hianyzasok`/`igazolasok`/`kifizetesek` táblán + `sync_runs.tanev` (**az órarend kivétel**), **csak UPDATE** backfill (ID-stabil, újraindítható) mindkét DDL-helyen. **#42:** az igazolások teljes cseréje **adatvédelmi őrrel** (üres lista `KRETA_SYNC_MIN_RATIO=0` mellett is védett; az API-út hibát dob → fallback). Új tesztek: `test_tanev`, `test_tanev_migration` |
 
 ---
 
