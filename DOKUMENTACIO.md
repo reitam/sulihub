@@ -173,10 +173,11 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
 - **Tantárgyi átlagok havi bontással:** a Statisztika fülön **alapból zárt accordion**
   (`GET /api/atlagok?diak=&kezdo_datum=&zaro_datum=`; a válaszban tantárgyanként hónapok,
   jegyek és **havi teljes átlagok** is vannak).
-  * **Asztali nézet:** mátrix — sorok a tantárgyak, oszlopok a hónapok, cella a **havi
-    tantárgyi átlag (db)**; az **„Összes" oszlop** a teljes időszak tantárgy szerinti átlaga,
-    a **lábléc-sor** („Hónapok átlaga") a havi **teljes** átlag, a jobb alsó sarokban a
-    teljes időszak átlaga.
+  * **Asztali nézet:** mátrix — sorok a tantárgyak, oszlopok a hónapok (csak a **hónap neve**,
+    pl. „szept."; az évszám a tooltipben), cella a **havi tantárgyi átlag (db)**; az
+    **„Összes" oszlop** a teljes időszak tantárgy szerinti átlaga, a **lábléc-sor**
+    („Hónapok átlaga") a havi **teljes** átlag, a jobb alsó sarokban a teljes időszak átlaga.
+    A kártya tetején **tanév + időszak** felirat (pl. „2026/2027. tanév · időszak: …").
   * **Mobil nézet:** **kapcsoló** a két bontás között (a „Teljes átlag" mindkét nézet tetején):
     - **Havi bontás:** hónap-accordionok (havi **teljes** átlag · jegy), kinyitva a tantárgyak
       **adott havi** átlaga (zárójelben a jegyszám);
