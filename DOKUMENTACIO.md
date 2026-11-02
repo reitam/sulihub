@@ -53,7 +53,7 @@ továbbítanak.
 
 | Adatkör | Tartalom |
 |---|---|
-| **Értékelések** | Tantárgy, érdemjegy, dátum, tanár, típus, témakör. Az API-first szinkronban a **Magatartás** és a **Szorgalom** két külön sor (0 számértékkel), így az átlagot nem befolyásolják |
+| **Értékelések** | Tantárgy, érdemjegy, dátum, tanár, típus, témakör, **súlyszázalék** („100%-os súllyal számít az átlagba”). A súlyt **csak a mobil API** adja (`SulySzazalekErteke`); a felület a jegy mellett kis `%`-jelvényként mutatja, tooltippel. Az API-first szinkronban a **Magatartás** és a **Szorgalom** két külön sor (0 számértékkel), így az átlagot nem befolyásolják |
 | **Feljegyzések** | Dicséretek, megrovások, hiányok, egyéb bejegyzések |
 | **Házi feladatok** | Tantárgy, tanár, leírás, rögzítés, határidő |
 | **Bejelentett számonkérések** | Tantárgy, mód, téma, bejelentés és a számonkérés napja |
@@ -66,7 +66,7 @@ továbbítanak.
 
 | Fül | Mire való |
 |---|---|
-| **Iskolai események** | Szűrhető, kereshető táblázat: jegyek, feljegyzések, házik, számonkérések |
+| **Iskolai események** | Szűrhető, kereshető táblázat: jegyek (a jegy mellett a **súlyszázalék** jelvénye), feljegyzések, házik, számonkérések |
 | **Hiányzások** | Hiányzások és késések havi bontásban: **5 összesítő kártya** (összes hiányzás óra, igazolt óra, igazolatlan óra, késés db/perc, igazolás db) + részletes tábla és igazolás-lista. Alapból a **teljes előzmény** látszik, a havi bontás hónapválasztóval / „Aktuális hónap" gombbal |
 | **Heti órarend** | Idősávos heti nézet, gyermekszínekkel; **A4 PDF export** |
 | **Feladatok naptár nézet** | Házik és számonkérések határidő szerint, színkódolva |
@@ -305,7 +305,7 @@ Az adatok egyetlen SQLite adatbázisban (`kreta_adatok.db`) vannak, a data köte
 
 | Tábla | Mit tartalmaz | Megjegyzés |
 |---|---|---|
-| `esemenyek` | Jegyek, feljegyzések, házik, számonkérések (közös séma) | `esemeny_tipus` különböztet; a `kesz` jelző a házi „elkészült" állapota |
+| `esemenyek` | Jegyek, feljegyzések, házik, számonkérések (közös séma) | `esemeny_tipus` különböztet; a `kesz` jelző a házi „elkészült" állapota; a `suly_szazalek` a jegy súlyszázaléka (0 = nincs adat / nem API-ból jött) |
 | `orarend` | Heti órarend sorai (diák, nap, időpont, tantárgy, tanár, terem) | Az aktuális és a következő hét |
 | `uzenetek` | e-Ügyintézés üzenetek + csatolmány hivatkozás | Csak az új üzenetek kerülnek be |
 | `hianyzasok` | Hiányzások és késések (dátum, órasorszám, tantárgy, téma, típus, igazolt, igazolás típusa) | ISO dátum; a rekordot a **dátum + órasorszám** azonosítja; késést a `perc` és/vagy a típus neve jelöli |
@@ -318,6 +318,10 @@ Az adatok egyetlen SQLite adatbázisban (`kreta_adatok.db`) vannak, a data köte
 
 **Fontos üzleti szabályok:**
 - A jegyek és feljegyzések futásonként **újratöltődnek** (a KRÉTA az igazság forrása).
+- A jegyek **súlyszázaléka** (`SulySzazalekErteke`) kizárólag a mobil API-ból jön; a webes
+  grid nem adja. Ha egy adatkör Playwright-fallbackkel fut (a jegyek teljes cserével
+  íródnak felül), a súly **0-ra áll vissza** — ez ismert kompromisszum, a következő
+  sikeres API-s futás visszatölti.
 - A **hiányzások és igazolások** beolvasása teljes (a KRÉTA mindig a teljes listát adja),
   a DB-be viszont **inkrementálisan** írunk: a rekord azonosítója a **dátum + órasorszám**,
   így a meglévő sor frissül (stabil ID), az új beszúródik, a KRÉTA-ból eltűnt sor törlődik.
@@ -538,10 +542,11 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **524 automatikus ellenőrzés** tizenhét csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **529 automatikus ellenőrzés** tizenhét csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
+**jegy-súlyszázalék normalizálása és mentése**,
 fogadóóra, üzenet-inkrementálás, **csatolmány-letöltés API-ból** és fallback-hiba), **szinkronmód és fallback**
 (mód-feloldás + valódi SQLite-on duplikációvédelem), **árnyék mód** (DB-másolat,
 összehasonlítás, a valódi DB érintetlensége), **adatvédelem** (üres API-válasz nem töröl,
@@ -649,6 +654,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.6.1** | **2026-11-02** | **Éles javítás:** a Docker képből hiányoztak az API-modulok (`kreta_api.py`, `kreta_api_sync.py`, `kreta_sync.py`, `kreta_shadow.py`) — a Dockerfile csak az `app.py`-t és a `kreta_playwright.py`-t másolta → minden szinkron azonnal `error` lett (`ModuleNotFoundError`). Most `COPY *.py ./`; a `requests` bekerült a `requirements.txt`-be (a Playwright nem hozza magával). Új `tests/test_deploy.py` (Dockerfile COPY + requirements + dockerignore konzisztencia). Emellett **API token-tár** (`api_tokens.json`): a 2. futástól nincs új belépés, így nincs „új bejelentkezés" e-mail; **ntfy** a `config.json` `NTFY` blokkjából is beállítható (`POST /api/ntfy/test`) |
 | **v1.6.2** | **2026-11-02** | **Jövőbeli határidők javítása:** a házi feladat és a bejelentett számonkérés API-ablaka **90 nappal előre** is nyúlik (`FUTURE_LOOKAHEAD_DAYS`), mert a KRÉTA az ablakon kívüli (jövőbeli) sorokat nem adja — enélkül a következő hetek dolgozatai/házijai kimaradtak. Élő mérés: 10 → 14 számonkérés, 22 → 25 házi ugyanarra a diákra |
 | **v1.6.3** *(fejlesztés alatt)* | **2026-11-02** | **Adatvédelem a teljes cserés mentésnél:** üres (de 200-as) API-válasz nem törli a meglévő jegyeket/feljegyzéseket (50%-os küszöb, `KRETA_SYNC_MIN_RATIO`), az órarend csak teljes ürülésnél véd; védett mentésnél a szolgáltató hibát dob (fallback). **DB-séma őr:** zárolt/bizonytalan adatbázisnál nincs init-db subprocess és nincs végleges önjavítás-kikapcsolás |
+| **v1.6.4** *(fejlesztés alatt)* | **2026-11-02** | **Jegyek súlyszázaléka:** az `esemenyek` tábla új `suly_szazalek` oszlopa (ALTER migráció a régi DB-khez), a mobil API `SulySzazalekErteke` mezője (50/100/200%) normalizálva és mentve; a jegyek fülön a jegy mellett kis `%`-jelvény tooltippel („Az értékelés X%-os súllyal számít bele az átlagba."), a zsebpénz-elszámolás részleteinél is látszik. A webes grid nem adja, ezért Playwright-fallbacknál 0. Emellett a `tests/run_all.py` a gyerekteszteket UTF-8-ra kényszeríti (cp1250 konzolon ne szálljon el) |
 
 ---
 

@@ -540,6 +540,10 @@ def init_db_extensions():
             if "kesz" not in columns:
                 cursor.execute("ALTER TABLE esemenyek ADD COLUMN kesz INTEGER DEFAULT 0")
                 print("[Adatbázis séma frissítve]: 'kesz' oszlop hozzáadva az 'esemenyek' táblához.")
+            # A jegyek súlyszázaléka (mobil API: SulySzazalekErteke); régi DB-ben nincs.
+            if "suly_szazalek" not in columns:
+                cursor.execute("ALTER TABLE esemenyek ADD COLUMN suly_szazalek INTEGER")
+                print("[Adatbázis séma frissítve]: 'suly_szazalek' oszlop hozzáadva az 'esemenyek' táblához.")
                 
             conn.commit()
             conn.close()
@@ -1360,6 +1364,7 @@ def api_esemenyek():
             "tantargy": r["tantargy"] or "-",
             "ertek": r["ertek"] or "-",
             "szam_ertek": r["szam_ertek"] or 0,
+            "suly_szazalek": (r["suly_szazalek"] or 0) if "suly_szazalek" in keys else 0,
             "bej_datum": r["bej_datum"] or "-",
             "hatarido": r["hatarido"] or "-",
             "ertekelo": r["ertekelo"] or "-",
@@ -2141,6 +2146,19 @@ def api_statisztika():
     cursor.execute(jegy_query, params)
     jegy_rows = cursor.fetchall()
 
+    # A súlyszázalék csak az API-s szinkronból van meg; régi DB-ben lehet, hogy
+    # még nincs oszlop, ezért a SELECT *-ot nem használjuk, hanem külön kérdezzük.
+    jegy_suly = {}
+    try:
+        cursor.execute(
+            "SELECT id, suly_szazalek FROM esemenyek WHERE esemeny_tipus = 'Értékelés'"
+            + (" AND diak_nev = ?" if diak else ""),
+            params,
+        )
+        jegy_suly = {row["id"]: (row["suly_szazalek"] or 0) for row in cursor.fetchall()}
+    except sqlite3.Error:
+        jegy_suly = {}
+
     jegy_counts = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
     jegy_sum = 0
     jegy_total_count = 0
@@ -2161,11 +2179,15 @@ def api_statisztika():
             jegy_total_count += 1
             
             jutalom = rewards.get(f"jegy_{val}", 0)
+            reszletek = f"{r['mod'] or ''} {r['tema'] or ''}".strip()
+            suly = jegy_suly.get(r["id"], 0)
+            if suly:
+                reszletek = f"{reszletek} ({suly}%)".strip()
             teteles_lista.append({
                 "datum": r["bej_datum"],
                 "tipus": "Értékelés",
                 "megnevezes": f"{r['tantargy']} - {r['ertek']}",
-                "reszletek": f"{r['mod'] or ''} {r['tema'] or ''}".strip(),
+                "reszletek": reszletek,
                 "osszeg": jutalom
             })
 

@@ -121,6 +121,7 @@ def init_db():
             tantargy TEXT,
             ertek TEXT,
             szam_ertek INTEGER,
+            suly_szazalek INTEGER,
             bej_datum TEXT,
             hatarido TEXT,
             ertekelo TEXT,
@@ -217,6 +218,12 @@ def init_db():
     if "kesz" not in es_columns:
         try:
             cursor.execute("ALTER TABLE esemenyek ADD COLUMN kesz INTEGER DEFAULT 0")
+        except Exception:
+            pass
+    # A jegyek súlyszázaléka (mobil API: SulySzazalekErteke) - csak az API adja.
+    if "suly_szazalek" not in es_columns:
+        try:
+            cursor.execute("ALTER TABLE esemenyek ADD COLUMN suly_szazalek INTEGER")
         except Exception:
             pass
 
@@ -892,14 +899,15 @@ def _insert_esemeny(cursor, diak_nev, e, completed_set, existing_hazi, existing_
 
     cursor.execute('''
         INSERT INTO esemenyek 
-        (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, suly_szazalek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         diak_nev, 
         es_tipus,
         e.get('tantargy', ''),
         e.get('ertek', ''),
         e.get('szam_ertek', 0),
+        e.get('suly_szazalek', 0),
         e.get('bej_datum', ''),
         e.get('hatarido', ''),
         e.get('ertekelo', ''),

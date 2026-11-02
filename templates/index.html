@@ -45,6 +45,15 @@
         .badge-feljegyzes { background-color: #fd7e14 !important; }
         .badge-hazi { background-color: #0d6efd !important; }
         .badge-szamonkeres { background-color: #dc3545 !important; }
+        /* A jegy súlyszázaléka (mobil API) - visszafogott, másodlagos jelzés. */
+        .badge-suly {
+            background-color: #eef2f5 !important;
+            color: #495057 !important;
+            border: 1px solid #ced4da;
+            font-weight: 600;
+            font-size: 0.7rem;
+            vertical-align: 1px;
+        }
         .badge-aktiv { background-color: #198754 !important; font-size: 0.7rem; }
         .badge-lejart { background-color: #6c757d !important; font-size: 0.7rem; }
         .badge-elkeszult { background-color: #198754 !important; color: white !important; font-size: 0.7rem; }
@@ -1108,7 +1117,20 @@ $(document).ready(function() {
             { 
                 data: null,
                 render: function(data) {
-                    if (data.esemeny_tipus === 'Értékelés') return `<strong>${data.ertek}</strong> (${data.mod})`;
+                    if (data.esemeny_tipus === 'Értékelés') {
+                        let suly = Number(data.suly_szazalek) || 0;
+                        // A súly a jegy után jön, hogy a szűk oszlopban ne a mód
+                        // miatt csússzon ki (a cella nowrap + ellipsis).
+                        let sulyHtml = suly
+                            ? ` <span class="badge badge-suly" title="Az értékelés ${suly}%-os súllyal számít bele az átlagba.">${suly}%</span>`
+                            : '';
+                        let modHtml = data.mod && data.mod !== '-'
+                            ? ` <span class="text-muted small">(${data.mod})</span>`
+                            : '';
+                        let teljes = `${data.ertek}${data.mod && data.mod !== '-' ? ' (' + data.mod + ')' : ''}`
+                            + (suly ? ` - ${suly}%` : '');
+                        return `<span title="${teljes}"><strong>${data.ertek}</strong>${sulyHtml}${modHtml}</span>`;
+                    }
                     if (data.esemeny_tipus === 'Bejelentett számonkérés') return data.mod;
                     return '-';
                 }

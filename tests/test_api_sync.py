@@ -170,6 +170,7 @@ grades = FakeClient(evaluations=[
     {"Uid": "1", "Tantargy": {"Nev": "Irodalom"}, "Tema": "Dolgozat",
      "SzovegesErtek": "Jeles(5)", "SzamErtek": 5, "ErtekeloTanarNeve": "Minta Gáborné",
      "Tipus": {"Leiras": "Évközi jegy/értékelés"}, "Mod": {"Leiras": "Órai munka"},
+     "SulySzazalekErteke": 100,
      "RogzitesDatuma": "2026-09-13T22:00:00Z",
      "KeszitesDatuma": "2026-09-14T08:01:56Z"},
     {"Uid": "2", "Tantargy": {"Nev": "Magatartás"}, "Tema": None,
@@ -177,7 +178,8 @@ grades = FakeClient(evaluations=[
      "Tipus": {"Leiras": "Évközi jegy/értékelés"}, "RogzitesDatuma": "2026-10-06T22:00:00Z"},
     {"Uid": "3", "Tantargy": {"Nev": "Szorgalom"}, "Tema": None,
      "SzovegesErtek": "Példás", "SzamErtek": 0, "ErtekeloTanarNeve": "Osztályfőnök",
-     "Tipus": {"Leiras": "Évközi jegy/értékelés"}, "RogzitesDatuma": "2026-10-06T22:00:00Z"},
+     "Tipus": {"Leiras": "Évközi jegy/értékelés"}, "SulySzazalekErteke": "50",
+     "RogzitesDatuma": "2026-10-06T22:00:00Z"},
 ])
 grows = fetch_evaluations(grades, today, today)
 ok(len(grows) == 3, f"3 értékelés: {len(grows)}")
@@ -185,6 +187,10 @@ ok(all(g["esemeny_tipus"] == "Értékelés" for g in grows), "mind Értékelés 
 ok(grows[0]["bej_datum"] == "2026. 09. 14.", f"bej_datum helyi idő: {grows[0]['bej_datum']}")
 ok(grows[0]["szam_ertek"] == 5 and grows[0]["ertek"] == "Jeles(5)", "szöveges + szám érték")
 ok(grows[0]["ertekelo"] == "Minta Gáborné", "értékelő tanár")
+ok(grows[0]["suly_szazalek"] == 100, f"a jegy súlyszázaléka: {grows[0].get('suly_szazalek')}")
+ok(grows[0]["suly_szazalek"] == 100 and grows[1]["suly_szazalek"] == 0,
+   "hiányzó súly -> 0 (nem None)")
+ok(grows[2]["suly_szazalek"] == 50, "a sztringként érkező súly is számmá alakul")
 ok(grows[1]["tantargy"] == "Magatartás" and grows[1]["szam_ertek"] == 0,
    "a Magatartás külön sor, 0 számértékkel (nem rontja az átlagot)")
 ok(grows[2]["tantargy"] == "Szorgalom" and grows[2]["szam_ertek"] == 0,
@@ -380,6 +386,7 @@ EVALUATIONS = [
     {{"Uid": "1", "Tantargy": {{"Nev": "Irodalom"}}, "Tema": "Dolgozat",
       "SzovegesErtek": "Jeles(5)", "SzamErtek": 5, "ErtekeloTanarNeve": "Minta Gáborné",
       "Tipus": {{"Leiras": "Évközi jegy/értékelés"}}, "Mod": {{"Leiras": "Órai munka"}},
+      "SulySzazalekErteke": 100,
       "RogzitesDatuma": "2026-09-13T22:00:00Z"}},
     {{"Uid": "2", "Tantargy": {{"Nev": "Magatartás"}}, "Tema": None,
       "SzovegesErtek": "Példás", "SzamErtek": 0, "ErtekeloTanarNeve": "Osztályfőnök",
@@ -444,7 +451,7 @@ class FakeClient:
 def grades_snapshot():
     conn = sqlite3.connect(k.DB_FILE)
     rows = conn.execute(
-        "SELECT tantargy, ertek, szam_ertek, bej_datum FROM esemenyek"
+        "SELECT tantargy, ertek, szam_ertek, bej_datum, suly_szazalek FROM esemenyek"
         " WHERE diak_nev='Teszt' AND esemeny_tipus='Értékelés'"
         " ORDER BY bej_datum, tantargy").fetchall()
     conn.close()
@@ -686,6 +693,10 @@ ok(by_subject.get("Irodalom", [None, None, None, None])[3] == "2026. 09. 14.",
 ok(by_subject.get("Irodalom", [None] * 4)[2] == 5, "az Irodalom számértéke 5")
 ok(by_subject.get("Magatartás", [None] * 4)[2] == 0,
    "a Magatartás 0 számértékkel (nem számít az átlagba)")
+ok(by_subject.get("Irodalom", [None] * 5)[4] == 100,
+   f"a jegy súlyszázaléka mentve: {by_subject.get('Irodalom')}")
+ok(by_subject.get("Magatartás", [None] * 5)[4] == 0,
+   "súlyszázalék nélküli jegy -> 0 (NULL helyett)")
 ok(payload.get("grades_second") == grades_first, "ismételt futás nem duplikál jegyet")
 numeric = [g[2] for g in grades_first if g[2] in (1, 2, 3, 4, 5)]
 ok(numeric and round(sum(numeric) / len(numeric), 2) == 5.0,
