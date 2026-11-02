@@ -52,7 +52,8 @@ a saját szerveren maradnak.
   gyorsszűrők (mai, tárgyhavi, előző havi, aktív), szabad szöveges keresés.
 - A mai bejegyzések kiemelése; részletek modal ablakban.
 - A jegyeknél a **súlyszázalék** is látszik (pl. `5 (Írásbeli) 100%`), a mobil API
-  `SulySzazalekErteke` mezőjéből; tooltip: „Az értékelés 100%-os súllyal számít bele az átlagba."
+  `SulySzazalekErteke` mezőjéből (Playwright-módban a webes hónap-cella tooltipjének
+  `data-suly` attribútumából); tooltip: „Az értékelés 100%-os súllyal számít bele az átlagba."
 
 ### 📝 Házi feladat kezelés
 - „Elkészült" jelölés, amely **megmarad** a következő szinkronok után is (zöld kiemelés).
@@ -315,7 +316,7 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**17 csomag, 529 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**18 csomag, 541 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
