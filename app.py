@@ -103,11 +103,20 @@ def ensure_db_schema(conn=None, reason=""):
     """
     global _schema_bootstrapping, _schema_failed
     own = conn is None
-    conn = conn or sqlite3.connect(DB_FILE)
+    if own:
+        try:
+            conn = sqlite3.connect(DB_FILE)
+        except sqlite3.Error as exc:
+            # Bizonytalan állapot (pl. elérhetetlen útvonal): ne bootstrapoljunk.
+            print(f"[Adatbázis] Az adatbázis nem nyitható meg ({exc}) — séma-ellenőrzés kihagyva.")
+            return False
     try:
         missing = _missing_tables(conn, SCRAPER_TABLES)
-    except sqlite3.Error:
-        missing = list(SCRAPER_TABLES)
+    except sqlite3.Error as exc:
+        # Pl. zárolt adatbázis: NEM tudjuk, hogy hiányzik-e a séma → ne indítsunk
+        # init-db subprocesszt, és ne kapcsoljuk ki véglegesen az önjavítást.
+        print(f"[Adatbázis] A séma ellenőrzése nem sikerült ({exc}) — nem bootstrapolok.")
+        return False
     finally:
         if own:
             conn.close()
@@ -118,6 +127,9 @@ def ensure_db_schema(conn=None, reason=""):
         check = sqlite3.connect(DB_FILE)
         try:
             missing = _missing_tables(check, SCRAPER_TABLES)
+        except sqlite3.Error as exc:
+            print(f"[Adatbázis] A séma újraellenőrzése nem sikerült ({exc}) — nem bootstrapolok.")
+            return False
         finally:
             check.close()
         if not missing or _schema_bootstrapping:

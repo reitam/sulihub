@@ -236,6 +236,7 @@ Lokálisan nem kötelezők; a Docker-compose állítja be őket.
 | `KRETA_LOG_MAX_BYTES` / `KRETA_LOG_BACKUP_COUNT` | `1000000` / `2` | `sync.log` rotáció |
 | `KRETA_LOG_API_MAX_BYTES` | `300000` | Az `/api/logs` ennyi bájtot ad vissza a napló végéről |
 | `KRETA_SQLITE_WAL` | `0` | `1` = SQLite WAL mód (FUSE köteten nem ajánlott) |
+| `KRETA_SYNC_MIN_RATIO` | `0.5` | Adatvédelmi küszöb a teljes cserés mentésnél; `0` = kikapcsolva |
 | `KRETA_SCHEDULER_STATE_FILE` | `scheduler_state.json` | **Csak** a régi JSON-állapot egyszeri migrációjához |
 
 ---
@@ -312,10 +313,11 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**15 csomag, 495 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**17 csomag, 524 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
+**adatvédelem** (üres válasz nem töröl), **DB-séma őr** (zárolt DB),
 **deploy-konzisztencia** (Dockerfile COPY + requirements), **mobil elrendezés**.
 Részletek: [`tests/README.md`](tests/README.md).
 
