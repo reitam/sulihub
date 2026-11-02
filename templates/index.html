@@ -343,10 +343,21 @@
             </div>
         </div>
 
-        <div class="col-12 col-lg-3 text-lg-end">
-            <button id="btnSync" class="btn btn-success">
-                <i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból
-            </button>
+        <div class="col-12 col-lg-3">
+            <div class="d-flex flex-wrap align-items-center justify-content-lg-end gap-2">
+                <div class="d-flex align-items-center gap-1">
+                    <label for="tanevValaszto" class="small fw-bold text-secondary mb-0">
+                        <i class="fa-solid fa-calendar-days me-1"></i>Tanév:
+                    </label>
+                    <select id="tanevValaszto" class="form-select form-select-sm" style="max-width: 175px;"
+                            title="A tanév az eseményeket, a hiányzásokat, az átlagokat és a zsebpénzt szűri. Az üzenetek és az órarend tanév-független.">
+                        <option value="">Összes tanév</option>
+                    </select>
+                </div>
+                <button id="btnSync" class="btn btn-success">
+                    <i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból
+                </button>
+            </div>
         </div>
     </div>
 
@@ -593,6 +604,7 @@
             <button class="btn btn-sm btn-outline-secondary mb-2 btn-back-dashboard" type="button" style="font-size: 0.8rem;">
                 <i class="fa-solid fa-arrow-left me-1"></i>Vissza az áttekintésre
             </button>
+            <div id="esemenyTanevHint" class="small text-muted mb-2 d-none"></div>
             <div class="table-container overflow-auto">
                 <table id="esemenyekTable" class="table table-striped table-hover w-100">
                     <thead>
@@ -1537,8 +1549,10 @@ $(document).ready(function() {
         let params = new URLSearchParams();
         let diak = $('#hianyzasFilterDiak').val() || '';
         let honap = $('#hianyzasHonap').val() || '';
+        let tanev = kivalasztottTanev();
         if (diak) params.set('diak', diak);
         if (honap) params.set('honap', honap);
+        if (tanev) params.set('tanev', tanev);
 
         $.getJSON('/api/hianyzasok?' + params.toString(), function (res) {
             let rows = (res && res.rows) || [];
@@ -1556,10 +1570,13 @@ $(document).ready(function() {
                 : '<i class="fa-solid fa-list me-1"></i><b>Összes időszak</b> — havi bontáshoz válassz hónapot.');
 
             let hint = $('#hianyzasEmptyHint');
-            if (!rows.length && honap) {
+            if (!rows.length && (honap || tanev)) {
+                let reszek = [];
+                if (honap) reszek.push(`Ebben a hónapban (${escapeHtml(honapSzoveg)}) nincs hiányzás.`);
+                if (tanev) reszek.push(`A(z) <b>${escapeHtml(tanev)}. tanévben</b> nincs hiányzás.`);
                 hint.removeClass('d-none').html(
-                    `<i class="fa-solid fa-circle-info me-1"></i>Ebben a hónapban (${escapeHtml(honapSzoveg)}) nincs hiányzás. ` +
-                    'Az <b>Összes</b> gombbal a teljes előzményt látod.');
+                    `<i class="fa-solid fa-circle-info me-1"></i>${reszek.join(' ')} ` +
+                    'Az <b>Összes</b> gomb a hónap-szűrőt törli, a tanév a fejlécben váltható.');
             } else {
                 hint.addClass('d-none');
             }
@@ -1904,20 +1921,6 @@ $(document).ready(function() {
         return nevek[idx] || parts[1];
     }
 
-    // Tanév felirat a hónapokból: szeptember–augusztus szerinti iskolaév.
-    function tanEvFelirat(honapok) {
-        let ev = null;
-        (honapok || []).forEach(function(h) {
-            const p = String(h).split('-');
-            if (p.length !== 2) return;
-            const y = parseInt(p[0], 10);
-            const m = parseInt(p[1], 10);
-            const kezdet = (m >= 9) ? y : y - 1;
-            if (ev === null || kezdet < ev) ev = kezdet;
-        });
-        return ev === null ? '' : `${ev}/${ev + 1}. tanév`;
-    }
-
     function honapNev(yyyymm) {
         const parts = String(yyyymm || '').split('-');
         const nevek = ['január', 'február', 'március', 'április', 'május', 'június',
@@ -1929,10 +1932,25 @@ $(document).ready(function() {
     function loadAtlagok(diak, kezdo, zaro) {
         let url = `/api/atlagok?diak=${encodeURIComponent(diak || '')}` +
                   `&kezdo_datum=${encodeURIComponent(kezdo || '')}` +
-                  `&zaro_datum=${encodeURIComponent(zaro || '')}`;
+                  `&zaro_datum=${encodeURIComponent(zaro || '')}` +
+                  tanevQueryParam();
         $.getJSON(url, function(res) {
             const honapok = res.honapok || [];
             const tantargyak = res.tantargyak || [];
+            const tanev = res.tanev || kivalasztottTanev();
+
+            // Összes tanévnél az átlag nem értelmezhető (Kaneo #40): csak jelzünk.
+            if (!tanev) {
+                $('#atlagokIdoszak').text('Összes tanév — az átlagok tanévenként értelmezhetők.');
+                $('#atlagokOsszes').text('');
+                $('#atlagokHeadRow').empty();
+                $('#atlagokBody').empty().append(
+                    '<tr><td class="text-center text-muted py-2">' +
+                    'Az átlagokhoz válassz tanévet a fejlécben.</td></tr>');
+                $('#atlagokMobil').empty();
+                lastAtlagok = null;
+                return;
+            }
 
             let $head = $('#atlagokHeadRow').empty();
             $head.append('<th style="min-width: 130px;">Tantárgy</th>');
@@ -1944,7 +1962,7 @@ $(document).ready(function() {
 
             // Időszak-felirat: tanév + a kijelölt időszak (a hónap-oszlopoknál már
             // nem ismételjük az évet).
-            let idoszakSzoveg = tanEvFelirat(honapok);
+            let idoszakSzoveg = tanEvCimke(tanev);
             if (kezdo || zaro) {
                 let fmtD = function(d) {
                     const p = String(d || '').split('-');
@@ -2082,7 +2100,7 @@ $(document).ready(function() {
             return;
         }
 
-        let url = `/api/statisztika?diak=${encodeURIComponent(diak)}&kezdo_datum=${encodeURIComponent(kezdo)}&zaro_datum=${encodeURIComponent(zaro)}`;
+        let url = `/api/statisztika?diak=${encodeURIComponent(diak)}&kezdo_datum=${encodeURIComponent(kezdo)}&zaro_datum=${encodeURIComponent(zaro)}${tanevQueryParam()}`;
 
         $.getJSON(url, function(res) {
             if (!res.enabled) {
@@ -2248,14 +2266,77 @@ $(document).ready(function() {
         loadRewardsData();
     });
 
+    // ── Tanév-választó (Kaneo #40, 5. fázis) ────────────────────────────────
+    // A kiválasztott tanév az eseményeket, a hiányzásokat, az átlagokat és a
+    // zsebpénzt szűri. Az üzenetek és az órarend tudatosan tanév-független.
+    let tanevAktualis = '';
+    let tanevLista = [];
+
+    function tanEvCimke(tanev) {
+        return tanev + '. tanév';
+    }
+
+    function kivalasztottTanev() {
+        return $('#tanevValaszto').val() || '';
+    }
+
+    // Üres választás = összes tanév (az API-ban ez a visszafelé kompatibilis alap).
+    function tanevQueryParam() {
+        let t = kivalasztottTanev();
+        return `&tanev=${encodeURIComponent(t || 'all')}`;
+    }
+
+    function reloadTanevFuggoNezetek() {
+        // A loadData() maga is frissíti a dashboardot és a zsebpénzt.
+        loadData();
+        loadHianyzasok();
+    }
+
+    function betoltTanevek() {
+        $.getJSON('/api/tanevek', function (res) {
+            tanevAktualis = (res && res.aktualis) || '';
+            tanevLista = (res && res.tanevek) || [];
+            let $sel = $('#tanevValaszto').empty();
+            $sel.append('<option value="">Összes tanév</option>');
+            tanevLista.forEach(function (t) {
+                $sel.append(`<option value="${escapeHtml(t)}">${escapeHtml(tanEvCimke(t))}` +
+                            `${t === tanevAktualis ? ' (aktuális)' : ''}</option>`);
+            });
+            // Tanévváltás után (vagy üres DB-nél) az aktuális tanév még nem
+            // szerepel a listában — ilyenkor is választható legyen.
+            if (tanevAktualis && tanevLista.indexOf(tanevAktualis) === -1) {
+                $sel.append(`<option value="${escapeHtml(tanevAktualis)}">` +
+                            `${escapeHtml(tanEvCimke(tanevAktualis))} (aktuális)</option>`);
+            }
+            $sel.val(tanevAktualis || '');
+            reloadTanevFuggoNezetek();
+        }).fail(function () {
+            reloadTanevFuggoNezetek();
+        });
+    }
+
+    $('#tanevValaszto').change(function () {
+        reloadTanevFuggoNezetek();
+    });
+
     function loadData() {
         let diak = $('#filterDiak').val();
         let tipus = $('#filterTipus').val();
         let tantargy = $('#filterTantargy').val();
 
-        $.getJSON(`/api/esemenyek?diak=${encodeURIComponent(diak)}&tipus=${encodeURIComponent(tipus)}&tantargy=${encodeURIComponent(tantargy)}`, function(data) {
+        $.getJSON(`/api/esemenyek?diak=${encodeURIComponent(diak)}&tipus=${encodeURIComponent(tipus)}&tantargy=${encodeURIComponent(tantargy)}${tanevQueryParam()}`, function(data) {
             rawData = data;
             applyFilters();
+
+            // Üres tanév: segítsünk megtalálni az adatot.
+            let hint = $('#esemenyTanevHint');
+            if (!data.length && kivalasztottTanev()) {
+                hint.removeClass('d-none').html(
+                    `<i class="fa-solid fa-circle-info me-1"></i>A(z) <b>${escapeHtml(kivalasztottTanev())}. tanévben</b> ` +
+                    'nincs megjeleníthető esemény. Válaszd az <b>Összes tanévet</b> a fejlécben.');
+            } else {
+                hint.addClass('d-none');
+            }
         });
 
         $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(diak)}`, function(data) {
@@ -2327,8 +2408,13 @@ $(document).ready(function() {
             $c.append('<div class="col-12 text-muted small">Nincs megjeleníthető diák.</div>');
             return;
         }
+        // Összes tanévnél nincs értelmes tanulmányi átlag (Kaneo #40).
+        const tanev = kivalasztottTanev();
         diakok.forEach(function (d) {
-            let atlag = (d.atlag === null || d.atlag === undefined) ? '-' : d.atlag;
+            let atlag = (!tanev || d.atlag === null || d.atlag === undefined) ? '-' : d.atlag;
+            let atlagFelirat = tanev
+                ? `${escapeHtml(tanev)}. tanév<br>(súlyozott)`
+                : 'válassz tanévet<br>az átlaghoz';
             let penz;
             if (d.rewards_enabled) {
                 penz = `<div class="mt-1 small">Kifizetetlen egyenleg: <strong>${fmtFtShort(d.hatralevo)}</strong>` +
@@ -2347,7 +2433,7 @@ $(document).ready(function() {
                     </div>
                     <div class="d-flex align-items-baseline gap-2 flex-wrap">
                         <div class="fs-2 fw-bold text-primary">${atlag}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">tanulmányi átlag<br>(teljes időszak, súlyozott)</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">tanulmányi átlag<br>${atlagFelirat}</div>
                     </div>
                     ${penz}
                 </div>
@@ -2357,7 +2443,7 @@ $(document).ready(function() {
 
     function loadDashboardSummary() {
         let diak = $('#filterDiak').val() || '';
-        $.getJSON(`/api/dashboard?diak=${encodeURIComponent(diak)}`, function (res) {
+        $.getJSON(`/api/dashboard?diak=${encodeURIComponent(diak)}${tanevQueryParam()}`, function (res) {
             if (!res || !res.enabled) return;
             $('#tileIgazolatlanSzam').text((res.igazolatlan_ora || 0) + ' óra');
 
@@ -2585,7 +2671,9 @@ $(document).ready(function() {
         });
     }
 
-    loadData();
+    // A tanév-választó betöltése után indulnak a tanév-függő nézetek
+    // (az aktuális tanév az alapértelmezés, Kaneo #40).
+    betoltTanevek();
     checkSyncStatus();
     refreshSchedulerInfo();
 

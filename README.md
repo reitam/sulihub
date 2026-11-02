@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v1.6.5` (élesítésre vár; élesben `v1.6.4`)
+**Jelenlegi verzió:** `v1.7.0` (fejlesztés alatt; élesben `v1.6.4`)
 
 ---
 
@@ -52,6 +52,9 @@ a saját szerveren maradnak.
   **új üzenetek** (7 nap), **igazolatlan hiányzás** (óra), **kifizetetlen zsebpénz**
   (teljes egyenleg mínusz a kifizetett időszakok) — a csempére kattintva a megfelelő nézet
   nyílik; **gyermekenkénti kártyák** (átlag + egyenleg); gyermekváltás egy kattintással.
+- **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);
+  az „Összes tanév" opcióval a teljes előzmény látszik (átlag ilyenkor nincs, mert az
+  csak tanéven belül értelmezhető). Az üzenetek és az órarend tanév-független.
 
 ### 📊 Iskolai események
 - DataTables táblázat: szűrés gyermek, típus, tantárgy, aktív/lejárt, dátumtartomány szerint;

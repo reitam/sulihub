@@ -325,8 +325,8 @@ def record_run_start(trigger, started_at=None):
 
 def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_count=None,
                       failed_students=None, new_events=None, new_messages=None,
-                      new_hianyzasok=None, sources=None, duration_sec=None):
-    """A futás sorának lezárása."""
+                      new_hianyzasok=None, sources=None, duration_sec=None, tanev=None):
+    """A futás sorának lezárása (a tanév a futás napjából számítva, Kaneo #40)."""
     if run_id is None or not _db_ready():
         return
     try:
@@ -335,7 +335,7 @@ def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_cou
         cur.execute("""
             UPDATE sync_runs SET finished_at = ?, status = ?, ok_count = ?, total_count = ?,
                    failed_students = ?, new_events = ?, new_messages = ?, new_hianyzasok = ?,
-                   sources = ?, duration_sec = ?
+                   sources = ?, duration_sec = ?, tanev = ?
             WHERE id = ?
         """, (
             finished_at or _now_iso(), status, ok_count, total_count,
@@ -344,12 +344,29 @@ def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_cou
             json.dumps(new_messages or {}, ensure_ascii=False),
             json.dumps(new_hianyzasok or {}, ensure_ascii=False),
             json.dumps(sources or {}, ensure_ascii=False),
-            duration_sec, run_id,
+            duration_sec, tanev, run_id,
         ))
         conn.commit()
         conn.close()
     except sqlite3.Error as e:
         print(f"[Futásnapló] Lezárás mentése nem sikerült: {e}")
+
+
+def last_recorded_tanev():
+    """A legutóbbi futásnál rögzített tanév (tanévváltás-figyeléshez)."""
+    if not _db_ready():
+        return ""
+    try:
+        conn = get_db_connection()
+        ensure_run_tables(conn)
+        row = conn.execute(
+            "SELECT tanev FROM sync_runs WHERE tanev IS NOT NULL AND tanev <> ''"
+            " ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        conn.close()
+        return (row[0] if row else "") or ""
+    except sqlite3.Error:
+        return ""
 
 
 def mark_interrupted_runs():
@@ -1149,6 +1166,26 @@ def run_scraper_thread(trigger="manual"):
     if trigger == "scheduled":
         _last_scheduled_memo = started_at
 
+    # Tanév-naplózás (Kaneo #40, 6. fázis): a futás tanéve a sync_runs-ba
+    # kerül; az első futásnál, amikor a tanév átbillen, egyszeri naplósor + push.
+    run_tanev = kreta_tanev.current_tanev()
+    elozo_tanev = last_recorded_tanev()
+    tanEvValtas = bool(elozo_tanev and elozo_tanev != run_tanev)
+    with sync_lock:
+        sync_state["logs"].append(f"> Tanév: {run_tanev}")
+        if tanEvValtas:
+            sync_state["logs"].append(
+                f"> ÚJ TANÉV: {elozo_tanev} → {run_tanev} — az új tanév adatai "
+                f"külön gyűlnek, a korábbi tanév érintetlen marad.")
+    if tanEvValtas:
+        send_notification(
+            "KRÉTA: új tanév",
+            f"Tanévváltás: {elozo_tanev} → {run_tanev}. A szinkron az új tanév "
+            f"adatait külön gyűjti, a korábbi tanév változatlan.",
+            3,
+            ["calendar"],
+        )
+
     failed_students = []
     try:
         # A scraper ugyanazokat az útvonalakat kapja, amiket az app használ —
@@ -1285,6 +1322,7 @@ def run_scraper_thread(trigger="manual"):
             new_hianyzasok=final_new_hianyzasok,
             sources=final_sources,
             duration_sec=duration_sec,
+            tanev=run_tanev,
         )
 
         # Záró sor a naplóba: látszik a trigger (kézi/ütemezett) és az eredmény.
@@ -2723,6 +2761,7 @@ def api_sync_status():
             "running": sync_state["running"],
             "status": sync_state["status"],
             "trigger": sync_state.get("trigger"),
+            "tanev": kreta_tanev.current_tanev(),
             "failed_students": list(sync_state.get("failed_students") or []),
             "sources": dict(sync_state.get("sources") or {}),
             "logs": list(sync_state["logs"]),

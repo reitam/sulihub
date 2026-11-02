@@ -39,6 +39,12 @@ def hu(d):
     return f"{d.year}. {d.month:02d}. {d.day:02d}."
 
 
+def tanev_of(d):
+    """Iskolai tanév a dátum alapján (szept. 1. – aug. 31.), mint a kreta_tanev."""
+    kezdet = d.year if d.month >= 9 else d.year - 1
+    return f"{kezdet}/{kezdet + 1}"
+
+
 today = date.today()
 monday = today - timedelta(days=(today.weekday()))
 sunday = monday + timedelta(days=6)
@@ -70,10 +76,11 @@ conn = sqlite3.connect(db)
 def add_event(tipus, tantargy, ertek, szam, suly, bej, hatarido="", tema="Téma"):
     conn.execute(
         "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
-        " suly_szazalek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
+        " suly_szazalek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz,"
+        " tanev, tanev_forras)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)",
         ("Teszt Elek", tipus, tantargy, ertek, szam, suly, hu(bej), hu(hatarido) if hatarido else "",
-         "Tanár", "Évközi jegy", "Írásbeli", tema, "", ""))
+         "Tanár", "Évközi jegy", "Írásbeli", tema, "", "", tanev_of(bej), "szamitott"))
 
 
 # Jegyek: 2 db az elmúlt 7 napban, 1 régi (de előző hónapban)
@@ -96,13 +103,15 @@ for i, nap in enumerate([1, 3, 30]):
          f"{hu(today - timedelta(days=nap))} 10:00", "Szöveg"))
 # Hiányzások: 2 igazolatlan + 1 igazolt
 for i, igazolt in enumerate([0, 0, 1]):
+    h_datum = today - timedelta(days=i + 1)
     conn.execute(
         "INSERT INTO hianyzasok (diak_nev, mulasztas_datum, ora_sorszam, perc, tantargy,"
         " tema, tanar, mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus,"
-        " rogzites_datum, kreta_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        ("Teszt Elek", (today - timedelta(days=i + 1)).isoformat(), i + 1, None,
+        " rogzites_datum, kreta_id, tanev, tanev_forras)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        ("Teszt Elek", h_datum.isoformat(), i + 1, None,
          "Matematika", "Téma", "Tanár", "Hiányzás", igazolt, "Nem", "", today.isoformat(),
-         f"h{i}"))
+         f"h{i}", tanev_of(h_datum), "szamitott"))
 # Egy már kifizetett időszak (500 Ft) — a dashboardon ezt le kell vonni
 conn.execute("""
     CREATE TABLE IF NOT EXISTS kifizetesek (
@@ -113,13 +122,18 @@ conn.execute("""
         kifizetve INTEGER DEFAULT 0,
         osszeg INTEGER DEFAULT 0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        tanev TEXT, tanev_forras TEXT,
         UNIQUE(diak_nev, kezdo_datum, zaro_datum)
     )
 """)
 conn.execute(
-    "INSERT INTO kifizetesek (diak_nev, kezdo_datum, zaro_datum, kifizetve, osszeg)"
-    " VALUES (?,?,?,?,?)",
-    ("Teszt Elek", "2026-09-01", "2026-09-30", 1, 500))
+    "INSERT INTO kifizetesek (diak_nev, kezdo_datum, zaro_datum, kifizetve, osszeg,"
+    " tanev, tanev_forras)"
+    " VALUES (?,?,?,?,?,?,?)",
+    ("Teszt Elek",
+     date(today.year, today.month, 1).isoformat(),
+     date(today.year, today.month, 1).isoformat(),
+     1, 500, tanev_of(today), "szamitott"))
 conn.commit()
 conn.close()
 
