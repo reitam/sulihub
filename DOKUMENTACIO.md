@@ -268,6 +268,24 @@ hagyni, utána kikapcsolható — a Playwright csak fallback marad.
 > `api_first` módban nem fut le, ha az API „sikeres"). A többi adatkör ablaka a mai napig
 > tart.
 
+#### 3.2.2. Adatvédelem a teljes cserés mentésnél
+
+A jegyek/feljegyzések és az órarend mentése **teljes cserével** dolgozik (a KRÉTA-ból
+eltűnt sor törlődik). Ha a forrás hibásan **üres** (de 200-as) választ ad, a csere
+adatvesztést okozna, ezért:
+
+| Adatkör | Védőkorlát |
+|---|---|
+| Jegyek / feljegyzések | ha az új sorok száma a meglévők **50%-a alá** esik (`KRETA_SYNC_MIN_RATIO`), a törlés kimarad, `[FIGYELEM]` a naplóban |
+| Órarend | csak **teljes ürülésnél** véd (üres lista + meglévő sorok); a részleges csökkenés megengedett (szünet, év vége) |
+| Házi / számonkérés / üzenetek / hiányzások / igazolások | eleve inkrementális, nincs teljes csere |
+
+A védett mentés után az API-szolgáltató **hibát dob**, így `api_first` módban a Playwright
+fallback lefut arra az adatkörre; `api` módban a futás részleges hiba lesz, de a meglévő
+adatok megmaradnak. A Playwright-út maga nem dob hibát: a régi adat marad, a napló jelez.
+Ha egy valódi, nagyarányú csökkenés lenne hiteles (pl. év eleji törlés a KRÉTA-ban), a
+küszöb átmenetileg csökkenthető (`KRETA_SYNC_MIN_RATIO=0.2`), vagy `0`-ra állítva kikapcsolható.
+
 ### 3.3. Futásállapotok
 
 | Állapot | Jelentés |
@@ -364,6 +382,7 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 | `NTFY_INCLUDE_NAMES` | `0` | Diáknevek a részleges hiba push-ban (config.json `NTFY.INCLUDE_NAMES`) |
 | `KRETA_LOG_MAX_BYTES` / `_BACKUP_COUNT` | `1000000` / `2` | Napló rotáció |
 | `KRETA_SQLITE_WAL` | `0` | WAL mód (a FUSE kötet miatt alapból ki) |
+| `KRETA_SYNC_MIN_RATIO` | `0.5` | Adatvédelmi küszöb a teljes cserés mentésnél (lásd 3.2.2); `0` = kikapcsolva |
 
 ---
 
@@ -519,14 +538,15 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **495 automatikus ellenőrzés** tizenöt csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **524 automatikus ellenőrzés** tizenhét csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
 fogadóóra, üzenet-inkrementálás, **csatolmány-letöltés API-ból** és fallback-hiba), **szinkronmód és fallback**
 (mód-feloldás + valódi SQLite-on duplikációvédelem), **árnyék mód** (DB-másolat,
-összehasonlítás, a valódi DB érintetlensége), **mobil elrendezés** (valódi böngészőben,
-393 px).
+összehasonlítás, a valódi DB érintetlensége), **adatvédelem** (üres API-válasz nem töröl,
+50%-os küszöb, órarend-ürülés), **DB-séma őr** (zárolt DB → nincs bootstrap),
+**mobil elrendezés** (valódi böngészőben, 393 px).
 A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 
 ### 9.4. Kiadási folyamat
@@ -547,6 +567,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | Egy processzes ütemező | több worker esetén duplikálódna | Dockerben egy processz fut |
 | KRÉTA DOM-scraping | a KRÉTA felületváltása törheti | az API-first út (v1.6.0) ezt kiváltja; a Playwright fallback megmarad |
 | Táboros hiányzás témája | az API nem ad rá témát (nincs órarendi elem) | a meglévő DB-érték megmarad; új táboros sornál üres |
+| Adatvédelmi küszöb (3.2.2) | valódi, nagy arányú csökkenést is blokkol (a régi adat marad) | a napló `[FIGYELEM]`-et ír; `KRETA_SYNC_MIN_RATIO`-val állítható |
 | Órarend-ablak első napja | az `OrarendElemek` a `KezdetIdopont` UTC dátuma szerint szűr, az egész napos események `23:00Z`-ként jönnek | a kliens egy nappal korábbra is kér (`fetch_lessons`), így a hétfői szünet/ünnep nem marad ki |
 | Jövőbeli dolgozat/házi kimarad | az API az ablakon belül adja a sorokat, a házi/számonkérés határideje viszont jövőbeli | a `Házi feladat` és `Bejelentett számonkérés` ablaka **+90 nappal** előre nyúlik (`FUTURE_LOOKAHEAD_DAYS`) |
 | Üzenet-csatolmány letöltése | az eAdmin API csak fájl-metadatot ad, a fájl egy rövid életű `nonce` URL-en jön | a kliens a `dokumentumok/uzenetek/{id}` 302-jét követi, és a `files.e-kreta.hu/fajlok/?nonce=…` címről tölt (2026-10-31 óta API-ból, böngésző nélkül); hiba esetén `api_first` fallback |
@@ -626,6 +647,8 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.5.1** | **2026-10-30** | Hiányzások fül finomítás: az összesítő első kártyája **„Összes hiányzás" órában** (nem db); a hosszú igazolás-típus és megjegyzés teljes szöveggel, több sorban látszik (tooltipek a többi hosszú mezőn) |
 | **v1.6.0** | **2026-10-31** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 8 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba; **`SYNC_SHADOW` árnyék/ellenőrző mód** (Playwright DB-másolaton, összehasonlítás); **üzenet-csatolmányok letöltése API-ból** (`dokumentumok/uzenetek/{id}` → `files.e-kreta.hu` nonce URL, `safe_fajlnev` + méretkorlát), böngésző nélkül; a scraper kimenete UTF-8-ként olvasva, árva gyerekprocessz nem marad; **DB-séma önjavítás** (hiányzó/üres adatbázis), port-ütközés felismerése induláskor; az órarend-ablak egy nappal korábbra kér (UTC-határ). **D1–D9 kész** |
 | **v1.6.1** | **2026-11-02** | **Éles javítás:** a Docker képből hiányoztak az API-modulok (`kreta_api.py`, `kreta_api_sync.py`, `kreta_sync.py`, `kreta_shadow.py`) — a Dockerfile csak az `app.py`-t és a `kreta_playwright.py`-t másolta → minden szinkron azonnal `error` lett (`ModuleNotFoundError`). Most `COPY *.py ./`; a `requests` bekerült a `requirements.txt`-be (a Playwright nem hozza magával). Új `tests/test_deploy.py` (Dockerfile COPY + requirements + dockerignore konzisztencia). Emellett **API token-tár** (`api_tokens.json`): a 2. futástól nincs új belépés, így nincs „új bejelentkezés" e-mail; **ntfy** a `config.json` `NTFY` blokkjából is beállítható (`POST /api/ntfy/test`) |
+| **v1.6.2** | **2026-11-02** | **Jövőbeli határidők javítása:** a házi feladat és a bejelentett számonkérés API-ablaka **90 nappal előre** is nyúlik (`FUTURE_LOOKAHEAD_DAYS`), mert a KRÉTA az ablakon kívüli (jövőbeli) sorokat nem adja — enélkül a következő hetek dolgozatai/házijai kimaradtak. Élő mérés: 10 → 14 számonkérés, 22 → 25 házi ugyanarra a diákra |
+| **v1.6.3** *(fejlesztés alatt)* | **2026-11-02** | **Adatvédelem a teljes cserés mentésnél:** üres (de 200-as) API-válasz nem törli a meglévő jegyeket/feljegyzéseket (50%-os küszöb, `KRETA_SYNC_MIN_RATIO`), az órarend csak teljes ürülésnél véd; védett mentésnél a szolgáltató hibát dob (fallback). **DB-séma őr:** zárolt/bizonytalan adatbázisnál nincs init-db subprocess és nincs végleges önjavítás-kikapcsolás |
 
 ---
 

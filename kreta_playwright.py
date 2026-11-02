@@ -642,7 +642,8 @@ def api_provider_jegyek(student, client_factory=None):
     log(f"\n[API] Jegyek lekérése: {start} .. {end} ...")
     client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
     rows = kreta_api_sync.fetch_evaluations(client, start, end)
-    save_esemenyek_by_type(diak_nev, rows, set(), ["Értékelés"])
+    saved = save_esemenyek_by_type(diak_nev, rows, set(), ["Értékelés"])
+    _raise_if_blocked(saved, "jegyek")
     log(f"  [JEGYEK OK] {len(rows)} db értékelés az API-ból.")
 
 
@@ -707,7 +708,8 @@ def api_provider_feljegyzesek(student, client_factory=None):
     log(f"\n[API] Feljegyzések lekérése: {start} .. {end} ...")
     client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
     rows = kreta_api_sync.fetch_notes(client, start, end)
-    save_esemenyek_by_type(diak_nev, rows, set(), ["Feljegyzés"])
+    saved = save_esemenyek_by_type(diak_nev, rows, set(), ["Feljegyzés"])
+    _raise_if_blocked(saved, "feljegyzések")
     log(f"  [FELJEGYZÉS OK] {len(rows)} db feljegyzés az API-ból.")
 
 
@@ -719,7 +721,8 @@ def api_provider_orarend(student, client_factory=None):
     client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
     rows = kreta_api_sync.fetch_lessons(client, start, end)
     consultations = kreta_api_sync.fetch_consultations(client, start, end)
-    save_orarend_to_db(diak_nev, rows + consultations)
+    saved = save_orarend_to_db(diak_nev, rows + consultations)
+    _raise_if_blocked(saved, "órarend")
     log(f"  [ÓRAREND OK] {len(rows)} db órarendi elem + {len(consultations)} fogadóóra az API-ból.")
 
 
@@ -833,6 +836,42 @@ API_PROVIDERS = {
 
 VOLATILE_EVENT_TYPES = ("Értékelés", "Feljegyzés")
 
+# A teljes cserés mentés védelmi küszöbe: ha az új sorok száma a meglévők ennyi
+# aránya alá esik, nem törlünk (üres, de 200-as API-válasz ne okozzon adatvesztést).
+DEFAULT_SYNC_MIN_RATIO = 0.5
+
+
+def sync_min_ratio() -> float:
+    """A védelmi küszöb (env: `KRETA_SYNC_MIN_RATIO`, alap 0,5; 0 = kikapcsolva)."""
+    raw = os.environ.get("KRETA_SYNC_MIN_RATIO", "")
+    try:
+        value = float(raw) if str(raw).strip() else DEFAULT_SYNC_MIN_RATIO
+    except (TypeError, ValueError):
+        return DEFAULT_SYNC_MIN_RATIO
+    return min(max(value, 0.0), 1.0)
+
+
+def _would_drop_too_much(old_count: int, new_count: int) -> bool:
+    """Igaz, ha a teljes csere a meglévő sorok túl nagy részét törölné."""
+    if old_count <= 0:
+        return False
+    return new_count < old_count * sync_min_ratio()
+
+
+def _raise_if_blocked(result: dict, label: str) -> None:
+    """Ha a mentés adatvédelem miatt kimaradt, hibát dob (a hívó fallbackelhet).
+
+    `api_first` módban ez Playwright fallbackot indít arra az adatkörre; `api`
+    módban részleges hiba lesz, de a meglévő adatok megmaradnak.
+    """
+    blocked = (result or {}).get("blocked") or {}
+    if not blocked:
+        return
+    detail = ", ".join(
+        f"{tipus}: {data.get('old')} → {data.get('new')}" for tipus, data in blocked.items()
+    )
+    raise RuntimeError(f"{label}: a teljes cserét adatvédelem miatt kihagytam ({detail})")
+
 
 def _insert_esemeny(cursor, diak_nev, e, completed_set, existing_hazi, existing_szamonkeres):
     """Egy eseménysor beszúrása; visszaadja, hogy történt-e beszúrás."""
@@ -900,32 +939,60 @@ def save_esemenyek_by_type(diak_nev, esemenyek, completed_set, tipusok):
 
     Csak a `tipusok` listában szereplő sorok íródnak ki, így a Playwright és az
     API út ugyanabban a futásban nem írja felül egymást.
+
+    **Adatvédelem:** ha egy teljes cserés típusnál az új sorok száma a meglévők
+    `KRETA_SYNC_MIN_RATIO` (alap 0,5) aránya alá esik, a törlést kihagyjuk, és a
+    visszatérési érték jelzi (`blocked`). Így egy üres, de 200-as API-válasz nem
+    törli a meglévő jegyeket/feljegyzéseket.
+
+    Visszaad: `{"saved": int, "blocked": {típus: {"old", "new"}}, "per_type": {...}}`.
     """
     tipusok = tuple(tipusok)
+    result = {"saved": 0, "blocked": {}, "per_type": {}, "error": ""}
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     try:
-        for tipus in tipusok:
-            if tipus in VOLATILE_EVENT_TYPES:
-                cursor.execute(
-                    "DELETE FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus = ?",
-                    (diak_nev, tipus),
-                )
+        rows_by_type = {}
+        for e in esemenyek:
+            tipus = e.get('esemeny_tipus')
+            if tipus in tipusok:
+                rows_by_type.setdefault(tipus, []).append(e)
+        result["per_type"] = {tipus: len(rows) for tipus, rows in rows_by_type.items()}
+
         existing_hazi = get_existing_hazi_keys(diak_nev) if 'Házi feladat' in tipusok else set()
         existing_szamonkeres = (
             get_existing_szamonkeres_keys(diak_nev)
             if 'Bejelentett számonkérés' in tipusok else set()
         )
-        for e in esemenyek:
-            if e.get('esemeny_tipus') not in tipusok:
-                continue
-            _insert_esemeny(cursor, diak_nev, e, completed_set,
-                            existing_hazi, existing_szamonkeres)
+
+        for tipus in tipusok:
+            rows = rows_by_type.get(tipus, [])
+            if tipus in VOLATILE_EVENT_TYPES:
+                old_count = cursor.execute(
+                    "SELECT COUNT(*) FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus = ?",
+                    (diak_nev, tipus),
+                ).fetchone()[0]
+                if _would_drop_too_much(old_count, len(rows)):
+                    result["blocked"][tipus] = {"old": old_count, "new": len(rows)}
+                    log(f"  [FIGYELEM] {tipus}: {len(rows)} új sor a meglévő {old_count} helyett "
+                        f"— a teljes cserét kihagytam (adatvédelem, küszöb: {sync_min_ratio():.2f}).")
+                    continue
+                if rows or old_count:
+                    cursor.execute(
+                        "DELETE FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus = ?",
+                        (diak_nev, tipus),
+                    )
+            for e in rows:
+                if _insert_esemeny(cursor, diak_nev, e, completed_set,
+                                   existing_hazi, existing_szamonkeres):
+                    result["saved"] += 1
         conn.commit()
     except Exception as ex:
+        result["error"] = str(ex)
         log(f"  [Hiba az események mentésekor]: {ex}")
     finally:
         conn.close()
+    return result
 
 def is_uzenet_saved(diak_nev, felado, targy, idopont):
     """Ellenőrzi, hogy egy adott üzenet el van-e már mentve az SQLite adatbázisba."""
@@ -959,10 +1026,28 @@ def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="
 # === ÓRAREND KINYERÉSI BLOKK (AKTUÁLIS ÉS KÖVETKEZŐ HÉT) ===
 # ==============================================================================
 def save_orarend_to_db(diak_nev, orarend_lista):
-    """Elmenti a diák órarendi adatait az SQLite adatbázisba törlés után."""
+    """Elmenti a diák órarendi adatait az SQLite adatbázisba törlés után.
+
+    **Adatvédelem:** ha üres lista érkezik, de a diákhoz már van órarend, a
+    törlést kihagyjuk (egy elhalt API/web-lista ne ürítse ki a naptárt).
+    Részleges csökkenés megengedett: a 2 hetes ablakban (szünet, év vége)
+    természetes, hogy kevesebb óra van.
+
+    Visszaad: `{"saved": int, "blocked": {"orarend": {"old", "new"}}}`.
+    """
+    result = {"saved": 0, "blocked": {}}
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    
+    old_count = cursor.execute(
+        "SELECT COUNT(*) FROM orarend WHERE diak_nev = ?", (diak_nev,)
+    ).fetchone()[0]
+    if old_count > 0 and not orarend_lista:
+        result["blocked"]["orarend"] = {"old": old_count, "new": 0}
+        log(f"  [FIGYELEM] Órarend: üres lista érkezett a meglévő {old_count} sor helyett "
+            f"— a törlést kihagytam (adatvédelem).")
+        conn.close()
+        return result
+
     cursor.execute("DELETE FROM orarend WHERE diak_nev = ?", (diak_nev,))
 
     def to_str(val):
@@ -1014,6 +1099,8 @@ def save_orarend_to_db(diak_nev, orarend_lista):
 
     conn.commit()
     conn.close()
+    result["saved"] = len(orarend_lista)
+    return result
 
 async def scrape_orarend(page, diak_nev, institute_code):
     """Lekéri az aktuális ÉS a következő hét órarendjét a bal felső nyilakkal történő elnavigálással."""
