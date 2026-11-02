@@ -2717,14 +2717,21 @@ def api_kifizetes_save():
 
     conn = get_db_connection()
     cursor = conn.cursor()
+    # A kifizetés tanéve az időszak kezdetéből (Kaneo #40): enélkül a
+    # `?tanev=` szűrt dashboard nem venné figyelembe a frissen kifizetett összeget.
+    tanev = kreta_tanev.tanev_of(kezdo_datum)
     cursor.execute("""
-        INSERT INTO kifizetesek (diak_nev, kezdo_datum, zaro_datum, kifizetve, osszeg, updated_at)
-        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO kifizetesek (diak_nev, kezdo_datum, zaro_datum, kifizetve, osszeg,
+                                 tanev, tanev_forras, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'szamitott', CURRENT_TIMESTAMP)
         ON CONFLICT(diak_nev, kezdo_datum, zaro_datum) DO UPDATE SET
             kifizetve = excluded.kifizetve,
             osszeg = excluded.osszeg,
+            tanev = CASE WHEN ? <> '' THEN excluded.tanev ELSE kifizetesek.tanev END,
+            tanev_forras = CASE WHEN ? <> '' THEN excluded.tanev_forras
+                                ELSE kifizetesek.tanev_forras END,
             updated_at = CURRENT_TIMESTAMP
-    """, (diak, kezdo_datum, zaro_datum, kifizetve, osszeg))
+    """, (diak, kezdo_datum, zaro_datum, kifizetve, osszeg, tanev, tanev, tanev))
     conn.commit()
     conn.close()
 

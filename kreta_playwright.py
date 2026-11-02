@@ -1062,6 +1062,7 @@ def save_esemenyek_by_type(diak_nev, esemenyek, completed_set, tipusok, window=N
         for tipus in tipusok:
             rows = rows_by_type.get(tipus, [])
             deletable = set()
+            skipped = 0
             if tipus in VOLATILE_EVENT_TYPES:
                 # Tanév-scope (Kaneo #40): csak a batch tanévei, teljes ablakkal.
                 batch_years = {_event_tanev(e) for e in rows} - {""}
@@ -1090,10 +1091,16 @@ def save_esemenyek_by_type(diak_nev, esemenyek, completed_set, tipusok, window=N
                     cursor.execute("DELETE FROM esemenyek WHERE id = ?", (rid,))
             for e in rows:
                 if tipus in VOLATILE_EVENT_TYPES and _event_tanev(e) not in deletable:
+                    skipped += 1
                     continue  # nem törölt tanév: nem is írjuk (duplikáció ellen)
                 if _insert_esemeny(cursor, diak_nev, e, completed_set,
                                    existing_hazi, existing_szamonkeres):
                     result["saved"] += 1
+            if skipped:
+                result.setdefault("skipped", {})[tipus] = skipped
+                log(f"  [FIGYELEM] {tipus}: {skipped} sor a letöltött tanéveken "
+                    f"kívülre esett (pl. korábbi tanév) — kihagytam, hogy ne "
+                    f"duplikálódjon.")
         conn.commit()
     except Exception as ex:
         result["error"] = str(ex)

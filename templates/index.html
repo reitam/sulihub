@@ -2131,6 +2131,12 @@ $(document).ready(function() {
                 $('#statAtlag').attr('title', 'Egyszerű átlag (nincs súlyadat)');
                 $('#statAtlagTip').text('');
             }
+            // Összes tanévnél az átlag nem értelmezhető (Kaneo #40) — a KPI se mutasson számot.
+            if (!kivalasztottTanev()) {
+                $('#statAtlag').text('–').attr('title',
+                    'Összes tanévnél az átlag nem értelmezhető — válassz tanévet a fejlécben.');
+                $('#statAtlagTip').text('').attr('title', '');
+            }
             $('#statTotalJegy').text(res.jegy_total_count + ' db');
 
             // A zsebpénz modul kikapcsolt diáknál a statisztika látszik,

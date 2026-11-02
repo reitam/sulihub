@@ -147,6 +147,32 @@ try:
     print("\n6) /api/hianyzasok?tanev= (üres, de nem hibázik)")
     h = get("/api/hianyzasok?tanev=2026/2027")
     ok(h.get("rows") == [] and "osszesito" in h, "üres lista + összesítő")
+
+    print("\n7) POST /api/kifizetes: a tanév beíródik, a dashboard azonnal levonja")
+    req = urllib.request.Request(
+        base + "/api/kifizetes",
+        data=json.dumps({"diak": "Teszt Elek", "kezdo_datum": "2026-10-01",
+                         "zaro_datum": "2026-10-31", "kifizetve": True,
+                         "osszeg": 300}, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=10) as r:
+        ok(r.status == 200, f"a kifizetés mentése: HTTP {r.status}")
+    conn2 = sqlite3.connect(db)
+    uj_sor = conn2.execute(
+        "SELECT tanev, tanev_forras FROM kifizetesek WHERE diak_nev='Teszt Elek'"
+        " AND kezdo_datum='2026-10-01'").fetchone()
+    regi_sor = conn2.execute(
+        "SELECT tanev FROM kifizetesek WHERE diak_nev='Teszt Elek'"
+        " AND kezdo_datum='2026-02-01'").fetchone()
+    conn2.close()
+    ok(uj_sor and uj_sor[0] == "2026/2027",
+       f"a kifizetesek.tanev kitöltve: {uj_sor[0] if uj_sor else None}")
+    ok(regi_sor and regi_sor[0] == "2025/2026", "a korábbi tanév kifizetése érintetlen")
+    d2 = get("/api/dashboard?tanev=2026/2027")
+    d2o = (d2.get("diakok") or [{}])[0]
+    ok(d2o.get("kifizetve_osszeg") == 500 and d2o.get("hatralevo") == 0,
+       f"a friss kifizetés azonnal levonódik: {d2o.get('kifizetve_osszeg')} / "
+       f"{d2o.get('hatralevo')}")
 finally:
     proc.terminate()
     try:
