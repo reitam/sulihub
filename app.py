@@ -2103,8 +2103,10 @@ def normalize_date(d_str):
 def api_statisztika():
     config = load_config()
     global_enable = config.get("ENABLE_REWARDS", True)
-    
-    if not global_enable or not os.path.exists(DB_FILE):
+
+    # A statisztika akkor is működik, ha a zsebpénz modul ki van kapcsolva:
+    # ilyenkor csak a pénz-összegek maradnak 0-n, és a felület jelzi a tényt.
+    if not os.path.exists(DB_FILE):
         return jsonify({"enabled": False})
 
     diak = request.args.get("diak", "")
@@ -2118,8 +2120,7 @@ def api_statisztika():
             student_enable = s.get("enable_rewards", True)
             break
 
-    if not student_enable:
-        return jsonify({"enabled": False})
+    rewards_enabled = bool(global_enable) and bool(student_enable)
 
     rewards = config.get("REWARDS", {
         "jegy_5": 500, "jegy_4": 200, "jegy_3": 0, "jegy_2": -200, "jegy_1": -500,
@@ -2162,6 +2163,10 @@ def api_statisztika():
     jegy_counts = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
     jegy_sum = 0
     jegy_total_count = 0
+    # Súlyozott átlaghoz (a KRÉTA SulySzazalekErteke / webes "Súly: N%" mezője).
+    suly_sum = 0
+    sulyozott_sum = 0.0
+    sulyozott_db = 0
     teteles_lista = []
 
     for r in jegy_rows:
@@ -2177,10 +2182,15 @@ def api_statisztika():
             jegy_counts[val] += 1
             jegy_sum += val
             jegy_total_count += 1
-            
-            jutalom = rewards.get(f"jegy_{val}", 0)
-            reszletek = f"{r['mod'] or ''} {r['tema'] or ''}".strip()
+
             suly = jegy_suly.get(r["id"], 0)
+            if suly > 0:
+                suly_sum += suly
+                sulyozott_sum += val * suly
+                sulyozott_db += 1
+
+            jutalom = rewards.get(f"jegy_{val}", 0) if rewards_enabled else 0
+            reszletek = f"{r['mod'] or ''} {r['tema'] or ''}".strip()
             if suly:
                 reszletek = f"{reszletek} ({suly}%)".strip()
             teteles_lista.append({
@@ -2191,7 +2201,13 @@ def api_statisztika():
                 "osszeg": jutalom
             })
 
-    atlag = round(jegy_sum / jegy_total_count, 2) if jegy_total_count > 0 else 0.0
+    # Tanulmányi átlag: ha van súlyszázalék, a KRÉTA logikája szerint súlyozva
+    # (súlyozott összeg / súlyösszeg); a 0%-os súlyú jegy nem számít bele. Ha
+    # egyetlen jegynek sincs súlya (régi adat / Playwright nélküli súly), akkor
+    # a hagyományos egyszerű átlagot adjuk.
+    atlag_egyszeru = round(jegy_sum / jegy_total_count, 2) if jegy_total_count > 0 else 0.0
+    atlag_sulyozott = round(sulyozott_sum / suly_sum, 2) if suly_sum > 0 else None
+    atlag = atlag_sulyozott if atlag_sulyozott is not None else atlag_egyszeru
 
     # FELJEGYZÉSEK LEKÉRDEZÉSE ÉS TÉTELES LISTÁJA
     felj_query = "SELECT id, bej_datum, tipus, cim, tartalom FROM esemenyek WHERE esemeny_tipus = 'Feljegyzés'"
@@ -2230,7 +2246,7 @@ def api_statisztika():
         for cat, kw_list in keywords.items():
             if any(kw in text for kw in kw_list):
                 counts[cat] += 1
-                jutalom = rewards.get(cat, 0)
+                jutalom = rewards.get(cat, 0) if rewards_enabled else 0
                 teteles_lista.append({
                     "datum": r["bej_datum"],
                     "tipus": "Feljegyzés",
@@ -2253,27 +2269,35 @@ def api_statisztika():
 
     teteles_lista.sort(key=lambda x: x["datum"], reverse=True)
 
-    jegy_osszeg = (
-        jegy_counts[5] * rewards.get("jegy_5", 0) +
-        jegy_counts[4] * rewards.get("jegy_4", 0) +
-        jegy_counts[3] * rewards.get("jegy_3", 0) +
-        jegy_counts[2] * rewards.get("jegy_2", 0) +
-        jegy_counts[1] * rewards.get("jegy_1", 0)
-    )
+    if rewards_enabled:
+        jegy_osszeg = (
+            jegy_counts[5] * rewards.get("jegy_5", 0) +
+            jegy_counts[4] * rewards.get("jegy_4", 0) +
+            jegy_counts[3] * rewards.get("jegy_3", 0) +
+            jegy_counts[2] * rewards.get("jegy_2", 0) +
+            jegy_counts[1] * rewards.get("jegy_1", 0)
+        )
 
-    feljegyzes_osszeg = (
-        counts["dicseret"] * rewards.get("dicseret", 0) +
-        counts["megrovas"] * rewards.get("megrovas", 0) +
-        counts["lecke_hiany"] * rewards.get("lecke_hiany", 0) +
-        counts["felszereles_hiany"] * rewards.get("felszereles_hiany", 0)
-    )
+        feljegyzes_osszeg = (
+            counts["dicseret"] * rewards.get("dicseret", 0) +
+            counts["megrovas"] * rewards.get("megrovas", 0) +
+            counts["lecke_hiany"] * rewards.get("lecke_hiany", 0) +
+            counts["felszereles_hiany"] * rewards.get("felszereles_hiany", 0)
+        )
+    else:
+        jegy_osszeg = 0
+        feljegyzes_osszeg = 0
 
     vegosszeg = jegy_osszeg + feljegyzes_osszeg
 
     return jsonify({
         "enabled": True,
+        "rewards_enabled": rewards_enabled,
         "jegy_counts": jegy_counts,
         "atlag": atlag,
+        "atlag_egyszeru": atlag_egyszeru,
+        "atlag_sulyozott": atlag_sulyozott,
+        "sulyozott_db": sulyozott_db,
         "jegy_total_count": jegy_total_count,
         "counts": counts,
         "rewards": rewards,

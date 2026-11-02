@@ -768,7 +768,7 @@
                                 </div>
                             </div>
                             <div class="d-flex justify-content-between align-items-center px-1 small">
-                                <div>Tanulmányi átlag: <span id="statAtlag" class="fw-bold text-primary">0.00</span></div>
+                                <div>Tanulmányi átlag: <span id="statAtlag" class="fw-bold text-primary">0.00</span><span id="statAtlagTip" class="text-muted ms-1" style="font-size: 0.7rem;"></span></div>
                                 <div>Összes jegy: <span id="statTotalJegy" class="fw-bold">0 db</span></div>
                             </div>
                         </div>
@@ -805,6 +805,10 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <div id="rewardsNotEnabledAlert" class="alert alert-secondary d-none text-center p-2 mb-3">
+                    <small><i class="fa-solid fa-circle-info me-2"></i>A zsebpénz modul nincs engedélyezve ennél a diáknál — a statisztika ettől függetlenül elérhető.</small>
                 </div>
 
                 <div class="card card-stat overflow-hidden border-0 shadow-sm" id="cardVegosszegContainer">
@@ -1007,12 +1011,16 @@ function enableResizableTable(tableId) {
 
             $resizer.on('mousedown', function(e) {
                 e.preventDefault();
+                e.stopPropagation();
                 let startX = e.pageX;
                 let startWidth = $th.width();
+                let moved = false;
                 $resizer.addClass('resizing');
 
                 $(document).on('mousemove.colResize', function(e) {
-                    let newWidth = startWidth + (e.pageX - startX);
+                    let delta = e.pageX - startX;
+                    if (Math.abs(delta) > 1) moved = true;
+                    let newWidth = startWidth + delta;
                     if (newWidth > 50) {
                         $th.css('width', newWidth + 'px');
                     }
@@ -1021,7 +1029,23 @@ function enableResizableTable(tableId) {
                 $(document).on('mouseup.colResize', function() {
                     $(document).off('.colResize');
                     $resizer.removeClass('resizing');
+                    if (moved) {
+                        // A húzás utáni kattintás ne érje el a th-t: a DataTables
+                        // a fejléc kattintására rendez, ezért az átméretezés
+                        // "átállította a sorrendet". A capture-fázisban, egyszer
+                        // elnyeljük a következő clicket.
+                        document.addEventListener('click', function(clickEv) {
+                            clickEv.stopPropagation();
+                            clickEv.preventDefault();
+                        }, {capture: true, once: true});
+                    }
                 });
+            });
+
+            // A fogantyú saját kattintása se buborékoljon tovább a th-ra.
+            $resizer.on('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
             });
         }
     });
@@ -1369,6 +1393,7 @@ $(document).ready(function() {
             { data: 'igazolas_tipus', render: function (data) { let t = data || '-'; return `<span title="${escapeHtml(t)}">${escapeHtml(t)}</span>`; } }
         ],
         drawCallback: function () {
+            enableResizableTable('hianyzasokTable');
             setTimeout(function () {
                 try { if (hianyzasokTable.responsive) hianyzasokTable.responsive.recalc(); } catch (e) {}
             }, 120);
@@ -1396,6 +1421,7 @@ $(document).ready(function() {
             { data: 'megjegyzes', render: function (data) { let t = htmlToText(data) || '-'; return `<span title="${escapeHtml(t)}">${escapeHtml(t)}</span>`; } }
         ],
         drawCallback: function () {
+            enableResizableTable('igazolasokTable');
             setTimeout(function () {
                 try { if (igazolasokTable.responsive) igazolasokTable.responsive.recalc(); } catch (e) {}
             }, 120);
@@ -1785,7 +1811,27 @@ $(document).ready(function() {
             $('#cntJegy1').text(res.jegy_counts[1] + ' db');
 
             $('#statAtlag').text(res.atlag);
+            if (res.atlag_sulyozott !== null && res.atlag_sulyozott !== undefined) {
+                $('#statAtlag').attr('title',
+                    'Súlyozott átlag a jegyek súlyszázaléka szerint (' + res.sulyozott_db +
+                    ' jegy). Egyszerű átlag: ' + res.atlag_egyszeru);
+                $('#statAtlagTip').text('(súlyozott)').attr('title',
+                    'Egyszerű átlag: ' + res.atlag_egyszeru);
+            } else {
+                $('#statAtlag').attr('title', 'Egyszerű átlag (nincs súlyadat)');
+                $('#statAtlagTip').text('');
+            }
             $('#statTotalJegy').text(res.jegy_total_count + ' db');
+
+            // A zsebpénz modul kikapcsolt diáknál a statisztika látszik,
+            // csak a pénz-kártyát rejtjük el és jelzünk helyette.
+            if (res.rewards_enabled === false) {
+                $('#cardVegosszegContainer').addClass('d-none');
+                $('#rewardsNotEnabledAlert').removeClass('d-none');
+            } else {
+                $('#cardVegosszegContainer').removeClass('d-none');
+                $('#rewardsNotEnabledAlert').addClass('d-none');
+            }
 
             $('#cntDicseret').text(res.counts.dicseret + ' db');
             $('#cntMegrovas').text(res.counts.megrovas + ' db');
