@@ -243,6 +243,14 @@ def _descriptor(value, prefer=("Leiras", "Nev")) -> str:
     return _text(value)
 
 
+def _int_or_zero(value) -> int:
+    """Egész szám tűréssel (az API néha számot, néha sztringet ad, néha null-t)."""
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return 0
+
+
 def plain_text(value) -> str:
     """HTML-ből sima szöveg (blokk-határoknál szóközzel)."""
     text = "" if value is None else str(value)
@@ -819,6 +827,9 @@ def normalize_evaluation(item: dict) -> dict:
         "tantargy": _nev(item.get("Tantargy")),
         "ertek": _text(item.get("SzovegesErtek")),
         "szam_ertek": int(item.get("SzamErtek") or 0),
+        # A jegy súlyszázaléka (pl. 100 = 100%-os súllyal számít az átlagba).
+        # Csak a mobil API adja; a webes grid nem tartalmazza.
+        "suly_szazalek": _int_or_zero(item.get("SulySzazalekErteke")),
         "bej_datum": hu_date(item.get("RogzitesDatuma") or item.get("KeszitesDatuma")),
         "ertekelo": _text(item.get("ErtekeloTanarNeve")),
         "tipus": _descriptor(item.get("Tipus")),
