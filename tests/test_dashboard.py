@@ -232,9 +232,10 @@ try:
         # Matematika: 5 (100%) + 3 (0%) -> súlyozva 5.0 ; Fizika: 4.0
         ok("5" in mat.split(), f"a Matematika összes átlaga 5: {mat}")
         ok("4" in fiz.split(), f"a Fizika átlaga 4: {fiz}")
-        ok(any(s.startswith("Összesen") for s in testek), "van Összesen sor")
+        ok(any(s.startswith("Hónapok átlaga") for s in testek), "van havi teljes átlag lábléc")
+        ok(any("4.67" in s for s in testek), f"a láblécben a teljes időszak átlaga: {testek[-1] if testek else ''}")
 
-        print("\n6) Mobil nézet: fő + havi accordionok (#39)")
+        print("\n6) Mobil nézet: teljes → havi → tantárgy fa (#39)")
         mctx = browser.new_context(viewport={"width": 393, "height": 873})
         mp = mctx.new_page()
         mp.goto(base, wait_until="networkidle")
@@ -242,35 +243,48 @@ try:
         mp.wait_for_timeout(1500)
         mp.click('#atlagokCard button[data-bs-target="#atlagokCollapse"]')
         mp.wait_for_timeout(600)
-        ok(mp.is_visible("#atlagokMobil"), "mobilon az accordion nézet látszik")
+        ok(mp.is_visible("#atlagokMobil"), "mobilon a fa látszik")
         ok(not mp.is_visible("#atlagokTable"), "a táblázat mobilon rejtve")
-        subj = mp.eval_on_selector_all(
-            "#atlagokMobil > .accordion > .accordion-item > h2 > button",
-            "els => els.map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
-        ok(len(subj) == 2 and any("Matematika" in s for s in subj),
-           f"tantárgy-főaccordionok: {subj}")
 
-        # A Matematikát nyitjuk (2 hónapja van), nem az első (Fizika, 1 hónap).
-        mp.locator("#atlagokMobil > .accordion > .accordion-item > h2 > button",
-                   has_text="Matematika").first.click()
-        mp.wait_for_timeout(600)
-        honapok_btn = mp.eval_on_selector_all(
-            "#atlagokMobil > .accordion .accordion .accordion-button",
+        fo = mp.inner_text("#atlagokMobil > .accordion > .accordion-item > h2 > button")
+        fo = " ".join(fo.split())
+        ok("Teljes időszak" in fo and "4.67" in fo and "3 jegy" in fo,
+           f"fő szint: teljes időszak átlaga: {fo}")
+
+        # Alapból nyitott: a havi szint látszik (havi TELJES átlag)
+        honapok_szoveg = mp.eval_on_selector_all(
+            "#atlagokMobil > .accordion > .accordion-item > .accordion-collapse > "
+            ".accordion-body > .accordion > .accordion-item > h2 > button",
             "els => els.filter(e => e.offsetParent !== null).map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
-        ok(len(honapok_btn) >= 2, f"havi al-accordionok: {honapok_btn}")
+        ok(len(honapok_szoveg) == 2, f"havi szint: {honapok_szoveg}")
+        ok(any("október" in h and "4" in h for h in honapok_szoveg),
+           f"október havi teljes átlaga (súlyozva 4.0): {honapok_szoveg}")
 
+        # Október kinyitása → tantárgy-szint (havi tantárgyi átlag)
         mp.evaluate("""() => {
             const els = Array.from(document.querySelectorAll(
-                '#atlagokMobil > .accordion .accordion .accordion-button'));
+                '#atlagokMobil > .accordion > .accordion-item > .accordion-collapse '
+                + '> .accordion-body > .accordion > .accordion-item > h2 > button'));
             const v = els.find(function (e) { return e.offsetParent !== null; });
             if (v) v.click();
         }""")
         mp.wait_for_timeout(600)
-        jegy_szovegek = mp.eval_on_selector_all(
-            "#atlagokMobil > .accordion .accordion .accordion-body",
-            "els => els.filter(e => e.offsetParent !== null).map(e => e.innerText.trim()).filter(t => t.length > 0)")
-        ok(any(("Jeles" in j) or ("Jó" in j) or ("Közepes" in j) for j in jegy_szovegek),
-           f"a hónap jegyei látszanak: {jegy_szovegek[:1]}")
+        tantargy_szoveg = mp.eval_on_selector_all(
+            "#atlagokMobil > .accordion > .accordion-item > .accordion-collapse "
+            + "> .accordion-body > .accordion > .accordion-item > .accordion-collapse "
+            + "> .accordion-body",
+            "els => els.filter(e => e.offsetParent !== null).map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
+        ok(any("Matematika 3 (1)" in t for t in tantargy_szoveg),
+           f"tantárgy-szint (havi tantárgyi átlag): {tantargy_szoveg}")
+
+        # Külön blokk: teljes időszak tantárgy szerint
+        tant_blokk = mp.eval_on_selector_all(
+            "#atlagTantargyak .accordion-body div", "els => els.map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
+        ok(any("Matematika 5 (2)" in t for t in tant_blokk),
+           f"tantárgyak szerint (teljes időszak): {tant_blokk}")
+
+        mp.eval_on_selector("#atlagokCard", "el => el.scrollIntoView({block: 'start'})")
+        mp.wait_for_timeout(400)
         mp.screenshot(path=str(work / "mobil_atlagok.png"))
         print("SCREENSHOT (mobil):", work / "mobil_atlagok.png")
         mctx.close()

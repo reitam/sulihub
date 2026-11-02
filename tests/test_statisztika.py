@@ -187,6 +187,13 @@ try:
        f"összesített: {atl.get('osszes')}")
     atl_okt = get_json("/api/atlagok?diak=Sulyos&kezdo_datum=2026-10-01&zaro_datum=2026-10-31")
     ok(atl_okt.get("honapok") == ["2026-10"], f"októberi szűrés: {atl_okt.get('honapok')}")
+    ho = atl.get("honap_osszes") or {}
+    ok(ho.get("2026-09", {}).get("atlag") == 5.0 and ho.get("2026-09", {}).get("db") == 1,
+       f"havi TELJES átlag szeptember: {ho.get('2026-09')}")
+    ok(ho.get("2026-10", {}).get("atlag") == 4.33 and ho.get("2026-10", {}).get("db") == 3,
+       f"havi TELJES átlag október (súlyozva): {ho.get('2026-10')}")
+    ok((mat.get("honapok") or {}).get("2026-10", {}).get("jegyek") is not None,
+       "a hónap jegyei is megvannak a válaszban")
     print("\n6) Dashboard összesítő (/api/dashboard, Kaneo #38)")
     dash = get_json("/api/dashboard?diak=Sulyos")
     d0 = (dash.get("diakok") or [{}])[0]

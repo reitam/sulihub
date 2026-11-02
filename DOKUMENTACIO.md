@@ -170,13 +170,17 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
   (Σ jegy×súly / Σ súly); a **0%-os súlyú** jegy nem számít bele. Ha egyetlen jegynek sincs
   súlyadata (régi adat), akkor a hagyományos egyszerű átlag jelenik meg. A felület a
   „Tanulmányi átlag" mellett *(súlyozott)* jelzést mutat, tooltippel az egyszerű átlaggal.
-- **Tantárgyi átlagok havi bontással:** a Statisztika fülön **alapból zárt accordion** (kinyitva
-  tantárgyanként a havi és az időszaki „Összes" súlyozott átlag + jegy-darabszám;
-  `GET /api/atlagok?diak=&kezdo_datum=&zaro_datum=`, a válaszban hónaponként a **jegyek is**
-  szerepelnek). A hónapok a jegyek bejegyzési dátuma szerint csoportosulnak. **Mobilon**, ha az
-  időszak **több hónapot** ölel fel: tantárgyanként egy **fő accordion** (teljes átlag), alatta
-  minden hónap **külön al-accordion**, benne a hónap jegyei (érték, dátum, mód/téma/súly).
-  Egyetlen hónapnál marad az egyszerű kártya — vízszintes görgetés sehol.
+- **Tantárgyi átlagok havi bontással:** a Statisztika fülön **alapból zárt accordion**
+  (`GET /api/atlagok?diak=&kezdo_datum=&zaro_datum=`; a válaszban tantárgyanként hónapok,
+  jegyek és **havi teljes átlagok** is vannak).
+  * **Asztali nézet:** mátrix — sorok a tantárgyak, oszlopok a hónapok, cella a **havi
+    tantárgyi átlag (db)**; az **„Összes" oszlop** a teljes időszak tantárgy szerinti átlaga,
+    a **lábléc-sor** („Hónapok átlaga") a havi **teljes** átlag, a jobb alsó sarokban a
+    teljes időszak átlaga.
+  * **Mobil nézet:** 3 szintű fa — **Teljes időszak** (átlag · jegy) → **hónap** (havi teljes
+    átlag · jegy) → **tantárgy** (havi tantárgyi átlag (db)); alatta külön, zárt blokk:
+    **„Tantárgyak szerint (teljes időszak)"**. Vízszintes görgetés sehol; jegy-részletek nem
+    jelennek meg.
 - **A kifizetetlen zsebpénz a dashboardon** a **teljes időszak** egyenlege mínusz a
   `kifizetesek` táblában **kifizetettnek jelölt időszakok** összege (a maradék jelenik meg).
   A `GET /api/dashboard` ezt diákonként és összesen is visszaadja, a diákonkénti
@@ -565,7 +569,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **616 automatikus ellenőrzés** huszonegy csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **622 automatikus ellenőrzés** huszonegy csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
