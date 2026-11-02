@@ -130,6 +130,9 @@ try:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         page.goto(base, wait_until="networkidle")
+        # Az alapértelmezett fül az Áttekintés (Kaneo #38) — a listához át kell váltani.
+        page.click("#esemenyek-tab")
+        page.wait_for_timeout(500)
         page.wait_for_selector("#esemenyekTable tbody tr", timeout=15000)
 
         print("\n1) Iskolai események: átméretezés nem rendez át")

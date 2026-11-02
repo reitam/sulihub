@@ -76,6 +76,15 @@
         .balance-card-positive { background: linear-gradient(135deg, #198754, #146c43); color: white; }
         .balance-card-negative { background: linear-gradient(135deg, #dc3545, #b02a37); color: white; }
 
+        /* Áttekintés (dashboard) csempék */
+        .dash-tile { cursor: pointer; transition: transform .08s ease, box-shadow .08s ease; }
+        .dash-tile:hover, .dash-tile:focus {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(13, 110, 253, .18);
+            outline: none;
+        }
+        .chip-diak.active { background-color: #0d6efd; border-color: #0d6efd; color: #fff; }
+
         table.dataTable tbody tr.today-row td,
         table.dataTable.table-striped tbody tr.today-row td {
             background-color: #fff9c4 !important;
@@ -367,49 +376,15 @@
     </div>
 
     <!-- ÖSSZECSUKHATÓ ACCORDION BLOKK -->
-    <div class="accordion mb-3 shadow-sm" id="accordionFilterBlock">
+    <div class="accordion mb-3 shadow-sm d-none" id="accordionFilterBlock">
         <div class="accordion-item border-0 rounded overflow-hidden">
             <h2 class="accordion-header" id="headingFilter">
                 <button class="accordion-button py-2 px-3 fw-bold text-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFilter" aria-expanded="true" aria-controls="collapseFilter" style="font-size: 0.85rem;">
-                    <i class="fa-solid fa-sliders me-2 text-primary"></i>Statisztikai áttekintő & Szűrőpanel
+                    <i class="fa-solid fa-sliders me-2 text-primary"></i>Szűrőpanel
                 </button>
             </h2>
             <div id="collapseFilter" class="accordion-collapse collapse show" aria-labelledby="headingFilter">
                 <div class="accordion-body p-3 bg-light">
-                    <!-- STATISZTIKAI KÁRTYÁK -->
-                    <div class="row g-2 mb-3">
-                        <div class="col-6 col-md-2">
-                            <div class="card card-stat bg-white p-2 px-3 border-start border-success border-3">
-                                <div class="text-muted small">Értékelések</div>
-                                <div class="fs-5 fw-bold text-success" id="statErtekeles">0 db</div>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-2">
-                            <div class="card card-stat bg-white p-2 px-3 border-start border-primary border-3">
-                                <div class="text-muted small">Házi feladatok</div>
-                                <div class="fs-5 fw-bold text-primary" id="statHazi">0 db</div>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-2">
-                            <div class="card card-stat bg-white p-2 px-3 border-start border-danger border-3">
-                                <div class="text-muted small">Számonkérések</div>
-                                <div class="fs-5 fw-bold text-danger" id="statSzamonkeres">0 db</div>
-                            </div>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <div class="card card-stat bg-white p-2 px-3 border-start border-warning border-3">
-                                <div class="text-muted small">Feljegyzések</div>
-                                <div class="fs-5 fw-bold text-warning" id="statFeljegyzes">0 db</div>
-                            </div>
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <div class="card card-stat bg-white p-2 px-3 border-start border-info border-3">
-                                <div class="text-muted small">Üzenetek (e-Ügyintézés)</div>
-                                <div class="fs-5 fw-bold text-info" id="statUzenetek">0 db</div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- SZŰRŐ PANEL -->
                     <div class="card p-2 px-3 card-stat bg-white border">
                         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
@@ -477,6 +452,17 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="d-flex align-items-center gap-2 flex-wrap mt-2" id="filterDiakChips">
+                            <span class="text-secondary fw-bold small"><i class="fa-solid fa-users me-1"></i>Gyermek:</span>
+                            <button class="btn btn-sm btn-outline-dark py-0 px-2 chip-diak active" data-diak="" style="font-size: 0.78rem;">Mind</button>
+                            {% for d in diakok %}
+                            <button class="btn btn-sm btn-outline-dark py-0 px-2 chip-diak" data-diak="{{ d }}" style="font-size: 0.78rem;">{{ d }}</button>
+                            {% endfor %}
+                        </div>
+                        <input type="hidden" id="filterHatKezdoDatum">
+                        <input type="hidden" id="filterHatZaroDatum">
+                        <div id="hataridoFilterInfo" class="small text-muted mt-1 d-none"></div>
                     </div>
                 </div>
             </div>
@@ -486,7 +472,12 @@
     <!-- TABS (FÜLEK) -->
     <ul class="nav nav-tabs mb-3 fw-bold" id="mainTab" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="esemenyek-tab" data-bs-toggle="tab" data-bs-target="#esemenyek-pane" type="button" role="tab">
+            <button class="nav-link active" id="attekintes-tab" data-bs-toggle="tab" data-bs-target="#attekintes-pane" type="button" role="tab">
+                <i class="fa-solid fa-gauge-high me-2"></i>Áttekintés
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="esemenyek-tab" data-bs-toggle="tab" data-bs-target="#esemenyek-pane" type="button" role="tab">
                 <i class="fa-solid fa-list-check me-2"></i><span class="d-none d-sm-inline">Iskolai </span>Események
             </button>
         </li>
@@ -525,8 +516,70 @@
     </ul>
 
     <div class="tab-content" id="mainTabContent">
+        <!-- 0. FÜL: ÁTTEKINTÉS (DASHBOARD, Kaneo #38) -->
+        <div class="tab-pane fade show active" id="attekintes-pane" role="tabpanel">
+            <div class="row g-3" id="dashboardTiles">
+                <div class="col-6 col-lg-3">
+                    <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileHataridok" title="Ugrás a heti határidőkre szűrt eseménylistára">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="text-muted small fw-bold">Heti határidők</div>
+                            <i class="fa-solid fa-calendar-week text-primary"></i>
+                        </div>
+                        <div class="fs-3 fw-bold text-primary" id="tileHataridokSzam">0</div>
+                        <div class="text-muted" id="tileHataridokInfo" style="font-size: 0.75rem;">házik / számonkérések ezen a héten</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileUjJegyek" title="Ugrás az elmúlt 7 nap jegyeire">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="text-muted small fw-bold">Új jegyek</div>
+                            <i class="fa-solid fa-graduation-cap text-success"></i>
+                        </div>
+                        <div class="fs-3 fw-bold text-success" id="tileUjJegyekSzam">0</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">az elmúlt 7 napban</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileUjUzenetek" title="Ugrás a beérkezett üzenetekre">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="text-muted small fw-bold">Új üzenetek</div>
+                            <i class="fa-solid fa-envelope text-info"></i>
+                        </div>
+                        <div class="fs-3 fw-bold text-info" id="tileUjUzenetekSzam">0</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">az elmúlt 7 napban</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileZsebpenz" title="Ugrás a zsebpénz elszámolásra">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="text-muted small fw-bold">Kifizetetlen zsebpénz</div>
+                            <i class="fa-solid fa-sack-dollar text-warning"></i>
+                        </div>
+                        <div class="fs-3 fw-bold text-warning" id="tileZsebpenzSzam">0 Ft</div>
+                        <div class="text-muted" id="tileZsebpenzInfo" style="font-size: 0.75rem;">erre a hónapra</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+                <div class="d-flex align-items-center gap-2 flex-wrap" id="dashboardDiakChips">
+                    <span class="text-muted small fw-bold"><i class="fa-solid fa-users me-1"></i>Gyermek:</span>
+                    <button class="btn btn-sm btn-outline-dark py-0 px-2 chip-diak active" data-diak="" style="font-size: 0.78rem;">Mind</button>
+                    {% for d in diakok %}
+                    <button class="btn btn-sm btn-outline-dark py-0 px-2 chip-diak" data-diak="{{ d }}" style="font-size: 0.78rem;">{{ d }}</button>
+                    {% endfor %}
+                </div>
+                <button id="btnDashboardToList" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.8rem;">
+                    <i class="fa-solid fa-list-check me-1"></i>Események listája
+                </button>
+            </div>
+        </div>
+
         <!-- 1. FÜL: ISKOLAI ESEMÉNYEK -->
-        <div class="tab-pane fade show active" id="esemenyek-pane" role="tabpanel">
+        <div class="tab-pane fade" id="esemenyek-pane" role="tabpanel">
+            <button class="btn btn-sm btn-outline-secondary mb-2 btn-back-dashboard" type="button" style="font-size: 0.8rem;">
+                <i class="fa-solid fa-arrow-left me-1"></i>Vissza az áttekintésre
+            </button>
             <div class="table-container overflow-auto">
                 <table id="esemenyekTable" class="table table-striped table-hover w-100">
                     <thead>
@@ -805,6 +858,23 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <div class="card card-stat bg-white p-3 mb-3" id="atlagokCard">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                        <h6 class="fw-bold mb-0 text-secondary"><i class="fa-solid fa-table-cells me-2"></i>Tantárgyi átlagok (havi bontás)</h6>
+                        <small class="text-muted" id="atlagokOsszes"></small>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle mb-0" id="atlagokTable" style="font-size: 0.85rem;">
+                            <thead class="table-light"><tr id="atlagokHeadRow"></tr></thead>
+                            <tbody id="atlagokBody"></tbody>
+                        </table>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        A súlyozott átlag a jegyek súlyszázaléka szerint számol (a 0%-os súlyú jegy kimarad);
+                        az „Összes” oszlop a kiválasztott időszak egésze.
+                    </small>
                 </div>
 
                 <div id="rewardsNotEnabledAlert" class="alert alert-secondary d-none text-center p-2 mb-3">
@@ -1738,6 +1808,13 @@ $(document).ready(function() {
         let kezdoNum = kezdoStr ? parseInt(kezdoStr.replace(/-/g, ''), 10) : null;
         let zaroNum = zaroStr ? parseInt(zaroStr.replace(/-/g, ''), 10) : null;
 
+        // Rejtett határidő-szűrő (a dashboard csempéi állítják be, pl. heti határidők).
+        let hatKezdoStr = $('#filterHatKezdoDatum').val();
+        let hatZaroStr = $('#filterHatZaroDatum').val();
+        let hatKezdoNum = hatKezdoStr ? parseInt(hatKezdoStr.replace(/-/g, ''), 10) : null;
+        let hatZaroNum = hatZaroStr ? parseInt(hatZaroStr.replace(/-/g, ''), 10) : null;
+        updateHataridoFilterInfo(hatKezdoNum, hatZaroNum);
+
         let filteredData = rawData.filter(item => {
             if (statusFilter) {
                 let hNum = dateToNum(item.hatarido);
@@ -1756,23 +1833,87 @@ $(document).ready(function() {
                 }
             }
 
+            if (hatKezdoNum || hatZaroNum) {
+                let hNum = dateToNum(item.hatarido);
+                if (!hNum) return false;
+                if (hatKezdoNum && hNum < hatKezdoNum) return false;
+                if (hatZaroNum && hNum > hatZaroNum) return false;
+            }
+
             return true;
         });
 
         dataTable.clear().rows.add(filteredData).draw();
+    }
 
-        let cErtek = 0, cHazi = 0, cSzamon = 0, cFelj = 0;
-        filteredData.forEach(item => {
-            if (item.esemeny_tipus === 'Értékelés') cErtek++;
-            else if (item.esemeny_tipus === 'Házi feladat') cHazi++;
-            else if (item.esemeny_tipus === 'Bejelentett számonkérés') cSzamon++;
-            else if (item.esemeny_tipus === 'Feljegyzés') cFelj++;
+    function updateHataridoFilterInfo(kezdoNum, zaroNum) {
+        let $info = $('#hataridoFilterInfo');
+        if (!kezdoNum && !zaroNum) {
+            $info.addClass('d-none').empty();
+            return;
+        }
+        let fmt = (n) => {
+            let s = String(n);
+            return `${s.slice(0, 4)}. ${s.slice(4, 6)}. ${s.slice(6, 8)}.`;
+        };
+        let txt = 'Határidő-szűrő: ' + (kezdoNum ? fmt(kezdoNum) : '') +
+                  (zaroNum ? ' – ' + fmt(zaroNum) : '');
+        $info.removeClass('d-none').html(
+            `<i class="fa-solid fa-filter me-1"></i>${txt}
+             <button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline" id="btnClearHataridoFilter">törlés</button>`);
+    }
+
+    function fmtHonap(yyyymm) {
+        const parts = String(yyyymm || '').split('-');
+        if (parts.length !== 2) return yyyymm;
+        const nevek = ['jan.', 'febr.', 'márc.', 'ápr.', 'máj.', 'jún.',
+                       'júl.', 'aug.', 'szept.', 'okt.', 'nov.', 'dec.'];
+        const idx = parseInt(parts[1], 10) - 1;
+        return (nevek[idx] || parts[1]) + ' ' + String(parts[0]).slice(2);
+    }
+
+    function loadAtlagok(diak, kezdo, zaro) {
+        let url = `/api/atlagok?diak=${encodeURIComponent(diak || '')}` +
+                  `&kezdo_datum=${encodeURIComponent(kezdo || '')}` +
+                  `&zaro_datum=${encodeURIComponent(zaro || '')}`;
+        $.getJSON(url, function(res) {
+            const honapok = res.honapok || [];
+            const tantargyak = res.tantargyak || [];
+
+            let $head = $('#atlagokHeadRow').empty();
+            $head.append('<th style="min-width: 130px;">Tantárgy</th>');
+            honapok.forEach(function(h) {
+                $head.append(`<th class="text-center" style="min-width: 72px;">${fmtHonap(h)}</th>`);
+            });
+            $head.append('<th class="text-center" style="min-width: 72px;">Összes</th>');
+            $head.append('<th class="text-center" style="min-width: 48px;">db</th>');
+
+            let $body = $('#atlagokBody').empty();
+            if (!tantargyak.length) {
+                $body.append('<tr><td colspan="' + (honapok.length + 3) +
+                    '" class="text-center text-muted py-2">Nincs megjeleníthető jegy erre az időszakra.</td></tr>');
+            }
+            tantargyak.forEach(function(t) {
+                let html = `<tr><td class="fw-bold">${escapeHtml(t.tantargy)}</td>`;
+                honapok.forEach(function(h) {
+                    let m = (t.honapok || {})[h];
+                    html += `<td class="text-center">${m && m.atlag !== null ? m.atlag : '-'}</td>`;
+                });
+                html += `<td class="text-center fw-bold text-primary">${t.osszes && t.osszes.atlag !== null ? t.osszes.atlag : '-'}</td>`;
+                html += `<td class="text-center text-muted">${t.osszes ? t.osszes.db : 0}</td></tr>`;
+                $body.append(html);
+            });
+            if (tantargyak.length && res.osszes) {
+                let osszSor = '<tr class="table-light"><td class="fw-bold">Összesen</td>';
+                honapok.forEach(function() { osszSor += '<td></td>'; });
+                osszSor += `<td class="text-center fw-bold text-success">${res.osszes.atlag !== null ? res.osszes.atlag : '-'}</td>`;
+                osszSor += `<td class="text-center text-muted">${res.osszes.db}</td></tr>`;
+                $body.append(osszSor);
+            }
+            $('#atlagokOsszes').text(res.osszes && res.osszes.db
+                ? `Összesített átlag: ${res.osszes.atlag} (${res.osszes.db} jegy)`
+                : '');
         });
-
-        $('#statErtekeles').text(cErtek + ' db');
-        $('#statHazi').text(cHazi + ' db');
-        $('#statSzamonkeres').text(cSzamon + ' db');
-        $('#statFeljegyzes').text(cFelj + ' db');
     }
 
     function loadRewardsData() {
@@ -1803,6 +1944,8 @@ $(document).ready(function() {
 
             $('#rewardContainer').removeClass('d-none');
             $('#rewardDisabledAlert').addClass('d-none');
+
+            loadAtlagok(diak, kezdo, zaro);
 
             $('#cntJegy5').text(res.jegy_counts[5] + ' db');
             $('#cntJegy4').text(res.jegy_counts[4] + ' db');
@@ -1969,12 +2112,128 @@ $(document).ready(function() {
         $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(diak)}`, function(data) {
             rawUzenetek = data;
             uzenetekTable.clear().rows.add(data).draw();
-            $('#statUzenetek').text(data.length + ' db');
+            updateDashboard();
         });
 
         if ($('#rewards-tab').length > 0) {
             loadRewardsData();
         }
+        updateZsebpenzTile();
+    }
+
+    // ── Áttekintés (dashboard) ─────────────────────────────────────────────
+    function fmtFtShort(num) {
+        let n = Number(num) || 0;
+        return (n > 0 ? '+' : '') + n.toLocaleString('hu-HU') + ' Ft';
+    }
+
+    function dateToNumObj(d) {
+        return parseInt(fmtDate(d).replace(/-/g, ''), 10);
+    }
+
+    function updateDashboard() {
+        let today = new Date();
+        // Hétfő–vasárnap (a magyar iskolahét)
+        let weekStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        let napIdx = (weekStart.getDay() + 6) % 7;
+        weekStart.setDate(weekStart.getDate() - napIdx);
+        let weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+
+        let wsNum = dateToNumObj(weekStart);
+        let weNum = dateToNumObj(weekEnd);
+
+        let hataridok = 0;
+        rawData.forEach(function (item) {
+            if (item.esemeny_tipus !== 'Házi feladat' &&
+                item.esemeny_tipus !== 'Bejelentett számonkérés') return;
+            let hNum = dateToNum(item.hatarido);
+            if (hNum && hNum >= wsNum && hNum <= weNum) hataridok++;
+        });
+        $('#tileHataridokSzam').text(hataridok);
+        $('#tileHataridokInfo').text('házik / számonkérések ezen a héten');
+
+        let from7 = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
+        let f7Num = dateToNumObj(from7);
+
+        let ujJegy = 0;
+        rawData.forEach(function (item) {
+            if (item.esemeny_tipus !== 'Értékelés') return;
+            let d = dateToNum(item.bej_datum);
+            if (d && d >= f7Num) ujJegy++;
+        });
+        $('#tileUjJegyekSzam').text(ujJegy);
+
+        let ujUzenet = 0;
+        rawUzenetek.forEach(function (msg) {
+            let d = dateToNum(msg.idopont);
+            if (d && d >= f7Num) ujUzenet++;
+        });
+        $('#tileUjUzenetekSzam').text(ujUzenet);
+    }
+
+    function updateZsebpenzTile() {
+        if ($('#rewards-tab').length === 0) {
+            $('#tileZsebpenzSzam').text('-');
+            $('#tileZsebpenzInfo').text('a zsebpénz modul ki van kapcsolva');
+            return;
+        }
+        let diakok = $('#filterDiak option').map(function () { return this.value; }).get().filter(Boolean);
+        if (!diakok.length) return;
+
+        let now = new Date();
+        let y = now.getFullYear();
+        let m = now.getMonth() + 1;
+        let kezdo = `${y}-${String(m).padStart(2, '0')}-01`;
+        let utolso = new Date(y, m, 0).getDate();
+        let zaro = `${y}-${String(m).padStart(2, '0')}-${String(utolso).padStart(2, '0')}`;
+
+        let osszeg = 0, db = 0, kesz = 0;
+        diakok.forEach(function (d) {
+            $.getJSON(`/api/statisztika?diak=${encodeURIComponent(d)}&kezdo_datum=${kezdo}&zaro_datum=${zaro}`)
+                .done(function (res) {
+                    if (res && res.enabled && res.rewards_enabled && !res.kifizetve && res.vegosszeg) {
+                        osszeg += Number(res.vegosszeg) || 0;
+                        db++;
+                    }
+                })
+                .always(function () {
+                    kesz++;
+                    if (kesz === diakok.length) {
+                        $('#tileZsebpenzSzam').text(fmtFtShort(osszeg));
+                        $('#tileZsebpenzInfo').text(db
+                            ? db + ' gyermeknél van elszámolatlan tétel (ebben a hónapban)'
+                            : 'nincs kifizetetlen tétel ebben a hónapban');
+                    }
+                });
+        });
+    }
+
+    function showMainTab(tabId) {
+        let el = document.getElementById(tabId);
+        if (el) bootstrap.Tab.getOrCreateInstance(el).show();
+    }
+
+    function setDiakFilter(value) {
+        let v = value || '';
+        $('#filterDiak').val(v).trigger('change');
+        $('.chip-diak').removeClass('active').filter(function () {
+            return ($(this).data('diak') || '') === v;
+        }).addClass('active');
+    }
+
+    function goToEvents(opts) {
+        opts = opts || {};
+        if (opts.diak !== undefined) $('#filterDiak').val(opts.diak || '');
+        if (opts.tipus !== undefined) $('#filterTipus').val(opts.tipus || '');
+        if (opts.tantargy !== undefined) $('#filterTantargy').val(opts.tantargy || '');
+        if (opts.status !== undefined) $('#filterStatus').val(opts.status || '');
+        if (opts.kezdo !== undefined) $('#filterBejKezdoDatum').val(opts.kezdo || '');
+        if (opts.zaro !== undefined) $('#filterBejZaroDatum').val(opts.zaro || '');
+        if (opts.hatKezdo !== undefined) $('#filterHatKezdoDatum').val(opts.hatKezdo || '');
+        if (opts.hatZaro !== undefined) $('#filterHatZaroDatum').val(opts.hatZaro || '');
+        showMainTab('esemenyek-tab');
+        loadData();   // a szerveroldali (diák/típus/tantárgy) szűrő miatt
     }
 
     // ── Ütemező visszajelzése a fejlécben ───────────────────────────────────
@@ -2177,9 +2436,16 @@ $(document).ready(function() {
         let collapseFilterInstance = bootstrap.Collapse.getInstance(collapseFilterEl) || new bootstrap.Collapse(collapseFilterEl, { toggle: false });
 
         if (e.target.id === 'esemenyek-tab') {
+            $('#accordionFilterBlock').removeClass('d-none');
             collapseFilterInstance.show();
         } else {
+            $('#accordionFilterBlock').addClass('d-none');
             collapseFilterInstance.hide();
+        }
+
+        if (e.target.id === 'attekintes-tab') {
+            updateDashboard();
+            updateZsebpenzTile();
         }
 
         // A rejtett fülben inicializált táblázatoknál a Responsive nem tud
@@ -2311,6 +2577,11 @@ $(document).ready(function() {
 
         $('#filterBejKezdoDatum').val('');
         $('#filterBejZaroDatum').val('');
+        $('#filterHatKezdoDatum').val('');
+        $('#filterHatZaroDatum').val('');
+        $('.chip-diak').removeClass('active').filter(function () {
+            return ($(this).data('diak') || '') === '';
+        }).addClass('active');
 
         $('#naptarFilterDiak').val('');
         $('#orarendFilterDiak').val('');
@@ -2318,6 +2589,62 @@ $(document).ready(function() {
         loadData();
         if (orarendCalendar) orarendCalendar.refetchEvents();
         if (calendar) calendar.refetchEvents();
+    });
+
+    // ── Dashboard: csempék, gyermek-chipek, visszalépés ────────────────────
+    $('#filterDiakChips, #dashboardDiakChips').on('click', '.chip-diak', function() {
+        setDiakFilter($(this).data('diak') || '');
+    });
+
+    $(document).on('click', '#btnClearHataridoFilter', function() {
+        $('#filterHatKezdoDatum').val('');
+        $('#filterHatZaroDatum').val('');
+        applyFilters();
+    });
+
+    function weekRange() {
+        let today = new Date();
+        let ws = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        ws.setDate(ws.getDate() - ((ws.getDay() + 6) % 7));
+        let we = new Date(ws);
+        we.setDate(ws.getDate() + 6);
+        return { kezdo: fmtDate(ws), zaro: fmtDate(we) };
+    }
+
+    function lastNDaysRange(days) {
+        let today = new Date();
+        let from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - days);
+        return { kezdo: fmtDate(from), zaro: fmtDate(today) };
+    }
+
+    $('#tileHataridok').on('click keydown', function(e) {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        let r = weekRange();
+        let diak = $('.chip-diak.active').first().data('diak') || '';
+        goToEvents({ diak: diak, tipus: '', status: 'aktiv', kezdo: '', zaro: '',
+                     hatKezdo: r.kezdo, hatZaro: r.zaro });
+    });
+
+    $('#tileUjJegyek').on('click keydown', function(e) {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        let r = lastNDaysRange(7);
+        let diak = $('.chip-diak.active').first().data('diak') || '';
+        goToEvents({ diak: diak, tipus: 'Értékelés', status: '', kezdo: r.kezdo, zaro: r.zaro,
+                     hatKezdo: '', hatZaro: '' });
+    });
+
+    $('#tileUjUzenetek').on('click keydown', function(e) {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        showMainTab('uzenetek-tab');
+    });
+
+    $('#tileZsebpenz').on('click keydown', function(e) {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        showMainTab('rewards-tab');
+    });
+
+    $('.btn-back-dashboard, #btnDashboardToList').on('click', function() {
+        showMainTab($(this).hasClass('btn-back-dashboard') ? 'attekintes-tab' : 'esemenyek-tab');
     });
 
     $('#uzenetekTable').on('click', '.btn-read-msg', function() {
