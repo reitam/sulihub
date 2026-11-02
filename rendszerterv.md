@@ -1,5 +1,11 @@
 # 📋 KRÉTA Adatlekérő és Webes Áttekintő – Követelményjegyzék és Rendszerterv
 
+> **Megjegyzés (2026-11-02):** ez a dokumentum a **kezdeti követelményjegyzet**
+> (Playwright-alapú architektúra). A jelenlegi állapot — **API-first szinkron API-ból,
+> Playwright fallbackkel**, Áttekintés dashboard, súlyozott átlagok, tantárgyi bontás,
+> statisztika — a **[DOKUMENTACIO.md](DOKUMENTACIO.md)**-ban van leírva; ez a fájl
+> történeti referenciának marad.
+
 ## 1. Rendszerarchitektúra és Infrastruktúra
 * **Adatbázis-kezelő:** Központi, helyi **SQLite** adatbázis (`kreta_adatok.db`) használata az adatok tartós tárolására.
 * **Scraper keretrendszer:** **Playwright** (Python `async_playwright`) használata a böngésző-automatizációhoz és a Kendo Grid felületek kezeléséhez.
