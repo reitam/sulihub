@@ -539,7 +539,13 @@ köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data k�
 | `/api/scheduler/status` | ütemező állapota, következő futás, utolsó futás |
 | `/api/statisztika` | diákonkénti statisztika (jegyeloszlás, súlyozott átlag, zsebpénz, tételes lista) |
 | `/api/atlagok` | tantárgyi és havi átlagok (a Statisztika fül adatforrása) |
+| `/api/tanevek` | a DB-ben előforduló tanévek, az aktuális tanév és a határok |
 | `/api/dashboard` | Áttekintés fül összesítői (diákonkénti átlag, kifizetetlen egyenleg, igazolatlan óra) |
+
+**Tanév-szűrő (Kaneo #40):** a `/api/esemenyek`, `/api/hianyzasok`, `/api/igazolasok`,
+`/api/atlagok`, `/api/statisztika`, `/api/dashboard` végpontok `?tanev=` paramétert fogadnak:
+üres vagy `all` = **összes tanév** (visszafelé kompatibilis), `current` = a naptár szerinti
+aktuális tanév, egyébként pl. `2026/2027`. A válaszok `tanev` mezőt is tartalmaznak.
 | Rendszernapló fül / `sync.log` | részletes futási napló (rotált, max. 1 MB/példány) |
 | `sync_runs` tábla | strukturált futástörténet |
 | `deploy.log` / `version.txt` | telepített verzió |
@@ -614,7 +620,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **731 automatikus ellenőrzés** huszonnégy csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **745 automatikus ellenőrzés** huszonöt csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,

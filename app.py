@@ -1340,6 +1340,7 @@ def api_esemenyek():
     diak = request.args.get("diak", "")
     tipus = request.args.get("tipus", "")
     tantargy = request.args.get("tantargy", "")
+    tanev = _tanev_from_request()
 
     query = "SELECT * FROM esemenyek WHERE 1=1"
     params = []
@@ -1353,6 +1354,9 @@ def api_esemenyek():
     if tantargy:
         query += " AND tantargy = ?"
         params.append(tantargy)
+    if tanev:
+        query += " AND tanev = ?"
+        params.append(tanev)
 
     query += " ORDER BY id DESC"
 
@@ -1372,6 +1376,7 @@ def api_esemenyek():
             "ertek": r["ertek"] or "-",
             "szam_ertek": r["szam_ertek"] or 0,
             "suly_szazalek": (r["suly_szazalek"] or 0) if "suly_szazalek" in keys else 0,
+            "tanev": (r["tanev"] or "") if "tanev" in keys else "",
             "bej_datum": r["bej_datum"] or "-",
             "hatarido": r["hatarido"] or "-",
             "ertekelo": r["ertekelo"] or "-",
@@ -2022,6 +2027,66 @@ def _date_range_from_request():
     return kezdo or None, zaro or None
 
 
+def _tanev_from_request() -> str:
+    """A `tanev` query param (Kaneo #40).
+
+    Üres / ``all`` = **összes tanév** (visszafelé kompatibilis alap), ``current`` =
+    a naptár szerinti aktuális tanév, egyébként a megadott érték (pl. ``2026/2027``).
+    """
+    raw = (request.args.get("tanev") or "").strip()
+    if raw.lower() in ("", "all", "osszes", "összes"):
+        return ""
+    if raw.lower() == "current":
+        return kreta_tanev.current_tanev()
+    return raw
+
+
+def _has_tanev_column(cursor, table: str) -> bool:
+    try:
+        return any(row[1] == "tanev" for row in cursor.execute(f"PRAGMA table_info({table})"))
+    except sqlite3.Error:
+        return False
+
+
+@app.route("/api/tanevek")
+def api_tanevek():
+    """A DB-ben előforduló tanévek, az aktuális tanév és a határok (Kaneo #40)."""
+    aktualis = kreta_tanev.current_tanev()
+    empty = {"tanevek": [], "aktualis": aktualis, "hatarok": {}, "ismeretlen_db": 0}
+    if not os.path.exists(DB_FILE):
+        return jsonify(empty)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    tanevek = set()
+    ismeretlen = 0
+    for table in ("esemenyek", "hianyzasok", "igazolasok", "uzenetek", "kifizetesek"):
+        if not _has_tanev_column(cursor, table):
+            continue
+        try:
+            rows = cursor.execute(
+                f"SELECT tanev, COUNT(*) FROM {table} WHERE tanev IS NOT NULL GROUP BY tanev"
+            ).fetchall()
+        except sqlite3.Error:
+            continue
+        for row in rows:
+            if row[0]:
+                tanevek.add(row[0])
+            else:
+                ismeretlen += row[1]
+    conn.close()
+
+    hatarok = {}
+    for tanev in tanevek:
+        kezd, veg = kreta_tanev.tanev_bounds(tanev)
+        hatarok[tanev] = {
+            "kezdo": kezd.isoformat() if kezd else "",
+            "zaro": veg.isoformat() if veg else "",
+        }
+    return jsonify({"tanevek": sorted(tanevek), "aktualis": aktualis,
+                    "hatarok": hatarok, "ismeretlen_db": ismeretlen})
+
+
 @app.route("/api/dashboard")
 def api_dashboard():
     """Dashboard összesítők (Kaneo #38).
@@ -2048,6 +2113,9 @@ def api_dashboard():
         "felszereles_hiany": ["felszerelés hiány", "felszerelése hiányzott", "felszereléshiány"]
     })
     diak_param = request.args.get("diak", "")
+    tanev_szuro = _tanev_from_request()
+    tanev_clause = " AND tanev = ?" if tanev_szuro else ""
+    tanev_vals = (tanev_szuro,) if tanev_szuro else ()
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -2056,13 +2124,15 @@ def api_dashboard():
         try:
             cursor.execute(
                 "SELECT szam_ertek, suly_szazalek FROM esemenyek"
-                " WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'", (nev,))
+                " WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'" + tanev_clause,
+                (nev,) + tanev_vals)
             rows = cursor.fetchall()
             has_suly = True
         except sqlite3.Error:
             cursor.execute(
                 "SELECT szam_ertek FROM esemenyek"
-                " WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'", (nev,))
+                " WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'" + tanev_clause,
+                (nev,) + tanev_vals)
             rows = cursor.fetchall()
             has_suly = False
         osszeg = 0
@@ -2088,14 +2158,16 @@ def api_dashboard():
         total = 0
         cursor.execute(
             "SELECT szam_ertek FROM esemenyek"
-            " WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'", (nev,))
+            " WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'" + tanev_clause,
+            (nev,) + tanev_vals)
         for r in cursor.fetchall():
             val = r["szam_ertek"]
             if val in (1, 2, 3, 4, 5):
                 total += rewards.get(f"jegy_{val}", 0)
         cursor.execute(
             "SELECT cim, tartalom FROM esemenyek"
-            " WHERE diak_nev = ? AND esemeny_tipus = 'Feljegyzés'", (nev,))
+            " WHERE diak_nev = ? AND esemeny_tipus = 'Feljegyzés'" + tanev_clause,
+            (nev,) + tanev_vals)
         for r in cursor.fetchall():
             text = f"{r['cim'] or ''} {r['tartalom'] or ''}".lower()
             for cat, kw_list in keywords.items():
@@ -2107,7 +2179,8 @@ def api_dashboard():
         try:
             cursor.execute(
                 "SELECT COALESCE(SUM(osszeg), 0) AS s FROM kifizetesek"
-                " WHERE diak_nev = ? AND kifizetve = 1", (nev,))
+                " WHERE diak_nev = ? AND kifizetve = 1" + tanev_clause,
+                (nev,) + tanev_vals)
             row = cursor.fetchone()
             return int(row["s"] or 0)
         except sqlite3.Error:
@@ -2136,11 +2209,14 @@ def api_dashboard():
         })
 
     try:
-        query = "SELECT * FROM hianyzasok"
+        query = "SELECT * FROM hianyzasok WHERE 1=1"
         params = []
         if diak_param:
-            query += " WHERE diak_nev = ?"
+            query += " AND diak_nev = ?"
             params.append(diak_param)
+        if tanev_szuro:
+            query += " AND tanev = ?"
+            params.append(tanev_szuro)
         cursor.execute(query, params)
         hianyzas_rows = [dict(r) for r in cursor.fetchall()]
         igazolatlan = hianyzas_osszesito(hianyzas_rows)["igazolatlan_ora"]
@@ -2164,12 +2240,16 @@ def api_hianyzasok():
 
     diak = request.args.get("diak", "")
     kezdo, zaro = _date_range_from_request()
+    tanev = _tanev_from_request()
 
     query = "SELECT * FROM hianyzasok WHERE 1=1"
     params = []
     if diak:
         query += " AND diak_nev = ?"
         params.append(diak)
+    if tanev:
+        query += " AND tanev = ?"
+        params.append(tanev)
     if kezdo:
         query += " AND mulasztas_datum >= ?"
         params.append(kezdo)
@@ -2202,12 +2282,16 @@ def api_igazolasok():
 
     diak = request.args.get("diak", "")
     kezdo, zaro = _date_range_from_request()
+    tanev = _tanev_from_request()
 
     query = "SELECT * FROM igazolasok WHERE 1=1"
     params = []
     if diak:
         query += " AND diak_nev = ?"
         params.append(diak)
+    if tanev:
+        query += " AND tanev = ?"
+        params.append(tanev)
     # A hónaphoz kapcsolódó igazolások: az intervallum metszi a hónapot.
     if kezdo:
         query += " AND (vege IS NULL OR vege = '' OR vege >= ?)"
@@ -2253,6 +2337,7 @@ def api_atlagok():
     diak = request.args.get("diak", "")
     kezdo_datum = request.args.get("kezdo_datum", "")
     zaro_datum = request.args.get("zaro_datum", "")
+    tanev_szuro = _tanev_from_request()
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -2262,6 +2347,9 @@ def api_atlagok():
     if diak:
         query += " AND diak_nev = ?"
         params.append(diak)
+    if tanev_szuro:
+        query += " AND tanev = ?"
+        params.append(tanev_szuro)
     try:
         cursor.execute(query, params)
         rows = cursor.fetchall()
@@ -2356,6 +2444,8 @@ def api_atlagok():
         # Havi TELJES átlag (minden tantárgy együtt) - a fa középső szintje.
         "honap_osszes": {h: summarize_light(v) for h, v in sorted(per_honap.items())},
         "osszes": summarize_light(mind),
+        "tanev": tanev_szuro,
+        "aktualis_tanev": kreta_tanev.current_tanev(),
     })
 
 
@@ -2372,6 +2462,7 @@ def api_statisztika():
     diak = request.args.get("diak", "")
     kezdo_datum = request.args.get("kezdo_datum", "")
     zaro_datum = request.args.get("zaro_datum", "")
+    tanev_szuro = _tanev_from_request()
 
     student_enable = True
     students = config.get("STUDENTS", [])
@@ -2403,6 +2494,9 @@ def api_statisztika():
     if diak:
         jegy_query += " AND diak_nev = ?"
         params.append(diak)
+    if tanev_szuro:
+        jegy_query += " AND tanev = ?"
+        params.append(tanev_szuro)
 
     cursor.execute(jegy_query, params)
     jegy_rows = cursor.fetchall()
@@ -2475,6 +2569,9 @@ def api_statisztika():
     if diak:
         felj_query += " AND diak_nev = ?"
         f_params.append(diak)
+    if tanev_szuro:
+        felj_query += " AND tanev = ?"
+        f_params.append(tanev_szuro)
 
     cursor.execute(felj_query, f_params)
     felj_rows = cursor.fetchall()
