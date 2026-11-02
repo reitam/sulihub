@@ -2015,6 +2015,140 @@ def _date_range_from_request():
     return kezdo or None, zaro or None
 
 
+@app.route("/api/dashboard")
+def api_dashboard():
+    """Dashboard összesítők (Kaneo #38).
+
+    - diákonkénti **tanulmányi átlag** (teljes időszak, súlyozva),
+    - **zsebpénz-egyenleg**: a teljes időszak egyenlege mínusz a már kifizetett
+      időszakok rögzített összegei (a maradék a „kifizetetlen”),
+    - **igazolatlan hiányzás** órában (a hiányzások fül összesítőjével azonos logika).
+    """
+    empty = {"enabled": True, "diakok": [], "osszes_hatralevo": 0, "igazolatlan_ora": 0}
+    if not os.path.exists(DB_FILE):
+        return jsonify(empty)
+
+    config = load_config()
+    global_enable = config.get("ENABLE_REWARDS", True)
+    rewards = config.get("REWARDS", {
+        "jegy_5": 500, "jegy_4": 200, "jegy_3": 0, "jegy_2": -200, "jegy_1": -500,
+        "dicseret": 500, "megrovas": -500, "lecke_hiany": -300, "felszereles_hiany": -300
+    })
+    keywords = config.get("KEYWORDS", {
+        "dicseret": ["dicséret", "dicséretben", "kiemelkedő"],
+        "megrovas": ["intő", "megrovás", "figyelmeztetés"],
+        "lecke_hiany": ["házi feladat hiány", "házi hiány", "lecke hiány", "nem készített házi"],
+        "felszereles_hiany": ["felszerelés hiány", "felszerelése hiányzott", "felszereléshiány"]
+    })
+    diak_param = request.args.get("diak", "")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    def jegy_atlag(nev):
+        try:
+            cursor.execute(
+                "SELECT szam_ertek, suly_szazalek FROM esemenyek"
+                " WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'", (nev,))
+            rows = cursor.fetchall()
+            has_suly = True
+        except sqlite3.Error:
+            cursor.execute(
+                "SELECT szam_ertek FROM esemenyek"
+                " WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'", (nev,))
+            rows = cursor.fetchall()
+            has_suly = False
+        osszeg = 0
+        db = 0
+        suly_sum = 0
+        sulyozott = 0.0
+        for r in rows:
+            val = r["szam_ertek"]
+            if val not in (1, 2, 3, 4, 5):
+                continue
+            db += 1
+            osszeg += val
+            suly = (r["suly_szazalek"] if has_suly else 0) or 0
+            if suly > 0:
+                suly_sum += suly
+                sulyozott += val * suly
+        if not db:
+            return None, 0
+        return (round(sulyozott / suly_sum, 2) if suly_sum else round(osszeg / db, 2)), db
+
+    def teljes_egyenleg(nev):
+        """A teljes időszak zsebpénz-egyenlege (minden jegy és feljegyzés)."""
+        total = 0
+        cursor.execute(
+            "SELECT szam_ertek FROM esemenyek"
+            " WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'", (nev,))
+        for r in cursor.fetchall():
+            val = r["szam_ertek"]
+            if val in (1, 2, 3, 4, 5):
+                total += rewards.get(f"jegy_{val}", 0)
+        cursor.execute(
+            "SELECT cim, tartalom FROM esemenyek"
+            " WHERE diak_nev = ? AND esemeny_tipus = 'Feljegyzés'", (nev,))
+        for r in cursor.fetchall():
+            text = f"{r['cim'] or ''} {r['tartalom'] or ''}".lower()
+            for cat, kw_list in keywords.items():
+                if any(kw in text for kw in kw_list):
+                    total += rewards.get(cat, 0)
+        return total
+
+    def kifizetett_osszeg(nev):
+        try:
+            cursor.execute(
+                "SELECT COALESCE(SUM(osszeg), 0) AS s FROM kifizetesek"
+                " WHERE diak_nev = ? AND kifizetve = 1", (nev,))
+            row = cursor.fetchone()
+            return int(row["s"] or 0)
+        except sqlite3.Error:
+            return 0
+
+    diakok = []
+    osszes_hatralevo = 0
+    for s in config.get("STUDENTS", []):
+        nev = s.get("diak_nev")
+        if not nev or (diak_param and nev != diak_param):
+            continue
+        atlag, jegy_db = jegy_atlag(nev)
+        rewards_enabled = bool(global_enable) and bool(s.get("enable_rewards", True))
+        teljes = teljes_egyenleg(nev) if rewards_enabled else 0
+        fizetve = kifizetett_osszeg(nev) if rewards_enabled else 0
+        hatralevo = teljes - fizetve
+        osszes_hatralevo += hatralevo
+        diakok.append({
+            "diak": nev,
+            "atlag": atlag,
+            "jegy_db": jegy_db,
+            "teljes_egyenleg": teljes,
+            "kifizetve_osszeg": fizetve,
+            "hatralevo": hatralevo,
+            "rewards_enabled": rewards_enabled,
+        })
+
+    try:
+        query = "SELECT * FROM hianyzasok"
+        params = []
+        if diak_param:
+            query += " WHERE diak_nev = ?"
+            params.append(diak_param)
+        cursor.execute(query, params)
+        hianyzas_rows = [dict(r) for r in cursor.fetchall()]
+        igazolatlan = hianyzas_osszesito(hianyzas_rows)["igazolatlan_ora"]
+    except sqlite3.Error:
+        igazolatlan = 0
+
+    conn.close()
+    return jsonify({
+        "enabled": True,
+        "diakok": diakok,
+        "osszes_hatralevo": osszes_hatralevo,
+        "igazolatlan_ora": igazolatlan,
+    })
+
+
 @app.route("/api/hianyzasok")
 def api_hianyzasok():
     empty = {"rows": [], "osszesito": hianyzas_osszesito([])}

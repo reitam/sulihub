@@ -86,6 +86,28 @@ for diak, tipus, tantargy, ertek, szam, suly, datum in ROWS:
         " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
         (diak, tipus, tantargy, ertek, szam, suly, datum, "", "Tanár", "Évközi jegy",
          "Írásbeli", "Téma", "Dicséret" if tipus == "Feljegyzés" else "", ""))
+conn.execute("""
+    CREATE TABLE IF NOT EXISTS kifizetesek (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        diak_nev TEXT NOT NULL,
+        kezdo_datum TEXT NOT NULL,
+        zaro_datum TEXT NOT NULL,
+        kifizetve INTEGER DEFAULT 0,
+        osszeg INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(diak_nev, kezdo_datum, zaro_datum)
+    )
+""")
+conn.execute(
+    "INSERT INTO kifizetesek (diak_nev, kezdo_datum, zaro_datum, kifizetve, osszeg)"
+    " VALUES (?,?,?,?,?)", ("Sulyos", "2026-09-01", "2026-09-30", 1, 500))
+for i, igazolt in enumerate([0, 0, 1]):
+    conn.execute(
+        "INSERT INTO hianyzasok (diak_nev, mulasztas_datum, ora_sorszam, perc, tantargy,"
+        " tema, tanar, mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus,"
+        " rogzites_datum, kreta_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        ("Sulyos", f"2026-10-0{i + 1}", i + 1, None, "Matematika", "Téma", "Tanár",
+         "Hiányzás", igazolt, "Nem", "", "2026-10-01", f"h{i}"))
 conn.commit()
 conn.close()
 
@@ -165,6 +187,23 @@ try:
        f"összesített: {atl.get('osszes')}")
     atl_okt = get_json("/api/atlagok?diak=Sulyos&kezdo_datum=2026-10-01&zaro_datum=2026-10-31")
     ok(atl_okt.get("honapok") == ["2026-10"], f"októberi szűrés: {atl_okt.get('honapok')}")
+    print("\n6) Dashboard összesítő (/api/dashboard, Kaneo #38)")
+    dash = get_json("/api/dashboard?diak=Sulyos")
+    d0 = (dash.get("diakok") or [{}])[0]
+    ok(d0.get("atlag") == 4.5 and d0.get("jegy_db") == 4,
+       f"diákonkénti teljes időszaki átlag: {d0.get('atlag')} / {d0.get('jegy_db')} jegy")
+    ok(d0.get("teljes_egyenleg") == 1700,
+       f"teljes egyenleg (2×500 + 200 + dicséret 500): {d0.get('teljes_egyenleg')}")
+    ok(d0.get("kifizetve_osszeg") == 500, f"kifizetett összeg: {d0.get('kifizetve_osszeg')}")
+    ok(d0.get("hatralevo") == 1200, f"kifizetetlen (1700-500): {d0.get('hatralevo')}")
+    ok(dash.get("igazolatlan_ora") == 2, f"igazolatlan óra: {dash.get('igazolatlan_ora')}")
+    dash_all = get_json("/api/dashboard")
+    ok(len(dash_all.get("diakok") or []) == 3, "diák nélkül mind a 3 diák")
+    nz_dash = get_json("/api/dashboard?diak=NincsZsebpenz")
+    nz0 = (nz_dash.get("diakok") or [{}])[0]
+    ok(nz0.get("rewards_enabled") is False and nz0.get("hatralevo") == 0,
+       "kikapcsolt zsebpénznél 0 egyenleg")
+    ok(nz0.get("atlag") == 4.67, f"az átlag kikapcsolt zsebpénznél is él: {nz0.get('atlag')}")
 finally:
     proc.terminate()
     try:

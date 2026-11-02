@@ -48,9 +48,10 @@ a saját szerveren maradnak.
 - Tantárgy szerinti színkódolás, egész napos események külön sávban.
 
 ### 🧭 Áttekintés (dashboard)
-- Nyitó fül 4 kattintható csempével: **heti határidők**, **új jegyek** (7 nap),
-  **új üzenetek** (7 nap), **kifizetetlen zsebpénz** — a csempére kattintva a megfelelő,
-  előre szűrt nézet nyílik; gyermekváltás egy kattintással (chipek).
+- Nyitó fül **5 kattintható csempével**: **heti határidők**, **új jegyek** (7 nap),
+  **új üzenetek** (7 nap), **igazolatlan hiányzás** (óra), **kifizetetlen zsebpénz**
+  (teljes egyenleg mínusz a kifizetett időszakok) — a csempére kattintva a megfelelő nézet
+  nyílik; **gyermekenkénti kártyák** (átlag + egyenleg); gyermekváltás egy kattintással.
 
 ### 📊 Iskolai események
 - DataTables táblázat: szűrés gyermek, típus, tantárgy, aktív/lejárt, dátumtartomány szerint;
@@ -86,8 +87,9 @@ a saját szerveren maradnak.
 - **Súlyozott tanulmányi átlag** a jegyek súlyszázaléka szerint (0%-os súly kimarad;
   súlyadat nélkül egyszerű átlag). A statisztika **kikapcsolt zsebpénz mellett is működik** —
   ilyenkor csak a pénz-kártya rejtve, figyelmeztető sávval.
-- **Tantárgyi átlagok havi bontással:** tantárgy × hónap táblázat, „Összes" oszloppal
-  és jegy-darabszámmal.
+- **Tantárgyi átlagok havi bontással:** alapból zárt accordion a Statisztika fülön —
+  kinyitva tantárgy × hónap táblázat „Összes" oszloppal; **mobilon** kártyás nézet,
+  a hónapok jelvényként (nincs vízszintes görgetés).
 
 ### 📱 Mobilra optimalizált UI
 - Redmi 12/13/14 méreten (393 CSS px) ellenőrizve: nincs vízszintes túlcsordulás.
@@ -326,7 +328,7 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**21 csomag, 596 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**21 csomag, 611 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
