@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v1.5.1`
+**Jelenlegi verzió:** `v1.6.3`
 
 ---
 
@@ -357,7 +357,7 @@ Az éles környezet a HPReiTam Linux szerveren fut Dockerben, **csak belső hál
 ```powershell
 net use h: \\HPReiTam\HP_Share /user:reitam     # ha még nincs
 cd c:\ReiTam\AI\Gemini\Kreta
-.\deploy.ps1 -Release v1.5.1
+.\deploy.ps1 -Release v1.6.3
 ```
 
 A script jelszót kér az SSH-hoz. Hibánál **nem** ír „sikeres"-t (nem-nulla kilépési kód).
@@ -393,6 +393,7 @@ telepíti a mentő-cront.
 
 | Verzió | Tartalom |
 |---|---|
+| v1.6.x | **API-first szinkron** (böngésző nélküli mobil API, Playwright fallback, token-tár), **Áttekintés dashboard** kattintható csempékkel, **jegy-súlyszázalék** + **súlyozott tanulmányi átlag**, **tantárgyi átlagok havi bontással** (mobilon kapcsoló), adatvédelem a teljes cserés mentésnél, DB-séma őr |
 | v1.5.x | **Hiányzások / késések modul** (havi összesítő, igazolások, push-ban az igazolatlan órák), v1.5.1: „Összes hiányzás" órában + teljes szövegű igazolás-típus |
 | v1.4.x | **Mobilra optimalizált felület** (napi naptárnézet, összecsukható táblázatok, avatárok, tördelődő fülek) |
 | v1.3.x | Futásnapló a DB-ben (`sync_runs`), WAL opt-in, teljes `DOKUMENTACIO.md` |
