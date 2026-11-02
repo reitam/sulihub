@@ -130,8 +130,9 @@ ok(count("esemenyek", "Értékelés") == 1, "1 jegy maradt")
 
 os.environ["KRETA_SYNC_MIN_RATIO"] = "0"
 r = k.save_esemenyek_by_type("Teszt", [], set(), ["Értékelés"])
-ok(not r["blocked"], "0 küszöb = a védelem kikapcsolva (üres lista törölhet)")
-ok(count("esemenyek", "Értékelés") == 0, "a jegyek törlődtek")
+ok("Értékelés" in r["blocked"],
+   "0 küszöb mellett is véd az üres lista (Kaneo #40: üres batch soha nem töröl)")
+ok(count("esemenyek", "Értékelés") == 1, "a jegy megmaradt")
 os.environ.pop("KRETA_SYNC_MIN_RATIO", None)
 
 print("\n6) A Playwright-út is véd (nincs kivétel)")
