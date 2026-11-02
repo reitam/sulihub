@@ -11,6 +11,7 @@ import socket
 import time
 import urllib.request
 from datetime import datetime, timedelta
+import kreta_tanev
 
 # ReportLab importok a PDF generáláshoz
 from reportlab.lib.pagesizes import A4, landscape
@@ -544,7 +545,13 @@ def init_db_extensions():
             if "suly_szazalek" not in columns:
                 cursor.execute("ALTER TABLE esemenyek ADD COLUMN suly_szazalek INTEGER")
                 print("[Adatbázis séma frissítve]: 'suly_szazalek' oszlop hozzáadva az 'esemenyek' táblához.")
-                
+
+            # Tanév-dimenzió (Kaneo #40): oszlopok + a meglévő sorok feltöltése.
+            added = kreta_tanev.ensure_tanev_schema(conn, log_fn=print)
+            if added:
+                print(f"[Adatbázis séma frissítve]: tanév-oszlopok: {', '.join(added)}")
+            kreta_tanev.backfill_tanev(conn, log_fn=print, batch=200)
+
             conn.commit()
             conn.close()
         except Exception as e:

@@ -13,7 +13,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-TESTS = ["test_scheduler.py", "test_a_package.py", "test_pdf_fonts.py", "test_paths.py", "test_new_events.py", "test_migration.py", "test_db_bootstrap.py", "test_deploy.py", "test_ntfy_config.py", "test_hianyzasok.py", "test_api_client.py", "test_api_sync.py", "test_sync_mode.py", "test_shadow.py", "test_data_guard.py", "test_db_guard.py", "test_jegy_suly.py", "test_statisztika.py", "test_oszlop_szelesseg.py", "test_dashboard.py", "test_mobile_layout.py"]
+TESTS = ["test_scheduler.py", "test_a_package.py", "test_pdf_fonts.py", "test_paths.py", "test_new_events.py", "test_migration.py", "test_db_bootstrap.py", "test_deploy.py", "test_ntfy_config.py", "test_hianyzasok.py", "test_api_client.py", "test_api_sync.py", "test_sync_mode.py", "test_shadow.py", "test_data_guard.py", "test_db_guard.py", "test_jegy_suly.py", "test_tanev.py", "test_tanev_migration.py", "test_statisztika.py", "test_oszlop_szelesseg.py", "test_dashboard.py", "test_mobile_layout.py"]
 # A tesztek "→" és ékezetes szöveget írnak a kimenetre; cp1250 konzolon ez
 # UnicodeEncodeError-ral elszállna, ezért a gyerekeket UTF-8-ra kényszerítjük.
 CHILD_ENV = os.environ.copy()

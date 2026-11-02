@@ -140,6 +140,57 @@ r = k.save_esemenyek_by_type("Teszt", [], set(), ["Feljegyzés"])
 ok("Feljegyzés" in r["blocked"] and count("esemenyek", "Feljegyzés") == 1,
    "a webes mentésnél is megmarad a sor")
 
+print("\n7) Igazolások: adatvédelem (Kaneo #42)")
+
+
+def igazolas(i, kezdet="2026. 06. 10."):
+    return {"kreta_id": f"i{i}", "kezdete": kezdet, "vege": "2026. 06. 12.",
+            "igazolas_tipus": "Orvosi igazolás", "megjegyzes": ""}
+
+
+k.save_igazolasok_to_db("Teszt", [igazolas(1), igazolas(2), igazolas(3)])
+ok(count("igazolasok") == 3, f"3 igazolás a DB-ben: {count('igazolasok')}")
+r = k.save_igazolasok_to_db("Teszt", [])
+ok(r["blocked"].get("igazolasok", {}).get("old") == 3, f"üres lista -> blokkolt: {r['blocked']}")
+ok(count("igazolasok") == 3, "a 3 igazolás megmaradt")
+r = k.save_igazolasok_to_db("Teszt", [igazolas(4)])
+ok("igazolasok" in r["blocked"], "1 sor a 3 helyett (50% alatt) -> blokkolt")
+ok(count("igazolasok") == 3, "továbbra is 3 igazolás")
+r = k.save_igazolasok_to_db("Teszt", [igazolas(5), igazolas(6), igazolas(7)])
+ok(not r["blocked"] and r["saved"] == 3, f"3 sor a 3-ból -> mentve: {r}")
+ok(count("igazolasok") == 3, "az igazolások cserélődtek")
+# Dedupe: 2 azonos kulcs -> 1 sor (üres DB-n, hogy a küszöb ne blokkoljon)
+conn = sqlite3.connect(k.DB_FILE)
+conn.execute("DELETE FROM igazolasok")
+conn.commit()
+conn.close()
+r = k.save_igazolasok_to_db("Teszt", [igazolas(9), igazolas(9)])
+ok(not r["blocked"] and r["saved"] == 1, f"duplikált kulcs -> egyszer mentve: {r}")
+ok(count("igazolasok") == 1, "1 igazolás maradt")
+
+os.environ["KRETA_SYNC_MIN_RATIO"] = "0"
+r = k.save_igazolasok_to_db("Teszt", [])
+ok("igazolasok" in r["blocked"], "0 küszöb mellett is véd az üres lista (#42 szigorítás)")
+ok(count("igazolasok") == 1, "az igazolás megmaradt")
+os.environ.pop("KRETA_SYNC_MIN_RATIO", None)
+
+print("\n8) Az API-út hibát dob, ha az igazolások mentése védve maradt")
+
+
+class UresIgazolasKliens:
+    def fetch_justifications(self):
+        return []
+
+
+try:
+    k.api_provider_igazolasok({"diak_nev": "Teszt"},
+                              client_factory=lambda s: UresIgazolasKliens())
+    hiba = ""
+except RuntimeError as exc:
+    hiba = str(exc)
+ok("adatvédelem" in hiba, f"RuntimeError a fallbackhez: {hiba}")
+ok(count("igazolasok") == 1, "az igazolás érintetlen")
+
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)
