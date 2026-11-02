@@ -69,6 +69,7 @@ subprocess.run([sys.executable, "kreta_playwright.py", "--init-db"], cwd=str(ROO
 conn = sqlite3.connect(db)
 ROWS = [
     # diák, típus, tantárgy, érték, szám, súly, dátum
+    ("Sulyos", "Értékelés", "Matematika", "Jeles(5)", 5, 100, "2026. 09. 20."),
     ("Sulyos", "Értékelés", "Matematika", "Jeles(5)", 5, 100, "2026. 10. 10."),
     ("Sulyos", "Értékelés", "Matematika", "Jó(4)", 4, 200, "2026. 10. 12."),
     ("Sulyos", "Értékelés", "Fizika", "Közepes(3)", 3, 0, "2026. 10. 14."),
@@ -145,6 +146,25 @@ try:
     ok(sulyos.get("rewards_enabled") is True, "rewards_enabled = true")
     ok(sulyos.get("vegosszeg") == 500 + 200 + 500,
        f"vegösszeg = 5-ös 500 + 4-es 200 + dicséret 500 = 1200: {sulyos.get('vegosszeg')}")
+
+    print("\n5) Tantárgyi átlagok havi bontással (/api/atlagok, Kaneo #39)")
+    atl = get_json("/api/atlagok?diak=Sulyos")
+    ok(atl.get("honapok") == ["2026-09", "2026-10"], f"hónapok: {atl.get('honapok')}")
+    by_t = {t["tantargy"]: t for t in atl.get("tantargyak", [])}
+    ok(set(by_t) == {"Fizika", "Matematika"}, f"tantárgyak: {sorted(by_t)}")
+    mat = by_t.get("Matematika", {})
+    ok((mat.get("honapok") or {}).get("2026-09", {}).get("atlag") == 5.0,
+       f"szeptember: {mat.get('honapok', {}).get('2026-09')}")
+    ok((mat.get("honapok") or {}).get("2026-10", {}).get("atlag") == 4.33,
+       f"október súlyozva: {mat.get('honapok', {}).get('2026-10')}")
+    ok((mat.get("osszes") or {}).get("atlag") == 4.5,
+       f"Matematika összes (5*100+5*100+4*200)/400 = 4.5: {mat.get('osszes')}")
+    fiz = by_t.get("Fizika", {})
+    ok((fiz.get("osszes") or {}).get("atlag") == 3.0, "0%-os súly -> egyszerű átlag (3.0)")
+    ok((atl.get("osszes") or {}).get("atlag") == 4.5 and (atl.get("osszes") or {}).get("db") == 4,
+       f"összesített: {atl.get('osszes')}")
+    atl_okt = get_json("/api/atlagok?diak=Sulyos&kezdo_datum=2026-10-01&zaro_datum=2026-10-31")
+    ok(atl_okt.get("honapok") == ["2026-10"], f"októberi szűrés: {atl_okt.get('honapok')}")
 finally:
     proc.terminate()
     try:

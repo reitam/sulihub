@@ -2099,6 +2099,94 @@ def normalize_date(d_str):
             return None
     return None
 
+@app.route("/api/atlagok")
+def api_atlagok():
+    """Tantárgyankénti tanulmányi átlagok, havi bontással (Kaneo #39).
+
+    A súlyozás ugyanaz, mint a statisztikában: Σ(jegy×súly)/Σ(súly), a 0%-os
+    súlyú jegy kimarad; súlyadat nélkül egyszerű átlag.
+    """
+    if not os.path.exists(DB_FILE):
+        return jsonify({"honapok": [], "tantargyak": [], "osszes": {"atlag": None, "db": 0}})
+
+    diak = request.args.get("diak", "")
+    kezdo_datum = request.args.get("kezdo_datum", "")
+    zaro_datum = request.args.get("zaro_datum", "")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    query = ("SELECT tantargy, ertek, szam_ertek, bej_datum, suly_szazalek "
+             "FROM esemenyek WHERE esemeny_tipus = 'Értékelés'")
+    params = []
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+    try:
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        has_suly = True
+    except sqlite3.Error:
+        # Régi DB, ahol még nincs suly_szazalek oszlop.
+        cursor.execute(query.replace(", suly_szazalek ", " "), params)
+        rows = cursor.fetchall()
+        has_suly = False
+    conn.close()
+
+    def summarize(items):
+        """[(jegy, súly)] -> {atlag, db} (súlyozva, ha van súly)."""
+        if not items:
+            return {"atlag": None, "db": 0}
+        osszeg = 0
+        suly_sum = 0
+        sulyozott = 0.0
+        for val, suly in items:
+            osszeg += val
+            if suly and suly > 0:
+                suly_sum += suly
+                sulyozott += val * suly
+        atlag = round(sulyozott / suly_sum, 2) if suly_sum else round(osszeg / len(items), 2)
+        return {"atlag": atlag, "db": len(items)}
+
+    per_tantargy = {}
+    honapok = set()
+    mind = []
+
+    for r in rows:
+        val = r["szam_ertek"]
+        if val not in (1, 2, 3, 4, 5):
+            continue
+        norm = normalize_date(r["bej_datum"])
+        if norm:
+            if kezdo_datum and norm < kezdo_datum:
+                continue
+            if zaro_datum and norm > zaro_datum:
+                continue
+        honap = norm[:7] if norm else "ismeretlen"
+        if honap != "ismeretlen":
+            honapok.add(honap)
+        suly = (r["suly_szazalek"] if has_suly else 0) or 0
+        tantargy = (r["tantargy"] or "Egyéb").strip()
+        entry = per_tantargy.setdefault(tantargy, {"honapok": {}, "mind": []})
+        entry["honapok"].setdefault(honap, []).append((val, suly))
+        entry["mind"].append((val, suly))
+        mind.append((val, suly))
+
+    tantargyak = []
+    for tantargy in sorted(per_tantargy):
+        entry = per_tantargy[tantargy]
+        tantargyak.append({
+            "tantargy": tantargy,
+            "honapok": {h: summarize(v) for h, v in entry["honapok"].items()},
+            "osszes": summarize(entry["mind"]),
+        })
+
+    return jsonify({
+        "honapok": sorted(honapok),
+        "tantargyak": tantargyak,
+        "osszes": summarize(mind),
+    })
+
+
 @app.route("/api/statisztika")
 def api_statisztika():
     config = load_config()

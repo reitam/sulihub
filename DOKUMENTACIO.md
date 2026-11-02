@@ -66,7 +66,8 @@ továbbítanak.
 
 | Fül | Mire való |
 |---|---|
-| **Iskolai események** | Szűrhető, kereshető táblázat: jegyek (a jegy mellett a **súlyszázalék** jelvénye), feljegyzések, házik, számonkérések |
+| **Áttekintés** | Nyitó dashboard: 4 **kattintható csempe** (heti határidők, új jegyek az elmúlt 7 napban, új üzenetek 7 napban, kifizetetlen zsebpénz) + gyermek-chipek (egy kattintás). A csempére kattintva a megfelelő, előre szűrt nézet nyílik |
+| **Iskolai események** | Szűrhető, kereshető táblázat: jegyek (a jegy mellett a **súlyszázalék** jelvénye), feljegyzések, házik, számonkérések. Szűrők: gyermek (chip is), típus, tantárgy, időszak, dátumtartomány, gyorsszűrők; „Vissza az áttekintésre" gomb |
 | **Hiányzások** | Hiányzások és késések havi bontásban: **5 összesítő kártya** (összes hiányzás óra, igazolt óra, igazolatlan óra, késés db/perc, igazolás db) + részletes tábla és igazolás-lista. Alapból a **teljes előzmény** látszik, a havi bontás hónapválasztóval / „Aktuális hónap" gombbal |
 | **Heti órarend** | Idősávos heti nézet, gyermekszínekkel; **A4 PDF export** |
 | **Feladatok naptár nézet** | Házik és számonkérések határidő szerint, színkódolva |
@@ -169,6 +170,10 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
   (Σ jegy×súly / Σ súly); a **0%-os súlyú** jegy nem számít bele. Ha egyetlen jegynek sincs
   súlyadata (régi adat), akkor a hagyományos egyszerű átlag jelenik meg. A felület a
   „Tanulmányi átlag" mellett *(súlyozott)* jelzést mutat, tooltippel az egyszerű átlaggal.
+- **Tantárgyi átlagok havi bontással:** a Statisztika fülön külön táblázat mutatja
+  tantárgyanként a havi és az időszaki („Összes") súlyozott átlagot, jegy-darabszámmal
+  (`GET /api/atlagok?diak=&kezdo_datum=&zaro_datum=`). A hónapok a jegyek bejegyzési
+  dátuma szerint csoportosulnak.
 - A kifizetés ténye rögzíthető („KIFIZETVE"), így az elszámolás nyomon követhető.
 - A modul **gyermekenként** ki-/bekapcsolható. Jelenleg: Elek és Anna aktív,
   **Bori esetében kikapcsolva**. Kikapcsolt diáknál a **statisztika akkor is működik**
@@ -553,7 +558,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **568 automatikus ellenőrzés** húsz csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **596 automatikus ellenőrzés** huszonegy csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -563,8 +568,10 @@ fogadóóra, üzenet-inkrementálás, **csatolmány-letöltés API-ból** és fa
 összehasonlítás, a valódi DB érintetlensége), **adatvédelem** (üres API-válasz nem töröl,
 50%-os küszöb, órarend-ürülés), **DB-séma őr** (zárolt DB → nincs bootstrap),
 **statisztika/zsebpénz** (súlyozott átlag, súly nélküli visszaesés, kikapcsolt zsebpénz),
+**tantárgyi átlagok** (`/api/atlagok`, havi bontás),
 **oszlopszélesség** (valódi böngészőben: átméretezés nem rendez át, fogantyúk a
-hiányzásokon is), **mobil elrendezés** (valódi böngészőben, 393 px).
+hiányzásokon is), **dashboard** (valódi böngészőben: csempeszámok, csempe → szűrt lista,
+visszalépés), **mobil elrendezés** (valódi böngészőben, 393 px).
 A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 
 ### 9.4. Kiadási folyamat
@@ -666,7 +673,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.6.0** | **2026-10-31** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 8 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba; **`SYNC_SHADOW` árnyék/ellenőrző mód** (Playwright DB-másolaton, összehasonlítás); **üzenet-csatolmányok letöltése API-ból** (`dokumentumok/uzenetek/{id}` → `files.e-kreta.hu` nonce URL, `safe_fajlnev` + méretkorlát), böngésző nélkül; a scraper kimenete UTF-8-ként olvasva, árva gyerekprocessz nem marad; **DB-séma önjavítás** (hiányzó/üres adatbázis), port-ütközés felismerése induláskor; az órarend-ablak egy nappal korábbra kér (UTC-határ). **D1–D9 kész** |
 | **v1.6.1** | **2026-11-02** | **Éles javítás:** a Docker képből hiányoztak az API-modulok (`kreta_api.py`, `kreta_api_sync.py`, `kreta_sync.py`, `kreta_shadow.py`) — a Dockerfile csak az `app.py`-t és a `kreta_playwright.py`-t másolta → minden szinkron azonnal `error` lett (`ModuleNotFoundError`). Most `COPY *.py ./`; a `requests` bekerült a `requirements.txt`-be (a Playwright nem hozza magával). Új `tests/test_deploy.py` (Dockerfile COPY + requirements + dockerignore konzisztencia). Emellett **API token-tár** (`api_tokens.json`): a 2. futástól nincs új belépés, így nincs „új bejelentkezés" e-mail; **ntfy** a `config.json` `NTFY` blokkjából is beállítható (`POST /api/ntfy/test`) |
 | **v1.6.2** | **2026-11-02** | **Jövőbeli határidők javítása:** a házi feladat és a bejelentett számonkérés API-ablaka **90 nappal előre** is nyúlik (`FUTURE_LOOKAHEAD_DAYS`), mert a KRÉTA az ablakon kívüli (jövőbeli) sorokat nem adja — enélkül a következő hetek dolgozatai/házijai kimaradtak. Élő mérés: 10 → 14 számonkérés, 22 → 25 házi ugyanarra a diákra |
-| **v1.6.3** *(élesítésre vár)* | **2026-11-02** | **Adatvédelem a teljes cserés mentésnél:** üres (de 200-as) API-válasz nem törli a meglévő jegyeket/feljegyzéseket (50%-os küszöb, `KRETA_SYNC_MIN_RATIO`), az órarend csak teljes ürülésnél véd; védett mentésnél a szolgáltató hibát dob (fallback). **DB-séma őr:** zárolt/bizonytalan adatbázisnál nincs init-db subprocess és nincs végleges önjavítás-kikapcsolás. **Jegyek súlyszázaléka:** az `esemenyek` tábla új `suly_szazalek` oszlopa (ALTER migráció a régi DB-khez), a mobil API `SulySzazalekErteke` mezője (50/100/200%) normalizálva és mentve, Playwright-módban a webes **hónap-cella tooltipjének `data-suly`** attribútuma („Súly: 50%") adja ugyanezt, ezért fallbacknél sem veszik el; a jegyek fülön a jegy mellett kis `%`-jelvény tooltippel („Az értékelés X%-os súllyal számít bele az átlagba."), a zsebpénz-elszámolás részleteinél is látszik. **Oszlopszélesség (Kaneo #35):** az átméretezés nem rendez át (a fogantyú kattintása nem ér fel a fejléchez), és a hiányzások/igazolások táblán is van fogantyú. **Súlyozott tanulmányi átlag (Kaneo #36):** Σ(jegy×súly)/Σ(súly), a 0%-os súlyú jegy kimarad, súlyadat nélkül egyszerű átlag. **Kikapcsolt zsebpénz (Kaneo #37):** a statisztika ilyenkor is működik, csak a pénz-kártya rejtve + figyelmeztető sáv. Emellett a `tests/run_all.py` a gyerekteszteket UTF-8-ra kényszeríti (cp1250 konzolon ne szálljon el). **Ez a kiadás viszi élesbe a v1.6.2 óta felgyűlt minden változást** (a v1.6.4 nem készül el külön) |
+| **v1.6.3** *(élesítésre vár)* | **2026-11-02** | **Adatvédelem a teljes cserés mentésnél:** üres (de 200-as) API-válasz nem törli a meglévő jegyeket/feljegyzéseket (50%-os küszöb, `KRETA_SYNC_MIN_RATIO`), az órarend csak teljes ürülésnél véd; védett mentésnél a szolgáltató hibát dob (fallback). **DB-séma őr:** zárolt/bizonytalan adatbázisnál nincs init-db subprocess és nincs végleges önjavítás-kikapcsolás. **Jegyek súlyszázaléka:** az `esemenyek` tábla új `suly_szazalek` oszlopa (ALTER migráció a régi DB-khez), a mobil API `SulySzazalekErteke` mezője (50/100/200%) normalizálva és mentve, Playwright-módban a webes **hónap-cella tooltipjének `data-suly`** attribútuma („Súly: 50%") adja ugyanezt, ezért fallbacknél sem veszik el; a jegyek fülön a jegy mellett kis `%`-jelvény tooltippel („Az értékelés X%-os súllyal számít bele az átlagba."), a zsebpénz-elszámolás részleteinél is látszik. **Oszlopszélesség (Kaneo #35):** az átméretezés nem rendez át (a fogantyú kattintása nem ér fel a fejléchez), és a hiányzások/igazolások táblán is van fogantyú. **Súlyozott tanulmányi átlag (Kaneo #36):** Σ(jegy×súly)/Σ(súly), a 0%-os súlyú jegy kimarad, súlyadat nélkül egyszerű átlag. **Kikapcsolt zsebpénz (Kaneo #37):** a statisztika ilyenkor is működik, csak a pénz-kártya rejtve + figyelmeztető sáv. **Dashboard (Kaneo #38):** új nyitó „Áttekintés" fül 4 kattintható csempével (heti határidők, új jegyek / új üzenetek az elmúlt 7 napban, kifizetetlen zsebpénz) + gyermek-chipek; a szűrőpanel csak az eseménylistán látszik, „Vissza az áttekintésre" gombbal. **Tantárgyi átlagok (Kaneo #39):** `/api/atlagok` végpont + havi bontású táblázat a Statisztika fülön (tantárgy × hónap + Összes). Emellett a `tests/run_all.py` a gyerekteszteket UTF-8-ra kényszeríti (cp1250 konzolon ne szálljon el). **Ez a kiadás viszi élesbe a v1.6.2 óta felgyűlt minden változást** (a v1.6.4 nem készül el külön) |
 
 ---
 
