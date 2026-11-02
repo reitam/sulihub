@@ -647,7 +647,12 @@ def api_provider_jegyek(student, client_factory=None):
 
 
 def events_api_window(diak_nev, tipus):
-    """Az eseménytípus API-ablaka a DB legkorábbi `bej_datum`-jához igazítva."""
+    """Az eseménytípus API-ablaka a DB legkorábbi `bej_datum`-jához igazítva.
+
+    A házi feladat és a bejelentett számonkérés **jövőbeli** határidőt hordoz,
+    ezért ezeknél az ablak előre is nyúlik (`FUTURE_LOOKAHEAD_DAYS`) — enélkül a
+    következő hetek dolgozatai/házijai nem jönnének le az API-ból.
+    """
     conn = sqlite3.connect(DB_FILE)
     earliest = None
     try:
@@ -660,7 +665,9 @@ def events_api_window(diak_nev, tipus):
         log(f"  [DB lekérdezési hiba - {tipus} ablak]: {ex}")
     finally:
         conn.close()
-    return kreta_api_sync.api_window(earliest)
+    lookahead = (kreta_api_sync.FUTURE_LOOKAHEAD_DAYS
+                 if tipus in kreta_api_sync.FUTURE_DATED_EVENT_TYPES else 0)
+    return kreta_api_sync.api_window(earliest, lookahead_days=lookahead)
 
 
 def _hazi_key(row):

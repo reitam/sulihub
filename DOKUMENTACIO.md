@@ -260,6 +260,14 @@ hagyni, utána kikapcsolható — a Playwright csak fallback marad.
 > órarend-ablakot **egy nappal korábbra** is kéri — enélkül az ablak első napjának
 > eseményei (pl. az őszi szünet hétfője) kimaradnának a heti nézetből.
 
+> **Jövőbeli határidők:** a KRÉTA az API-ablakon (`datumTol`–`datumIg`) belül adja a
+> sorokat, a **házi feladat** és a **bejelentett számonkérés** viszont jövőbeli
+> határidőt hordoz. Ezért ennél a két adatkörnél az ablak **90 nappal előre** is nyúlik
+> (`kreta_api_sync.FUTURE_LOOKAHEAD_DAYS`) — enélkül a következő hetek dolgozatai és
+> házijai nem jönnének le API-ból, csak a Playwright-fallback hozná őket (ami
+> `api_first` módban nem fut le, ha az API „sikeres"). A többi adatkör ablaka a mai napig
+> tart.
+
 ### 3.3. Futásállapotok
 
 | Állapot | Jelentés |
@@ -511,7 +519,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **489 automatikus ellenőrzés** tizenöt csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **495 automatikus ellenőrzés** tizenöt csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -540,6 +548,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | KRÉTA DOM-scraping | a KRÉTA felületváltása törheti | az API-first út (v1.6.0) ezt kiváltja; a Playwright fallback megmarad |
 | Táboros hiányzás témája | az API nem ad rá témát (nincs órarendi elem) | a meglévő DB-érték megmarad; új táboros sornál üres |
 | Órarend-ablak első napja | az `OrarendElemek` a `KezdetIdopont` UTC dátuma szerint szűr, az egész napos események `23:00Z`-ként jönnek | a kliens egy nappal korábbra is kér (`fetch_lessons`), így a hétfői szünet/ünnep nem marad ki |
+| Jövőbeli dolgozat/házi kimarad | az API az ablakon belül adja a sorokat, a házi/számonkérés határideje viszont jövőbeli | a `Házi feladat` és `Bejelentett számonkérés` ablaka **+90 nappal** előre nyúlik (`FUTURE_LOOKAHEAD_DAYS`) |
 | Üzenet-csatolmány letöltése | az eAdmin API csak fájl-metadatot ad, a fájl egy rövid életű `nonce` URL-en jön | a kliens a `dokumentumok/uzenetek/{id}` 302-jét követi, és a `files.e-kreta.hu/fajlok/?nonce=…` címről tölt (2026-10-31 óta API-ból, böngésző nélkül); hiba esetén `api_first` fallback |
 | „Új bejelentkezés" e-mailek | az API-út minden futásnál belépne (a Playwright-nál a profil megjegyezte a munkamenetet) | tokentárolás a data köteten (`api_tokens.json`): a 2. futástól **nincs új belépés**, lejárat után refresh token; teljes belépés csak token nélkül/hibánál |
 | Nincs `MESSAGE_LIMIT` | az első API-s futás az összes üzenetet letölti (nálunk ~76 sor), utána már csak az újakat | tudatos döntés: az inkrementális futások így is 1–5 üzenetet hoznak |
