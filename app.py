@@ -2249,8 +2249,8 @@ def api_atlagok():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    query = ("SELECT tantargy, ertek, szam_ertek, bej_datum, suly_szazalek "
-             "FROM esemenyek WHERE esemeny_tipus = 'Értékelés'")
+    query = ("SELECT tantargy, ertek, szam_ertek, bej_datum, suly_szazalek,"
+             " ertekelo, tema, mod FROM esemenyek WHERE esemeny_tipus = 'Értékelés'")
     params = []
     if diak:
         query += " AND diak_nev = ?"
@@ -2267,19 +2267,32 @@ def api_atlagok():
     conn.close()
 
     def summarize(items):
-        """[(jegy, súly)] -> {atlag, db} (súlyozva, ha van súly)."""
+        """[{val, suly, ...}] -> {atlag, db, jegyek} (súlyozva, ha van súly)."""
         if not items:
-            return {"atlag": None, "db": 0}
+            return {"atlag": None, "db": 0, "jegyek": []}
         osszeg = 0
         suly_sum = 0
         sulyozott = 0.0
-        for val, suly in items:
+        jegyek = []
+        for it in items:
+            val = it["val"]
+            suly = it["suly"]
             osszeg += val
             if suly and suly > 0:
                 suly_sum += suly
                 sulyozott += val * suly
+            jegyek.append({
+                "datum": it["datum"],
+                "ertek": it["ertek"],
+                "szam": val,
+                "suly": suly,
+                "tema": it["tema"],
+                "tanar": it["tanar"],
+                "mod": it["mod"],
+            })
         atlag = round(sulyozott / suly_sum, 2) if suly_sum else round(osszeg / len(items), 2)
-        return {"atlag": atlag, "db": len(items)}
+        jegyek.sort(key=lambda j: j["datum"], reverse=True)
+        return {"atlag": atlag, "db": len(items), "jegyek": jegyek}
 
     per_tantargy = {}
     honapok = set()
@@ -2300,10 +2313,19 @@ def api_atlagok():
             honapok.add(honap)
         suly = (r["suly_szazalek"] if has_suly else 0) or 0
         tantargy = (r["tantargy"] or "Egyéb").strip()
+        item = {
+            "val": val,
+            "suly": suly,
+            "datum": norm or (r["bej_datum"] or ""),
+            "ertek": r["ertek"] or "",
+            "tema": r["tema"] or "",
+            "tanar": r["ertekelo"] or "",
+            "mod": r["mod"] or "",
+        }
         entry = per_tantargy.setdefault(tantargy, {"honapok": {}, "mind": []})
-        entry["honapok"].setdefault(honap, []).append((val, suly))
-        entry["mind"].append((val, suly))
-        mind.append((val, suly))
+        entry["honapok"].setdefault(honap, []).append(item)
+        entry["mind"].append(item)
+        mind.append(item)
 
     tantargyak = []
     for tantargy in sorted(per_tantargy):
