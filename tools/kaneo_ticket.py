@@ -146,6 +146,19 @@ def save_cache(cache):
         pass  # a cache csak kényelmi gyorsítás, hiba nem kritikus
 
 
+def resolve_parent(tasks, parent):
+    """Szülőjegy id-je szám (pl. 40) vagy id alapján; üres, ha nincs szülő."""
+    if not parent:
+        return ""
+    p = str(parent).strip().lstrip("#")
+    if p.isdigit():
+        for task in tasks:
+            if str(task.get("number")) == p:
+                return task.get("id", "")
+        raise SystemExit(f"HIBA: nincs #{p} számú jegy a boardon (a --parent csak meglévő jegyre mutathat)")
+    return p
+
+
 def find_duplicate(tasks, title):
     norm = " ".join(title.split()).lower()
     for task in tasks:
@@ -163,6 +176,7 @@ def main():
     parser.add_argument("--status", default="planned", help=" | ".join(STATUSES) + " (alap: planned = backlog)")
     parser.add_argument("--label", default="CodeReview", help="Címke neve (alap: CodeReview).")
     parser.add_argument("--no-label", action="store_true", help="Címke nélkül hozza létre.")
+    parser.add_argument("--parent", default="", help="Szülőjegy száma (pl. 40) vagy id-je — a jegy subtask lesz.")
     parser.add_argument("--force", action="store_true", help="Azonos című nyitott jegy ellenére is létrehozza.")
     parser.add_argument("--dry-run", action="store_true", help="Csak kiírja, mit küldene el (nem hoz létre jegyet).")
     args = parser.parse_args()
@@ -186,9 +200,12 @@ def main():
             f"status={duplicate.get('status')} | {duplicate.get('title')}")
         return 0
 
+    parent_id = resolve_parent(tasks, args.parent)
+
     if args.dry_run:
         out(json.dumps({"projectId": PROJECT_ID, "title": title, "description": description,
                         "priority": args.priority, "status": args.status,
+                        "parent": parent_id or None,
                         "label": None if args.no_label else args.label}, ensure_ascii=False))
         return 0
 
@@ -197,6 +214,15 @@ def main():
                         "priority": args.priority, "status": args.status}, token)
     if status != 200 or not isinstance(task, dict) or not task.get("id"):
         raise SystemExit(f"HIBA: a jegy nem jött létre (HTTP {status}): {task}")
+
+    # Subtask: a Kaneo külön kapcsolat-táblában tárolja (POST /api/task-relation),
+    # a task body parentId mezőjét figyelmen kívül hagyja.
+    parent_note = "-"
+    if parent_id:
+        rel_status, rel = api(cred, "POST", "/api/task-relation",
+                              {"sourceTaskId": parent_id, "targetTaskId": task["id"],
+                               "relationType": "subtask"}, token)
+        parent_note = "OK" if rel_status == 200 else f"HIBA (HTTP {rel_status})"
 
     label_note = "-"
     if not args.no_label:
@@ -210,7 +236,7 @@ def main():
             label_note = "-"
 
     out(f"OK #{task.get('number')} | id={task.get('id')} | status={task.get('status')} | "
-        f"priority={task.get('priority')} | label={label_note} | {title}")
+        f"priority={task.get('priority')} | label={label_note} | subtask={parent_note} | {title}")
     return 0
 
 
