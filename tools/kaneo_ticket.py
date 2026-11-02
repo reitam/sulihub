@@ -25,7 +25,7 @@ from pathlib import Path
 
 WORKSPACE_ID = os.environ.get("KANEO_WORKSPACE_ID", "rMI9uTd73SD6CAXuzaMfeVx935pa0FVQ")
 PROJECT_ID = os.environ.get("KANEO_PROJECT_ID", "pfxgro7vduz50v5xbksb48oo")
-TICKET_URL = "http://localhost:5173"  # csak a login hostja; a projekt URL élőben nem használt
+TICKET_URL = "http://192.168.1.39:5173"  # csak a login hostja; a projekt URL élőben nem használt
 
 PRIORITIES = ("no-priority", "low", "medium", "high")
 STATUSES = ("planned", "to-do", "in-progress", "in-review", "done", "archived")
