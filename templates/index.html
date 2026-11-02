@@ -892,7 +892,11 @@
                                     <tbody id="atlagokBody"></tbody>
                                 </table>
                             </div>
-                            <!-- Mobil nézet: kártyák, hónapok jelvényként (nincs vízszintes görgetés) -->
+                            <!-- Mobil nézet: kapcsoló a két bontás között + fa -->
+                            <div class="btn-group btn-group-sm d-md-none w-100 mb-2" role="group" id="atlagNezetKapcsolo">
+                                <button type="button" class="btn btn-outline-primary active" data-nezet="havi">Havi bontás</button>
+                                <button type="button" class="btn btn-outline-primary" data-nezet="tantargy">Tantárgy szerint</button>
+                            </div>
                             <div id="atlagokMobil" class="d-md-none"></div>
                             <small class="text-muted mt-2 d-block">
                                 A súlyozott átlag a jegyek súlyszázaléka szerint számol (a 0%-os súlyú jegy kimarad);
@@ -1951,81 +1955,85 @@ $(document).ready(function() {
                 $body.append(lab);
             }
 
-            // Mobil nézet: 3 szintű fa — teljes időszak → hónap (teljes havi átlag)
-            // → tantárgy (havi tantárgyi átlag). A jegyek részletei nem kellenek.
-            let $mob = $('#atlagokMobil').empty();
-            if (!tantargyak.length) {
-                $mob.append('<div class="text-center text-muted small py-2">Nincs megjeleníthető jegy erre az időszakra.</div>');
-            } else {
-                let honapokHtml = honapok.map(function(h, hi) {
-                    let ho = (res.honap_osszes || {})[h] || {};
-                    let hid = 'atlagHo' + hi;
-                    let sorok = tantargyak.map(function(t) {
-                        let m = (t.honapok || {})[h];
-                        if (!m || m.atlag === null) return '';
-                        return `<div class="d-flex justify-content-between border-top py-1">
-                            <span>${escapeHtml(t.tantargy)}</span>
-                            <span class="text-nowrap"><strong>${m.atlag}</strong>
-                            <span class="text-muted small">(${m.db})</span></span>
-                        </div>`;
-                    }).join('');
-                    return `<div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed py-1 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#${hid}" style="font-size: 0.84rem;">
-                                <span class="fw-bold">${honapNev(h)}</span>
-                                <span class="badge bg-secondary ms-2">${ho.atlag !== null && ho.atlag !== undefined ? ho.atlag : '-'}</span>
-                                <span class="text-muted ms-2" style="font-size: 0.72rem;">${ho.db || 0} jegy</span>
-                            </button>
-                        </h2>
-                        <div id="${hid}" class="accordion-collapse collapse">
-                            <div class="accordion-body p-2">${sorok || '<span class="text-muted small">nincs jegy</span>'}</div>
-                        </div>
-                    </div>`;
-                }).join('');
-
-                $mob.append(`<div class="accordion">
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button py-2 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#atlagTeljes">
-                                <span class="fw-bold">Teljes időszak</span>
-                                <span class="badge bg-primary ms-2">${res.osszes.atlag !== null ? res.osszes.atlag : '-'}</span>
-                                <span class="text-muted ms-2" style="font-size: 0.72rem;">${res.osszes.db} jegy</span>
-                            </button>
-                        </h2>
-                        <div id="atlagTeljes" class="accordion-collapse collapse show">
-                            <div class="accordion-body p-2"><div class="accordion">${honapokHtml}</div></div>
-                        </div>
-                    </div>
-                </div>`);
-
-                // Külön, zárt blokk: a teljes időszak tantárgy szerinti átlagai.
-                let tantargySorok = tantargyak.map(function(t) {
-                    let a = (t.osszes && t.osszes.atlag !== null) ? t.osszes.atlag : '-';
-                    return `<div class="d-flex justify-content-between border-top py-1">
-                        <span>${escapeHtml(t.tantargy)}</span>
-                        <span class="text-nowrap"><strong>${a}</strong>
-                        <span class="text-muted small">(${t.osszes ? t.osszes.db : 0})</span></span>
-                    </div>`;
-                }).join('');
-                $mob.append(`<div class="accordion mt-2">
-                    <div class="accordion-item">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed py-2 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#atlagTantargyak">
-                                <span class="fw-bold">Tantárgyak szerint (teljes időszak)</span>
-                                <span class="badge bg-primary ms-2">${res.osszes.atlag !== null ? res.osszes.atlag : '-'}</span>
-                            </button>
-                        </h2>
-                        <div id="atlagTantargyak" class="accordion-collapse collapse">
-                            <div class="accordion-body p-2">${tantargySorok}</div>
-                        </div>
-                    </div>
-                </div>`);
-            }
+            // Mobil: két bontás, kapcsolóval (a jegyek részletei nem kellenek).
+            lastAtlagok = res;
+            renderMobilAtlagok(res);
             $('#atlagokOsszes').text(res.osszes && res.osszes.db
                 ? `Összesített átlag: ${res.osszes.atlag} (${res.osszes.db} jegy)`
                 : '');
         });
     }
+
+    let lastAtlagok = null;
+    let atlagNezet = 'havi';
+
+    function renderMobilAtlagok(res) {
+        let $mob = $('#atlagokMobil').empty();
+        let honapok = res.honapok || [];
+        let tantargyak = res.tantargyak || [];
+        let ossz = res.osszes || {};
+
+        if (!tantargyak.length) {
+            $mob.append('<div class="text-center text-muted small py-2">Nincs megjeleníthető jegy erre az időszakra.</div>');
+            return;
+        }
+
+        // Mindkét nézet tetején: a teljes (kijelölt időszaki) átlag.
+        $mob.append(`<div class="d-flex justify-content-between align-items-center bg-light border rounded p-2 mb-2">
+            <span class="fw-bold">Teljes átlag</span>
+            <span><strong class="fs-5 text-primary">${ossz.atlag !== null && ossz.atlag !== undefined ? ossz.atlag : '-'}</strong>
+            <span class="text-muted small ms-1">(${ossz.db || 0} jegy)</span></span>
+        </div>`);
+
+        // 2. nézet: csak tantárgyanként, a teljes időszakra.
+        if (atlagNezet === 'tantargy') {
+            let sorok = tantargyak.map(function(t) {
+                let a = (t.osszes && t.osszes.atlag !== null) ? t.osszes.atlag : '-';
+                return `<div class="d-flex justify-content-between border-top py-1">
+                    <span>${escapeHtml(t.tantargy)}</span>
+                    <span class="text-nowrap"><strong>${a}</strong>
+                    <span class="text-muted small">(${t.osszes ? t.osszes.db : 0})</span></span>
+                </div>`;
+            }).join('');
+            $mob.append(`<div class="border rounded p-2">${sorok}</div>`);
+            return;
+        }
+
+        // 1. nézet: havi bontás — hónap-accordionok, bennük a havi tantárgyi átlagok.
+        let honapokHtml = honapok.map(function(h, hi) {
+            let ho = (res.honap_osszes || {})[h] || {};
+            let hid = 'atlagHo' + hi;
+            let sorok = tantargyak.map(function(t) {
+                let m = (t.honapok || {})[h];
+                if (!m || m.atlag === null) return '';
+                return `<div class="d-flex justify-content-between border-top py-1">
+                    <span>${escapeHtml(t.tantargy)}</span>
+                    <span class="text-nowrap"><strong>${m.atlag}</strong>
+                    <span class="text-muted small">(${m.db})</span></span>
+                </div>`;
+            }).join('');
+            return `<div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed py-1 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#${hid}" style="font-size: 0.84rem;">
+                        <span class="fw-bold">${honapNev(h)}</span>
+                        <span class="badge bg-secondary ms-2">${ho.atlag !== null && ho.atlag !== undefined ? ho.atlag : '-'}</span>
+                        <span class="text-muted ms-2" style="font-size: 0.72rem;">${ho.db || 0} jegy</span>
+                    </button>
+                </h2>
+                <div id="${hid}" class="accordion-collapse collapse">
+                    <div class="accordion-body p-2">${sorok || '<span class="text-muted small">nincs jegy</span>'}</div>
+                </div>
+            </div>`;
+        }).join('');
+        $mob.append(`<div class="accordion">${honapokHtml}</div>`);
+    }
+
+    $('#atlagNezetKapcsolo').on('click', '.btn', function() {
+        atlagNezet = $(this).data('nezet') || 'havi';
+        $('#atlagNezetKapcsolo .btn').removeClass('active');
+        $(this).addClass('active');
+        if (lastAtlagok) renderMobilAtlagok(lastAtlagok);
+    });
 
     function loadRewardsData() {
         let diak = $('#rewardFilterDiak').val();

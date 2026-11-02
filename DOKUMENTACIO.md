@@ -177,10 +177,12 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
     tantárgyi átlag (db)**; az **„Összes" oszlop** a teljes időszak tantárgy szerinti átlaga,
     a **lábléc-sor** („Hónapok átlaga") a havi **teljes** átlag, a jobb alsó sarokban a
     teljes időszak átlaga.
-  * **Mobil nézet:** 3 szintű fa — **Teljes időszak** (átlag · jegy) → **hónap** (havi teljes
-    átlag · jegy) → **tantárgy** (havi tantárgyi átlag (db)); alatta külön, zárt blokk:
-    **„Tantárgyak szerint (teljes időszak)"**. Vízszintes görgetés sehol; jegy-részletek nem
-    jelennek meg.
+  * **Mobil nézet:** **kapcsoló** a két bontás között (a „Teljes átlag" mindkét nézet tetején):
+    - **Havi bontás:** hónap-accordionok (havi **teljes** átlag · jegy), kinyitva a tantárgyak
+      **adott havi** átlaga (zárójelben a jegyszám);
+    - **Tantárgy szerint:** tantárgyak a **teljes időszak** átlagával.
+    Jegy-részletek nem jelennek meg (azok az *Események* fülön nézhetők meg); vízszintes
+    görgetés sehol.
 - **A kifizetetlen zsebpénz a dashboardon** a **teljes időszak** egyenlege mínusz a
   `kifizetesek` táblában **kifizetettnek jelölt időszakok** összege (a maradék jelenik meg).
   A `GET /api/dashboard` ezt diákonként és összesen is visszaadja, a diákonkénti
@@ -569,7 +571,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **622 automatikus ellenőrzés** huszonegy csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **625 automatikus ellenőrzés** huszonegy csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
