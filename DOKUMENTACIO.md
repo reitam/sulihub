@@ -401,6 +401,9 @@ köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data k�
 
 1. `.\deploy.ps1 -Release v1.6.0` — a Chromium **benne marad** az image-ben
    (`kreta_playwright.py` fallback), a DB/config érintetlen.
+   **Ha a szinkron utána azonnal `error`:** a `/api/sync/status` `logs` mezője megmondja
+   (pl. `ModuleNotFoundError: No module named 'kreta_api'` = a képből hiányzó modul,
+   javítva a v1.6.1-ben: `COPY *.py ./`; ellenőrzés: `python tests/test_deploy.py`).
 2. A data köteten a `config.json`-ba `"SYNC_MODE": "api_first"` (az első API-s futás
    utáni ellenőrzéshez `"SYNC_SHADOW": true` is bekapcsolható). Ugyanitt érdemes az
    `"NTFY": {"TOPIC": "…"}` blokkot is kitölteni (kényelmesebben szerkeszthető, mint a
@@ -448,6 +451,7 @@ köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data k�
 | Tünet | Ok | Teendő |
 |---|---|---|
 | „A config.json fájl nem található" a futásban | a scraper nem a data könyvtárat nézte (javítva v1.2.1) | verzió ellenőrzése |
+| A szinkron azonnal „error, 0.0 perc" | a konténerben hiányzó Python-modul (`/api/sync/status` logs: `ModuleNotFoundError`) — a Dockerfile nem másolja be az új modult | **v1.6.1-től** `COPY *.py ./`; ellenőrzés: `python tests/test_deploy.py`, majd újraépítés |
 | Nincs értesítés | `NTFY_TOPIC` nincs a `.env`-ben (lokálisan nincs is `.env`, ezért csendben nem küld), vagy a konténer nem lett újralétrehozva | topic a `.env`-be **vagy** a config.json `NTFY.TOPIC`-jába; ellenőrzés: `POST /api/ntfy/test` |
 | A fejléc „régi" adatot mutat | böngésző-gyorsítótár | Ctrl+F5 |
 | Két helyi példány ugyanazon a porton | Windows megengedi (SO_REUSEADDR) | a régi folyamat leállítása — a v1.6.0-tól az app **indításkor szól**: „a port már foglalt" és kilép |
@@ -507,7 +511,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **480 automatikus ellenőrzés** tizennégy csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **489 automatikus ellenőrzés** tizenöt csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -612,6 +616,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.5.0** | **2026-10-29** | **Hiányzások / késések modul:** új `hianyzasok` és `igazolasok` tábla, scraper, „Hiányzások" fül havi összesítővel (igazolt/igazolatlan óra, késés db/perc) és igazolás-listával; **inkrementális mentés dátum + órasorszám alapján** (stabil sor-ID); az új hiányzások és igazolatlan órák a push-üzenetben is megjelennek |
 | **v1.5.1** | **2026-10-30** | Hiányzások fül finomítás: az összesítő első kártyája **„Összes hiányzás" órában** (nem db); a hosszú igazolás-típus és megjegyzés teljes szöveggel, több sorban látszik (tooltipek a többi hosszú mezőn) |
 | **v1.6.0** | **2026-10-31** | **API-first szinkron:** `kreta_api.py` termelési API-kliens (böngésző nélküli login, 8 adatkör, normalizálás), `kreta_sync.py` + `SYNC_MODE` (`playwright`/`api`/`api_first`) adatkör-szintű Playwright fallbackkel, a forrás naplózása a `sync_runs.sources`-ba; **`SYNC_SHADOW` árnyék/ellenőrző mód** (Playwright DB-másolaton, összehasonlítás); **üzenet-csatolmányok letöltése API-ból** (`dokumentumok/uzenetek/{id}` → `files.e-kreta.hu` nonce URL, `safe_fajlnev` + méretkorlát), böngésző nélkül; a scraper kimenete UTF-8-ként olvasva, árva gyerekprocessz nem marad; **DB-séma önjavítás** (hiányzó/üres adatbázis), port-ütközés felismerése induláskor; az órarend-ablak egy nappal korábbra kér (UTC-határ). **D1–D9 kész** |
+| **v1.6.1** | **2026-11-02** | **Éles javítás:** a Docker képből hiányoztak az API-modulok (`kreta_api.py`, `kreta_api_sync.py`, `kreta_sync.py`, `kreta_shadow.py`) — a Dockerfile csak az `app.py`-t és a `kreta_playwright.py`-t másolta → minden szinkron azonnal `error` lett (`ModuleNotFoundError`). Most `COPY *.py ./`; a `requests` bekerült a `requirements.txt`-be (a Playwright nem hozza magával). Új `tests/test_deploy.py` (Dockerfile COPY + requirements + dockerignore konzisztencia). Emellett **API token-tár** (`api_tokens.json`): a 2. futástól nincs új belépés, így nincs „új bejelentkezés" e-mail; **ntfy** a `config.json` `NTFY` blokkjából is beállítható (`POST /api/ntfy/test`) |
 
 ---
 
