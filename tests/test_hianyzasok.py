@@ -148,6 +148,17 @@ conn = sqlite3.connect(k.DB_FILE)
 left = conn.execute("SELECT COUNT(*) FROM hianyzasok WHERE diak_nev='Inkre Teszt'").fetchone()[0]
 conn.close()
 print("INKRE_LEFT=" + str(left))
+# Kaneo #40: üres batch soha nem töröl; nem üres batch viszont törli az eltűnt sort.
+uj_sor = inkre_row(1)
+uj_sor["mulasztas_datum"] = "2026-10-21"
+k.save_hianyzasok_to_db("Inkre Teszt", [uj_sor])
+conn = sqlite3.connect(k.DB_FILE)
+left2 = conn.execute("SELECT COUNT(*) FROM hianyzasok WHERE diak_nev='Inkre Teszt'").fetchone()[0]
+dates = [r[0] for r in conn.execute(
+    "SELECT mulasztas_datum FROM hianyzasok WHERE diak_nev='Inkre Teszt' ORDER BY 1")]
+conn.close()
+print("INKRE_LEFT2=" + str(left2))
+print("INKRE_DATES=" + ",".join(dates))
 """.format(root=str(ROOT)),
     encoding="utf-8",
 )
@@ -214,7 +225,10 @@ ok(len(push) == 1 and "3 igazolatlan óra" in push[0], f"a push tartalmazza az i
 print("\n5) Inkrementális mentés (dátum + órasorszám)")
 ok(vals.get("INKRE_ID_SAME") == "True", "az újramentés ugyanazt a sort frissíti (stabil ID)")
 ok(vals.get("INKRE_IG") == "1", f"az igazolt érték frissült: {vals.get('INKRE_IG')}")
-ok(vals.get("INKRE_LEFT") == "0", f"a KRÉTA-ból eltűnt sor törlődik: {vals.get('INKRE_LEFT')}")
+ok(vals.get("INKRE_LEFT") == "1",
+   f"üres batch soha nem töröl (Kaneo #40): {vals.get('INKRE_LEFT')}")
+ok(vals.get("INKRE_LEFT2") == "1" and vals.get("INKRE_DATES") == "2026-10-21",
+   f"nem üres batch törli az eltűnt sort: {vals.get('INKRE_LEFT2')} / {vals.get('INKRE_DATES')}")
 
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")

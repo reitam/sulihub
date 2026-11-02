@@ -20,6 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+import kreta_tanev  # noqa: E402
+
 from kreta_api_sync import (  # noqa: E402
     DEFAULT_LOOKBACK_DAYS,
     FUTURE_LOOKAHEAD_DAYS,
@@ -783,9 +785,10 @@ ok(len(payload.get("just_first") or []) == 1, "1 igazolás mentve")
 ok(payload.get("just_second") == payload.get("just_first"), "ismételt futás nem duplikál")
 ok((payload.get("just_first") or [[None]])[0][0] == "563578", "igazolás ID a kulcs")
 
-print("\n9) Lekérési ablak a DB-ből")
-ok(payload.get("window_start") == str(date.today() - timedelta(days=DEFAULT_LOOKBACK_DAYS)),
-   f"ablak kezdete egy évvel korábbra esik: {payload.get('window_start')}")
+print("\n9) Lekérési ablak: a tanév kezdetétől (Kaneo #40)")
+tan_kezdo = kreta_tanev.tanev_bounds(kreta_tanev.current_tanev())[0]
+ok(payload.get("window_start") == str(tan_kezdo),
+   f"ablak kezdete a tanév első napja: {payload.get('window_start')} (várt: {tan_kezdo})")
 ok(payload.get("window_end") == str(date.today()), "ablak vége a mai nap")
 
 print("\n9b) Jövőbeli határidős események ablaka (+90 nap)")

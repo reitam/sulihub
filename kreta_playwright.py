@@ -415,12 +415,17 @@ def get_hianyzas_key_set(diak_nev):
     return keys
 
 
-def save_hianyzasok_to_db(diak_nev, rows):
+def save_hianyzasok_to_db(diak_nev, rows, window=None):
     """Inkrementális mentés: a rekord azonosítója a dátum + órasorszám.
 
     A KRÉTA mindig a teljes listát adja (nincs delta végpont), ezért a beolvasás
     teljes; a DB-be viszont csak a változás megy: a meglévő sor frissül (stabil
     ID), az új beszúródik, a KRÉTA-ból eltűnt sor pedig törlődik.
+
+    **Tanév-scope (Kaneo #40):** az „eltűnt" sorok törlése csak a most letöltött
+    tanévekre és a lekérési ablakon belülre hat (`window=(start, end)`); a
+    korábbi tanévek hiányzásai akkor sem törlődnek, ha az API nem adja vissza
+    őket. A sorok tanéve a `mulasztas_datum`-ból számítva kerül a DB-be.
     """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -432,7 +437,7 @@ def save_hianyzasok_to_db(diak_nev, rows):
         ).fetchall():
             existing[hianyzas_key({
                 "kreta_id": kid, "mulasztas_datum": datum, "ora_sorszam": ora,
-            })] = rid
+            })] = (rid, datum)
 
         seen = set()
         for r in rows:
@@ -440,6 +445,7 @@ def save_hianyzasok_to_db(diak_nev, rows):
             if key in seen:
                 continue
             seen.add(key)
+            tanev = kreta_tanev.tanev_of(r.get("mulasztas_datum"))
             values = (
                 str(r.get("kreta_id") or ""),
                 r.get("mulasztas_datum") or "",
@@ -453,26 +459,34 @@ def save_hianyzasok_to_db(diak_nev, rows):
                 r.get("tanorai_celu") or "",
                 r.get("igazolas_tipus") or "",
                 r.get("rogzites_datum") or "",
+                tanev,
+                kreta_tanev.TANEV_FORRAS_SZAMITOTT,
             )
             if key in existing:
                 cursor.execute('''
                     UPDATE hianyzasok SET
                         kreta_id = ?, mulasztas_datum = ?, ora_sorszam = ?, perc = ?,
                         tantargy = ?, tema = ?, tanar = ?, mulasztas_tipus = ?,
-                        igazolt = ?, tanorai_celu = ?, igazolas_tipus = ?, rogzites_datum = ?
+                        igazolt = ?, tanorai_celu = ?, igazolas_tipus = ?, rogzites_datum = ?,
+                        tanev = ?, tanev_forras = ?
                     WHERE id = ?
-                ''', values + (existing[key],))
+                ''', values + (existing[key][0],))
             else:
                 cursor.execute('''
                     INSERT INTO hianyzasok
                     (kreta_id, mulasztas_datum, ora_sorszam, perc, tantargy, tema, tanar,
-                     mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus, rogzites_datum, diak_nev)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus, rogzites_datum,
+                     tanev, tanev_forras, diak_nev)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', values + (diak_nev,))
 
-        # A KRÉTA-ból eltűnt (törölt/javított) sorok eltávolítása.
-        stale_ids = [rid for key, rid in existing.items() if key not in seen]
-        for rid in stale_ids:
+        # A KRÉTA-ból eltűnt (törölt/javított) sorok eltávolítása — csak a most
+        # letöltött tanévekből és az ablakon belül (Kaneo #40).
+        batch_years = {kreta_tanev.tanev_of(r.get("mulasztas_datum")) for r in rows} - {""}
+        deletable = _deletable_years(batch_years, window)
+        stale_pairs = [(rid, datum) for key, (rid, datum) in existing.items()
+                       if key not in seen]
+        for rid in _deletable_ids(stale_pairs, deletable, window):
             cursor.execute("DELETE FROM hianyzasok WHERE id = ?", (rid,))
         conn.commit()
     except Exception as ex:
@@ -481,14 +495,15 @@ def save_hianyzasok_to_db(diak_nev, rows):
         conn.close()
 
 
-def save_igazolasok_to_db(diak_nev, rows):
-    """A diák igazolásainak mentése **adatvédelemmel** (Kaneo #42).
+def save_igazolasok_to_db(diak_nev, rows, window=None):
+    """A diák igazolásainak mentése **upserttel** és adatvédelemmel (Kaneo #40/#42).
 
-    Teljes cserét végez, de ha az új lista a meglévő sorok `KRETA_SYNC_MIN_RATIO`
-    (alap 0,5) arányánál kevesebbet hoz — vagy teljesen üres, miközben volt adat —,
-    a törlést **kihagyja**, naplóz, és `blocked` jelzést ad vissza (az API-út ebből
-    hibát/fallbacket csinál). Így egy üres vagy részleges igazoláslista nem törli a
-    korábbi tanévek igazolásait.
+    - A meglévő sor a `kreta_id` (ennek híján a mezők kulcsa) alapján **frissül**
+      (stabil ID), az új beszúródik; a KRÉTA-ból eltűnt sor csak a most letöltött
+      tanévekből törlődik.
+    - **Adatvédelem:** ha az új lista a meglévő sorok `KRETA_SYNC_MIN_RATIO`
+      (alap 0,5) arányánál kevesebbet hoz — vagy teljesen üres, miközben volt
+      adat —, a törlést **kihagyja**, naplóz, és `blocked` jelzést ad vissza.
 
     Visszatérés: `{"saved": int, "blocked": {kulcs: {"old","new"}}, "error": str}`
     """
@@ -501,14 +516,19 @@ def save_igazolasok_to_db(diak_nev, rows):
         if key in seen:
             continue
         seen.add(key)
-        egyedi.append((kreta_id, r))
+        egyedi.append((key, kreta_id, r))
 
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     try:
-        old_count = cursor.execute(
-            "SELECT COUNT(*) FROM igazolasok WHERE diak_nev = ?", (diak_nev,)
-        ).fetchone()[0]
+        existing = {}
+        for rid, kid, kezd, veg, tip, megj in cursor.execute(
+            "SELECT id, kreta_id, kezdete, vege, igazolas_tipus, megjegyzes"
+            " FROM igazolasok WHERE diak_nev = ?", (diak_nev,)
+        ).fetchall():
+            key = str(kid or "").strip() or f"{kezd}|{veg}|{tip}|{megj}"
+            existing[key] = (rid, kezd, veg)
+        old_count = len(existing)
         new_count = len(egyedi)
         if old_count > 0 and (new_count == 0 or _would_drop_too_much(old_count, new_count)):
             log(f"  [FIGYELEM] Igazolások: {new_count} új sor a meglévő {old_count} helyett "
@@ -516,20 +536,39 @@ def save_igazolasok_to_db(diak_nev, rows):
             result["blocked"]["igazolasok"] = {"old": old_count, "new": new_count}
             return result
 
-        cursor.execute("DELETE FROM igazolasok WHERE diak_nev = ?", (diak_nev,))
-        for kreta_id, r in egyedi:
-            cursor.execute('''
-                INSERT INTO igazolasok
-                (diak_nev, kreta_id, kezdete, vege, igazolas_tipus, megjegyzes)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (
-                diak_nev,
-                kreta_id,
-                r.get("kezdete") or "",
-                r.get("vege") or "",
-                r.get("igazolas_tipus") or "",
-                r.get("megjegyzes") or "",
-            ))
+        # A törölhető tanévek: a most letöltött sorok tanévei (ablak nélkül mind).
+        batch_years = {kreta_tanev.tanev_of(r.get("kezdete") or r.get("vege"))
+                       for _, _, r in egyedi} - {""}
+        deletable = _deletable_years(batch_years, window)
+
+        for key, kreta_id, r in egyedi:
+            tanev = kreta_tanev.tanev_of(r.get("kezdete") or r.get("vege"))
+            if key in existing:
+                cursor.execute('''
+                    UPDATE igazolasok SET kezdete = ?, vege = ?, igazolas_tipus = ?,
+                        megjegyzes = ?, tanev = ?, tanev_forras = ?
+                    WHERE id = ?
+                ''', (
+                    r.get("kezdete") or "", r.get("vege") or "",
+                    r.get("igazolas_tipus") or "", r.get("megjegyzes") or "",
+                    tanev, kreta_tanev.TANEV_FORRAS_SZAMITOTT, existing[key][0],
+                ))
+            else:
+                cursor.execute('''
+                    INSERT INTO igazolasok
+                    (diak_nev, kreta_id, kezdete, vege, igazolas_tipus, megjegyzes,
+                     tanev, tanev_forras)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    diak_nev, kreta_id, r.get("kezdete") or "", r.get("vege") or "",
+                    r.get("igazolas_tipus") or "", r.get("megjegyzes") or "",
+                    tanev, kreta_tanev.TANEV_FORRAS_SZAMITOTT,
+                ))
+        # Az eltűnt sorok törlése — csak a batch tanéveiből, ablakon belül.
+        stale_pairs = [(rid, kezd or veg) for key, (rid, kezd, veg) in existing.items()
+                       if key not in seen]
+        for rid in _deletable_ids(stale_pairs, deletable, window):
+            cursor.execute("DELETE FROM igazolasok WHERE id = ?", (rid,))
         conn.commit()
         result["saved"] = new_count
     except Exception as ex:
@@ -611,20 +650,12 @@ def merge_existing_hianyzas_fields(rows, existing):
     return rows
 
 
-def hianyzas_api_window(diak_nev):
-    """Az API-lekérés ablaka a DB legkorábbi hiányzásához igazítva."""
-    conn = sqlite3.connect(DB_FILE)
-    earliest = None
-    try:
-        row = conn.execute(
-            "SELECT MIN(mulasztas_datum) FROM hianyzasok WHERE diak_nev = ?", (diak_nev,)
-        ).fetchone()
-        earliest = row[0] if row else None
-    except Exception as ex:
-        log(f"  [DB lekérdezési hiba - hiányzás ablak]: {ex}")
-    finally:
-        conn.close()
-    return kreta_api_sync.api_window(earliest)
+def hianyzas_api_window(diak_nev, today=None):
+    """Az API-lekérés ablaka: az aktuális tanév kezdete – ma (Kaneo #40).
+
+    A `diak_nev` paraméter a hívói kompatibilitás miatt maradt meg.
+    """
+    return kreta_api_sync.tanev_api_window(today)
 
 
 def api_provider_hianyzasok(student, client_factory=None):
@@ -636,7 +667,7 @@ def api_provider_hianyzasok(student, client_factory=None):
     rows = kreta_api_sync.fetch_omissions(client, start, end)
     merge_existing_hianyzas_fields(rows, get_existing_hianyzas_fields(diak_nev))
     before = get_hianyzas_key_set(diak_nev)
-    save_hianyzasok_to_db(diak_nev, rows)
+    save_hianyzasok_to_db(diak_nev, rows, window=(start, end))
     uj = diff_hianyzas_counts(before, rows)
     NEW_HIANYZAS_COUNTS[diak_nev] = uj
     if uj.get("db"):
@@ -656,22 +687,9 @@ def api_provider_igazolasok(student, client_factory=None):
     log(f"  [IGAZOLÁSOK OK] {len(rows)} db igazolás az API-ból.")
 
 
-def evaluation_api_window(diak_nev):
-    """A jegyek API-ablaka a DB legkorábbi értékeléséhez igazítva."""
-    conn = sqlite3.connect(DB_FILE)
-    earliest = None
-    try:
-        row = conn.execute(
-            "SELECT MIN(bej_datum) FROM esemenyek "
-            "WHERE diak_nev = ? AND esemeny_tipus = 'Értékelés'",
-            (diak_nev,),
-        ).fetchone()
-        earliest = row[0] if row else None
-    except Exception as ex:
-        log(f"  [DB lekérdezési hiba - jegy ablak]: {ex}")
-    finally:
-        conn.close()
-    return kreta_api_sync.api_window(earliest)
+def evaluation_api_window(diak_nev, today=None):
+    """A jegyek API-ablaka: az aktuális tanév kezdete – ma (Kaneo #40)."""
+    return kreta_api_sync.tanev_api_window(today)
 
 
 def api_provider_jegyek(student, client_factory=None):
@@ -686,33 +704,21 @@ def api_provider_jegyek(student, client_factory=None):
     log(f"\n[API] Jegyek lekérése: {start} .. {end} ...")
     client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
     rows = kreta_api_sync.fetch_evaluations(client, start, end)
-    saved = save_esemenyek_by_type(diak_nev, rows, set(), ["Értékelés"])
+    saved = save_esemenyek_by_type(diak_nev, rows, set(), ["Értékelés"], window=(start, end))
     _raise_if_blocked(saved, "jegyek")
     log(f"  [JEGYEK OK] {len(rows)} db értékelés az API-ból.")
 
 
-def events_api_window(diak_nev, tipus):
-    """Az eseménytípus API-ablaka a DB legkorábbi `bej_datum`-jához igazítva.
+def events_api_window(diak_nev, tipus, today=None):
+    """Az eseménytípus API-ablaka: a tanév kezdete – ma (+ lookahead).
 
     A házi feladat és a bejelentett számonkérés **jövőbeli** határidőt hordoz,
     ezért ezeknél az ablak előre is nyúlik (`FUTURE_LOOKAHEAD_DAYS`) — enélkül a
     következő hetek dolgozatai/házijai nem jönnének le az API-ból.
     """
-    conn = sqlite3.connect(DB_FILE)
-    earliest = None
-    try:
-        row = conn.execute(
-            "SELECT MIN(bej_datum) FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus = ?",
-            (diak_nev, tipus),
-        ).fetchone()
-        earliest = row[0] if row else None
-    except Exception as ex:
-        log(f"  [DB lekérdezési hiba - {tipus} ablak]: {ex}")
-    finally:
-        conn.close()
     lookahead = (kreta_api_sync.FUTURE_LOOKAHEAD_DAYS
                  if tipus in kreta_api_sync.FUTURE_DATED_EVENT_TYPES else 0)
-    return kreta_api_sync.api_window(earliest, lookahead_days=lookahead)
+    return kreta_api_sync.tanev_api_window(today, lookahead_days=lookahead)
 
 
 def _hazi_key(row):
@@ -727,7 +733,8 @@ def api_provider_hazi(student, client_factory=None):
     client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
     rows = kreta_api_sync.fetch_homeworks(client, start, end)
     before = get_existing_hazi_keys(diak_nev)
-    save_esemenyek_by_type(diak_nev, rows, get_completed_hazi_map(diak_nev), ["Házi feladat"])
+    save_esemenyek_by_type(diak_nev, rows, get_completed_hazi_map(diak_nev),
+                           ["Házi feladat"], window=(start, end))
     uj = len({_hazi_key(r) for r in rows} - before)
     log(f"  [HÁZI OK] {len(rows)} db házi feladat az API-ból ({uj} db új).")
 
@@ -740,7 +747,7 @@ def api_provider_szamonkeresek(student, client_factory=None):
     client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
     rows = kreta_api_sync.fetch_announced_tests(client, start, end)
     before = get_existing_szamonkeres_keys(diak_nev)
-    save_esemenyek_by_type(diak_nev, rows, set(), ["Bejelentett számonkérés"])
+    save_esemenyek_by_type(diak_nev, rows, set(), ["Bejelentett számonkérés"], window=(start, end))
     uj = len({_hazi_key(r) for r in rows} - before)
     log(f"  [SZÁMONKÉRÉS OK] {len(rows)} db számonkérés az API-ból ({uj} db új).")
 
@@ -752,7 +759,7 @@ def api_provider_feljegyzesek(student, client_factory=None):
     log(f"\n[API] Feljegyzések lekérése: {start} .. {end} ...")
     client = client_factory(student) if client_factory else kreta_api_sync.client_for(student)
     rows = kreta_api_sync.fetch_notes(client, start, end)
-    saved = save_esemenyek_by_type(diak_nev, rows, set(), ["Feljegyzés"])
+    saved = save_esemenyek_by_type(diak_nev, rows, set(), ["Feljegyzés"], window=(start, end))
     _raise_if_blocked(saved, "feljegyzések")
     log(f"  [FELJEGYZÉS OK] {len(rows)} db feljegyzés az API-ból.")
 
@@ -936,8 +943,8 @@ def _insert_esemeny(cursor, diak_nev, e, completed_set, existing_hazi, existing_
 
     cursor.execute('''
         INSERT INTO esemenyek 
-        (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, suly_szazalek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, suly_szazalek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz, tanev, tanev_forras)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         diak_nev, 
         es_tipus,
@@ -953,9 +960,51 @@ def _insert_esemeny(cursor, diak_nev, e, completed_set, existing_hazi, existing_
         e.get('tema', ''),
         e.get('cim', ''),
         e.get('tartalom', ''),
-        kesz_val
+        kesz_val,
+        kreta_tanev.row_tanev("esemenyek", e),
+        kreta_tanev.TANEV_FORRAS_SZAMITOTT,
     ))
     return True
+
+
+def _event_tanev(row) -> str:
+    """Egy mentendő esemény tanéve (a rekord dátumából; a házinál a határidő dönt)."""
+    return kreta_tanev.row_tanev("esemenyek", row)
+
+
+def _deletable_years(years, window) -> set:
+    """Azon tanévek, amelyekre a teljes csere (törlés) engedett (Kaneo #40)."""
+    out = set()
+    for year in years:
+        if not year:
+            continue
+        if window is None:
+            out.add(year)
+        elif kreta_tanev.teljesen_lekert(year, window[0], window[1]):
+            out.add(year)
+    return out
+
+
+def _in_window(value, window) -> bool:
+    """A dátum beleesik-e a lekérési ablakba (window=None: igen)."""
+    if window is None:
+        return True
+    datum = kreta_tanev.parse_date(value)
+    start = kreta_tanev.parse_date(window[0])
+    end = kreta_tanev.parse_date(window[1])
+    if datum is None or start is None or end is None:
+        return False
+    return start <= datum <= end
+
+
+def _deletable_ids(pairs, deletable_years, window) -> list:
+    """`[(id, dátum)]` -> a törölhető id-k (tanév a scope-ban és dátum az ablakban)."""
+    ids = []
+    for rid, datum in pairs:
+        year = kreta_tanev.tanev_of(datum)
+        if year and year in deletable_years and _in_window(datum, window):
+            ids.append(rid)
+    return ids
 
 
 def save_esemenyek_to_db(diak_nev, esemenyek, completed_set):
@@ -975,7 +1024,7 @@ def save_esemenyek_to_db(diak_nev, esemenyek, completed_set):
         conn.close()
 
 
-def save_esemenyek_by_type(diak_nev, esemenyek, completed_set, tipusok):
+def save_esemenyek_by_type(diak_nev, esemenyek, completed_set, tipusok, window=None):
     """Típusonkénti mentés: az API-ból már frissült típusokat ki lehet hagyni.
 
     - `Értékelés` / `Feljegyzés`: teljes csere (a KRÉTA-ból eltűnt sor törlődik);
@@ -1012,22 +1061,36 @@ def save_esemenyek_by_type(diak_nev, esemenyek, completed_set, tipusok):
 
         for tipus in tipusok:
             rows = rows_by_type.get(tipus, [])
+            deletable = set()
             if tipus in VOLATILE_EVENT_TYPES:
-                old_count = cursor.execute(
-                    "SELECT COUNT(*) FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus = ?",
+                # Tanév-scope (Kaneo #40): csak a batch tanévei, teljes ablakkal.
+                batch_years = {_event_tanev(e) for e in rows} - {""}
+                deletable = _deletable_years(batch_years, window)
+                pairs = cursor.execute(
+                    "SELECT id, bej_datum FROM esemenyek"
+                    " WHERE diak_nev = ? AND esemeny_tipus = ?",
                     (diak_nev, tipus),
-                ).fetchone()[0]
-                if _would_drop_too_much(old_count, len(rows)):
-                    result["blocked"][tipus] = {"old": old_count, "new": len(rows)}
-                    log(f"  [FIGYELEM] {tipus}: {len(rows)} új sor a meglévő {old_count} helyett "
-                        f"— a teljes cserét kihagytam (adatvédelem, küszöb: {sync_min_ratio():.2f}).")
+                ).fetchall()
+                if not rows and pairs:
+                    # Üres batch: soha nem törlünk (Kaneo #40), de jelezzük a hívónak,
+                    # hogy ez fallbacket érdemelhet (api_first).
+                    result["blocked"][tipus] = {"old": len(pairs), "new": 0}
+                    log(f"  [FIGYELEM] {tipus}: üres lista a meglévő {len(pairs)} sor "
+                        f"helyett — a teljes cserét kihagytam (adatvédelem).")
                     continue
-                if rows or old_count:
-                    cursor.execute(
-                        "DELETE FROM esemenyek WHERE diak_nev = ? AND esemeny_tipus = ?",
-                        (diak_nev, tipus),
-                    )
+                del_ids = _deletable_ids(pairs, deletable, window)
+                new_count = sum(1 for e in rows if _event_tanev(e) in deletable)
+                if del_ids and _would_drop_too_much(len(del_ids), new_count):
+                    result["blocked"][tipus] = {"old": len(del_ids), "new": new_count}
+                    log(f"  [FIGYELEM] {tipus}: {new_count} új sor a meglévő "
+                        f"{len(del_ids)} helyett — a teljes cserét kihagytam "
+                        f"(adatvédelem, küszöb: {sync_min_ratio():.2f}).")
+                    continue
+                for rid in del_ids:
+                    cursor.execute("DELETE FROM esemenyek WHERE id = ?", (rid,))
             for e in rows:
+                if tipus in VOLATILE_EVENT_TYPES and _event_tanev(e) not in deletable:
+                    continue  # nem törölt tanév: nem is írjuk (duplikáció ellen)
                 if _insert_esemeny(cursor, diak_nev, e, completed_set,
                                    existing_hazi, existing_szamonkeres):
                     result["saved"] += 1
@@ -1056,11 +1119,14 @@ def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     try:
+        tanev = kreta_tanev.tanev_of(idopont)
         cursor.execute('''
             INSERT INTO uzenetek 
-            (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal))
+            (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal,
+             tanev, tanev_forras)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal,
+              tanev, kreta_tanev.TANEV_FORRAS_SZAMITOTT))
         conn.commit()
     except Exception as ex:
         log(f"      [Hiba az üzenet mentésekor]: {ex}")

@@ -15,6 +15,8 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 
+import kreta_tanev
+
 from kreta_api import (
     KretaApiClient,
     lesson_index,
@@ -99,6 +101,25 @@ def api_window(earliest_stored: str | None, today: date | None = None,
     stored = parse_stored_date(earliest_stored)
     if stored is not None and stored < start:
         start = stored
+    return start, today + timedelta(days=max(0, lookahead_days))
+
+
+def tanev_api_window(today: date | None = None,
+                     lookahead_days: int = 0) -> tuple[date, date]:
+    """Az API-lekérés ablaka: **az aktuális tanév kezdetétől** a mai napig.
+
+    Kaneo #40: a teljes cserék törlése csak akkor engedett, ha az ablak lefedi a
+    tanévet — ezért nem a DB legkorábbi sorához igazítunk (az több tanév után
+    a teljes történetet kérné le), hanem a tanév elejéhez. A korábbi tanévek
+    adatait a szinkron nem érinti.
+
+    `lookahead_days`: mennyivel nyúljon az ablak a jövőbe (jövőbeli határidős
+    eseményekhez, pl. házi feladat és bejelentett számonkérés).
+    """
+    today = today or kreta_tanev.today()
+    start, _ = kreta_tanev.tanev_bounds(kreta_tanev.current_tanev(today))
+    if start is None:  # elvileg nem fordulhat elő; biztonsági tartalék
+        start = today - timedelta(days=DEFAULT_LOOKBACK_DAYS)
     return start, today + timedelta(days=max(0, lookahead_days))
 
 
