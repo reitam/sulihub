@@ -11,7 +11,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | Fájl | Mit ellenőriz |
 |---|---|
 | `test_scheduler.py` | Ütemező: config-parse/clamp, időablak (átforduló is), `next_run` az ablakon belül, perzisztencia, dupla indítás elleni védelem, API végpontok, `interrupted`/`running`, napló-pótlás, memória-fallback |
-| `test_a_package.py` | Részleges hiba (`done_with_errors` + hibás diákok), ntfy payload/throttle, napló-rotáció, `/api/logs` tail |
+| `test_a_package.py` | Részleges hiba (`done_with_errors` + hibás diákok), ntfy payload/throttle, napló-rotáció, `/api/logs` tail; a futás tanéve (`sync_runs.tanev`, tanévváltás jelezhető, `/api/sync/status.tanev`) |
 | `test_pdf_fonts.py` | PDF magyar `ő/Ő/ű/Ű` megjelenítés (a kiszolgált PDF szövegkinyerésével) |
 | `test_paths.py` | Adat-/log-/csatolmány-útvonalak feloldása (lokális és Docker-elrendezés) |
 | `test_new_events.py` | Új események kimutatása a szinkron előtti/utáni állapot különbségéből |

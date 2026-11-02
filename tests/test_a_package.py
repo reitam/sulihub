@@ -238,6 +238,28 @@ ok(len(r["content"].encode("utf-8")) < 900, f"a válasz korlátozott ({len(r['co
 ok("levágva" in r["content"], "jelzi, hogy a napló eleje le van vágva")
 ok("VEGSO-SOR" in r["content"], "a napló vége benne van")
 
+# ── A4: a futás tanéve (Kaneo #40, 6. fázis) ─────────────────────────────────
+print("\n4) A futás tanéve (sync_runs.tanev)")
+_conn = kreta.get_db_connection()
+_conn.execute("DELETE FROM sync_runs")
+_conn.commit(); _conn.close()
+os.environ["KRETA_TODAY"] = "2026-11-03"
+_rid3 = kreta.record_run_start("manual", "2026-11-03T10:00:00")
+kreta.record_run_finish(_rid3, "done", tanev=kreta.kreta_tanev.current_tanev())
+ok(kreta.last_recorded_tanev() == "2026/2027",
+   f"a futás tanéve rögzítve: {kreta.last_recorded_tanev()}")
+_conn = kreta.get_db_connection()
+_row = _conn.execute("SELECT tanev FROM sync_runs WHERE id = ?", (_rid3,)).fetchone()
+_conn.close()
+ok(_row and _row[0] == "2026/2027", f"sync_runs.tanev: {_row[0] if _row else None}")
+os.environ["KRETA_TODAY"] = "2027-09-01"
+ok(kreta.kreta_tanev.current_tanev() == "2027/2028", "a naptár szerint új tanév")
+ok(kreta.last_recorded_tanev() == "2026/2027",
+   "a korábbi futás tanéve marad -> a tanévváltás jelezhető")
+st = kreta.app.test_client().get("/api/sync/status").get_json()
+ok(st.get("tanev") == "2027/2028", f"a /api/sync/status is jelzi a tanévet: {st.get('tanev')}")
+os.environ.pop("KRETA_TODAY", None)
+
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)
