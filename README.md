@@ -312,11 +312,11 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**14 csomag, 480 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**15 csomag, 489 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
-**mobil elrendezés**.
+**deploy-konzisztencia** (Dockerfile COPY + requirements), **mobil elrendezés**.
 Részletek: [`tests/README.md`](tests/README.md).
 
 ---

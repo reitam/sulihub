@@ -23,7 +23,10 @@ RUN playwright install --with-deps chromium
 
 # Alkalmazáskód — config.json SZÁNDÉKOSAN NEM kerül a képbe (a data kötetből
 # mountolódik a /app/data/config.json), így a jelszavak nincsenek a képben.
-COPY app.py kreta_playwright.py ./
+# Minden gyökér *.py bekerül (app.py + kreta_*.py modulok): korábban itt csak az
+# app.py és a kreta_playwright.py szerepelt, ezért a v1.6.0 API-moduljai
+# hiányoztak a képből (ModuleNotFoundError: kreta_api).
+COPY *.py ./
 COPY templates/ ./templates/
 COPY static/ ./static/
 COPY entrypoint.sh ./
