@@ -353,13 +353,11 @@
                             title="A tanév az eseményeket, a hiányzásokat, az átlagokat és a zsebpénzt szűri. Az üzenetek és az órarend tanév-független.">
                         <option value="">Összes tanév</option>
                     </select>
+                    <span id="tanevAllapotBadge" class="badge bg-success-subtle text-success-emphasis border border-success-subtle d-none"
+                          title="A tanév állapota: a KRÉTA TanevUid változásakor automatikusan záródik/nyílik."></span>
                 </div>
                 <button id="btnSync" class="btn btn-success">
                     <i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból
-                </button>
-                <button id="btnTanevZaras" class="btn btn-outline-secondary btn-sm d-none"
-                        title="Az előző tanév teljes újralekérése (pótvizsga/augusztusi jegyek).">
-                    <i class="fa-solid fa-calendar-check me-1"></i>Tanév lezárása
                 </button>
             </div>
         </div>
@@ -2450,6 +2448,7 @@ $(document).ready(function() {
     let tanevAktualis = '';
     let tanevLista = [];
     let tanevHatarok = {};
+    let tanevAllapot = {};
 
     function tanEvCimke(tanev) {
         return tanev + '. tanév';
@@ -2465,31 +2464,29 @@ $(document).ready(function() {
         return `&tanev=${encodeURIComponent(t || 'all')}`;
     }
 
-    // ── Tanévzáró (Kaneo #52) ───────────────────────────────────────────────
-    function elozoTanev() {
-        let m = /^(\d{4})\/(\d{4})$/.exec(tanevAktualis || '');
-        if (!m) return '';
-        let y = parseInt(m[1], 10) - 1;
-        return `${y}/${y + 1}`;
-    }
-
-    // A zárható tanév: a kiválasztott (lezárt) tanév, különben az előző.
-    // Így a választóval bármelyik korábbi tanév lezárható.
-    function zarhatoTanev() {
-        let t = kivalasztottTanev();
-        if (t && t !== tanevAktualis) return t;
-        return elozoTanev();
-    }
-
-    function updateTanevZarasButton() {
-        let cel = zarhatoTanev();
-        let $b = $('#btnTanevZaras');
-        if (!cel) {
-            $b.addClass('d-none');
+    // ── Tanév-állapot (Kaneo #43) ──────────────────────────────────────────
+    // A zárás/nyitás automatikus: a KRÉTA TanevUid változásakor a backend
+    // lezárja a nyitott tanévet és megnyitja az újat (adatlekérés nélkül).
+    function updateTanevAllapotBadge() {
+        let t = kivalasztottTanev() || tanevAktualis || '';
+        let st = t ? (tanevAllapot[t] || null) : null;
+        let $b = $('#tanevAllapotBadge');
+        if (!st) {
+            $b.addClass('d-none').text('');
             return;
         }
-        $b.removeClass('d-none').html(
-            `<i class="fa-solid fa-calendar-check me-1"></i>${cel} zárása`);
+        if (st.allapot === 'lezart') {
+            let datum = (st.lezarva_at || '').slice(0, 10);
+            $b.removeClass('bg-success-subtle text-success-emphasis border-success-subtle')
+              .addClass('bg-secondary-subtle text-secondary-emphasis border-secondary-subtle')
+              .text('lezárt' + (datum ? ' · ' + datum : ''))
+              .removeClass('d-none');
+        } else {
+            $b.removeClass('bg-secondary-subtle text-secondary-emphasis border-secondary-subtle')
+              .addClass('bg-success-subtle text-success-emphasis border-success-subtle')
+              .text('nyitott')
+              .removeClass('d-none');
+        }
     }
 
     function reloadTanevFuggoNezetek() {
@@ -2564,11 +2561,15 @@ $(document).ready(function() {
             tanevAktualis = (res && res.aktualis) || '';
             tanevLista = (res && res.tanevek) || [];
             tanevHatarok = (res && res.hatarok) || {};
+            tanevAllapot = (res && res.allapot) || {};
             let $sel = $('#tanevValaszto').empty();
             $sel.append('<option value="">Összes tanév</option>');
             tanevLista.forEach(function (t) {
+                let allapot = (tanevAllapot[t] || {}).allapot || '';
+                let jelzes = t === tanevAktualis ? ' (aktuális)'
+                            : (allapot === 'lezart' ? ' (lezárt)' : '');
                 $sel.append(`<option value="${escapeHtml(t)}">${escapeHtml(tanEvCimke(t))}` +
-                            `${t === tanevAktualis ? ' (aktuális)' : ''}</option>`);
+                            `${jelzes}</option>`);
             });
             // Tanévváltás után (vagy üres DB-nél) az aktuális tanév még nem
             // szerepel a listában — ilyenkor is választható legyen.
@@ -2581,7 +2582,7 @@ $(document).ready(function() {
             if (megtartValasztas && korabbi !== null && korabbi !== undefined) cel = korabbi;
             $sel.val(cel);
             applyTanevDateLimits();
-            updateTanevZarasButton();
+            updateTanevAllapotBadge();
             reloadTanevFuggoNezetek();
         }).fail(function () {
             reloadTanevFuggoNezetek();
@@ -2590,7 +2591,7 @@ $(document).ready(function() {
 
     $('#tanevValaszto').change(function () {
         applyTanevDateLimits();
-        updateTanevZarasButton();
+        updateTanevAllapotBadge();
         reloadTanevFuggoNezetek();
     });
 
@@ -2901,14 +2902,11 @@ $(document).ready(function() {
             if (res.running) {
                 autoAlert.addClass('d-none');
                 btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-2"></i>Szinkronizálás...');
-                $('#btnTanevZaras').prop('disabled', true);
                 logContainer.removeClass('d-none');
                 spinner.removeClass('d-none');
                 title.text(res.trigger === 'scheduled'
                     ? 'Ütemezett szinkronizálás folyamatban a háttérben...'
-                    : (res.zaro_tanev
-                        ? `Tanévzáró futás folyamatban (${res.zaro_tanev})...`
-                        : 'Szinkronizálás folyamatban a háttérben...'));
+                    : 'Szinkronizálás folyamatban a háttérben...');
                 btnStop.removeClass('d-none');
 
                 if (res.logs.length > 0) {
@@ -2925,7 +2923,6 @@ $(document).ready(function() {
             } else {
                 autoAlert.addClass('d-none');
                 btn.prop('disabled', false).html('<i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból');
-                $('#btnTanevZaras').prop('disabled', false);
                 spinner.addClass('d-none');
                 btnStop.addClass('d-none');
 
@@ -3266,12 +3263,12 @@ $(document).ready(function() {
         $('#syncLogContainer').addClass('d-none');
     });
 
-    function startSync(tanev) {
+    function startSync() {
         $.ajax({
             url: '/api/sync/start',
             type: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify(tanev ? { tanev: tanev } : {}),
+            data: JSON.stringify({}),
             success: function(res) {
                 if (res.status === 'started' || res.status === 'already_running') {
                     checkSyncStatus();
@@ -3288,20 +3285,7 @@ $(document).ready(function() {
     }
 
     $('#btnSync').click(function() {
-        startSync('');
-    });
-
-    // Tanévzáró: a kiválasztott (vagy az előző) lezárt tanév teljes újralekérése (Kaneo #52).
-    $('#btnTanevZaras').click(function() {
-        let cel = zarhatoTanev();
-        if (!cel) return;
-        let uzenet = 'Tanévzáró futás: a(z) ' + cel + ' tanév teljes újralekérése.\n\n' +
-            'A pótvizsga és az augusztusi jegyek miatt a teljes tanév (szept. 1. – aug. 31.) ' +
-            'újra letöltődik, ezért ez több percig is tarthat. ' +
-            'Csak ennek a tanévnek az adatai frissülnek, a többi érintetlen marad.\n\n' +
-            'Indulhat?';
-        if (!confirm(uzenet)) return;
-        startSync(cel);
+        startSync();
     });
 
     $('#btnStopSync').click(function(e) {

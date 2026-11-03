@@ -13,6 +13,7 @@ import time
 import urllib.request
 from datetime import datetime, timedelta
 import kreta_tanev
+import kreta_api
 
 # ReportLab importok a PDF generáláshoz
 from reportlab.lib.pagesizes import A4, landscape
@@ -65,8 +66,7 @@ sync_state = {
     "new_events": {},
     "new_messages": {},
     "new_hianyzasok": {},
-    "sources": {},
-    "zaro_tanev": ""
+    "sources": {}
 }
 sync_lock = threading.Lock()
 
@@ -392,8 +392,7 @@ def record_run_start(trigger, started_at=None):
 
 def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_count=None,
                       failed_students=None, new_events=None, new_messages=None,
-                      new_hianyzasok=None, sources=None, duration_sec=None, tanev=None,
-                      tanev_zaro=None):
+                      new_hianyzasok=None, sources=None, duration_sec=None, tanev=None):
     """A futás sorának lezárása (a tanév a futás napjából számítva, Kaneo #40)."""
     if run_id is None or not _db_ready():
         return
@@ -403,7 +402,7 @@ def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_cou
         cur.execute("""
             UPDATE sync_runs SET finished_at = ?, status = ?, ok_count = ?, total_count = ?,
                    failed_students = ?, new_events = ?, new_messages = ?, new_hianyzasok = ?,
-                   sources = ?, duration_sec = ?, tanev = ?, tanev_zaro = ?
+                   sources = ?, duration_sec = ?, tanev = ?
             WHERE id = ?
         """, (
             finished_at or _now_iso(), status, ok_count, total_count,
@@ -412,7 +411,7 @@ def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_cou
             json.dumps(new_messages or {}, ensure_ascii=False),
             json.dumps(new_hianyzasok or {}, ensure_ascii=False),
             json.dumps(sources or {}, ensure_ascii=False),
-            duration_sec, tanev, tanev_zaro, run_id,
+            duration_sec, tanev, run_id,
         ))
         conn.commit()
         conn.close()
@@ -435,6 +434,46 @@ def last_recorded_tanev():
         return (row[0] if row else "") or ""
     except sqlite3.Error:
         return ""
+
+
+# ── Tanév-állapot a TanevUid alapján (Kaneo #43) ────────────────────────────
+def update_tanev_state_from_api(log_fn=None):
+    """A diákonkénti `TanuloAdatlap.TanevUid` ellenőrzése és a tanév-állapot frissítése.
+
+    A szinkronfutás **után** hívjuk (a scraper már kilépett), így nincs
+    token-párhuzamosság. Visszaadja a tanévváltásokat (ha voltak).
+    """
+    log_fn = log_fn or print
+    try:
+        cfg = load_config()
+    except Exception:
+        cfg = {}
+    students = [s for s in cfg.get("STUDENTS", []) if s.get("active", True)]
+    changes = []
+    for student in students:
+        diak = str(student.get("diak_nev") or "").strip()
+        if not diak:
+            continue
+        try:
+            with kreta_api.KretaApiClient(student) as client:
+                uid = client.fetch_tanev_uid()
+        except Exception as exc:  # noqa: BLE001 — hálózat/auth/parse
+            log_fn(f"[Tanév-állapot] {diak}: a TanevUid nem olvasható "
+                   f"({type(exc).__name__})")
+            continue
+        try:
+            conn = get_db_connection()
+            res = kreta_tanev.apply_tanev_uid(conn, diak, uid, log_fn=log_fn)
+            conn.close()
+        except sqlite3.Error as exc:
+            log_fn(f"[Tanév-állapot] {diak}: mentési hiba: {exc}")
+            continue
+        if res.get("lezart_tanev") or res.get("uj_tanev"):
+            changes.append(res)
+    for ch in changes:
+        log_fn(f"> TANÉV LEZÁRVA: {ch.get('lezart_tanev') or '-'}, "
+               f"MEGNYITVA: {ch.get('uj_tanev') or '-'} ({ch.get('diak_nev')})")
+    return changes
 
 
 def mark_interrupted_runs():
@@ -636,6 +675,9 @@ def init_db_extensions():
             if added:
                 print(f"[Adatbázis séma frissítve]: tanév-oszlopok: {', '.join(added)}")
             kreta_tanev.backfill_tanev(conn, log_fn=print, batch=200)
+            # Tanév-állapot (Kaneo #43): tanevek + tanulo_tanev_uid, kezdeti állapot.
+            kreta_tanev.ensure_tanev_state_schema(conn, log_fn=print)
+            kreta_tanev.seed_tanev_state(conn, log_fn=print)
 
             conn.commit()
             conn.close()
@@ -1140,40 +1182,29 @@ def trigger_label(trigger):
     return {"manual": "kézi", "scheduled": "ütemezett"}.get(trigger, trigger or "-")
 
 
-def start_sync(trigger="manual", tanev=""):
+def start_sync(trigger="manual"):
     """
     Egyetlen belépési pont a szinkron indítására (kézi gomb és ütemező is ezt
     használja). A 'running' jelzőt a szál indítása ELŐTT, a lock alatt foglalja
     le, így két egyszerre érkező kérés nem indíthat két párhuzamos futást.
-
-    `tanev`: ha meg van adva (pl. ``"2025/2026"``), **tanévzáró futás** indul:
-    a megadott, már lezárt tanév teljes ablaka kerül le (Kaneo #52).
     """
-    tanev = str(tanev or "").strip()
     with sync_lock:
         if sync_state["running"]:
             return False
         sync_state["running"] = True
         sync_state["status"] = "starting"
         sync_state["trigger"] = trigger
-        sync_state["zaro_tanev"] = tanev
     try:
-        # A tanévzáró futásnál második argumentum a cél-tanév; normál futásnál
-        # marad az egyargumentumos hívás (a meglévő tesztek/monkeypatch-ek miatt).
-        args = (trigger,) if not tanev else (trigger, tanev)
-        threading.Thread(target=run_scraper_thread, args=args, daemon=True).start()
+        threading.Thread(target=run_scraper_thread, args=(trigger,), daemon=True).start()
     except Exception:
         # Ha a szál nem indult el, ne maradjon örökre "fut" állapotban.
         with sync_lock:
             sync_state["running"] = False
             sync_state["status"] = "error"
-            sync_state["zaro_tanev"] = ""
         raise
 
     # A naplóban mindig látszik, hogy kézi vagy ütemezett futás indult.
-    if tanev:
-        _append_sync_log(f"TANÉVZÁRÓ SZINKRONIZÁCIÓ INDÍTÁSA ({tanev}) — a teljes tanév újralekérése")
-    elif trigger == "scheduled":
+    if trigger == "scheduled":
         _append_sync_log(
             f"ÜTEMEZETT SZINKRONIZÁCIÓ INDÍTÁSA (ütemező: {scheduler_config()['interval_minutes']} percenként)"
         )
@@ -1221,13 +1252,12 @@ def start_scheduler():
         )
 
 
-def run_scraper_thread(trigger="manual", tanev=""):
+def run_scraper_thread(trigger="manual"):
     global sync_state, _last_scheduled_memo
     
     with sync_lock:
         sync_state["running"] = True
         sync_state["trigger"] = trigger
-        sync_state["zaro_tanev"] = str(tanev or "")
         sync_state["logs"] = ["> Szinkronizáció indítása a háttérben..."]
         sync_state["status"] = "running"
         sync_state["failed_students"] = []
@@ -1246,35 +1276,12 @@ def run_scraper_thread(trigger="manual", tanev=""):
     if trigger == "scheduled":
         _last_scheduled_memo = started_at
 
-    # Tanév-naplózás (Kaneo #40, 6. fázis): a futás tanéve a sync_runs-ba
-    # kerül; az első futásnál, amikor a tanév átbillen, egyszeri naplósor + push.
+    # Tanév-naplózás (Kaneo #40): a futás naptári tanéve a sync_runs-ba kerül.
+    # A tanév-állapotot (zárás/nyitás) a futás UTÁN a TanevUid alapján frissítjük
+    # (Kaneo #43) — itt még nincs UID-információ.
     run_tanev = kreta_tanev.current_tanev()
-    elozo_tanev = last_recorded_tanev()
-    tanEvValtas = bool(elozo_tanev and elozo_tanev != run_tanev)
     with sync_lock:
-        if tanev:
-            sync_state["logs"].append(
-                f"> Tanév: {tanev} (tanévzáró cél) — a naptári tanév: {run_tanev}")
-            sync_state["logs"].append(
-                f"> TANÉVZÁRÓ FUTÁS: a(z) {tanev} tanév teljes újralekérése "
-                f"(a korábbi tanév adatai frissülnek, a többi érintetlen).")
-            sync_state["logs"].append(
-                "> Ha a KRÉTA erre a tanévre nem ad vissza adatot, a meglévő sorok "
-                "érintetlenek maradnak (üres batch védelem).")
-        else:
-            sync_state["logs"].append(f"> Tanév: {run_tanev}")
-        if tanEvValtas:
-            sync_state["logs"].append(
-                f"> ÚJ TANÉV: {elozo_tanev} → {run_tanev} — az új tanév adatai "
-                f"külön gyűlnek, a korábbi tanév érintetlen marad.")
-    if tanEvValtas:
-        send_notification(
-            "KRÉTA: új tanév",
-            f"Tanévváltás: {elozo_tanev} → {run_tanev}. A szinkron az új tanév "
-            f"adatait külön gyűjti, a korábbi tanév változatlan.",
-            3,
-            ["calendar"],
-        )
+        sync_state["logs"].append(f"> Tanév: {run_tanev}")
 
     failed_students = []
     try:
@@ -1286,11 +1293,6 @@ def run_scraper_thread(trigger="manual", tanev=""):
         child_env["KRETA_DB_FILE"] = DB_FILE
         child_env["KRETA_LOG_FILE"] = LOG_FILE
         child_env["KRETA_CSATOLMANYOK_DIR"] = CSATOLMANYOK_DIR
-        if tanev:
-            # Tanévzáró futás (Kaneo #52): a scraper a teljes cél-tanévet kéri le.
-            child_env["KRETA_ZARO_TANEV"] = str(tanev)
-        else:
-            child_env.pop("KRETA_ZARO_TANEV", None)
 
         # A scraper mindig UTF-8-at írjon és a Flask is UTF-8-ként olvassa: a
         # Windows alapértelmezett kódlapja (cp1250) és a Docker locale eltérhet,
@@ -1406,6 +1408,19 @@ def run_scraper_thread(trigger="manual", tanev=""):
             final_new_hianyzasok = sync_state.get("new_hianyzasok") or {}
             final_sources = sync_state.get("sources") or {}
 
+        # Tanév-állapot (Kaneo #43): a TanevUid ellenőrzése a futás után; ha
+        # megváltozott, a nyitott tanévet lezárjuk és az újat megnyitjuk.
+        def _tanev_state_log(msg):
+            with sync_lock:
+                sync_state["logs"].append(str(msg))
+            _append_sync_log(str(msg))
+
+        try:
+            tanev_changes = update_tanev_state_from_api(log_fn=_tanev_state_log)
+        except Exception as exc:  # noqa: BLE001 — a futás eredményét ne rontsa el
+            tanev_changes = []
+            _tanev_state_log(f"[Tanév-állapot] hiba: {type(exc).__name__}: {exc}")
+
         # A futás sorát lezárjuk a DB-ben (ez a "legutóbbi futás" állapot is).
         duration_sec = (_now() - started_at).total_seconds()
         record_run_finish(
@@ -1418,7 +1433,6 @@ def run_scraper_thread(trigger="manual", tanev=""):
             sources=final_sources,
             duration_sec=duration_sec,
             tanev=run_tanev,
-            tanev_zaro=tanev or None,
         )
 
         # Záró sor a naplóba: látszik a trigger (kézi/ütemezett) és az eredmény.
@@ -1431,6 +1445,17 @@ def run_scraper_thread(trigger="manual", tanev=""):
         # Push értesítés: hiba / részleges hiba / sikeres (beállítástól függően).
         notify_sync_result(final_status, final_failed, trigger, duration_min, final_ok, final_total,
                            final_new_events, final_new_messages, final_new_hianyzasok)
+
+        if tanev_changes:
+            lezart = sorted({ch.get("lezart_tanev") for ch in tanev_changes if ch.get("lezart_tanev")})
+            ujak = sorted({ch.get("uj_tanev") for ch in tanev_changes if ch.get("uj_tanev")})
+            send_notification(
+                "KRÉTA: új tanév",
+                f"Tanév lezárva: {', '.join(lezart) or '-'} · megnyitva: {', '.join(ujak) or '-'}. "
+                f"Adatlekérés nélkül, a KRÉTA TanevUid változása alapján.",
+                3,
+                ["calendar"],
+            )
 
 @app.route("/")
 def index():
@@ -2277,7 +2302,8 @@ def _has_tanev_column(cursor, table: str) -> bool:
 def api_tanevek():
     """A DB-ben előforduló tanévek, az aktuális tanév és a határok (Kaneo #40)."""
     aktualis = kreta_tanev.current_tanev()
-    empty = {"tanevek": [], "aktualis": aktualis, "hatarok": {}, "ismeretlen_db": 0}
+    empty = {"tanevek": [], "aktualis": aktualis, "hatarok": {}, "ismeretlen_db": 0,
+             "allapot": {}}
     if not os.path.exists(DB_FILE):
         return jsonify(empty)
 
@@ -2299,7 +2325,6 @@ def api_tanevek():
                 tanevek.add(row[0])
             else:
                 ismeretlen += row[1]
-    conn.close()
 
     hatarok = {}
     for tanev in tanevek:
@@ -2308,8 +2333,12 @@ def api_tanevek():
             "kezdo": kezd.isoformat() if kezd else "",
             "zaro": veg.isoformat() if veg else "",
         }
+    # A tanév-állapotot (Kaneo #43) is visszaadjuk: nyitott/le zárt + időpont.
+    allapot = kreta_tanev.tanev_allapotok(conn)
+    conn.close()
     return jsonify({"tanevek": sorted(tanevek), "aktualis": aktualis,
-                    "hatarok": hatarok, "ismeretlen_db": ismeretlen})
+                    "hatarok": hatarok, "ismeretlen_db": ismeretlen,
+                    "allapot": allapot})
 
 
 @app.route("/api/dashboard")
@@ -2926,24 +2955,9 @@ def api_kifizetes_save():
 
 @app.route("/api/sync/start", methods=["POST"])
 def api_sync_start():
-    data = request.get_json(silent=True) or {}
-    tanev = str(data.get("tanev") or "").strip()
-    if tanev:
-        kezd, veg = kreta_tanev.tanev_bounds(tanev)
-        if kezd is None or veg is None:
-            return jsonify({"status": "error", "message": f"Érvénytelen tanév: {tanev}"}), 400
-        aktualis_kezd, _ = kreta_tanev.tanev_bounds(kreta_tanev.current_tanev())
-        if aktualis_kezd and kezd >= aktualis_kezd:
-            return jsonify({"status": "error",
-                            "message": "Csak lezárt (korábbi) tanév zárható le."}), 400
-    if not start_sync("manual", tanev):
+    if not start_sync("manual"):
         return jsonify({"status": "already_running", "message": "A szinkronizáció már fut!"})
-    return jsonify({
-        "status": "started",
-        "tanev": tanev,
-        "message": (f"Tanévzáró futás elindítva ({tanev})." if tanev
-                    else "Szinkronizáció elindítva."),
-    })
+    return jsonify({"status": "started", "message": "Szinkronizáció elindítva."})
 
 @app.route("/api/sync/stop", methods=["POST"])
 def api_sync_stop():
@@ -2971,7 +2985,6 @@ def api_sync_status():
             "status": sync_state["status"],
             "trigger": sync_state.get("trigger"),
             "tanev": kreta_tanev.current_tanev(),
-            "zaro_tanev": sync_state.get("zaro_tanev") or "",
             "failed_students": list(sync_state.get("failed_students") or []),
             "sources": dict(sync_state.get("sources") or {}),
             "logs": list(sync_state["logs"]),

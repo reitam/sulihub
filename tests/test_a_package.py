@@ -260,36 +260,23 @@ st = kreta.app.test_client().get("/api/sync/status").get_json()
 ok(st.get("tanev") == "2027/2028", f"a /api/sync/status is jelzi a tanévet: {st.get('tanev')}")
 os.environ.pop("KRETA_TODAY", None)
 
-print("\n5) Tanévzáró futás: napló, környezet, futásnapló")
+print("\n5) Normál futás: a naptári tanév a futásnaplóban")
 os.environ["KRETA_TODAY"] = "2026-11-03"
 _conn = kreta.get_db_connection()
 _conn.execute("DELETE FROM sync_runs")
 _conn.commit(); _conn.close()
 kreta.subprocess.Popen = fake_popen(["##KRETA_RESULT##" + '{"total":1,"ok":1,"failed":[]}'], 0)
-kreta.run_scraper_thread("manual", "2025/2026")
-_logs = list(kreta.sync_state["logs"])
-ok(any("2025/2026 (tanévzáró cél)" in l and "2026/2027" in l for l in _logs),
-   f"a napló a záró célt és a naptári tanévet is jelzi: {_logs[1:4]}")
-ok((POPEN_KWARGS.get("env") or {}).get("KRETA_ZARO_TANEV") == "2025/2026",
-   "a scraper megkapja a KRETA_ZARO_TANEV env-et")
-ok(kreta.sync_state.get("zaro_tanev") == "2025/2026", "a sync_state jelzi a záró tanévet")
-_conn = kreta.get_db_connection()
-_row = _conn.execute("SELECT tanev, tanev_zaro FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
-_conn.close()
-ok(_row and _row[0] == "2026/2027" and _row[1] == "2025/2026",
-   f"a futásnapló: tanev/tanev_zaro = {tuple(_row) if _row else None}")
-# Normál futásnál nincs záró env és nincs záró tanév a sorban.
-kreta.subprocess.Popen = fake_popen(["##KRETA_RESULT##" + '{"total":1,"ok":1,"failed":[]}'], 0)
 kreta.run_scraper_thread("manual")
-_conn = kreta.get_db_connection()
-_row = _conn.execute("SELECT tanev, tanev_zaro FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
-_conn.close()
-ok(_row and _row[0] == "2026/2027" and _row[1] is None,
-   f"normál futásnál nincs záró tanév: {tuple(_row) if _row else None}")
+_logs = list(kreta.sync_state["logs"])
+ok(any("Tanév: 2026/2027" in l for l in _logs), f"a napló jelzi a tanévet: {_logs[1:3]}")
 ok("KRETA_ZARO_TANEV" not in (POPEN_KWARGS.get("env") or {}),
-   "normál futásnál a záró env nincs beállítva")
+   "a scraper nem kap záró tanév env-et")
+_conn = kreta.get_db_connection()
+_row = _conn.execute("SELECT tanev FROM sync_runs ORDER BY id DESC LIMIT 1").fetchone()
+_conn.close()
+ok(_row and _row[0] == "2026/2027",
+   f"a futásnapló tanéve: {_row[0] if _row else None}")
 os.environ.pop("KRETA_TODAY", None)
-os.environ.pop("KRETA_ZARO_TANEV", None)
 
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")

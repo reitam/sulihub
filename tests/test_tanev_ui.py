@@ -107,41 +107,22 @@ try:
         page.goto(base, wait_until="networkidle")
         page.wait_for_timeout(1500)
 
-        print("\n1) #52: Tanév lezárása gomb és a záró tanév elküldése")
-        ok(page.is_visible("#btnTanevZaras"), "a gomb látszik")
-        ok(ELOZO in page.inner_text("#btnTanevZaras"),
-           f"alapból az előző tanévet zársa: {page.inner_text('#btnTanevZaras')}")
-        captured = {}
-
-        def fake_start(route):
-            captured["body"] = route.request.post_data_json
-            route.fulfill(status=200, content_type="application/json",
-                          body=json.dumps({"status": "started",
-                                           "tanev": captured["body"].get("tanev")}))
-
-        page.route("**/api/sync/start", fake_start)
-        page.on("dialog", lambda d: d.accept())
-
-        # A választóval bármelyik korábbi tanév zárható.
-        page.select_option("#tanevValaszto", "2024/2025")
+        print("\n1) #43: tanév-állapot (automatikus zárás/nyitás)")
+        ok(page.query_selector("#btnTanevZaras") is None, "a kézi záró gomb megszűnt")
+        ok(page.is_visible("#tanevAllapotBadge"), "az állapotjelző látszik")
+        ok("nyitott" in page.inner_text("#tanevAllapotBadge"),
+           f"az aktuális tanév nyitott: {page.inner_text('#tanevAllapotBadge')}")
+        opts = page.eval_on_selector_all("#tanevValaszto option",
+                                         "els => els.map(e => e.textContent.trim())")
+        ok(any("(lezárt)" in o for o in opts), f"a lezárt tanév jelölve: {opts}")
+        page.select_option("#tanevValaszto", ELOZO)
         page.wait_for_timeout(700)
-        ok("2024/2025" in page.inner_text("#btnTanevZaras"),
-           f"a kiválasztott tanévre vált a gomb: {page.inner_text('#btnTanevZaras')}")
-        page.click("#btnTanevZaras")
-        page.wait_for_timeout(800)
-        ok((captured.get("body") or {}).get("tanev") == "2024/2025",
-           f"a kérés a kiválasztott tanévvel megy: {captured.get('body')}")
-
-        # Az aktuális tanévnél visszaáll az előző tanévre.
+        ok("lezárt" in page.inner_text("#tanevAllapotBadge"),
+           f"a korábbi tanév lezárt: {page.inner_text('#tanevAllapotBadge')}")
         page.select_option("#tanevValaszto", AKTUALIS)
         page.wait_for_timeout(700)
-        ok(ELOZO in page.inner_text("#btnTanevZaras"),
-           f"az aktuális tanévnél az előző a zárható: {page.inner_text('#btnTanevZaras')}")
-        captured.clear()
-        page.click("#btnTanevZaras")
-        page.wait_for_timeout(800)
-        ok((captured.get("body") or {}).get("tanev") == ELOZO,
-           f"a kérés a lezárt tanévvel megy: {captured.get('body')}")
+        ok("nyitott" in page.inner_text("#tanevAllapotBadge"),
+           f"visszaváltás után nyitott: {page.inner_text('#tanevAllapotBadge')}")
 
         print("\n2) #51: a csempék a friss adatból számolnak (versenyhelyzet)")
         page.wait_for_timeout(300)

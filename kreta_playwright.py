@@ -2359,13 +2359,6 @@ async def main():
     active_students = [s for s in STUDENTS if s.get("active", True)]
     log(f"Készülődés {len(active_students)} diák adatainak lekérésére...")
     log(f"Szinkron mód: {SYNC_MODE} (playwright | api | api_first)")
-    zaro_tanev = kreta_tanev.zaro_tanev()
-    if zaro_tanev:
-        log(f"TANÉVZÁRÓ FUTÁS: a(z) {zaro_tanev} tanév teljes újralekérése.")
-        if not kreta_sync.needs_api(SYNC_MODE):
-            log("HIBA: a tanévzáró futás csak 'api' vagy 'api_first' módban támogatott "
-                "(a webes felület nem ad teljes tanéves lekérési ablakot).")
-            sys.exit(3)
     if SYNC_SHADOW:
         log("Árnyék/ellenőrző mód: BE (a Playwright külön DB-másolaton fut, csak összehasonlítás)")
     if kreta_sync.needs_playwright(SYNC_MODE):
