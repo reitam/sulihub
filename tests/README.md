@@ -36,6 +36,8 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_oszlop_szelesseg.py` | Oszlopszélesség valódi böngészőben: az átméretezés/húzás nem rendezi át a táblát, a fogantyúk megvannak a hiányzások/igazolások táblán is |
 | `test_mobile_layout.py` | Mobil elrendezés valódi böngészőben (393 px): nincs vízszintes túlcsordulás egyik fülön sem, avatar, összecsukott táblázat, hiányzások fül; a szinkron-státusz egy karcsú sor, a technikai részletek koppintásra nyíló ablakban (a modál tartalma sem csúszik ki, a hosszú utolsó-futás sor tördel), asztali nézetben a részletes sor |
 | `test_karbantartas.py` | Karbantarthatóság (#12, #17): nincs külső CDN-hivatkozás, minden `static/vendor` fájl és a CSS-ek webfontjai léteznek; nincs `SyntaxWarning`, a `config.json.example` érvényes JSON, nincs hivatkozás a törölt `autoSyncAlert` blokkra |
+| `test_sajat_orarend.py` | Kézi órarend (#55): tanév/hét/egyedi érvényesség, heti ismétlődés, egy alkalom kivétele, sorozat törlése, diák-szűrés, érvénytelen bemenetek; a szinkron nem érinti a saját táblákat |
+| `test_naptar.py` | Naptárbejegyzés (#47): Google-link (egész napos/időpontos, időzóna), `.ics` (CRLF, all-day, UTC, escape, VALARM), config, API 200/404 |
 
 ## Függőségek
 
@@ -55,9 +57,9 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (29 csomag, 888 ell.)
-python tests/run_all.py --fast     # böngésző nélkül (24 csomag, 746 ell.)
-python tests/run_all.py --browser  # csak Playwright (5 csomag, 142 ell.)
+python tests/run_all.py            # minden teszt (31 csomag, 950 ell.)
+python tests/run_all.py --fast     # böngésző nélkül (26 csomag, 802 ell.)
+python tests/run_all.py --browser  # csak Playwright (5 csomag, 148 ell.)
 ```
 
 A GitHub Actions (`.github/workflows/ci.yml`) a **gyors** csoportot minden pushra/PR-ra,

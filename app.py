@@ -14,6 +14,8 @@ import urllib.request
 from datetime import datetime, timedelta
 import kreta_tanev
 import kreta_api
+import kreta_sajat_orarend
+import kreta_naptar
 
 # ReportLab importok a PDF generáláshoz
 from reportlab.lib.pagesizes import A4, landscape
@@ -658,6 +660,9 @@ def init_db_extensions():
                     terem TEXT
                 )
             """)
+
+            # Saját (kézi) órarendi tételek — Kaneo #55. A szinkron nem érinti.
+            kreta_sajat_orarend.ensure_schema(conn)
             
             # Ellenőrizzük, hogy az esemenyek táblában létezik-e a 'kesz' oszlop
             cursor.execute("PRAGMA table_info(esemenyek)")
@@ -1470,6 +1475,11 @@ def index():
 
         cursor.execute("SELECT DISTINCT diak_nev FROM esemenyek UNION SELECT DISTINCT diak_nev FROM uzenetek UNION SELECT DISTINCT diak_nev FROM orarend UNION SELECT DISTINCT diak_nev FROM hianyzasok ORDER BY diak_nev")
         diakok = [row["diak_nev"] for row in cursor.fetchall() if row["diak_nev"]]
+        # A config diákjai akkor is választhatók legyenek, ha még nincs szinkronizált sor.
+        for student in config.get("STUDENTS", []):
+            nev = (student.get("diak_nev") or "").strip()
+            if nev and nev not in diakok:
+                diakok.append(nev)
 
         cursor.execute("SELECT DISTINCT esemeny_tipus FROM esemenyek ORDER BY esemeny_tipus")
         tipusok = [row["esemeny_tipus"] for row in cursor.fetchall() if row["esemeny_tipus"]]
@@ -1578,6 +1588,63 @@ def api_orarend():
 
     return jsonify([dict(row) for row in rows])
 
+# ── Saját (kézi) órarendi tételek — Kaneo #55 ─────────────────────────────
+@app.route("/api/sajat_orarend", methods=["GET", "POST"])
+def api_sajat_orarend():
+    if not os.path.exists(DB_FILE):
+        if request.method == "GET":
+            return jsonify([])
+        return jsonify({"status": "error", "message": "Nincs adatbázis"}), 404
+
+    conn = get_db_connection()
+    try:
+        kreta_sajat_orarend.ensure_schema(conn)
+        if request.method == "GET":
+            diak = request.args.get("diak", "")
+            return jsonify(kreta_sajat_orarend.list_series(conn, diak=diak))
+
+        data = request.get_json(silent=True) or {}
+        row = kreta_sajat_orarend.create_series(conn, data)
+        return jsonify({"status": "ok", "sajat": row}), 201
+    except kreta_sajat_orarend.SajatOrarendError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:
+        print(f"[Saját órarend API] hiba: {e}")
+        return jsonify({"status": "error", "message": "Mentés nem sikerült"}), 500
+    finally:
+        conn.close()
+
+
+@app.route("/api/sajat_orarend/<int:series_id>", methods=["DELETE"])
+def api_sajat_orarend_torles(series_id):
+    if not os.path.exists(DB_FILE):
+        return jsonify({"status": "error", "message": "Nincs adatbázis"}), 404
+    conn = get_db_connection()
+    try:
+        kreta_sajat_orarend.ensure_schema(conn)
+        if not kreta_sajat_orarend.delete_series(conn, series_id):
+            return jsonify({"status": "error", "message": "A tétel nem található"}), 404
+        return jsonify({"status": "ok"})
+    finally:
+        conn.close()
+
+
+@app.route("/api/sajat_orarend/<int:series_id>/kivetel", methods=["POST"])
+def api_sajat_orarend_kivetel(series_id):
+    if not os.path.exists(DB_FILE):
+        return jsonify({"status": "error", "message": "Nincs adatbázis"}), 404
+    data = request.get_json(silent=True) or {}
+    conn = get_db_connection()
+    try:
+        kreta_sajat_orarend.ensure_schema(conn)
+        if not kreta_sajat_orarend.add_exception(conn, series_id, data.get("datum")):
+            return jsonify({"status": "error", "message": "A tétel nem található"}), 404
+        return jsonify({"status": "ok"})
+    except kreta_sajat_orarend.SajatOrarendError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    finally:
+        conn.close()
+
 @app.route("/api/orarend_naptar")
 def api_orarend_naptar():
     """Órarend lekérdezése a FullCalendar idősávos nézetéhez egyedi diák színkódolással."""
@@ -1613,6 +1680,12 @@ def api_orarend_naptar():
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
+    sajat_alkalmak = kreta_sajat_orarend.expand_occurrences(
+        conn,
+        diak=diak,
+        start=request.args.get("start"),
+        end=request.args.get("end"),
+    )
     conn.close()
 
     multi_student = not diak
@@ -1658,7 +1731,95 @@ def api_orarend_naptar():
             }
         })
 
+    # Kézzel rögzített saját órák (Kaneo #55) — a szinkron nem érinti őket.
+    for alkalom in sajat_alkalmak:
+        d_nev = alkalom["diak_nev"]
+        cim = alkalom["cim"]
+        title = f"[{d_nev}] {cim}" if multi_student else cim
+        if alkalom["terem"]:
+            title += f" ({alkalom['terem']})"
+        events.append({
+            "id": f"sajat-{alkalom['sajat_id']}-{alkalom['datum']}",
+            "title": title,
+            "start": f"{alkalom['datum']}T{alkalom['kezdes']}:00",
+            "end": f"{alkalom['datum']}T{alkalom['vege']}:00",
+            "allDay": False,
+            "backgroundColor": "#6f42c1",
+            "borderColor": "#59359a",
+            "extendedProps": {
+                "sajat": True,
+                "sajat_id": alkalom["sajat_id"],
+                "datum": alkalom["datum"],
+                "diak": d_nev,
+                "tantargy": cim,
+                "cim": cim,
+                "terem": alkalom["terem"],
+                "megjegyzes": alkalom["megjegyzes"],
+                "kezdes": alkalom["kezdes"],
+                "vege": alkalom["vege"],
+                "ervenyes_tol": alkalom["ervenyes_tol"],
+                "ervenyes_ig": alkalom["ervenyes_ig"],
+            }
+        })
+
     return jsonify(events)
+
+# ==============================================================================
+# === NAPTÁRBEJEGYZÉS GENERÁLÁS (Kaneo #47) ===================================
+# ==============================================================================
+def _naptar_event(kind: str, item_id: int):
+    """A kért esemény/üzenet naptáreseménnyé alakítva, vagy (None, hiba)."""
+    if not os.path.exists(DB_FILE):
+        return None, (jsonify({"status": "error", "message": "Nincs adatbázis"}), 404)
+    conn = get_db_connection()
+    try:
+        cfg = kreta_naptar.calendar_config(load_config())
+        if kind == "esemeny":
+            row = conn.execute("SELECT * FROM esemenyek WHERE id = ?", (item_id,)).fetchone()
+            event = kreta_naptar.event_from_esemeny(row, cfg) if row else None
+        elif kind == "uzenet":
+            row = conn.execute("SELECT * FROM uzenetek WHERE id = ?", (item_id,)).fetchone()
+            event = kreta_naptar.event_from_uzenet(row, cfg) if row else None
+        else:
+            return None, (jsonify({"status": "error", "message": "Ismeretlen típus"}), 404)
+    finally:
+        conn.close()
+    if not event:
+        return None, (jsonify({"status": "error", "message": "A bejegyzés nem található vagy nincs dátuma"}), 404)
+    return event, None
+
+
+@app.route("/api/naptar/<kind>/<int:item_id>")
+def api_naptar_info(kind, item_id):
+    event, error = _naptar_event(kind, item_id)
+    if error:
+        return error
+    cfg = kreta_naptar.calendar_config(load_config())
+    return jsonify({
+        "status": "ok",
+        "kind": event["kind"],
+        "id": event["id"],
+        "title": event["title"],
+        "start": event["start"].isoformat(),
+        "all_day": event["all_day"],
+        "google_url": kreta_naptar.google_calendar_url(event, cfg),
+        "ics_url": f"/api/naptar/{event['kind']}/{event['id']}.ics",
+    })
+
+
+@app.route("/api/naptar/<kind>/<int:item_id>.ics")
+def api_naptar_ics(kind, item_id):
+    event, error = _naptar_event(kind, item_id)
+    if error:
+        return error
+    cfg = kreta_naptar.calendar_config(load_config())
+    response = make_response(kreta_naptar.ics_content(event, cfg))
+    response.headers["Content-Type"] = "text/calendar; charset=utf-8"
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename=\"{kreta_naptar.safe_filename(event)}\""
+    )
+    return response
+
 
 # ==============================================================================
 # === PDF BETŰKÉSZLET (magyar ő/ű támogatás) ===================================

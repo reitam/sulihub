@@ -834,10 +834,14 @@
                         <button id="btnExportOrarendPdf" class="btn btn-sm btn-danger fw-bold ms-2">
                             <i class="fa-solid fa-file-pdf me-1"></i>Órarend letöltése PDF-ben
                         </button>
+                        <button id="btnSajatOra" class="btn btn-sm btn-outline-primary fw-bold">
+                            <i class="fa-solid fa-plus me-1"></i>Saját óra
+                        </button>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <span class="badge bg-primary">Tanóra</span>
                         <span class="badge bg-warning text-dark">Tanítási szünet / Ünnepnap</span>
+                        <span class="badge" style="background:#6f42c1;">Saját óra</span>
                     </div>
                 </div>
                 <div id="orarendCalendar"></div>
@@ -1146,7 +1150,13 @@
             </div>
         </div>
       </div>
-      <div class="modal-footer p-2">
+      <div class="modal-footer p-2 flex-wrap gap-1">
+        <button type="button" class="btn btn-sm btn-outline-primary" id="btnUzenetNaptarGoogle">
+          <i class="fa-brands fa-google me-1"></i>Google naptárba
+        </button>
+        <a class="btn btn-sm btn-outline-secondary" id="btnUzenetNaptarIcs" href="#">
+          <i class="fa-solid fa-calendar-plus me-1"></i>ICS
+        </a>
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bezárás</button>
       </div>
     </div>
@@ -1190,6 +1200,97 @@
       </div>
       <div class="modal-footer p-2">
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bezárás</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: SAJÁT ÓRA RÖGZÍTÉSE (Kaneo #55) -->
+<div class="modal fade" id="sajatOraModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white p-2 px-3">
+        <h6 class="modal-title m-0"><i class="fa-solid fa-calendar-plus me-2"></i>Saját óra rögzítése</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-12">
+            <label for="sajatOraDiak" class="form-label small fw-bold mb-1">Diák</label>
+            <select id="sajatOraDiak" class="form-select form-select-sm">
+              {% for d in diakok %}
+              <option value="{{ d }}">{{ d }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label for="sajatOraCim" class="form-label small fw-bold mb-1">Megnevezés</label>
+            <input type="text" id="sajatOraCim" class="form-control form-control-sm" maxlength="120"
+                   placeholder="Pl. Sakk szakkör, angol különóra">
+          </div>
+          <div class="col-12 col-sm-5">
+            <label for="sajatOraNap" class="form-label small fw-bold mb-1">Nap</label>
+            <select id="sajatOraNap" class="form-select form-select-sm">
+              <option value="1">Hétfő</option>
+              <option value="2">Kedd</option>
+              <option value="3">Szerda</option>
+              <option value="4">Csütörtök</option>
+              <option value="5">Péntek</option>
+              <option value="6">Szombat</option>
+              <option value="7">Vasárnap</option>
+            </select>
+          </div>
+          <div class="col-6 col-sm-3">
+            <label for="sajatOraKezdes" class="form-label small fw-bold mb-1">Kezdés</label>
+            <input type="time" id="sajatOraKezdes" class="form-control form-control-sm" value="16:00">
+          </div>
+          <div class="col-6 col-sm-4">
+            <label for="sajatOraVege" class="form-label small fw-bold mb-1">Vég</label>
+            <input type="time" id="sajatOraVege" class="form-control form-control-sm" value="17:00">
+          </div>
+          <div class="col-12 col-sm-6">
+            <label for="sajatOraTerem" class="form-label small fw-bold mb-1">Terem / helyszín</label>
+            <input type="text" id="sajatOraTerem" class="form-control form-control-sm" maxlength="80" placeholder="Opcionális">
+          </div>
+          <div class="col-12 col-sm-6">
+            <label for="sajatOraErveny" class="form-label small fw-bold mb-1">Érvényesség</label>
+            <select id="sajatOraErveny" class="form-select form-select-sm">
+              <option value="tanev">Teljes tanév</option>
+              <option value="het">Csak ez a hét</option>
+              <option value="egyedi">Egyedi időszak</option>
+            </select>
+          </div>
+          <div class="col-12 d-none" id="sajatOraEgyedi">
+            <div class="row g-2">
+              <div class="col-6">
+                <label for="sajatOraTol" class="form-label small fw-bold mb-1">Ettől</label>
+                <input type="date" id="sajatOraTol" class="form-control form-control-sm">
+              </div>
+              <div class="col-6">
+                <label for="sajatOraIg" class="form-label small fw-bold mb-1">Eddig</label>
+                <input type="date" id="sajatOraIg" class="form-control form-control-sm">
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <label for="sajatOraMegjegyzes" class="form-label small fw-bold mb-1">Megjegyzés</label>
+            <textarea id="sajatOraMegjegyzes" class="form-control form-control-sm" rows="2" maxlength="500"
+                      placeholder="Opcionális"></textarea>
+          </div>
+          <div class="col-12 small text-muted">
+            A tétel a KRÉTA-frissítéstől függetlenül megmarad; törölni a naptárban rá koppintva lehet
+            (egy alkalom vagy a teljes sorozat).
+          </div>
+          <div class="col-12">
+            <div id="sajatOraHiba" class="alert alert-danger py-2 px-3 mb-0 small d-none"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer p-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Mégse</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btnSajatOraMent">
+          <i class="fa-solid fa-check me-1"></i>Rögzítés
+        </button>
       </div>
     </div>
   </div>
@@ -1876,7 +1977,9 @@ $(document).ready(function() {
             },
             events: function(info, successCallback, failureCallback) {
                 let selectedDiak = $('#orarendFilterDiak').val() || $('#filterDiak').val();
-                $.getJSON(`/api/orarend_naptar?diak=${encodeURIComponent(selectedDiak)}`, function(data) {
+                $.getJSON(`/api/orarend_naptar?diak=${encodeURIComponent(selectedDiak)}`
+                          + `&start=${encodeURIComponent(info.startStr)}&end=${encodeURIComponent(info.endStr)}`,
+                          function(data) {
                     successCallback(data);
                 }).fail(function() {
                     failureCallback();
@@ -1884,11 +1987,33 @@ $(document).ready(function() {
             },
             eventClick: function(info) {
                 let props = info.event.extendedProps;
-                let bodyText = `Diák: ${props.diak}\nÓra / Esemény: ${props.tantargy}\nTanár: ${props.tanar || '-'}\nTerem: ${props.terem || '-'}`;
-                
-                $('#detailsModalTitle').html(`<i class="fa-solid fa-clock me-2"></i>${info.event.title}`);
-                $('#detailsModalBody').text(bodyText);
-                $('#modalActionContainer').addClass('d-none');
+                let actionContainer = $('#modalActionContainer');
+                actionContainer.empty();
+
+                if (props.sajat) {
+                    let bodyText = `Diák: ${props.diak}\nMegnevezés: ${props.cim || props.tantargy}`
+                        + `\nIdőpont: ${props.datum} ${props.kezdes}–${props.vege}`
+                        + `\nTerem / helyszín: ${props.terem || '-'}`
+                        + `\nÉrvényesség: ${props.ervenyes_tol} – ${props.ervenyes_ig}`
+                        + `\nMegjegyzés: ${props.megjegyzes || '-'}`;
+                    $('#detailsModalTitle').html(`<i class="fa-solid fa-calendar-plus me-2"></i>${info.event.title}`);
+                    $('#detailsModalBody').text(bodyText);
+                    actionContainer.removeClass('d-none').html(`
+                        <div class="d-flex gap-2 justify-content-end flex-wrap">
+                            <button class="btn btn-sm btn-outline-danger btn-sajat-kivetel"
+                                    data-id="${props.sajat_id}" data-datum="${props.datum}">
+                                <i class="fa-solid fa-calendar-xmark me-1"></i>Csak ezt az alkalmat törli
+                            </button>
+                            <button class="btn btn-sm btn-danger btn-sajat-sorozat" data-id="${props.sajat_id}">
+                                <i class="fa-solid fa-trash me-1"></i>Teljes sorozat törlése
+                            </button>
+                        </div>`);
+                } else {
+                    let bodyText = `Diák: ${props.diak}\nÓra / Esemény: ${props.tantargy}\nTanár: ${props.tanar || '-'}\nTerem: ${props.terem || '-'}`;
+                    $('#detailsModalTitle').html(`<i class="fa-solid fa-clock me-2"></i>${info.event.title}`);
+                    $('#detailsModalBody').text(bodyText);
+                    actionContainer.addClass('d-none');
+                }
 
                 let detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
                 detailsModal.show();
@@ -1948,17 +2073,28 @@ $(document).ready(function() {
                 let actionContainer = $('#modalActionContainer');
                 actionContainer.empty();
 
+                let actions = [];
                 if (props.tipus === 'Házi feladat') {
-                    actionContainer.removeClass('d-none');
                     if (props.kesz) {
-                        actionContainer.html(`<button class="btn btn-sm btn-outline-secondary btn-modal-toggle-kesz" data-id="${eventId}" data-kesz="0">
+                        actions.push(`<button class="btn btn-sm btn-outline-secondary btn-modal-toggle-kesz" data-id="${eventId}" data-kesz="0">
                             <i class="fa-solid fa-rotate-left me-1"></i>Visszaállítás elkészítendőre
                         </button>`);
                     } else {
-                        actionContainer.html(`<button class="btn btn-sm btn-success text-white btn-modal-toggle-kesz" data-id="${eventId}" data-kesz="1">
+                        actions.push(`<button class="btn btn-sm btn-success text-white btn-modal-toggle-kesz" data-id="${eventId}" data-kesz="1">
                             <i class="fa-solid fa-check me-1"></i>Megjelölés elkészültként
                         </button>`);
                     }
+                }
+                if (props.tipus === 'Házi feladat' || props.tipus === 'Bejelentett számonkérés') {
+                    actions.push(`<button class="btn btn-sm btn-outline-primary btn-naptar-google" data-kind="esemeny" data-id="${eventId}">
+                        <i class="fa-brands fa-google me-1"></i>Google naptárba
+                    </button>`);
+                    actions.push(`<a class="btn btn-sm btn-outline-secondary btn-naptar-ics" data-kind="esemeny" data-id="${eventId}"
+                        href="/api/naptar/esemeny/${eventId}.ics"><i class="fa-solid fa-calendar-plus me-1"></i>ICS</a>`);
+                }
+                if (actions.length) {
+                    actionContainer.removeClass('d-none').html(
+                        `<div class="d-flex gap-2 justify-content-end flex-wrap">${actions.join('')}</div>`);
                 } else {
                     actionContainer.addClass('d-none');
                 }
@@ -2042,6 +2178,116 @@ $(document).ready(function() {
         }
     });
 
+    // ── Saját óra rögzítése / törlése (Kaneo #55) ─────────────────────────
+    function sajatOraIsoDate(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    function sajatOraHiba(msg) {
+        let box = $('#sajatOraHiba');
+        if (msg) box.removeClass('d-none').text(msg);
+        else box.addClass('d-none').text('');
+    }
+
+    $('#btnSajatOra').click(function() {
+        sajatOraHiba('');
+        $('#sajatOraCim').val('');
+        $('#sajatOraTerem').val('');
+        $('#sajatOraMegjegyzes').val('');
+        $('#sajatOraKezdes').val('16:00');
+        $('#sajatOraVege').val('17:00');
+        $('#sajatOraErveny').val('tanev').trigger('change');
+        let filterDiak = $('#orarendFilterDiak').val();
+        if (filterDiak) $('#sajatOraDiak').val(filterDiak);
+        let ma = new Date();
+        $('#sajatOraNap').val(String(ma.getDay() === 0 ? 7 : ma.getDay()));
+        $('#sajatOraTol').val(sajatOraIsoDate(ma));
+        $('#sajatOraIg').val(sajatOraIsoDate(new Date(ma.getFullYear(), ma.getMonth(), ma.getDate() + 7)));
+        new bootstrap.Modal(document.getElementById('sajatOraModal')).show();
+    });
+
+    $('#sajatOraErveny').change(function() {
+        $('#sajatOraEgyedi').toggleClass('d-none', $(this).val() !== 'egyedi');
+    });
+
+    $('#btnSajatOraMent').click(function() {
+        sajatOraHiba('');
+        let diak = $('#sajatOraDiak').val();
+        let cim = $('#sajatOraCim').val().trim();
+        let kezdes = $('#sajatOraKezdes').val();
+        let vege = $('#sajatOraVege').val();
+        let mode = $('#sajatOraErveny').val();
+        if (!diak) return sajatOraHiba('Válassz diákot.');
+        if (!cim) return sajatOraHiba('A megnevezés kötelező.');
+        if (!kezdes || !vege || vege <= kezdes) {
+            return sajatOraHiba('A vég időpontjának később kell lennie a kezdésnél.');
+        }
+        let body = {
+            diak_nev: diak,
+            cim: cim,
+            nap: parseInt($('#sajatOraNap').val(), 10),
+            kezdes: kezdes,
+            vege: vege,
+            terem: $('#sajatOraTerem').val().trim(),
+            megjegyzes: $('#sajatOraMegjegyzes').val().trim(),
+            ervenyesites: mode
+        };
+        if (mode === 'egyedi') {
+            body.tol = $('#sajatOraTol').val();
+            body.ig = $('#sajatOraIg').val();
+            if (!body.tol || !body.ig) {
+                return sajatOraHiba('Az egyedi időszakhoz a kezdő és záró dátum is kell.');
+            }
+        }
+        let btn = $(this).prop('disabled', true);
+        $.ajax({
+            url: '/api/sajat_orarend',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(body)
+        }).done(function() {
+            let modal = bootstrap.Modal.getInstance(document.getElementById('sajatOraModal'));
+            if (modal) modal.hide();
+            if (orarendCalendar) orarendCalendar.refetchEvents();
+        }).fail(function(xhr) {
+            sajatOraHiba((xhr.responseJSON && xhr.responseJSON.message) || 'A mentés nem sikerült.');
+        }).always(function() {
+            btn.prop('disabled', false);
+        });
+    });
+
+    $(document).on('click', '.btn-sajat-kivetel', function() {
+        let id = $(this).data('id');
+        let datum = $(this).data('datum');
+        if (!confirm(`Csak a(z) ${datum} alkalmat törlöd? A sorozat többi alkalma megmarad.`)) return;
+        $.ajax({
+            url: `/api/sajat_orarend/${id}/kivetel`,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ datum: datum })
+        }).done(function() {
+            let modal = bootstrap.Modal.getInstance(document.getElementById('detailsModal'));
+            if (modal) modal.hide();
+            if (orarendCalendar) orarendCalendar.refetchEvents();
+        }).fail(function(xhr) {
+            alert((xhr.responseJSON && xhr.responseJSON.message) || 'A törlés nem sikerült.');
+        });
+    });
+
+    $(document).on('click', '.btn-sajat-sorozat', function() {
+        let id = $(this).data('id');
+        if (!confirm('A teljes sorozatot törlöd (minden alkalommal)?')) return;
+        $.ajax({
+            url: `/api/sajat_orarend/${id}`,
+            type: 'DELETE'
+        }).done(function() {
+            let modal = bootstrap.Modal.getInstance(document.getElementById('detailsModal'));
+            if (modal) modal.hide();
+            if (orarendCalendar) orarendCalendar.refetchEvents();
+        }).fail(function(xhr) {
+            alert((xhr.responseJSON && xhr.responseJSON.message) || 'A törlés nem sikerült.');
+        });
+    });
+
     $('#esemenyekTable').on('click', '.btn-show-details', function(e) {
         e.stopPropagation();
         let fullText = $(this).data('text');
@@ -2054,6 +2300,7 @@ $(document).ready(function() {
     // ── Saját megjegyzések (Kaneo #46) ─────────────────────────────────────
     let kommentCel = { tipus: '', kulcs: '', diak: '', gomb: null };
     let uzenetKommentCel = { kulcs: '', diak: '' };
+    let uzenetAktualisId = null;
 
     function betoltUzenetKommentek() {
         if (!uzenetKommentCel.kulcs) {
@@ -3490,8 +3737,27 @@ $(document).ready(function() {
         $('#uzenetKommentUj').val('');
         betoltUzenetKommentek();
 
+        // Naptárbejegyzés (Kaneo #47)
+        uzenetAktualisId = msg.id;
+        $('#btnUzenetNaptarIcs').attr('href', `/api/naptar/uzenet/${msg.id}.ics`);
+
         let myModal = new bootstrap.Modal(document.getElementById('uzenetModal'));
         myModal.show();
+    });
+
+    // Naptárbejegyzés: Google Naptár (előre kitöltött esemény) — Kaneo #47
+    $(document).on('click', '.btn-naptar-google, #btnUzenetNaptarGoogle', function(e) {
+        e.preventDefault();
+        let kind = $(this).data('kind') || 'uzenet';
+        let id = $(this).data('id') || uzenetAktualisId;
+        if (!id) return;
+        $.getJSON(`/api/naptar/${kind}/${id}`, function(res) {
+            if (res && res.google_url) {
+                window.open(res.google_url, '_blank', 'noopener');
+            }
+        }).fail(function(xhr) {
+            alert((xhr.responseJSON && xhr.responseJSON.message) || 'A naptárbejegyzés nem készíthető el.');
+        });
     });
 
     $('#btnUzenetKommentMent').click(function() {

@@ -18,6 +18,12 @@
     "END_HOUR": 24,
     "STALE_ALERT_HOURS": 12
   },
+  "CALENDAR": {
+    "_comment": "Naptarbejegyzes (Kaneo #47): Google Naptar link + .ics. A REMINDER_MINUTES 0 = nincs emlekezteto.",
+    "TIMEZONE": "Europe/Budapest",
+    "REMINDER_MINUTES": 30,
+    "MESSAGE_DURATION_MINUTES": 30
+  },
   "REWARDS": {
     "jegy_5": 500,
     "jegy_4": 200,
