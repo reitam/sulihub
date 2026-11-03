@@ -56,7 +56,8 @@ a saját szerveren maradnak.
   (szürke/zöld), csak > 0 esetén élénk szín.
   A gyermekkártyákon **monogramos avatar**, név, diszkrét jegyszám-badge és nagy átlag;
   a tanév/súlyozás magyarázata a **szakasz fejlécében** van, kikapcsolt zsebpénznél
-  diszkrét ikon.
+  diszkrét ikon. A **gyermekszűrő chipek** és az **„Események listája”** gomb a szakasz
+  fejlécében, a cím sorában vannak.
 - **Semleges fülek:** a navigáció ikonjai/feliratai sötétszürkék, csak az aktív fület
   emeli ki a felület (kék szöveg/ikon + alsó kék vonal) — nincs színes ikonkáosz.
 - **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);
