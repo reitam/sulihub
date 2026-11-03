@@ -51,12 +51,18 @@ def ok(c, m):
 conn = kreta.get_db_connection()
 cur = conn.cursor()
 for tanev in ("2024/2025", "2025/2026", "2026/2027", "2027/2028"):
+    kezd, veg = kreta_tanev.tanev_bounds(tanev)
     cur.execute(
-        "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg,"
-        " csatolmany_nev, csatolmany_utvonal, tanev, tanev_forras)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?)",
-        ("Teszt Elek", "U-" + tanev, "Iskola", "Targy " + tanev,
-         "2026. 09. 01. 10:00", "Szoveg", "", "", tanev, "szamitott"))
+        "INSERT INTO kifizetesek (diak_nev, kezdo_datum, zaro_datum, kifizetve, osszeg,"
+        " tanev, tanev_forras) VALUES (?,?,?,0,0,?,?)",
+        ("Teszt Elek", kezd.isoformat(), veg.isoformat(), tanev, "szamitott"))
+# Üzenet-only tanév: a választóban NEM jelenhet meg (az üzenetek tanév-függetlenek).
+cur.execute(
+    "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg,"
+    " csatolmany_nev, csatolmany_utvonal, tanev, tanev_forras)"
+    " VALUES (?,?,?,?,?,?,?,?,?,?)",
+    ("Teszt Elek", "U-2023", "Iskola", "Régi üzenet", "2023. 09. 01. 10:00",
+     "Szoveg", "", "", "2023/2024", "szamitott"))
 conn.commit()
 conn.close()
 
@@ -74,6 +80,7 @@ ok(allapot.get("2025/2026", {}).get("lezarva_at", "").startswith("2026-08-31"),
    f"a zárás a tanév végének dátuma: {allapot.get('2025/2026', {}).get('lezarva_at')}")
 ok(allapot.get("2026/2027", {}).get("allapot") == "nyitott", "2026/2027 nyitott")
 ok("2027/2028" not in allapot, "a jövőbeli tanévnek még nincs állapota")
+ok("2023/2024" not in allapot, "az üzenet-only tanévnek nincs állapotsora")
 
 print("\n2) Első UID: nincs zárás, csak rögzítés")
 conn = kreta.get_db_connection()
@@ -150,6 +157,10 @@ res = cl.get("/api/tanevek").get_json() or {}
 ok("allapot" in res and res["allapot"].get("2027/2028", {}).get("allapot") == "nyitott",
    f"API allapot: {res.get('allapot', {}).get('2027/2028')}")
 ok(res["allapot"].get("2026/2027", {}).get("allapot") == "lezart", "a lezárt tanév is látszik")
+ok("2023/2024" not in res.get("tanevek", []),
+   f"az üzenet-only tanév nem kerül a választóba: {res.get('tanevek')}")
+ok("2024/2025" in res.get("tanevek", []) and "2025/2026" in res.get("tanevek", []),
+   "a kifizetéses (iskolai) tanévek látszanak")
 
 print("\n9) Futás utáni hook: a KRÉTA UID alapján frissít (fake kliens)")
 os.environ["KRETA_TODAY"] = "2028-09-02"
