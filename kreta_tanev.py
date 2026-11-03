@@ -43,6 +43,8 @@ ROW_DATE_FIELDS = {
 
 TANEV_TABLES = tuple(ROW_DATE_FIELDS)
 SYNC_RUN_TABLE = "sync_runs"
+TANEV_STATE_TABLE = "tanevek"
+TANEV_UID_TABLE = "tanulo_tanev_uid"
 
 _ISO_RE = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})")
 _HU_RE = re.compile(r"^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.")
@@ -166,20 +168,6 @@ def row_tanev(table: str, row) -> str:
         if ertek:
             return ertek
     return ""
-
-
-def zaro_tanev() -> str:
-    """A tanévzáró futás cél-tanéve (env: ``KRETA_ZARO_TANEV``), vagy ``""``.
-
-    Kézi „Tanév lezárása” (Kaneo #52): ilyenkor a szinkron a megadott (már lezárt)
-    tanév **teljes** ablakát kéri le, hogy a pótvizsga/augusztusi jegyek is
-    bekerüljenek. Érvénytelen tanévre üres marad.
-    """
-    raw = str(os.environ.get("KRETA_ZARO_TANEV", "")).strip()
-    if not raw:
-        return ""
-    kezd, veg = tanev_bounds(raw)
-    return raw if (kezd and veg) else ""
 
 
 def teljesen_lekert(tanev: str, start, end, today_value=None) -> bool:
@@ -309,3 +297,213 @@ def unsynced_rows(conn) -> int:
         except Exception:
             pass
     return total
+
+
+# ── Tanév-állapot: automatikus zárás/nyitás a TanevUid alapján (Kaneo #43) ──
+# A KRÉTA mobil API a diák scope-ban csak a nyers `TanevUid`-t adja (a
+# `/Sajat/Tanevek` és `/Sajat/Tanulo` 403), ezért a váltást a UID változása
+# jelzi, a nevet pedig a dátumból generáljuk a váltás pillanatában.
+# A zárás **technikai**: nincs visszamenőleges adatlekérés (az API nem is adja).
+
+def ensure_tanev_state_schema(conn, log_fn=print) -> None:
+    """A `tanevek` és `tanulo_tanev_uid` táblák létrehozása (idempotens)."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS tanevek (
+            tanev      TEXT PRIMARY KEY,
+            kezdet     TEXT,
+            veg        TEXT,
+            allapot    TEXT NOT NULL DEFAULT 'nyitott',
+            lezarva_at TEXT,
+            forras     TEXT,
+            updated_at TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS tanulo_tanev_uid (
+            diak_nev   TEXT PRIMARY KEY,
+            tanev_uid  TEXT,
+            tanev      TEXT,
+            first_seen TEXT,
+            last_seen  TEXT
+        )
+    """)
+    conn.commit()
+
+
+def _iso_now(now=None) -> str:
+    moment = now or datetime.now()
+    return moment.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _year_bounds_iso(tanev: str) -> tuple[str, str]:
+    kezd, veg = tanev_bounds(tanev)
+    return (kezd.isoformat() if kezd else "", veg.isoformat() if veg else "")
+
+
+def tanev_allapotok(conn) -> dict:
+    """`{tanev: {"allapot", "lezarva_at", "forras", "kezdet", "veg"}}`."""
+    try:
+        rows = conn.execute(
+            "SELECT tanev, kezdet, veg, allapot, lezarva_at, forras FROM tanevek"
+        ).fetchall()
+    except Exception:
+        return {}
+    return {
+        row[0]: {"kezdet": row[1] or "", "veg": row[2] or "",
+                 "allapot": row[3] or "nyitott", "lezarva_at": row[4] or "",
+                 "forras": row[5] or ""}
+        for row in rows
+    }
+
+
+def nyitott_tanev(conn) -> str:
+    """A jelenleg nyitott tanév (a legutóbbi nyitott sor), vagy ``""``."""
+    try:
+        row = conn.execute(
+            "SELECT tanev FROM tanevek WHERE allapot = 'nyitott'"
+            " ORDER BY tanev DESC LIMIT 1").fetchone()
+    except Exception:
+        return ""
+    return (row[0] if row else "") or ""
+
+
+def seed_tanev_state(conn, today_value=None, log_fn=print) -> list[str]:
+    """A meglévő adatokból a tanév-állapot inicializálása.
+
+    A mai napnál korábbi tanévek ``lezart`` (a tanév végével), az aktuális
+    ``nyitott``. Csak a hiányzó sorokat szúrja be (idempotens).
+    """
+    current = current_tanev(today_value)
+    years = set()
+    for table in TANEV_TABLES:
+        columns = _table_columns(conn, table)
+        if not columns or "tanev" not in columns:
+            continue
+        try:
+            for row in conn.execute(
+                    f"SELECT DISTINCT tanev FROM {table} WHERE tanev IS NOT NULL AND tanev <> ''"):
+                years.add(row[0])
+        except Exception:
+            continue
+    years.add(current)
+    created = []
+    now = _iso_now()
+    for year in sorted(years):
+        if not tanev_bounds(year)[0]:
+            continue
+        if year > current:
+            # Jövőbeli tanév (pl. jövő tanévi határidős házi): még nincs állapota.
+            continue
+        kezdet, veg = _year_bounds_iso(year)
+        if year < current:
+            allapot, lezarva_at = "lezart", veg + "T23:59:59"
+        else:
+            allapot, lezarva_at = "nyitott", None
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO tanevek"
+            " (tanev, kezdet, veg, allapot, lezarva_at, forras, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, 'szamitott', ?)",
+            (year, kezdet, veg, allapot, lezarva_at, now))
+        if cur.rowcount:
+            created.append(year)
+    conn.commit()
+    if created and log_fn:
+        log_fn(f"  [Tanév-állapot] inicializálva: {', '.join(created)}")
+    return created
+
+
+def apply_tanev_uid(conn, diak_nev, tanev_uid, today_value=None, now=None,
+                    log_fn=print) -> dict:
+    """Egy diák `TanevUid`-jának rögzítése és a tanév-állapot váltása.
+
+    - első látás: rögzítjük az UID-t, a dátumból számított tanévet (ha kell)
+      megnyitjuk — **nem zárunk le semmit**;
+    - változatlan UID: nincs teendő (a naptári évforduló önmagában nem ok);
+    - megváltozott UID: ha a dátum szerinti tanév **újabb**, a nyitott tanévet
+      technikailag lezárjuk, és megnyitjuk az újat; ha ugyanaz (pl. újra-
+      regisztráció), csak az UID frissül; ha régebbi, csak naplózunk.
+    """
+    tanev_uid = str(tanev_uid or "").strip()
+    result = {"diak_nev": diak_nev, "uid": tanev_uid, "elozo_uid": "",
+              "valtozas": False, "lezart_tanev": "", "uj_tanev": "",
+              "megjegyzes": ""}
+    if not tanev_uid:
+        result["megjegyzes"] = "nincs TanevUid (kihagyva)"
+        return result
+
+    ensure_tanev_state_schema(conn)
+    current = current_tanev(today_value)
+    stamp = _iso_now(now)
+
+    row = conn.execute(
+        "SELECT tanev_uid, tanev FROM tanulo_tanev_uid WHERE diak_nev = ?",
+        (diak_nev,)).fetchone()
+    elozo_uid = (row[0] or "") if row else ""
+    result["elozo_uid"] = elozo_uid
+
+    if not elozo_uid:
+        # Első látás: csak rögzítés + a mai tanév megnyitása.
+        conn.execute(
+            "INSERT INTO tanulo_tanev_uid (diak_nev, tanev_uid, tanev, first_seen, last_seen)"
+            " VALUES (?, ?, ?, ?, ?)"
+            " ON CONFLICT(diak_nev) DO UPDATE SET tanev_uid = excluded.tanev_uid,"
+            " tanev = excluded.tanev, last_seen = excluded.last_seen",
+            (diak_nev, tanev_uid, current, stamp, stamp))
+        conn.execute(
+            "INSERT OR IGNORE INTO tanevek"
+            " (tanev, kezdet, veg, allapot, lezarva_at, forras, updated_at)"
+            " VALUES (?, ?, ?, 'nyitott', NULL, 'szamitott', ?)",
+            (current, *_year_bounds_iso(current), stamp))
+        conn.commit()
+        result["megjegyzes"] = "első UID rögzítés"
+        if log_fn:
+            log_fn(f"  [Tanév-állapot] {diak_nev}: első TanevUid ({tanev_uid}), "
+                   f"aktuális tanév: {current}")
+        return result
+
+    if elozo_uid == tanev_uid:
+        conn.execute(
+            "UPDATE tanulo_tanev_uid SET tanev = ?, last_seen = ? WHERE diak_nev = ?",
+            (current, stamp, diak_nev))
+        conn.commit()
+        return result
+
+    # Az UID megváltozott.
+    result["valtozas"] = True
+    nyitott = nyitott_tanev(conn)
+    conn.execute(
+        "INSERT INTO tanulo_tanev_uid (diak_nev, tanev_uid, tanev, first_seen, last_seen)"
+        " VALUES (?, ?, ?, ?, ?)"
+        " ON CONFLICT(diak_nev) DO UPDATE SET tanev_uid = excluded.tanev_uid,"
+        " tanev = excluded.tanev, last_seen = excluded.last_seen",
+        (diak_nev, tanev_uid, current, stamp, stamp))
+
+    if nyitott and current > nyitott:
+        # Technikai zárás: nincs adatlekérés, csak állapot + időpont.
+        conn.execute(
+            "UPDATE tanevek SET allapot = 'lezart', lezarva_at = ?, forras = 'kreta_uid',"
+            " updated_at = ? WHERE tanev = ?", (stamp, stamp, nyitott))
+        conn.execute(
+            "INSERT INTO tanevek (tanev, kezdet, veg, allapot, lezarva_at, forras, updated_at)"
+            " VALUES (?, ?, ?, 'nyitott', NULL, 'kreta_uid', ?)"
+            " ON CONFLICT(tanev) DO UPDATE SET allapot = 'nyitott', lezarva_at = NULL,"
+            " forras = 'kreta_uid', updated_at = excluded.updated_at",
+            (current, *_year_bounds_iso(current), stamp))
+        result["lezart_tanev"] = nyitott
+        result["uj_tanev"] = current
+        if log_fn:
+            log_fn(f"  [Tanév-állapot] {diak_nev}: TanevUid {elozo_uid} -> {tanev_uid}; "
+                   f"LEZÁRVA: {nyitott}, MEGNYITVA: {current} (adatlekérés nélkül)")
+    elif nyitott and current < nyitott:
+        result["megjegyzes"] = f"az UID a korábbi tanévre mutat ({current} < {nyitott})"
+        if log_fn:
+            log_fn(f"  [Tanév-állapot] {diak_nev}: FIGYELEM — az új TanevUid a korábbi "
+                   f"tanévre mutat ({current}); nem zárok le semmit.")
+    else:
+        result["uj_tanev"] = current
+        result["megjegyzes"] = "UID változott, de a tanév ugyanaz"
+        if log_fn:
+            log_fn(f"  [Tanév-állapot] {diak_nev}: TanevUid {elozo_uid} -> {tanev_uid}, "
+                   f"a tanév változatlan ({current})")
+    conn.commit()
+    return result

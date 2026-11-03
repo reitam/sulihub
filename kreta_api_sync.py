@@ -105,8 +105,7 @@ def api_window(earliest_stored: str | None, today: date | None = None,
 
 
 def tanev_api_window(today: date | None = None,
-                     lookahead_days: int = 0,
-                     tanev: str | None = None) -> tuple[date, date]:
+                     lookahead_days: int = 0) -> tuple[date, date]:
     """Az API-lekérés ablaka: **az aktuális tanév kezdetétől** a mai napig.
 
     Kaneo #40: a teljes cserék törlése csak akkor engedett, ha az ablak lefedi a
@@ -114,21 +113,10 @@ def tanev_api_window(today: date | None = None,
     a teljes történetet kérné le), hanem a tanév elejéhez. A korábbi tanévek
     adatait a szinkron nem érinti.
 
-    Tanévzáró futásnál (Kaneo #52) a `tanev` (vagy a `KRETA_ZARO_TANEV` env)
-    a **teljes** megadott tanévet kéri le (szept. 1. – aug. 31., a mai napig).
-
     `lookahead_days`: mennyivel nyúljon az ablak a jövőbe (jövőbeli határidős
     eseményekhez, pl. házi feladat és bejelentett számonkérés).
     """
     today = today or kreta_tanev.today()
-    cel = str(tanev or kreta_tanev.zaro_tanev() or "").strip()
-    if cel:
-        start, end = kreta_tanev.tanev_bounds(cel)
-        if start is not None and end is not None:
-            if end > today:
-                end = today
-            if start <= end:
-                return start, end + timedelta(days=max(0, lookahead_days))
     start, _ = kreta_tanev.tanev_bounds(kreta_tanev.current_tanev(today))
     if start is None:  # elvileg nem fordulhat elő; biztonsági tartalék
         start = today - timedelta(days=DEFAULT_LOOKBACK_DAYS)

@@ -55,11 +55,11 @@ a saját szerveren maradnak.
 - **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);
   az „Összes tanév" opcióval a teljes előzmény látszik (átlag ilyenkor nincs, mert az
   csak tanéven belül értelmezhető). Az üzenetek és az órarend tanév-független.
-  A dátumválasztók a kiválasztott tanév határain belül maradnak, és a **kiválasztott
-  (vagy alapból az előző) lezárt tanévhez** „Tanév lezárása" gomb jelenik meg (a teljes
-  tanév újralekérése a pótvizsga és az augusztusi jegyek miatt). A KRÉTA API jelenleg
-  csak az **aktuális tanévet** adja vissza — a régi tanéveket nem lehet újratölteni
-  (ezért a szinkron soha nem törli őket).
+  A dátumválasztók a kiválasztott tanév határain belül maradnak. A tanév **zárása/nyitása
+  automatikus**: minden futás után ellenőrizzük a KRÉTA `TanevUid`-t, és ha megváltozik,
+  a nyitott tanévet technikailag lezárjuk, az újat megnyitjuk (adatlekérés nélkül; a régi
+  tanév adata pótolhatatlan, ezért a szinkron soha nem törli). A fejlécben és a
+  választóban látszik a tanév állapota (nyitott/lezárt).
 
 ### 📊 Iskolai események
 - DataTables táblázat: szűrés gyermek, típus, tantárgy, aktív/lejárt, dátumtartomány szerint;

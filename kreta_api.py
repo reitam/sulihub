@@ -625,6 +625,18 @@ class KretaApiClient:
         data = self._api_get("sajat/Igazolasok")
         return list(data or [])
 
+    def fetch_tanev_uid(self) -> str:
+        """A diák aktuális tanév-azonosítója (`TanuloAdatlap.TanevUid`).
+
+        A KRÉTA a diák scope-ban csak ezt a nyers azonosítót adja (a
+        `/Sajat/Tanevek` és `/Sajat/Tanulo` 403), ezért a tanév **nevét** nem
+        lehet feloldani — a váltás detektálására szolgál (Kaneo #43).
+        """
+        data = self._api_get("sajat/TanuloAdatlap")
+        if not isinstance(data, dict):
+            return ""
+        return str(data.get("TanevUid") or "").strip()
+
     def fetch_consultations(self, start: date, end: date) -> list[dict]:
         """Fogadóórák tanáronként (a webes naptár is mutatja őket)."""
         data = self._api_get("sajat/Fogadoorak", {

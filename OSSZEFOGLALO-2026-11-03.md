@@ -113,7 +113,7 @@ A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backl
 
 ## 8. Tesztek
 
-- **832 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
+- **833 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
 - Új csomagok:
   - `test_tanev.py` — számítás, határok, `teljesen_lekert`,
   - `test_tanev_migration.py` — séma + backfill régi DB-n, ID-stabilitás, idempotencia,
@@ -159,20 +159,17 @@ A felhasználó helyi tesztelése három hibajegyet vett fel („Bug" címke); m
   számoltak, amíg F5 nem jött. Most az események visszaérkezésekor is lefut a
   `updateDashboard()`; a szinkron után a tanév-lista is frissül, megtartva a
   kiválasztást. Teszt: `test_tanev_ui` 2. szakasz (késleltetett esemény-válasz).
-- **#52 – hiányzó „év lezárás" gomb.** Megvalósult a **kézi tanévzáró**: a fejlécben
-  a **kiválasztott lezárt** tanévhez (alapból az előzőhöz) megjelenő gomb a teljes
-  tanév (szept. 1. – aug. 31.) újralekérését indítja
-  (`POST /api/sync/start {"tanev": ...}`), hogy a pótvizsga és az augusztusi jegyek
-  bekerüljenek. A választóval bármelyik korábbi tanév lezárható. Backend:
-  `KRETA_ZARO_TANEV`, `tanev_api_window(tanev=...)`, `sync_runs.tanev_zaro`; csak
-  `api`/`api_first` módban. Teszt: `test_tanev_zaro`.
+- **#52 – hiányzó „év lezárás" gomb.** Először kézi tanévzáró gombként valósult meg, majd
+  a mérés (lásd 13. pont) és a felhasználói döntés alapján **átalakult**: a tanév
+  zárása/nyitása **automatikus, `TanevUid`-alapú** (Kaneo #43) — a gomb megszűnt, helyette
+  állapotjelzés van. Adatot visszamenőleg nem kérünk le.
 - **#53 – tanév vs. dátumválasztó.** A bejegyzés-dátum, a zsebpénz-időszak és a
   hiányzás-hónap választó `min`/`max` korlátot kap a tanév határaira, a tanéven
   kívüli érték törlődik, a gyorsgombok intervalluma a tanévre vágódik. Teszt:
   `test_tanev_ui` 3. szakasz.
 
-Új tesztcsomagok: `test_tanev_zaro` (backend) és `test_tanev_ui` (böngésző) —
-összesen **826 ellenőrzés / 28 csomag**.
+Új tesztcsomagok: `test_tanev_state` (állapotgép) és `test_tanev_ui` (böngésző) —
+összesen **833 ellenőrzés / 28 csomag**.
 
 ## 12. Saját megjegyzések (Kaneo #46)
 
@@ -203,19 +200,34 @@ A dátum-szűrő működik (az aktuális tanévben a szűk ablakok eltérő dara
 tehát a 0 eredmény nem hibás lekérés: **a mobil API a korábbi tanévekre nem ad adatot**,
 csak az aktív tanévet szolgálja ki. Következmények:
 
-- a „Tanév lezárása" gomb korábbi tanévre lefut, de 0 sort kap → az üres-batch védelem
-  miatt semmi nem változik (a napló figyelmeztet);
-- a #43 „szeptemberi záró futás az előző tanévre" premisszája hibás (szeptember 1-jén
-  az előző tanév már nem elérhető); a `TanevUid` diagnosztika része marad értelmes;
+- nincs visszamenőleges adatlekérés; a tanév zárása **technikai** (állapot + időpont);
+- a váltást a KRÉTA `TanevUid`-ja jelzi (a nevet a dátum adja, mert a `/Sajat/Tanevek`
+  és `/Sajat/Tanulo` diák-scope-ban **403** — ezt külön is ellenőriztük 2026-11-03-án);
+- a #43 „szeptemberi záró futás az előző tanévre" premisszája hibás; helyette
+  **UID-alapú automatikus zárás/nyitás** (lásd 15. pont);
 - a régi tanévek adata **pótolhatatlan** → a napi backup és a törlésvédelem kritikus;
 - a Playwright kivezetése mellett ez további érv (nincs mit „helyettesíteni").
 
-## 14. Nyitott teendők
+## 14. Tanév-állapot: automatikus zárás/nyitás (Kaneo #43)
+
+A felhasználói döntés és a mérés alapján:
+
+- minden szinkronfutás után diákonként lekérjük a `TanuloAdatlap.TanevUid`-t;
+- **ha megváltozik**, a nyitott tanévet technikailag lezárjuk (`tanevek.allapot='lezart'`,
+  `lezarva_at`), és megnyitjuk az újat — **adatlekérés nélkül**;
+- ha nem változik, nem zárunk (a naptár szerinti évforduló önmagában nem ok);
+- a név a dátumból generált címke, a váltás pillanatában rögzítve;
+- a lezárás nem tilt le semmit (kifizetés/megjegyzés a régi tanévre is rögzíthető);
+- a fejlécben állapotjelzés, a választóban „lezárt” jelölés; a kézi „Tanév lezárása”
+  gomb megszűnt.
+
+## 15. Nyitott teendők
 
 1. **Deploy:** `.\deploy.ps1 -Release v1.7.0` (interaktív SSH-jelszót kér, ezért az
    agent nem tudta futtatni). A `v1.6.5` tartalma (hónap-oszlopok évszám nélkül +
    tanév-felirat) már benne van ebben a kiadásban.
-2. Deploy után: `/health` = `v1.7.0`, majd az éles E2E (a valódi tanévváltásnál a
-   `sync.log` „ÚJ TANÉV” sora, a `sync_runs.tanev` értéke).
-3. **#43** (tanévzáró automatizálás) indítható, amint a #40 2–3. fázisa élesben van.
+2. Deploy után: `/health` = `v1.7.0`, majd az éles E2E (az első futás után a
+   `tanevek`/`tanulo_tanev_uid` sorok, a fejléc állapotjelzése, `sync_runs.tanev`).
+3. **#43** implementációja ezen az ágon készül (UID-alapú zárás/nyitás); élesítés a
+   v1.7.0-val, utána a #43 lezárható.
 4. A `main` 4 commitja és a `feature/tanev-kezeles` ág még nincs pusholva.
