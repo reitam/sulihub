@@ -7,6 +7,7 @@ import json
 import threading
 import re
 import io
+import hashlib
 import socket
 import time
 import urllib.request
@@ -81,7 +82,7 @@ def get_db_connection():
 # törlik, eddig üres fájl keletkezett, amiben nem volt `esemenyek`/`uzenetek`
 # → minden oldal 500-as hibát adott. Ezért a hiányzó sémát itt pótoljuk.
 SCRAPER_TABLES = ("esemenyek", "uzenetek", "orarend", "hianyzasok", "igazolasok")
-APP_OWN_TABLES = ("kifizetesek", "sync_runs", "app_meta")
+APP_OWN_TABLES = ("kifizetesek", "sync_runs", "app_meta", "kommentek")
 CORE_TABLES = SCRAPER_TABLES + APP_OWN_TABLES
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 _schema_lock = threading.Lock()
@@ -222,7 +223,64 @@ def ensure_run_tables(conn):
             updated_at TEXT
         )
     """)
+    # Saját megjegyzések (Kaneo #46): eseményhez/üzenethez, stabil tartalom-kulccsal.
+    # Az események a szinkronnál újraíródnak (az id változik), ezért kulcs nem az id.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS kommentek (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            cel_tipus  TEXT NOT NULL,
+            cel_kulcs  TEXT NOT NULL,
+            diak_nev   TEXT,
+            szoveg     TEXT NOT NULL,
+            szerzo     TEXT,
+            letrehozva TEXT NOT NULL,
+            modositva  TEXT
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_kommentek_cel "
+                "ON kommentek(cel_tipus, cel_kulcs)")
     conn.commit()
+
+
+# ── Saját megjegyzések (Kaneo #46) ──────────────────────────────────────────
+KOMMENT_CEL_TIPUSOK = ("esemeny", "uzenet")
+KOMMENT_MAX_HOSSZ = 2000
+
+_ESEMENY_KULCS_MEZOK = ("diak_nev", "esemeny_tipus", "tantargy", "bej_datum", "hatarido",
+                        "ertek", "szam_ertek", "tema", "cim", "tartalom")
+_UZENET_KULCS_MEZOK = ("diak_nev", "felado", "targy", "idopont")
+
+
+def _komment_hash(prefix, parts):
+    text = "|".join("" if p is None else str(p) for p in parts)
+    return prefix + hashlib.sha1(text.encode("utf-8")).hexdigest()[:24]
+
+
+def komment_kulcs_esemeny(row):
+    """Egy esemény stabil tartalom-kulcsa (a szinkron újraírja az id-ket)."""
+    keys = row.keys()
+    return _komment_hash("e:", [row[k] if k in keys else "" for k in _ESEMENY_KULCS_MEZOK])
+
+
+def komment_kulcs_uzenet(row):
+    """Egy üzenet stabil kulcsa: a KRÉTA `uzenet_id`, ha nincs, a tartalom."""
+    keys = row.keys()
+    uid = str(row["uzenet_id"] or "").strip() if "uzenet_id" in keys else ""
+    if uid:
+        return "m:" + uid
+    return _komment_hash("m:", [row[k] if k in keys else "" for k in _UZENET_KULCS_MEZOK])
+
+
+def komment_szamok(cursor, cel_tipus):
+    """`{cel_kulcs: darab}` az adott cél-típusra (hiányzó táblánál üres)."""
+    try:
+        rows = cursor.execute(
+            "SELECT cel_kulcs, COUNT(*) FROM kommentek WHERE cel_tipus = ? GROUP BY cel_kulcs",
+            (cel_tipus,),
+        ).fetchall()
+    except sqlite3.Error:
+        return {}
+    return {row[0]: row[1] for row in rows}
 
 
 def enable_wal(conn):
@@ -1432,11 +1490,13 @@ def api_esemenyek():
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
+    komment_db = komment_szamok(cursor, "esemeny")
 
     esemenyek = []
     for r in rows:
         keys = r.keys()
         kesz_val = r["kesz"] if "kesz" in keys else 0
+        kulcs = komment_kulcs_esemeny(r)
 
         esemenyek.append({
             "id": r["id"],
@@ -1455,7 +1515,9 @@ def api_esemenyek():
             "tema": r["tema"] or "-",
             "cim": r["cim"] or "-",
             "tartalom": r["tartalom"] or "-",
-            "kesz": int(kesz_val or 0)
+            "kesz": int(kesz_val or 0),
+            "komment_kulcs": kulcs,
+            "komment_db": int(komment_db.get(kulcs, 0))
         })
 
     conn.close()
@@ -2010,6 +2072,7 @@ def api_uzenetek():
     query += " ORDER BY id DESC"
     cursor.execute(query, params)
     rows = cursor.fetchall()
+    komment_db = komment_szamok(cursor, "uzenet")
 
     uzenetek = []
     for r in rows:
@@ -2019,6 +2082,7 @@ def api_uzenetek():
         
         nyers_szoveg = r["szoveg"] if "szoveg" in keys and r["szoveg"] else ""
         tisztitott_szoveg = re.sub(r'\n{3,}', '\n\n', nyers_szoveg) if nyers_szoveg else ""
+        kulcs = komment_kulcs_uzenet(r)
 
         uzenetek.append({
             "id": r["id"],
@@ -2028,11 +2092,96 @@ def api_uzenetek():
             "idopont": r["idopont"] if "idopont" in keys else "-",
             "szoveg": tisztitott_szoveg,
             "csatolmany_nev": cs_nev or "",
-            "csatolmany_utvonal": cs_ut or ""
+            "csatolmany_utvonal": cs_ut or "",
+            "komment_kulcs": kulcs,
+            "komment_db": int(komment_db.get(kulcs, 0))
         })
 
     conn.close()
     return jsonify(uzenetek)
+
+
+# ==============================================================================
+# === SAJÁT MEGJEGYZÉSEK (Kaneo #46) ===========================================
+# ==============================================================================
+@app.route("/api/kommentek")
+def api_kommentek_list():
+    """Egy esemény/üzenet saját megjegyzései (legrégebbi elöl)."""
+    cel_tipus = (request.args.get("cel_tipus") or "").strip()
+    cel_kulcs = (request.args.get("cel_kulcs") or "").strip()
+    if cel_tipus not in KOMMENT_CEL_TIPUSOK or not cel_kulcs:
+        return jsonify({"status": "error", "message": "Hiányzó vagy hibás cél."}), 400
+    if not os.path.exists(DB_FILE):
+        return jsonify([])
+    try:
+        conn = get_db_connection()
+        rows = conn.execute(
+            "SELECT id, cel_tipus, cel_kulcs, diak_nev, szoveg, szerzo, letrehozva, modositva"
+            " FROM kommentek WHERE cel_tipus = ? AND cel_kulcs = ? ORDER BY id",
+            (cel_tipus, cel_kulcs),
+        ).fetchall()
+        conn.close()
+    except sqlite3.Error as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/kommentek", methods=["POST"])
+def api_kommentek_add():
+    """Új saját megjegyzés hozzáfűzése."""
+    data = request.get_json(silent=True) or {}
+    cel_tipus = str(data.get("cel_tipus") or "").strip()
+    cel_kulcs = str(data.get("cel_kulcs") or "").strip()
+    szoveg = str(data.get("szoveg") or "").strip()
+    diak_nev = str(data.get("diak_nev") or "").strip()[:120]
+    szerzo = str(data.get("szerzo") or "").strip()[:60] or "Szülő"
+
+    if cel_tipus not in KOMMENT_CEL_TIPUSOK:
+        return jsonify({"status": "error", "message": "Ismeretlen cél-típus."}), 400
+    if not cel_kulcs or len(cel_kulcs) > 80:
+        return jsonify({"status": "error", "message": "Hiányzó vagy hibás cél-azonosító."}), 400
+    if not szoveg:
+        return jsonify({"status": "error", "message": "A megjegyzés nem lehet üres."}), 400
+    if len(szoveg) > KOMMENT_MAX_HOSSZ:
+        return jsonify({"status": "error",
+                        "message": f"A megjegyzés legfeljebb {KOMMENT_MAX_HOSSZ} karakter lehet."}), 400
+    if not os.path.exists(DB_FILE):
+        return jsonify({"status": "error", "message": "Az adatbázis még nem létezik."}), 503
+    try:
+        conn = get_db_connection()
+        ensure_run_tables(conn)   # a kommentek tábla migrációja (idempotens)
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO kommentek (cel_tipus, cel_kulcs, diak_nev, szoveg, szerzo, letrehozva)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (cel_tipus, cel_kulcs, diak_nev or None, szoveg, szerzo, _now_iso()),
+        )
+        conn.commit()
+        uj_id = cur.lastrowid
+        conn.close()
+    except sqlite3.Error as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    return jsonify({"status": "ok", "id": uj_id})
+
+
+@app.route("/api/kommentek/<int:komment_id>", methods=["DELETE"])
+def api_kommentek_delete(komment_id):
+    """Saját megjegyzés törlése."""
+    if not os.path.exists(DB_FILE):
+        return jsonify({"status": "error", "message": "Nincs adatbázis."}), 404
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM kommentek WHERE id = ?", (komment_id,))
+        torolve = cur.rowcount
+        conn.commit()
+        conn.close()
+    except sqlite3.Error as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    if not torolve:
+        return jsonify({"status": "error", "message": "Nincs ilyen megjegyzés."}), 404
+    return jsonify({"status": "ok"})
+
 
 # ==============================================================================
 # === HIÁNYZÁSOK / KÉSÉSEK ÉS IGAZOLÁSOK API ===================================

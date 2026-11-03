@@ -106,13 +106,14 @@ ezek a 6. pontban olvashatók.
 | #51 Dashboard nem frissül tanévváltáskor | in-review | javítva: a csempék a friss adatból számolnak (versenyhelyzet megszüntetve) |
 | #52 Hol van az év lezárás gomb? | in-review | megvalósítva: „Tanév lezárása" gomb + `sync_runs.tanev_zaro` |
 | #53 Tanév vs. date picker | in-review | javítva: a dátum-/hónapválasztók a tanév határain belül |
+| #46 Saját megjegyzés | in-review | új `kommentek` tábla + API + felület (esemény és üzenet) |
 | #50 Teszt-lefedettség (P2/P3) | planned | a testmanager független ellenőrzésének nem blokkoló tételei (UI E2E, hiányzás/igazolás hatókör, API élek, tanévváltás-push, többkörös backfill) — a P1 kifizetés-hiba javítva |
 
 A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backlog-tétel.
 
 ## 8. Tesztek
 
-- **796 automatikus ellenőrzés / 27 csomag — mind zöld** (`python tests/run_all.py`).
+- **823 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
 - Új csomagok:
   - `test_tanev.py` — számítás, határok, `teljesen_lekert`,
   - `test_tanev_migration.py` — séma + backfill régi DB-n, ID-stabilitás, idempotencia,
@@ -141,7 +142,9 @@ A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backl
 | `6b52808` | 2–3. fázis: tanév- és ablak-scope, tanévenkénti őr, igazolás upsert, ablak a tanév elejétől |
 | `635724a` | 4. fázis: `?tanev=` szűrő + `/api/tanevek` |
 | `a3aab64` | 5–6. fázis: fejléc tanév-választó, üres-tanév súgók, `sync_runs.tanev` + tanévváltás napló/push |
-| *(a legutolsó commit)* | kifizetés tanéve + „Összes tanév” KPI-átlag + kihagyott sor jelzése (testmanager-lelet nyomán) |
+| `4273993` | kifizetés tanéve + „Összes tanév” KPI-átlag + kihagyott sor jelzése (testmanager-lelet nyomán) |
+| *(bugkör)* | #51 dashboard-frissítés, #52 tanévzáró gomb, #53 dátumkorlátok |
+| *(a legutolsó commit)* | #46 saját megjegyzések (esemény + üzenet) |
 
 Korábbi, `main`-en lévő kapcsolódó commit: `dc22213` (`kaneo_ticket.py --parent`),
 `824720e` (adatvédelem, v1.6.3).
@@ -168,9 +171,23 @@ A felhasználó helyi tesztelése három hibajegyet vett fel („Bug" címke); m
   `test_tanev_ui` 3. szakasz.
 
 Új tesztcsomagok: `test_tanev_zaro` (backend) és `test_tanev_ui` (böngésző) —
-összesen **796 ellenőrzés / 27 csomag**.
+összesen **823 ellenőrzés / 28 csomag**.
 
-## 12. Nyitott teendők
+## 12. Saját megjegyzések (Kaneo #46)
+
+- **Új `kommentek` tábla:** `cel_tipus` (`esemeny`/`uzenet`), `cel_kulcs`, `szoveg`,
+  `szerzo`, `letrehozva`. A célzás **stabil tartalom-kulccsal** történik, mert a
+  szinkron a jegyek/feljegyzések sorait teljes cserével újraírja (az id-k változnak) —
+  így a megjegyzés a szinkronok után is a helyén marad.
+- **API:** `GET /api/kommentek?cel_tipus=&cel_kulcs=`, `POST /api/kommentek`,
+  `DELETE /api/kommentek/<id>`; az `/api/esemenyek` és `/api/uzenetek` válaszban
+  `komment_kulcs` + `komment_db` (darabszám).
+- **Felület:** az események sorában megjegyzés-gomb (darabszámmal) → modál lista +
+  új megjegyzés + törlés; az üzenet részleteinél külön megjegyzés-blokk.
+- **Tesztek:** `test_kommentek` (séma/migráció, kulcs-stabilitás újraírás után,
+  validáció, törlés, darabszám, böngészős mentés/visszaolvasás).
+
+## 13. Nyitott teendők
 
 1. **Deploy:** `.\deploy.ps1 -Release v1.7.0` (interaktív SSH-jelszót kér, ezért az
    agent nem tudta futtatni). A `v1.6.5` tartalma (hónap-oszlopok évszám nélkül +
