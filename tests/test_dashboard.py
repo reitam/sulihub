@@ -333,8 +333,11 @@ try:
         kartya2 = page.eval_on_selector_all(
             "#dashboardDiakCards .card",
             "els => els.map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
-        ok(kartya2 and "válassz tanévet" in kartya2[0],
+        ok(kartya2 and " - " in (" " + kartya2[0] + " ") and "4.67" not in kartya2[0],
            f"'Összes tanév' módban nincs átlag: {kartya2[0] if kartya2 else ''}")
+        osszesito = " ".join(page.inner_text("#diakOsszesitoInfo").split())
+        ok("válassz tanévet" in osszesito,
+           f"a szakasz fejléce kéri a tanévválasztást: {osszesito}")
         page.click("#rewards-tab")
         page.wait_for_timeout(1500)
         ok(page.inner_text("#atlagokIdoszak").strip().startswith("Összes tanév"),

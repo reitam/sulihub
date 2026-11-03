@@ -54,6 +54,9 @@ a saját szerveren maradnak.
   megfelelő nézet nyílik; **gyermekenkénti kártyák** (átlag + egyenleg); gyermekváltás
   egy kattintással. **Kompakt, 3×2 elrendezés**, egységes sablon; a 0 érték semleges
   (szürke/zöld), csak > 0 esetén élénk szín.
+  A gyermekkártyákon **monogramos avatar**, név, diszkrét jegyszám-badge és nagy átlag;
+  a tanév/súlyozás magyarázata a **szakasz fejlécében** van, kikapcsolt zsebpénznél
+  diszkrét ikon.
 - **Semleges fülek:** a navigáció ikonjai/feliratai sötétszürkék, csak az aktív fület
   emeli ki a felület (kék szöveg/ikon + alsó kék vonal) — nincs színes ikonkáosz.
 - **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);
