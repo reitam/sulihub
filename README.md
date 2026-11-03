@@ -60,6 +60,9 @@ a saját szerveren maradnak.
   diszkrét ikon. A **gyermekszűrő chipek** és az **„Események listája”** gomb a **fül-sáv
   alatt, az összes csempe felett** vannak (a szűrő a csempékre is vonatkozik); a szekció
   neve **„Tanulmányi átlag”**.
+- **Alsó feed (2 hasáb):** **„Figyelmet igénylő bejegyzések”** (utolsó 10 feljegyzés,
+  típus-badge: piros figyelmeztetés, zöld dicséret, szürke felszereléshiány) és
+  **„Legutóbbi jegyek”** (utolsó 10 jegy, színes jegy-körrel).
 - **Semleges fülek:** a navigáció ikonjai/feliratai sötétszürkék, csak az aktív fület
   emeli ki a felület (kék szöveg/ikon + alsó kék vonal) — nincs színes ikonkáosz.
 - **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);

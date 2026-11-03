@@ -89,6 +89,22 @@
             border-radius: 10px;
             box-shadow: 0 2px 6px rgba(0, 0, 0, .10), 0 1px 2px rgba(0, 0, 0, .06);
         }
+        .dash-panel {
+            border: 1px solid #ced4da;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .10), 0 1px 2px rgba(0, 0, 0, .06);
+        }
+        .jegy-kor {
+            width: 24px; height: 24px; border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: .8rem; color: #fff; flex: 0 0 auto;
+        }
+        .jegy-5 { background: #198754; }
+        .jegy-4 { background: #20c997; }
+        .jegy-3 { background: #ffc107; color: #212529; }
+        .jegy-2 { background: #fd7e14; }
+        .jegy-1 { background: #dc3545; }
+        .feed-main { min-width: 0; }
         .dash-tile .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
         .dash-tile .kpi-title { font-size: 1.05rem; font-weight: 700; color: #343a40; }
         .dash-tile .kpi-caption { font-size: .72rem; line-height: 1.15; }
@@ -657,6 +673,25 @@
                 <span id="diakOsszesitoInfo" class="small fw-normal text-muted"></span>
             </div>
             <div class="row g-2 row-cols-1 row-cols-md-2 row-cols-xl-3" id="dashboardDiakCards"></div>
+
+            <div class="row g-2 mt-2">
+                <div class="col-12 col-lg-6">
+                    <div class="card dash-panel bg-white h-100">
+                        <div class="card-header bg-white py-1 px-2 fw-bold small">
+                            <i class="fa-solid fa-triangle-exclamation text-danger me-1"></i>Figyelmet igénylő bejegyzések
+                        </div>
+                        <div class="list-group list-group-flush" id="dashFigyelemLista"></div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                    <div class="card dash-panel bg-white h-100">
+                        <div class="card-header bg-white py-1 px-2 fw-bold small">
+                            <i class="fa-solid fa-graduation-cap text-success me-1"></i>Legutóbbi jegyek
+                        </div>
+                        <div class="list-group list-group-flush" id="dashJegyLista"></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- 1. FÜL: ISKOLAI ESEMÉNYEK -->
@@ -2663,6 +2698,7 @@ $(document).ready(function() {
             // A csempék (heti határidők / új jegyek) a friss adatból számoljanak
             // (Kaneo #51: a versenyhelyzet miatt F5 nélkül elavultak maradtak).
             updateDashboard();
+            renderDashboardFeeds();
 
             // Üres tanév: segítsünk megtalálni az adatot.
             let hint = $('#esemenyTanevHint');
@@ -2787,6 +2823,75 @@ $(document).ready(function() {
                         ${penz}
                     </div>
                 </div>
+            </div>`);
+        });
+    }
+
+    function bejegyzesKategoria(tipus) {
+        let t = String(tipus || '').toLowerCase();
+        if (t.includes('dicsér')) return { cimke: 'Dicséret', osztaly: 'bg-success' };
+        if (t.includes('felszerelés')) return { cimke: 'Felszereléshiány', osztaly: 'bg-secondary' };
+        if (t.includes('lecke') || t.includes('házi')) return { cimke: 'Leckehiány', osztaly: 'bg-warning text-dark' };
+        if (t.includes('figyelmeztet') || t.includes('intő') || t.includes('megrov')
+            || t.includes('rovás') || t.includes('fekete')) {
+            return { cimke: 'Figyelmeztetés', osztaly: 'bg-danger' };
+        }
+        return { cimke: (tipus && tipus !== '-') ? tipus : 'Bejegyzés', osztaly: 'bg-secondary' };
+    }
+
+    function jegySzin(szam) {
+        let n = Number(szam);
+        return 'jegy-' + (n >= 1 && n <= 5 ? n : 3);
+    }
+
+    // Dashboard alsó sáv: utolsó 10 feljegyzés + utolsó 10 jegy (a rawData a
+    // kiválasztott gyermekre/tanévre már szűrve van).
+    function renderDashboardFeeds() {
+        let feljegyzesek = rawData
+            .filter(function (x) { return x.esemeny_tipus === 'Feljegyzés'; })
+            .sort(function (a, b) { return dateToNum(b.bej_datum) - dateToNum(a.bej_datum); })
+            .slice(0, 10);
+        let $f = $('#dashFigyelemLista').empty();
+        if (!feljegyzesek.length) {
+            $f.append('<div class="list-group-item text-muted small px-2 py-2">Nincs legutóbbi bejegyzés.</div>');
+        }
+        feljegyzesek.forEach(function (x) {
+            let k = bejegyzesKategoria(x.tipus);
+            let leiras = (x.tartalom && x.tartalom !== '-') ? x.tartalom
+                       : ((x.cim && x.cim !== '-') ? x.cim : (x.tema || ''));
+            $f.append(`<div class="list-group-item px-2 py-1">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge ${k.osztaly}">${escapeHtml(k.cimke)}</span>
+                    <span class="fw-bold small text-truncate">${escapeHtml(x.diak_nev || '')}</span>
+                    <span class="text-muted ms-auto text-nowrap" style="font-size: .72rem;">${escapeHtml(x.bej_datum || '')}</span>
+                </div>
+                <div class="text-muted text-truncate" style="font-size: .72rem;"
+                     title="${escapeHtml(leiras)}">${escapeHtml(leiras || '-')}</div>
+            </div>`);
+        });
+
+        let jegyek = rawData
+            .filter(function (x) {
+                return x.esemeny_tipus === 'Értékelés' && Number(x.szam_ertek) >= 1;
+            })
+            .sort(function (a, b) { return dateToNum(b.bej_datum) - dateToNum(a.bej_datum); })
+            .slice(0, 10);
+        let $j = $('#dashJegyLista').empty();
+        if (!jegyek.length) {
+            $j.append('<div class="list-group-item text-muted small px-2 py-2">Nincs legutóbbi jegy.</div>');
+        }
+        jegyek.forEach(function (x) {
+            let temak = [x.tantargy, x.tema].filter(function (v) {
+                return v && v !== '-';
+            }).join(' · ');
+            $j.append(`<div class="list-group-item px-2 py-1 d-flex align-items-center gap-2">
+                <span class="jegy-kor ${jegySzin(x.szam_ertek)}">${escapeHtml(String(x.szam_ertek))}</span>
+                <div class="feed-main">
+                    <div class="fw-bold small text-truncate">${escapeHtml(x.diak_nev || '')}</div>
+                    <div class="text-muted text-truncate" style="font-size: .72rem;"
+                         title="${escapeHtml(temak)}">${escapeHtml(temak || '-')}</div>
+                </div>
+                <span class="text-muted ms-auto text-nowrap" style="font-size: .72rem;">${escapeHtml(x.bej_datum || '')}</span>
             </div>`);
         });
     }

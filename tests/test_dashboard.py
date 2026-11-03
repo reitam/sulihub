@@ -94,6 +94,14 @@ add_event("Bejelentett számonkérés", "Történelem", "", 0, 0, today - timede
 add_event("Házi feladat", "Angol nyelv", "", 0, 0, today, hatarido=today + timedelta(days=10))
 add_event("Házi feladat", "Biológia", "", 0, 0, today - timedelta(days=20),
           hatarido=today - timedelta(days=10))
+# Feljegyzés (figyelmeztetés) a dashboard alsó feedjéhez
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
+    " suly_szazalek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz,"
+    " tanev, tanev_forras) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)",
+    ("Teszt Elek", "Feljegyzés", "Magatartás", "", 0, 0,
+     hu(today - timedelta(days=2)), "", "Tanár", "Szaktanári figyelmeztetés", "",
+     "Téma", "", "Órai fegyelmezés", tanev_of(today), "szamitott"))
 # Üzenetek: 2 friss, 1 régi
 for i, nap in enumerate([1, 3, 30]):
     conn.execute(
@@ -218,6 +226,13 @@ try:
         page.screenshot(path=str(work / "attekintes.png"))
         print("SCREENSHOT (áttekintés):", work / "attekintes.png")
 
+        print("\n2c) Alsó feed: figyelmet igénylő bejegyzés + legutóbbi jegyek")
+        figy = " ".join(page.inner_text("#dashFigyelemLista").split())
+        ok("Figyelmeztetés" in figy and "Órai fegyelmezés" in figy,
+           f"a figyelmeztető bejegyzés látszik: {figy[:120]}")
+        jegy_sorok = page.eval_on_selector_all("#dashJegyLista .list-group-item",
+                                               "els => els.length")
+        ok(jegy_sorok >= 3, f"a legutóbbi jegyek listája: {jegy_sorok} sor")
 
         print("\n3) Csempe -> szűrt eseménylista")
         page.click("#tileUjJegyek")
