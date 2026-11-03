@@ -101,6 +101,22 @@ try:
         print("HIBA: az app nem indult el")
         sys.exit(1)
 
+    # Hosszú „utolsó frissítés / utolsó automatikus” szöveghez: legyen két futás
+    # a sync_runs-ban (a production-höz hasonló hosszú fejléc-szöveg).
+    conn = sqlite3.connect(db)
+    try:
+        for trigger, start, finish in (
+            ("scheduled", "2026-11-03T18:00:00", "2026-11-03T18:02:00"),
+            ("manual", "2026-11-03T21:16:00", "2026-11-03T21:18:00"),
+        ):
+            conn.execute(
+                "INSERT INTO sync_runs (trigger, started_at, finished_at, status,"
+                " ok_count, total_count) VALUES (?,?,?,?,?,?)",
+                (trigger, start, finish, "done", 3, 3))
+        conn.commit()
+    finally:
+        conn.close()
+
     import asyncio
     from playwright.async_api import async_playwright
 
@@ -159,6 +175,13 @@ try:
             sched_txt = await page.evaluate("() => document.querySelector('#schedulerInfo').innerText")
             ok("Utolsó frissítés" in sched_txt, "a fejlécben mobilon is látszik az utolsó frissítés")
             ok("Ütemező" in sched_txt and "időablak" in sched_txt, "az ütemező állapota és az időablak is látszik")
+            sched_box = await page.evaluate("""() => {
+                const e = document.querySelector('#schedulerInfo');
+                const r = e.getBoundingClientRect();
+                return {right: Math.round(r.right), scroll: e.scrollWidth, client: e.clientWidth};
+            }""")
+            ok(sched_box and sched_box["right"] <= 394 and sched_box["scroll"] <= sched_box["client"] + 1,
+               f"a fejléc-ütemező doboz nem csúszik ki: {sched_box}")
 
             # 8) hiányzások fül: havi választó, összesítő és a két táblázat elfér
             await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('hianyzasok-tab')).show()")

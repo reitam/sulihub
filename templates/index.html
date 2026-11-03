@@ -247,6 +247,11 @@
             #schedulerInfo > div > .sched-sep { display: none; }   /* csak az elválasztó | jelek */
             #schedulerInfo > div > span { font-size: .78rem; }
             #schedulerInfo > div > .badge { align-self: flex-start; }
+            /* A hosszú "Utolsó frissítés / Utolsó automatikus" sor mobilon tördeljen,
+               ne csússzon ki a képernyőből (a JS text-nowrap spanjai miatt). */
+            #schedulerInfo .text-nowrap { white-space: normal !important; }
+            #schedulerInfo > div { overflow-wrap: anywhere; }
+            #schedulerLastText > span.text-secondary { display: none; }
             #btnSync { width: 100%; padding: .65rem; font-size: .95rem; }
 
             /* Dátum-tartomány: mobilegymás alatt egymás alatt, címkék nélkül */
