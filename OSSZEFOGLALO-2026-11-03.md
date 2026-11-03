@@ -102,14 +102,17 @@ ezek a 6. pontban olvashatók.
 | #41 Tanév-információ forrása | done | a döntés: rekord-dátum, `TanevUid` csak diagnosztika |
 | #42 Igazolások teljes cseréje | in-review | upsert + arányos őr; a v1.7.0 élesíti |
 | #43 Tanévváltás automatizálása | to-do | blokkolva: a #40 2–3. fázisa még nincs élesben |
-| #45 Teszt: tanévkezelés | in-review | 762/25 zöld; hátra: éles E2E a deploy után |
+| #45 Teszt: tanévkezelés | in-review | 796/27 zöld; hátra: éles E2E a deploy után |
+| #51 Dashboard nem frissül tanévváltáskor | in-review | javítva: a csempék a friss adatból számolnak (versenyhelyzet megszüntetve) |
+| #52 Hol van az év lezárás gomb? | in-review | megvalósítva: „Tanév lezárása" gomb + `sync_runs.tanev_zaro` |
+| #53 Tanév vs. date picker | in-review | javítva: a dátum-/hónapválasztók a tanév határain belül |
 | #50 Teszt-lefedettség (P2/P3) | planned | a testmanager független ellenőrzésének nem blokkoló tételei (UI E2E, hiányzás/igazolás hatókör, API élek, tanévváltás-push, többkörös backfill) — a P1 kifizetés-hiba javítva |
 
 A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backlog-tétel.
 
 ## 8. Tesztek
 
-- **762 automatikus ellenőrzés / 25 csomag — mind zöld** (`python tests/run_all.py`).
+- **796 automatikus ellenőrzés / 27 csomag — mind zöld** (`python tests/run_all.py`).
 - Új csomagok:
   - `test_tanev.py` — számítás, határok, `teljesen_lekert`,
   - `test_tanev_migration.py` — séma + backfill régi DB-n, ID-stabilitás, idempotencia,
@@ -143,7 +146,31 @@ A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backl
 Korábbi, `main`-en lévő kapcsolódó commit: `dc22213` (`kaneo_ticket.py --parent`),
 `824720e` (adatvédelem, v1.6.3).
 
-## 11. Nyitott teendők
+## 11. Bug-kör a helyi tesztelés után (Kaneo #51–#53)
+
+A felhasználó helyi tesztelése három hibajegyet vett fel („Bug" címke); mind a
+`feature/tanev-kezeles` ágon javítva:
+
+- **#51 – a dashboard nem frissült tanévváltáskor.** Az esemény- és üzenet-válasz
+  versenyhelyzete miatt a csempék (heti határidők / új jegyek) a régi adatból
+  számoltak, amíg F5 nem jött. Most az események visszaérkezésekor is lefut a
+  `updateDashboard()`; a szinkron után a tanév-lista is frissül, megtartva a
+  kiválasztást. Teszt: `test_tanev_ui` 2. szakasz (késleltetett esemény-válasz).
+- **#52 – hiányzó „év lezárás" gomb.** Megvalósult a **kézi tanévzáró**: a fejlécben
+  a lezárt (előző) tanévhez megjelenő gomb a teljes tanév (szept. 1. – aug. 31.)
+  újralekérését indítja (`POST /api/sync/start {"tanev": ...}`), hogy a pótvizsga és
+  az augusztusi jegyek bekerüljenek. Backend: `KRETA_ZARO_TANEV`,
+  `tanev_api_window(tanev=...)`, `sync_runs.tanev_zaro`; csak `api`/`api_first`
+  módban. Teszt: `test_tanev_zaro`.
+- **#53 – tanév vs. dátumválasztó.** A bejegyzés-dátum, a zsebpénz-időszak és a
+  hiányzás-hónap választó `min`/`max` korlátot kap a tanév határaira, a tanéven
+  kívüli érték törlődik, a gyorsgombok intervalluma a tanévre vágódik. Teszt:
+  `test_tanev_ui` 3. szakasz.
+
+Új tesztcsomagok: `test_tanev_zaro` (backend) és `test_tanev_ui` (böngésző) —
+összesen **796 ellenőrzés / 27 csomag**.
+
+## 12. Nyitott teendők
 
 1. **Deploy:** `.\deploy.ps1 -Release v1.7.0` (interaktív SSH-jelszót kér, ezért az
    agent nem tudta futtatni). A `v1.6.5` tartalma (hónap-oszlopok évszám nélkül +

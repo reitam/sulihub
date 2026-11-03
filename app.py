@@ -64,7 +64,8 @@ sync_state = {
     "new_events": {},
     "new_messages": {},
     "new_hianyzasok": {},
-    "sources": {}
+    "sources": {},
+    "zaro_tanev": ""
 }
 sync_lock = threading.Lock()
 
@@ -193,7 +194,9 @@ def ensure_run_tables(conn):
             new_messages    TEXT,
             new_hianyzasok  TEXT,
             sources         TEXT,
-            duration_sec    REAL
+            duration_sec    REAL,
+            tanev           TEXT,
+            tanev_zaro      TEXT
         )
     """)
     # Meglévő adatbázis: a hiányzás-összegzés oszlopa utólag is bekerül.
@@ -204,6 +207,12 @@ def ensure_run_tables(conn):
     if "sources" not in run_cols:
         # Adatkörönkénti forrás (API / Playwright) és a fallback oka.
         cur.execute("ALTER TABLE sync_runs ADD COLUMN sources TEXT")
+    if "tanev" not in run_cols:
+        # A tanév-oszlop a kreta_tanev migrációban is létrejön — itt csak biztosítjuk.
+        cur.execute("ALTER TABLE sync_runs ADD COLUMN tanev TEXT")
+    if "tanev_zaro" not in run_cols:
+        # Tanévzáró futás cél-tanéve (Kaneo #52); normál futásnál NULL.
+        cur.execute("ALTER TABLE sync_runs ADD COLUMN tanev_zaro TEXT")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sync_runs_started ON sync_runs(started_at)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sync_runs_trigger ON sync_runs(trigger, started_at)")
     cur.execute("""
@@ -325,7 +334,8 @@ def record_run_start(trigger, started_at=None):
 
 def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_count=None,
                       failed_students=None, new_events=None, new_messages=None,
-                      new_hianyzasok=None, sources=None, duration_sec=None, tanev=None):
+                      new_hianyzasok=None, sources=None, duration_sec=None, tanev=None,
+                      tanev_zaro=None):
     """A futás sorának lezárása (a tanév a futás napjából számítva, Kaneo #40)."""
     if run_id is None or not _db_ready():
         return
@@ -335,7 +345,7 @@ def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_cou
         cur.execute("""
             UPDATE sync_runs SET finished_at = ?, status = ?, ok_count = ?, total_count = ?,
                    failed_students = ?, new_events = ?, new_messages = ?, new_hianyzasok = ?,
-                   sources = ?, duration_sec = ?, tanev = ?
+                   sources = ?, duration_sec = ?, tanev = ?, tanev_zaro = ?
             WHERE id = ?
         """, (
             finished_at or _now_iso(), status, ok_count, total_count,
@@ -344,7 +354,7 @@ def record_run_finish(run_id, status, finished_at=None, ok_count=None, total_cou
             json.dumps(new_messages or {}, ensure_ascii=False),
             json.dumps(new_hianyzasok or {}, ensure_ascii=False),
             json.dumps(sources or {}, ensure_ascii=False),
-            duration_sec, tanev, run_id,
+            duration_sec, tanev, tanev_zaro, run_id,
         ))
         conn.commit()
         conn.close()
@@ -1072,29 +1082,40 @@ def trigger_label(trigger):
     return {"manual": "kézi", "scheduled": "ütemezett"}.get(trigger, trigger or "-")
 
 
-def start_sync(trigger="manual"):
+def start_sync(trigger="manual", tanev=""):
     """
     Egyetlen belépési pont a szinkron indítására (kézi gomb és ütemező is ezt
     használja). A 'running' jelzőt a szál indítása ELŐTT, a lock alatt foglalja
     le, így két egyszerre érkező kérés nem indíthat két párhuzamos futást.
+
+    `tanev`: ha meg van adva (pl. ``"2025/2026"``), **tanévzáró futás** indul:
+    a megadott, már lezárt tanév teljes ablaka kerül le (Kaneo #52).
     """
+    tanev = str(tanev or "").strip()
     with sync_lock:
         if sync_state["running"]:
             return False
         sync_state["running"] = True
         sync_state["status"] = "starting"
         sync_state["trigger"] = trigger
+        sync_state["zaro_tanev"] = tanev
     try:
-        threading.Thread(target=run_scraper_thread, args=(trigger,), daemon=True).start()
+        # A tanévzáró futásnál második argumentum a cél-tanév; normál futásnál
+        # marad az egyargumentumos hívás (a meglévő tesztek/monkeypatch-ek miatt).
+        args = (trigger,) if not tanev else (trigger, tanev)
+        threading.Thread(target=run_scraper_thread, args=args, daemon=True).start()
     except Exception:
         # Ha a szál nem indult el, ne maradjon örökre "fut" állapotban.
         with sync_lock:
             sync_state["running"] = False
             sync_state["status"] = "error"
+            sync_state["zaro_tanev"] = ""
         raise
 
     # A naplóban mindig látszik, hogy kézi vagy ütemezett futás indult.
-    if trigger == "scheduled":
+    if tanev:
+        _append_sync_log(f"TANÉVZÁRÓ SZINKRONIZÁCIÓ INDÍTÁSA ({tanev}) — a teljes tanév újralekérése")
+    elif trigger == "scheduled":
         _append_sync_log(
             f"ÜTEMEZETT SZINKRONIZÁCIÓ INDÍTÁSA (ütemező: {scheduler_config()['interval_minutes']} percenként)"
         )
@@ -1142,12 +1163,13 @@ def start_scheduler():
         )
 
 
-def run_scraper_thread(trigger="manual"):
+def run_scraper_thread(trigger="manual", tanev=""):
     global sync_state, _last_scheduled_memo
     
     with sync_lock:
         sync_state["running"] = True
         sync_state["trigger"] = trigger
+        sync_state["zaro_tanev"] = str(tanev or "")
         sync_state["logs"] = ["> Szinkronizáció indítása a háttérben..."]
         sync_state["status"] = "running"
         sync_state["failed_students"] = []
@@ -1173,6 +1195,10 @@ def run_scraper_thread(trigger="manual"):
     tanEvValtas = bool(elozo_tanev and elozo_tanev != run_tanev)
     with sync_lock:
         sync_state["logs"].append(f"> Tanév: {run_tanev}")
+        if tanev:
+            sync_state["logs"].append(
+                f"> TANÉVZÁRÓ FUTÁS: a(z) {tanev} tanév teljes újralekérése "
+                f"(a korábbi tanév adatai frissülnek, a többi érintetlen).")
         if tanEvValtas:
             sync_state["logs"].append(
                 f"> ÚJ TANÉV: {elozo_tanev} → {run_tanev} — az új tanév adatai "
@@ -1196,6 +1222,11 @@ def run_scraper_thread(trigger="manual"):
         child_env["KRETA_DB_FILE"] = DB_FILE
         child_env["KRETA_LOG_FILE"] = LOG_FILE
         child_env["KRETA_CSATOLMANYOK_DIR"] = CSATOLMANYOK_DIR
+        if tanev:
+            # Tanévzáró futás (Kaneo #52): a scraper a teljes cél-tanévet kéri le.
+            child_env["KRETA_ZARO_TANEV"] = str(tanev)
+        else:
+            child_env.pop("KRETA_ZARO_TANEV", None)
 
         # A scraper mindig UTF-8-at írjon és a Flask is UTF-8-ként olvassa: a
         # Windows alapértelmezett kódlapja (cp1250) és a Docker locale eltérhet,
@@ -1323,6 +1354,7 @@ def run_scraper_thread(trigger="manual"):
             sources=final_sources,
             duration_sec=duration_sec,
             tanev=run_tanev,
+            tanev_zaro=tanev or None,
         )
 
         # Záró sor a naplóba: látszik a trigger (kézi/ütemezett) és az eredmény.
@@ -2739,9 +2771,24 @@ def api_kifizetes_save():
 
 @app.route("/api/sync/start", methods=["POST"])
 def api_sync_start():
-    if not start_sync("manual"):
+    data = request.get_json(silent=True) or {}
+    tanev = str(data.get("tanev") or "").strip()
+    if tanev:
+        kezd, veg = kreta_tanev.tanev_bounds(tanev)
+        if kezd is None or veg is None:
+            return jsonify({"status": "error", "message": f"Érvénytelen tanév: {tanev}"}), 400
+        aktualis_kezd, _ = kreta_tanev.tanev_bounds(kreta_tanev.current_tanev())
+        if aktualis_kezd and kezd >= aktualis_kezd:
+            return jsonify({"status": "error",
+                            "message": "Csak lezárt (korábbi) tanév zárható le."}), 400
+    if not start_sync("manual", tanev):
         return jsonify({"status": "already_running", "message": "A szinkronizáció már fut!"})
-    return jsonify({"status": "started", "message": "Szinkronizáció elindítva."})
+    return jsonify({
+        "status": "started",
+        "tanev": tanev,
+        "message": (f"Tanévzáró futás elindítva ({tanev})." if tanev
+                    else "Szinkronizáció elindítva."),
+    })
 
 @app.route("/api/sync/stop", methods=["POST"])
 def api_sync_stop():
@@ -2769,6 +2816,7 @@ def api_sync_status():
             "status": sync_state["status"],
             "trigger": sync_state.get("trigger"),
             "tanev": kreta_tanev.current_tanev(),
+            "zaro_tanev": sync_state.get("zaro_tanev") or "",
             "failed_students": list(sync_state.get("failed_students") or []),
             "sources": dict(sync_state.get("sources") or {}),
             "logs": list(sync_state["logs"]),

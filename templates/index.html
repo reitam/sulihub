@@ -357,6 +357,10 @@
                 <button id="btnSync" class="btn btn-success">
                     <i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból
                 </button>
+                <button id="btnTanevZaras" class="btn btn-outline-secondary btn-sm d-none"
+                        title="Az előző tanév teljes újralekérése (pótvizsga/augusztusi jegyek).">
+                    <i class="fa-solid fa-calendar-check me-1"></i>Tanév lezárása
+                </button>
             </div>
         </div>
     </div>
@@ -1542,7 +1546,15 @@ $(document).ready(function() {
 
     function setDefaultHianyzasMonth() {
         let now = new Date();
-        $('#hianyzasHonap').val(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+        let aktualis = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        // Ha a kiválasztott tanév nem tartalmazza az aktuális hónapot, ne állítsuk be
+        // (Kaneo #53): a hónapválasztó a tanév határain belül marad.
+        let h = aktualisTanevHatar();
+        if (h && (aktualis < h.kezdo.slice(0, 7) || aktualis > h.zaro.slice(0, 7))) {
+            $('#hianyzasHonap').val('');
+            return;
+        }
+        $('#hianyzasHonap').val(aktualis);
     }
 
     function loadHianyzasok() {
@@ -2253,9 +2265,10 @@ $(document).ready(function() {
         let m = now.getMonth();
         let firstDay = new Date(y, m, 1);
         let lastDay = new Date(y, m + 1, 0);
+        let r = clampTanevRange(fmtDate(firstDay), fmtDate(lastDay));
 
-        $('#rewardKezdoDatum').val(fmtDate(firstDay));
-        $('#rewardZaroDatum').val(fmtDate(lastDay));
+        $('#rewardKezdoDatum').val(r.kezdo);
+        $('#rewardZaroDatum').val(r.zaro);
         loadRewardsData();
     });
 
@@ -2266,9 +2279,10 @@ $(document).ready(function() {
         if (m < 0) { m = 11; y--; }
         let firstDay = new Date(y, m, 1);
         let lastDay = new Date(y, m + 1, 0);
+        let r = clampTanevRange(fmtDate(firstDay), fmtDate(lastDay));
 
-        $('#rewardKezdoDatum').val(fmtDate(firstDay));
-        $('#rewardZaroDatum').val(fmtDate(lastDay));
+        $('#rewardKezdoDatum').val(r.kezdo);
+        $('#rewardZaroDatum').val(r.zaro);
         loadRewardsData();
     });
 
@@ -2277,6 +2291,7 @@ $(document).ready(function() {
     // zsebpénzt szűri. Az üzenetek és az órarend tudatosan tanév-független.
     let tanevAktualis = '';
     let tanevLista = [];
+    let tanevHatarok = {};
 
     function tanEvCimke(tanev) {
         return tanev + '. tanév';
@@ -2292,16 +2307,97 @@ $(document).ready(function() {
         return `&tanev=${encodeURIComponent(t || 'all')}`;
     }
 
+    // ── Tanévzáró (Kaneo #52) ───────────────────────────────────────────────
+    function elozoTanev() {
+        let m = /^(\d{4})\/(\d{4})$/.exec(tanevAktualis || '');
+        if (!m) return '';
+        let y = parseInt(m[1], 10) - 1;
+        return `${y}/${y + 1}`;
+    }
+
+    function updateTanevZarasButton() {
+        let elozo = elozoTanev();
+        let $b = $('#btnTanevZaras');
+        if (!elozo) {
+            $b.addClass('d-none');
+            return;
+        }
+        $b.removeClass('d-none').html(
+            `<i class="fa-solid fa-calendar-check me-1"></i>${elozo} zárása`);
+    }
+
     function reloadTanevFuggoNezetek() {
         // A loadData() maga is frissíti a dashboardot és a zsebpénzt.
         loadData();
         loadHianyzasok();
     }
 
-    function betoltTanevek() {
+    // ── Dátumválasztók a kiválasztott tanévhez igazítva (Kaneo #53) ────────
+    const TANEV_DATUM_MEZOK = ['#filterBejKezdoDatum', '#filterBejZaroDatum',
+                               '#rewardKezdoDatum', '#rewardZaroDatum'];
+
+    function aktualisTanevHatar() {
+        let t = kivalasztottTanev();
+        let h = t ? tanevHatarok[t] : null;
+        return (h && h.kezdo && h.zaro) ? h : null;
+    }
+
+    function applyTanevDateLimits() {
+        let h = aktualisTanevHatar();
+        TANEV_DATUM_MEZOK.forEach(function (sel) {
+            let $i = $(sel);
+            if (h) {
+                $i.attr('min', h.kezdo).attr('max', h.zaro);
+                let v = $i.val();
+                if (v && (v < h.kezdo || v > h.zaro)) $i.val('');
+            } else {
+                $i.removeAttr('min').removeAttr('max');
+            }
+        });
+        // A hiányzások hónapválasztója (input type=month) ugyanígy.
+        let $h = $('#hianyzasHonap');
+        if (h) {
+            let minH = h.kezdo.slice(0, 7), maxH = h.zaro.slice(0, 7);
+            $h.attr('min', minH).attr('max', maxH);
+            let v = $h.val();
+            if (v && (v < minH || v > maxH)) $h.val('');
+        } else {
+            $h.removeAttr('min').removeAttr('max');
+        }
+    }
+
+    // A gyorsgombok által adott intervallumot a tanév határai közé vágja.
+    function clampTanevRange(kezdo, zaro) {
+        let h = aktualisTanevHatar();
+        if (!h) return { kezdo: kezdo, zaro: zaro };
+        if (kezdo && kezdo < h.kezdo) kezdo = h.kezdo;
+        if (zaro && zaro > h.zaro) zaro = h.zaro;
+        if (kezdo && zaro && kezdo > zaro) return { kezdo: '', zaro: '' };
+        return { kezdo: kezdo, zaro: zaro };
+    }
+
+    // Ha a böngésző engedné a tanéven kívüli értéket (pl. begépelve), a change
+    // esemény törli (Kaneo #53).
+    $(document).on('change', '#filterBejKezdoDatum, #filterBejZaroDatum, ' +
+                             '#rewardKezdoDatum, #rewardZaroDatum', function () {
+        let h = aktualisTanevHatar();
+        if (!h) return;
+        let v = $(this).val();
+        if (v && (v < h.kezdo || v > h.zaro)) $(this).val('');
+    });
+    $(document).on('change', '#hianyzasHonap', function () {
+        let h = aktualisTanevHatar();
+        if (!h) return;
+        let v = $(this).val();
+        if (v && (v < h.kezdo.slice(0, 7) || v > h.zaro.slice(0, 7))) $(this).val('');
+    });
+
+    function betoltTanevek(megtartValasztas) {
         $.getJSON('/api/tanevek', function (res) {
+            let korabbi = $('#tanevValaszto').val();
             tanevAktualis = (res && res.aktualis) || '';
             tanevLista = (res && res.tanevek) || [];
+            tanevHatarok = (res && res.hatarok) || {};
             let $sel = $('#tanevValaszto').empty();
             $sel.append('<option value="">Összes tanév</option>');
             tanevLista.forEach(function (t) {
@@ -2314,7 +2410,12 @@ $(document).ready(function() {
                 $sel.append(`<option value="${escapeHtml(tanevAktualis)}">` +
                             `${escapeHtml(tanEvCimke(tanevAktualis))} (aktuális)</option>`);
             }
-            $sel.val(tanevAktualis || '');
+            // Szinkron utáni újratöltésnél tartsuk meg a felhasználó választását.
+            let cel = tanevAktualis || '';
+            if (megtartValasztas && korabbi !== null && korabbi !== undefined) cel = korabbi;
+            $sel.val(cel);
+            applyTanevDateLimits();
+            updateTanevZarasButton();
             reloadTanevFuggoNezetek();
         }).fail(function () {
             reloadTanevFuggoNezetek();
@@ -2322,6 +2423,7 @@ $(document).ready(function() {
     }
 
     $('#tanevValaszto').change(function () {
+        applyTanevDateLimits();
         reloadTanevFuggoNezetek();
     });
 
@@ -2333,6 +2435,9 @@ $(document).ready(function() {
         $.getJSON(`/api/esemenyek?diak=${encodeURIComponent(diak)}&tipus=${encodeURIComponent(tipus)}&tantargy=${encodeURIComponent(tantargy)}${tanevQueryParam()}`, function(data) {
             rawData = data;
             applyFilters();
+            // A csempék (heti határidők / új jegyek) a friss adatból számoljanak
+            // (Kaneo #51: a versenyhelyzet miatt F5 nélkül elavultak maradtak).
+            updateDashboard();
 
             // Üres tanév: segítsünk megtalálni az adatot.
             let hint = $('#esemenyTanevHint');
@@ -2629,11 +2734,14 @@ $(document).ready(function() {
             if (res.running) {
                 autoAlert.addClass('d-none');
                 btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-2"></i>Szinkronizálás...');
+                $('#btnTanevZaras').prop('disabled', true);
                 logContainer.removeClass('d-none');
                 spinner.removeClass('d-none');
                 title.text(res.trigger === 'scheduled'
                     ? 'Ütemezett szinkronizálás folyamatban a háttérben...'
-                    : 'Szinkronizálás folyamatban a háttérben...');
+                    : (res.zaro_tanev
+                        ? `Tanévzáró futás folyamatban (${res.zaro_tanev})...`
+                        : 'Szinkronizálás folyamatban a háttérben...'));
                 btnStop.removeClass('d-none');
 
                 if (res.logs.length > 0) {
@@ -2650,6 +2758,7 @@ $(document).ready(function() {
             } else {
                 autoAlert.addClass('d-none');
                 btn.prop('disabled', false).html('<i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból');
+                $('#btnTanevZaras').prop('disabled', false);
                 spinner.addClass('d-none');
                 btnStop.addClass('d-none');
 
@@ -2667,8 +2776,9 @@ $(document).ready(function() {
                 if (syncInterval) {
                     clearInterval(syncInterval);
                     syncInterval = null;
-                    loadData();
-                    loadHianyzasok();
+                    // A tanév-lista is frissülhet (pl. tanévzáró után új tanév),
+                    // a felhasználó választását megtartva (Kaneo #51/#52).
+                    betoltTanevek(true);
                     if (orarendCalendar) orarendCalendar.refetchEvents();
                     if (calendar) calendar.refetchEvents();
                     if ($('#logs-tab').hasClass('active')) fetchSyncLogFile();
@@ -2789,9 +2899,10 @@ $(document).ready(function() {
     $('#btnQuickToday').click(function() {
         let now = new Date();
         let todayStr = fmtDate(now);
+        let r = clampTanevRange(todayStr, todayStr);
 
-        $('#filterBejKezdoDatum').val(todayStr);
-        $('#filterBejZaroDatum').val(todayStr);
+        $('#filterBejKezdoDatum').val(r.kezdo);
+        $('#filterBejZaroDatum').val(r.zaro);
         $('#filterStatus').val('');
 
         applyFilters();
@@ -2803,9 +2914,10 @@ $(document).ready(function() {
         let m = now.getMonth();
         let firstDay = new Date(y, m, 1);
         let lastDay = new Date(y, m + 1, 0);
+        let r = clampTanevRange(fmtDate(firstDay), fmtDate(lastDay));
 
-        $('#filterBejKezdoDatum').val(fmtDate(firstDay));
-        $('#filterBejZaroDatum').val(fmtDate(lastDay));
+        $('#filterBejKezdoDatum').val(r.kezdo);
+        $('#filterBejZaroDatum').val(r.zaro);
         $('#filterStatus').val('');
 
         applyFilters();
@@ -2818,9 +2930,10 @@ $(document).ready(function() {
         if (m < 0) { m = 11; y--; }
         let firstDay = new Date(y, m, 1);
         let lastDay = new Date(y, m + 1, 0);
+        let r = clampTanevRange(fmtDate(firstDay), fmtDate(lastDay));
 
-        $('#filterBejKezdoDatum').val(fmtDate(firstDay));
-        $('#filterBejZaroDatum').val(fmtDate(lastDay));
+        $('#filterBejKezdoDatum').val(r.kezdo);
+        $('#filterBejZaroDatum').val(r.zaro);
         $('#filterStatus').val('');
 
         applyFilters();
@@ -2961,12 +3074,42 @@ $(document).ready(function() {
         $('#syncLogContainer').addClass('d-none');
     });
 
-    $('#btnSync').click(function() {
-        $.post('/api/sync/start', function(res) {
-            if (res.status === 'started' || res.status === 'already_running') {
-                checkSyncStatus();
+    function startSync(tanev) {
+        $.ajax({
+            url: '/api/sync/start',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(tanev ? { tanev: tanev } : {}),
+            success: function(res) {
+                if (res.status === 'started' || res.status === 'already_running') {
+                    checkSyncStatus();
+                } else if (res.message) {
+                    alert(res.message);
+                }
+            },
+            error: function(xhr) {
+                let msg = (xhr.responseJSON && xhr.responseJSON.message)
+                    || 'A szinkronizáció nem indult el.';
+                alert(msg);
             }
         });
+    }
+
+    $('#btnSync').click(function() {
+        startSync('');
+    });
+
+    // Tanévzáró: a már lezárt (előző) tanév teljes újralekérése (Kaneo #52).
+    $('#btnTanevZaras').click(function() {
+        let elozo = elozoTanev();
+        if (!elozo) return;
+        let uzenet = 'Tanévzáró futás: a(z) ' + elozo + ' tanév teljes újralekérése.\n\n' +
+            'A pótvizsga és az augusztusi jegyek miatt a teljes tanév (szept. 1. – aug. 31.) ' +
+            'újra letöltődik, ezért ez több percig is tarthat. ' +
+            'Csak ennek a tanévnek az adatai frissülnek, a többi érintetlen marad.\n\n' +
+            'Indulhat?';
+        if (!confirm(uzenet)) return;
+        startSync(elozo);
     });
 
     $('#btnStopSync').click(function(e) {
