@@ -1949,8 +1949,8 @@ async def scrape_esemenyek(page, diak_nev, institute_code,
                             !line.startsWith("Fájl") && 
                             !line.includes("Nincs találat") && 
                             !line.includes("MÉGSE") &&
-                            !/^\d{4}\.\s*\d{2}\.\s*\d{2}\./.test(line) && 
-                            !/^Határidő:\s*\d{4}/.test(line)) {
+                            !/^\\d{4}\\.\\s*\\d{2}\\.\\s*\\d{2}\\./.test(line) && 
+                            !/^Határidő:\\s*\\d{4}/.test(line)) {
                             
                             validLines.push(line);
                         }

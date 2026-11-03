@@ -57,7 +57,9 @@ a saját szerveren maradnak.
   csak tanéven belül értelmezhető). Az üzenetek és az órarend tanév-független.
   A dátumválasztók a kiválasztott tanév határain belül maradnak, és a **kiválasztott
   (vagy alapból az előző) lezárt tanévhez** „Tanév lezárása" gomb jelenik meg (a teljes
-  tanév újralekérése a pótvizsga és az augusztusi jegyek miatt).
+  tanév újralekérése a pótvizsga és az augusztusi jegyek miatt). A KRÉTA API jelenleg
+  csak az **aktuális tanévet** adja vissza — a régi tanéveket nem lehet újratölteni
+  (ezért a szinkron soha nem törli őket).
 
 ### 📊 Iskolai események
 - DataTables táblázat: szűrés gyermek, típus, tantárgy, aktív/lejárt, dátumtartomány szerint;

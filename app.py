@@ -1252,11 +1252,17 @@ def run_scraper_thread(trigger="manual", tanev=""):
     elozo_tanev = last_recorded_tanev()
     tanEvValtas = bool(elozo_tanev and elozo_tanev != run_tanev)
     with sync_lock:
-        sync_state["logs"].append(f"> Tanév: {run_tanev}")
         if tanev:
+            sync_state["logs"].append(
+                f"> Tanév: {tanev} (tanévzáró cél) — a naptári tanév: {run_tanev}")
             sync_state["logs"].append(
                 f"> TANÉVZÁRÓ FUTÁS: a(z) {tanev} tanév teljes újralekérése "
                 f"(a korábbi tanév adatai frissülnek, a többi érintetlen).")
+            sync_state["logs"].append(
+                "> Ha a KRÉTA erre a tanévre nem ad vissza adatot, a meglévő sorok "
+                "érintetlenek maradnak (üres batch védelem).")
+        else:
+            sync_state["logs"].append(f"> Tanév: {run_tanev}")
         if tanEvValtas:
             sync_state["logs"].append(
                 f"> ÚJ TANÉV: {elozo_tanev} → {run_tanev} — az új tanév adatai "
