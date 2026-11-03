@@ -114,7 +114,7 @@ A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backl
 
 ## 8. Tesztek
 
-- **864 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
+- **865 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
 - Új csomagok:
   - `test_tanev.py` — számítás, határok, `teljesen_lekert`,
   - `test_tanev_migration.py` — séma + backfill régi DB-n, ID-stabilitás, idempotencia,
@@ -171,7 +171,7 @@ A felhasználó helyi tesztelése három hibajegyet vett fel („Bug" címke); m
   `test_tanev_ui` 3. szakasz.
 
 Új tesztcsomagok: `test_tanev_state` (állapotgép) és `test_tanev_ui` (böngésző) —
-összesen **864 ellenőrzés / 28 csomag**.
+összesen **865 ellenőrzés / 28 csomag**.
 
 ## 12. Saját megjegyzések (Kaneo #46)
 
