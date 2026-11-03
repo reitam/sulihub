@@ -8,3 +8,5 @@ waitress>=3.0,<4
 # A KRÉTA API kliens (kreta_api.py) HTTP-hívásaihoz (a Playwright nem hozza
 # magával, ezért a képben korábban nem volt meg).
 requests>=2.32,<3
+# A naptár .ics időzóna-konverziójához (Windows-on nincs rendszer tz-adatbázis).
+tzdata>=2024.1

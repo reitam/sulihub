@@ -279,6 +279,50 @@ try:
                     const r = e.getBoundingClientRect(); return {w: r.width, right: r.right}; }""", sel)
                 ok(box and box["w"] > 0 and box["right"] <= 394, f"{sel} a képernyőn belül van")
 
+            # 9) saját óra rögzítése (Kaneo #55): gomb → modal → mentés → naptárban látszik
+            await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('orarend-tab')).show()")
+            await page.wait_for_timeout(900)
+            sajat_gomb = await page.evaluate("""() => {
+                const b = document.querySelector('#btnSajatOra');
+                if (!b) return null;
+                const r = b.getBoundingClientRect();
+                return {w: r.width, right: Math.round(r.right)};
+            }""")
+            ok(sajat_gomb and sajat_gomb["w"] > 0 and sajat_gomb["right"] <= 394,
+               "a 'Saját óra' gomb mobilon is a képernyőn belül van")
+            await page.click('#btnSajatOra')
+            await page.wait_for_selector('#sajatOraModal.show', timeout=5000)
+            await page.fill('#sajatOraCim', 'Teszt szakkör')
+            await page.click('#btnSajatOraMent')
+            await page.wait_for_timeout(1600)
+            sajat_db = await page.evaluate("""() => {
+                const evs = [...document.querySelectorAll('#orarendCalendar .fc-event')];
+                const hit = evs.filter(e => (e.textContent || '').indexOf('Teszt szakkör') >= 0);
+                return {n: hit.length, color: hit.length ? getComputedStyle(hit[0]).backgroundColor : ''};
+            }""")
+            ok(sajat_db and sajat_db["n"] >= 1,
+               f"a mentett saját óra megjelenik a naptárban ({sajat_db})")
+            ok(sajat_db and sajat_db["color"] == "rgb(111, 66, 193)",
+               f"a saját óra megkülönböztető színű ({sajat_db and sajat_db['color']})")
+
+            # 10) üzenet → naptárbejegyzés gombok (Kaneo #47)
+            await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('uzenetek-tab')).show()")
+            await page.wait_for_timeout(900)
+            await page.click('#uzenetekTable .btn-read-msg')
+            await page.wait_for_selector('#uzenetModal.show', timeout=5000)
+            naptar_gombok = await page.evaluate("""() => {
+                const google = document.querySelector('#btnUzenetNaptarGoogle');
+                const ics = document.querySelector('#btnUzenetNaptarIcs');
+                return {google: !!google && google.getBoundingClientRect().height > 0,
+                        icsHref: ics ? ics.getAttribute('href') : ''};
+            }""")
+            ok(naptar_gombok["google"], "az üzenet ablakban látszik a Google naptár gomb")
+            ok("/api/naptar/uzenet/" in (naptar_gombok["icsHref"] or "")
+               and naptar_gombok["icsHref"].endswith(".ics"),
+               f"az ICS letöltés az üzenethez mutat ({naptar_gombok['icsHref']})")
+            await page.click('#uzenetModal .btn-secondary')
+            await page.wait_for_timeout(400)
+
             # 5) a fülek tördelődnek — minden fül látszik, nem fut ki
             tabs_info = await page.evaluate("""() => {
                 const nav = document.getElementById('mainTab');

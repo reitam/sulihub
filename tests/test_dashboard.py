@@ -45,7 +45,7 @@ def tanev_of(d):
     return f"{kezdet}/{kezdet + 1}"
 
 
-today = date.today()
+today = date(2026, 11, 4)   # determinisztikus teszt (a valódi naptártól független)
 monday = today - timedelta(days=(today.weekday()))
 sunday = monday + timedelta(days=6)
 
@@ -300,8 +300,10 @@ try:
             "#atlagokMobil .accordion .accordion-item > h2 > button",
             "els => els.filter(e => e.offsetParent !== null).map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
         ok(len(honapok_szoveg) == 2, f"havi bontás: {honapok_szoveg}")
-        ok(any("október" in h and "4" in h for h in honapok_szoveg),
-           f"október havi teljes átlaga (súlyozva 4.0): {honapok_szoveg}")
+        ok(any("október" in h and "3" in h for h in honapok_szoveg),
+           f"október havi teljes átlaga 3: {honapok_szoveg}")
+        ok(any("november" in h and "4.67" in h for h in honapok_szoveg),
+           f"november havi teljes átlaga (súlyozva 4.67): {honapok_szoveg}")
 
         mp.evaluate("""() => {
             const els = Array.from(document.querySelectorAll(
