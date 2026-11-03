@@ -237,21 +237,15 @@
             .app-header { padding: .75rem !important; }
             .app-header .app-title { font-size: 1.05rem; line-height: 1.2; }
             .app-header .app-subtitle { font-size: .78rem; }
-            #schedulerInfo > div {
-                flex-direction: column !important;
-                align-items: stretch !important;
-                text-align: left !important;
-                gap: .2rem !important;
-                padding: .5rem .6rem !important;
+            /* Ütemező mobilon: egyetlen karcsú státuszsáv, a részletek koppintásra.
+               Az asztali részletes sor ilyenkor rejtve van (d-md-flex). */
+            #schedulerCompact {
+                padding: .3rem .55rem !important;
+                font-size: .8rem;
+                line-height: 1.2;
+                min-height: 0;
             }
-            #schedulerInfo > div > .sched-sep { display: none; }   /* csak az elválasztó | jelek */
-            #schedulerInfo > div > span { font-size: .78rem; }
-            #schedulerInfo > div > .badge { align-self: flex-start; }
-            /* A hosszú "Utolsó frissítés / Utolsó automatikus" sor mobilon tördeljen,
-               ne csússzon ki a képernyőből (a JS text-nowrap spanjai miatt). */
-            #schedulerInfo .text-nowrap { white-space: normal !important; }
-            #schedulerInfo > div { overflow-wrap: anywhere; }
-            #schedulerLastText > span.text-secondary { display: none; }
+            #schedulerCompact #schedulerCompactText { font-size: .8rem; }
             #btnSync { width: 100%; padding: .65rem; font-size: .95rem; }
 
             /* Dátum-tartomány: mobilegymás alatt egymás alatt, címkék nélkül */
@@ -385,7 +379,17 @@
         </div>
 
         <div id="schedulerInfo" class="col-12 col-lg-5 d-none">
-            <div class="d-flex flex-wrap align-items-center justify-content-center gap-3 bg-light border rounded px-3 py-2 small">
+            <!-- Mobil: egyetlen karcsú, dinamikus státuszsáv; a részletek koppintásra -->
+            <button type="button" id="schedulerCompact"
+                    class="btn btn-light border w-100 d-flex d-md-none align-items-center gap-2 text-start"
+                    data-bs-toggle="modal" data-bs-target="#schedulerDetailModal"
+                    aria-label="Szinkronizálás részletei">
+                <span id="schedulerCompactIcon" class="d-inline-flex"></span>
+                <span id="schedulerCompactText" class="flex-grow-1 text-truncate">Szinkron állapota</span>
+                <i class="fa-solid fa-circle-info text-secondary" aria-hidden="true"></i>
+            </button>
+            <!-- Asztali: részletes sor -->
+            <div id="schedulerDetails" class="d-none d-md-flex flex-wrap align-items-center justify-content-center gap-3 bg-light border rounded px-3 py-2 small">
                 <span id="schedulerState" class="badge bg-secondary"><i class="fa-solid fa-clock me-1"></i>Ütemező: KI</span>
                 <span class="text-secondary sched-sep">|</span>
                 <span id="schedulerWindowText" class="text-nowrap"></span>
@@ -1170,6 +1174,29 @@
   </div>
 </div>
 
+<!-- MODAL: SZINKRONIZÁLÁS RÉSZLETEI (mobil státuszsáv) -->
+<div class="modal fade" id="schedulerDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white p-2 px-3">
+        <h6 class="modal-title m-0"><i class="fa-solid fa-clock me-2"></i>Szinkronizálás állapota</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body small">
+        <ul class="list-unstyled m-0 d-grid gap-2">
+          <li id="schedModalState"></li>
+          <li id="schedModalWindow"></li>
+          <li id="schedModalNext"></li>
+          <li id="schedModalLast"></li>
+        </ul>
+      </div>
+      <div class="modal-footer p-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bezárás</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL SAJÁT MEGJEGYZÉSEKHEZ (Kaneo #46) -->
 <div class="modal fade" id="kommentModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
@@ -1247,6 +1274,60 @@ function renderDiakAvatar(name) {
         <span class="avatar" style="background:${c[0]};color:${c[1]}" title="${safe}">${avatarInitials(name)}</span>
         <span class="avatar-name">${name}</span>
     </span>`;
+}
+
+// ── Ütemező visszajelzése: időformázás + a mobil státuszsáv szövege ──────
+// (Szándékosan top-level: tiszta függvények, a mobil nézet tesztje közvetlenül hívja.)
+function formatSchedTime(iso) {
+    if (!iso) return null;
+    const d = new Date(String(iso).replace(' ', 'T'));
+    if (isNaN(d.getTime())) return null;
+    const now = new Date();
+    const ma = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const nap = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diff = Math.round((nap - ma) / 86400000);
+    const hhmm = d.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
+    if (diff === 0) return `ma ${hhmm}`;
+    if (diff === 1) return `holnap ${hhmm}`;
+    if (diff === -1) return `tegnap ${hhmm}`;
+    return `${d.toLocaleDateString('hu-HU')} ${hhmm}`;
+}
+
+function schedulerCompactState(sched) {
+    if (sched.running) {
+        return {
+            icon: '<span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>',
+            text: sched.trigger === 'scheduled'
+                ? 'Szinkronizálás folyamatban… (auto)'
+                : 'Szinkronizálás folyamatban… (kézi)',
+            cls: 'text-primary fw-semibold'
+        };
+    }
+    if (!sched.last_run) {
+        return {icon: '<i class="fa-solid fa-circle-minus text-secondary"></i>',
+                text: 'Még nem volt szinkronizálás',
+                cls: 'text-secondary'};
+    }
+    const when = formatSchedTime(sched.last_run) || sched.last_run;
+    const st = sched.last_status;
+    if (st === 'error') {
+        return {icon: '<i class="fa-solid fa-circle-xmark text-danger"></i>',
+                text: `Sikertelen frissítés (${when})`,
+                cls: 'text-danger fw-semibold'};
+    }
+    if (st === 'done_with_errors') {
+        return {icon: '<i class="fa-solid fa-triangle-exclamation text-warning"></i>',
+                text: `Részben sikerült: ${when}`,
+                cls: 'text-warning-emphasis fw-semibold'};
+    }
+    if (st === 'interrupted' || st === 'stopped') {
+        return {icon: '<i class="fa-solid fa-circle-pause text-warning"></i>',
+                text: `Megszakadt: ${when}`,
+                cls: 'text-warning-emphasis fw-semibold'};
+    }
+    return {icon: '<i class="fa-solid fa-circle-check text-success"></i>',
+            text: `Szinkronizálva: ${when}`,
+            cls: 'text-success-emphasis fw-semibold'};
 }
 
 function enableResizableTable(tableId) {
@@ -2954,21 +3035,6 @@ $(document).ready(function() {
     }
 
     // ── Ütemező visszajelzése a fejlécben ───────────────────────────────────
-    function formatSchedTime(iso) {
-        if (!iso) return null;
-        const d = new Date(String(iso).replace(' ', 'T'));
-        if (isNaN(d.getTime())) return null;
-        const now = new Date();
-        const ma = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const nap = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-        const diff = Math.round((nap - ma) / 86400000);
-        const hhmm = d.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' });
-        if (diff === 0) return `ma ${hhmm}`;
-        if (diff === 1) return `holnap ${hhmm}`;
-        if (diff === -1) return `tegnap ${hhmm}`;
-        return `${d.toLocaleDateString('hu-HU')} ${hhmm}`;
-    }
-
     function schedulerAlwaysOn(sched) {
         return sched.start_hour === sched.end_hour
             || (sched.start_hour === 0 && sched.end_hour === 24);
@@ -3007,43 +3073,42 @@ $(document).ready(function() {
         }
         $('#schedulerInfo').removeClass('d-none');
         const badge = $('#schedulerState');
-        const txt = $('#schedulerNextText');
-        const last = $('#schedulerLastText');
 
         // 1) Be van-e kapcsolva az ütemező?
-        if (sched.enabled) {
-            badge.removeClass('bg-secondary').addClass('bg-success')
-                 .html('<i class="fa-solid fa-clock me-1"></i>Ütemező: BE');
-        } else {
-            badge.removeClass('bg-success').addClass('bg-secondary')
-                 .html('<i class="fa-solid fa-clock me-1"></i>Ütemező: KI');
-        }
+        const stateHtml = sched.enabled
+            ? '<i class="fa-solid fa-clock me-1"></i>Ütemező: BE'
+            : '<i class="fa-solid fa-clock me-1"></i>Ütemező: KI';
+        badge.removeClass('bg-secondary bg-success')
+             .addClass(sched.enabled ? 'bg-success' : 'bg-secondary')
+             .html(stateHtml);
 
         // 2) Következő futás / épp futó szinkron
-        $('#schedulerWindowText').html(schedulerWindowHtml(sched));
-
+        let nextHtml;
         if (!sched.enabled) {
-            txt.html('<span class="text-secondary">automatikus szinkron kikapcsolva</span>');
+            nextHtml = '<span class="text-secondary">automatikus szinkron kikapcsolva</span>';
         } else if (sched.running) {
-            txt.html((sched.trigger === 'scheduled'
+            nextHtml = (sched.trigger === 'scheduled'
                 ? '<span class="text-success fw-bold">ütemezett szinkron fut...</span>'
                 : '<span class="text-primary fw-bold">kézi szinkron fut...</span>')
-                + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`);
+                + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`;
         } else {
             const when = formatSchedTime(sched.next_run_iso);
             if (when) {
                 const overdue = new Date(String(sched.next_run_iso).replace(' ', 'T')) <= new Date();
-                txt.html(`következő: <b>${when}</b>`
+                nextHtml = `következő: <b>${when}</b>`
                          + (overdue ? ' <span class="text-warning">(hamarosan)</span>' : '')
-                         + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`);
+                         + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`;
             } else {
-                txt.html(`<span class="text-secondary">${schedulerIntervalText(sched)}</span>`);
+                nextHtml = `<span class="text-secondary">${schedulerIntervalText(sched)}</span>`;
             }
         }
+        $('#schedulerWindowText').html(schedulerWindowHtml(sched));
+        $('#schedulerNextText').html(nextHtml);
 
         // 3) Utolsó frissítés ÉS utolsó automatikus futás — mindkettő saját eredménnyel
+        let lastHtml;
         if (!sched.last_run) {
-            last.html('Utolsó frissítés: <span class="text-secondary">még nem volt</span>');
+            lastHtml = 'Utolsó frissítés: <span class="text-secondary">még nem volt</span>';
         } else {
             const parts = [];
 
@@ -3061,8 +3126,24 @@ $(document).ready(function() {
                 parts.push(`<span class="text-nowrap">Utolsó automatikus: <b>${aw}</b>${ast ? ' &middot; ' + ast : ''}</span>`);
             }
 
-            last.html(parts.join('<span class="text-secondary mx-1">|</span>'));
+            lastHtml = parts.join('<span class="text-secondary mx-1">|</span>');
         }
+        $('#schedulerLastText').html(lastHtml);
+
+        // 4) Mobil: egysoros státuszsáv + a részletek modál tartalma
+        const compact = schedulerCompactState(sched);
+        $('#schedulerCompactIcon').html(compact.icon);
+        $('#schedulerCompactText')
+            .removeClass('text-secondary text-primary text-danger text-success '
+                       + 'text-warning-emphasis fw-semibold')
+            .addClass(compact.cls)
+            .text(compact.text);
+        $('#schedModalState').html(stateHtml + ' &middot; ' + compact.text);
+        $('#schedModalWindow').html(
+            schedulerWindowHtml(sched)
+            + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`);
+        $('#schedModalNext').html(nextHtml);
+        $('#schedModalLast').html(lastHtml);
     }
 
     function checkSyncStatus() {

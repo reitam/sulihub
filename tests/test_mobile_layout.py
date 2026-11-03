@@ -171,17 +171,74 @@ try:
             ok(av["n"] > 0, f"a diák oszlopban avatar van ({av['n']} db, pl. '{av['text']}')")
             ok(len(av["text"]) in (2, 3), f"a monogram 2-3 betűs ('{av['text']}')")
             ok(av["dateVisible"], "a bejegyzés dátuma oszlop látszik mobilon")
-            # 7) a fejlécben mobilon is látszik az utolsó frissítés
-            sched_txt = await page.evaluate("() => document.querySelector('#schedulerInfo').innerText")
-            ok("Utolsó frissítés" in sched_txt, "a fejlécben mobilon is látszik az utolsó frissítés")
-            ok("Ütemező" in sched_txt and "időablak" in sched_txt, "az ütemező állapota és az időablak is látszik")
-            sched_box = await page.evaluate("""() => {
-                const e = document.querySelector('#schedulerInfo');
+            # 7) mobil: egyetlen karcsú státuszsáv, a technikai részletek koppintásra
+            compact = await page.evaluate("""() => {
+                const e = document.querySelector('#schedulerCompact');
+                if (!e) return null;
                 const r = e.getBoundingClientRect();
-                return {right: Math.round(r.right), scroll: e.scrollWidth, client: e.clientWidth};
+                const d = document.querySelector('#schedulerDetails');
+                return {visible: r.width > 0 && r.height > 0,
+                        height: Math.round(r.height),
+                        right: Math.round(r.right),
+                        text: e.innerText.trim(),
+                        scroll: e.scrollWidth, client: e.clientWidth,
+                        detailsVisible: !!d && d.getBoundingClientRect().height > 0};
             }""")
-            ok(sched_box and sched_box["right"] <= 394 and sched_box["scroll"] <= sched_box["client"] + 1,
-               f"a fejléc-ütemező doboz nem csúszik ki: {sched_box}")
+            ok(compact and compact["visible"], "mobilon látszik a kompakt szinkron-státuszsáv")
+            ok(compact and compact["height"] <= 40,
+               f"a státuszsáv egyetlen karcsú sor (magasság: {compact['height']} px)")
+            ok(compact and "Szinkronizálva" in compact["text"],
+               f"a státuszsáv rövid, emberi szöveget mutat ('{compact['text']}')")
+            ok(compact and not compact["detailsVisible"],
+               "a technikai részletek (időablak, intervallum) mobilon alapból rejtve vannak")
+            ok(compact and compact["right"] <= 394 and compact["scroll"] <= compact["client"] + 1,
+               f"a státuszsáv nem csúszik ki: {compact}")
+
+            # 7a) a dinamikus állapotok: futás / hiba / siker
+            states = await page.evaluate("""() => {
+                const running = schedulerCompactState({running: true, trigger: 'scheduled'});
+                const err = schedulerCompactState({last_run: '2026-11-03 21:34:00', last_status: 'error'});
+                const done = schedulerCompactState({last_run: '2026-11-03 21:33:00', last_status: 'done'});
+                return {running: running.text, error: err.text, done: done.text,
+                        spin: running.icon.indexOf('spinner') >= 0,
+                        red: err.icon.indexOf('text-danger') >= 0,
+                        green: done.icon.indexOf('text-success') >= 0};
+            }""")
+            ok(states["spin"] and "folyamatban" in states["running"],
+               f"futás közben a sáv pörgő ikont és rövid szöveget mutat ('{states['running']}')")
+            ok(states["red"] and "Sikertelen" in states["error"],
+               f"hiba esetén piros állapot ('{states['error']}')")
+            ok(states["green"] and "Szinkronizálva" in states["done"],
+               f"siker esetén zöld állapot ('{states['done']}')")
+
+            # 7b) koppintásra megnyílik a részletek ablak
+            await page.click('#schedulerCompact')
+            await page.wait_for_selector('#schedulerDetailModal.show', timeout=5000)
+            await page.wait_for_timeout(300)
+            modal = await page.evaluate("""() => {
+                const m = document.querySelector('#schedulerDetailModal');
+                return {visible: m.classList.contains('show'), text: m.innerText};
+            }""")
+            ok(modal["visible"] and "Ütemező" in modal["text"],
+               "a státuszsávra koppintva megnyílik a részletek ablak")
+            ok("időablak" in modal["text"] and "Utolsó frissítés" in modal["text"],
+               "a részletek ablakban ott van az időablak és az utolsó frissítés")
+            await page.click('#schedulerDetailModal .btn-close')
+            await page.wait_for_timeout(400)
+
+            # 7c) asztali nézetben továbbra is a részletes sor látszik
+            await page.set_viewport_size({"width": 1200, "height": 873})
+            await page.wait_for_timeout(400)
+            desk = await page.evaluate("""() => {
+                const d = document.querySelector('#schedulerDetails');
+                const c = document.querySelector('#schedulerCompact');
+                return {detailsVisible: !!d && d.getBoundingClientRect().height > 0,
+                        compactVisible: !!c && c.getBoundingClientRect().height > 0};
+            }""")
+            ok(desk["detailsVisible"] and not desk["compactVisible"],
+               "asztali nézetben a részletes szinkron-sor látszik")
+            await page.set_viewport_size({"width": 393, "height": 873})
+            await page.wait_for_timeout(300)
 
             # 8) hiányzások fül: havi választó, összesítő és a két táblázat elfér
             await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('hianyzasok-tab')).show()")
