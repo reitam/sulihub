@@ -188,6 +188,35 @@ ok(r.get("skipped", {}).get("Értékelés") == 1,
 ok(db_rows("SELECT id FROM esemenyek WHERE tantargy='Német'") == [],
    "a korábbi tanévi sor nem íródott be (nincs duplikáció)")
 
+print("\n7) Hiányzás: a korábbi tanév sorai érintetlenek maradnak")
+hianyzo_old = {
+    "kreta_id": "H-OLD", "mulasztas_datum": "2026-03-10", "ora_sorszam": 2,
+    "perc": None, "tantargy": "Matematika", "tema": "", "tanar": "",
+    "mulasztas_tipus": "Hiányzás", "igazolt": 0, "tanorai_celu": "Nem",
+    "igazolas_tipus": "", "rogzites_datum": "2026-03-10",
+}
+hianyzo_new = dict(hianyzo_old, kreta_id="H-NEW", mulasztas_datum="2026-10-21",
+                   ora_sorszam=1, tantargy="Fizika", rogzites_datum="2026-10-21")
+k.save_hianyzasok_to_db("Hianyzo Teszt", [hianyzo_old])
+k.save_hianyzasok_to_db("Hianyzo Teszt", [hianyzo_new],
+                        window=(date(2026, 9, 1), date(2026, 11, 3)))
+rows = db_rows("SELECT kreta_id, tanev FROM hianyzasok WHERE diak_nev='Hianyzo Teszt'")
+ok(len(rows) == 2 and {r["kreta_id"] for r in rows} == {"H-OLD", "H-NEW"},
+   f"a korábbi tanévi hiányzás megmaradt: {rows}")
+ok(any(r["tanev"] == "2025/2026" for r in rows),
+   "a régi sor a 2025/2026 tanévben van, nem törlődött")
+
+print("\n8) Igazolás: azonos kreta_id -> stabil ID, frissülő megjegyzés")
+ig = {"kreta_id": "I-1", "kezdete": "2026-09-10", "vege": "2026-09-11",
+      "igazolas_tipus": "Szülői", "megjegyzes": "első"}
+k.save_igazolasok_to_db("Igazolas Teszt", [ig])
+elso = db_rows("SELECT id, megjegyzes FROM igazolasok WHERE diak_nev='Igazolas Teszt'")[0]
+k.save_igazolasok_to_db("Igazolas Teszt", [dict(ig, megjegyzes="módosított")])
+rows = db_rows("SELECT id, megjegyzes FROM igazolasok WHERE diak_nev='Igazolas Teszt'")
+ok(len(rows) == 1 and rows[0]["id"] == elso["id"],
+   f"ugyanaz az ID marad (stabil): {rows}")
+ok(rows[0]["megjegyzes"] == "módosított", "a megjegyzés frissült")
+
 os.environ.pop("KRETA_TODAY", None)
 
 print("\n" + "=" * 60)

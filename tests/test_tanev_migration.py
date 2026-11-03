@@ -170,6 +170,26 @@ for table in ("esemenyek", "hianyzasok", "igazolasok", "uzenetek", "kifizetesek"
     ok(now == snapshot[table], f"{table}: változatlan a második futás után")
 conn.close()
 
+print("\n6) Többkörös backfill (batch=100) + unsynced_rows")
+sys.path.insert(0, str(ROOT))
+import kreta_tanev  # noqa: E402
+conn = sqlite3.connect(db)
+for i in range(450):
+    conn.execute(
+        "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, bej_datum)"
+        " VALUES (?,?,?,?,?)",
+        ("Teszt", "Értékelés", f"Bulk-{i}", "Jeles(5)", "2026. 10. 01."))
+conn.commit()
+ok(kreta_tanev.unsynced_rows(conn) == 450,
+   f"450 sor vár kitöltésre: {kreta_tanev.unsynced_rows(conn)}")
+kreta_tanev.backfill_tanev(conn, batch=100, log_fn=None)
+ok(kreta_tanev.unsynced_rows(conn) == 0,
+   f"a többkörös backfill mindent kitöltött: {kreta_tanev.unsynced_rows(conn)}")
+db_450 = conn.execute("SELECT COUNT(*) FROM esemenyek WHERE tantargy LIKE 'Bulk-%'"
+                      " AND tanev = '2026/2027'").fetchone()[0]
+ok(db_450 == 450, f"mind a 450 sor a 2026/2027 tanévben: {db_450}")
+conn.close()
+
 print("\n" + "=" * 60)
 if _hibak:
     print(f"BUKOTT ({len(_hibak)} hiba)")
