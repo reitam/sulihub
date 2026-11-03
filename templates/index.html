@@ -77,13 +77,25 @@
         .balance-card-negative { background: linear-gradient(135deg, #dc3545, #b02a37); color: white; }
 
         /* Áttekintés (dashboard) csempék */
-        .dash-tile { cursor: pointer; transition: transform .08s ease, box-shadow .08s ease; border: 1px solid #dee2e6; }
+        .dash-tile {
+            cursor: pointer;
+            transition: transform .08s ease, box-shadow .08s ease, border-color .08s ease;
+            border: 1px solid #ced4da;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .10), 0 1px 2px rgba(0, 0, 0, .06);
+        }
+        #dashboardDiakCards .card {
+            border: 1px solid #ced4da;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .10), 0 1px 2px rgba(0, 0, 0, .06);
+        }
         .dash-tile .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
         .dash-tile .kpi-title { font-size: 1.05rem; font-weight: 700; color: #343a40; }
         .dash-tile .kpi-caption { font-size: .72rem; line-height: 1.15; }
         .dash-tile:hover, .dash-tile:focus {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(13, 110, 253, .18);
+            border-color: #adb5bd;
+            box-shadow: 0 6px 16px rgba(13, 110, 253, .22);
             outline: none;
         }
         .chip-diak.active { background-color: #0d6efd; border-color: #0d6efd; color: #fff; }
