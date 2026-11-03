@@ -115,7 +115,7 @@ A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backl
 
 ## 8. Tesztek
 
-- **878 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
+- **888 automatikus ellenőrzés / 29 csomag — mind zöld** (`python tests/run_all.py`).
 - Új csomagok:
   - `test_tanev.py` — számítás, határok, `teljesen_lekert`,
   - `test_tanev_migration.py` — séma + backfill régi DB-n, ID-stabilitás, idempotencia,
@@ -172,7 +172,7 @@ A felhasználó helyi tesztelése három hibajegyet vett fel („Bug" címke); m
   `test_tanev_ui` 3. szakasz.
 
 Új tesztcsomagok: `test_tanev_state` (állapotgép) és `test_tanev_ui` (böngésző) —
-összesen **878 ellenőrzés / 28 csomag**.
+összesen **888 ellenőrzés / 29 csomag**.
 
 ## 12. Saját megjegyzések (Kaneo #46)
 
@@ -234,8 +234,11 @@ A felhasználói döntés és a mérés alapján:
 2. **`main` szintre hozva és pusholva** (a `feature/tanev-kezeles` fast-forward merge-je),
    új **GitHub Actions CI**: fast job minden pushra/PR-ra, browser job `main` pushra,
    éjszakánként és kézi indításra; a main pushon mindkét job zöld.
-3. **`v1.7.2` élesítésre vár:** mobil fejléc (hosszú szöveg tördelése) + **kompakt
+3. **`v1.8.0` élesítésre vár:** mobil fejléc (hosszú szöveg tördelése) + **kompakt
    egysoros szinkron-státusz** mobilon, a technikai részletek koppintásra nyíló ablakban;
-   a modál tartalma sem csúszik ki (a hosszú utolsó-futás sor tördel).
-   Élesítés: `.\deploy.ps1 -Release v1.7.2` (interaktív SSH-jelszó).
-4. Deploy után: `/health` = `v1.7.2`, mobil nézet ellenőrzése, majd a Kaneo #40/#50 lezárása.
+   a modál tartalma sem csúszik ki (a hosszú utolsó-futás sor tördel). Emellett **#12**:
+   minden CDN-függőség a `static/vendor/` alatt (offline indulás), és **#17**: apróságok
+   (`SyntaxWarning`, `config.json.example`, halott `autoSyncAlert`). Új `test_karbantartas`.
+   Élesítés: `.\deploy.ps1 -Release v1.8.0` (interaktív SSH-jelszó).
+4. Deploy után: `/health` = `v1.8.0`, mobil nézet + offline próba, majd a Kaneo #40/#50
+   lezárása (a #12/#17 in-review státuszba kerül).

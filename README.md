@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v1.7.2` (élesítésre vár; élesben `v1.7.1`)
+**Jelenlegi verzió:** `v1.8.0` (élesítésre vár; élesben `v1.7.1`)
 
 ---
 
@@ -418,6 +418,7 @@ telepíti a mentő-cront.
 
 | Verzió | Tartalom |
 |---|---|
+| v1.8.x | **Offline-képes frontend:** minden CDN-függőség vendorolva a `static/vendor/` alá (Bootstrap, DataTables, FontAwesome, FullCalendar, jQuery), nincs külső hivatkozás; apróságok (#17: `SyntaxWarning`, érvényes `config.json.example`, halott `autoSyncAlert` törlése) |
 | v1.7.x | **Tanév-kezelés** (tanév a rekord dátumából, tanév-választó, tanév-tudatos mentés, állapotgép), **dashboard-újratervezés** (6 csempe, tanulmányi átlag kártyák, 2 hasábos feed), **mobil fejléc** (kompakt egysoros szinkron-státusz, részletek koppintásra) + GitHub Actions CI |
 | v1.6.x | **API-first szinkron** (böngésző nélküli mobil API, Playwright fallback, token-tár), **Áttekintés dashboard** kattintható csempékkel, **jegy-súlyszázalék** + **súlyozott tanulmányi átlag**, **tantárgyi átlagok havi bontással** (mobilon kapcsoló), adatvédelem a teljes cserés mentésnél, DB-séma őr |
 | v1.5.x | **Hiányzások / késések modul** (havi összesítő, igazolások, push-ban az igazolatlan órák), v1.5.1: „Összes hiányzás" órában + teljes szövegű igazolás-típus |

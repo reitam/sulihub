@@ -678,9 +678,9 @@ Kreta/
 ### 9.3. Tesztek
 
 ```bash
-python tests/run_all.py            # mind (878 ellenőrzés, 28 csomag)
-python tests/run_all.py --fast     # böngésző nélkül (23 csomag, 738 ell.)
-python tests/run_all.py --browser  # Playwrightos (5 csomag, 140 ell.)
+python tests/run_all.py            # mind (888 ellenőrzés, 29 csomag)
+python tests/run_all.py --fast     # böngésző nélkül (24 csomag, 746 ell.)
+python tests/run_all.py --browser  # Playwrightos (5 csomag, 142 ell.)
 ```
 
 **CI (GitHub Actions, `.github/workflows/ci.yml`):** a **gyors** job (23 csomag) minden
@@ -688,7 +688,7 @@ pushra/PR-ra lefut; a **böngészős** job (5 csomag) csak `main` pushra, éjsza
 kézi indításra. A tesztek fixture-ökkel/fake klienssel dolgoznak, valódi KRÉTA-hívás nem
 történik; a böngészős job hibája esetén a képernyőképek artifactként feltöltődnek.
 
-Jelenleg **878 automatikus ellenőrzés** huszonnyolc csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **888 automatikus ellenőrzés** huszonkilenc csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -730,7 +730,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | „Új bejelentkezés" e-mailek | az API-út minden futásnál belépne (a Playwright-nál a profil megjegyezte a munkamenetet) | tokentárolás a data köteten (`api_tokens.json`): a 2. futástól **nincs új belépés**, lejárat után refresh token; teljes belépés csak token nélkül/hibánál |
 | Nincs `MESSAGE_LIMIT` | az első API-s futás az összes üzenetet letölti (nálunk ~76 sor), utána már csak az újakat | tudatos döntés: az inkrementális futások így is 1–5 üzenetet hoznak |
 | Chromium az image-ben | nagyobb image | a Playwright fallback miatt szükséges, amíg az API hosszú távon nem bizonyít |
-| CDN-függő frontend | internet nélkül nem indul a felület | vendorolás a backlogban |
+| CDN-függő frontend | internet nélkül nem indulna a felület | **megoldva (Kaneo #12):** minden CDN-fájl a `static/vendor/` alatt, a sablon csak helyi `url_for('static', ...)` hivatkozásokat használ |
 | `config.json` egyszerű szöveg | jelszavak olvashatók a fájlból | a data kötet védett |
 | A tanárgyi átlagok forrása | a KRÉTA webes `*_HaviAtlag` mezői üresek/nullák, a `Atlag` (időszaki) viszont súlyozott | a havi bontást a saját számításunk adja a jegyek súlyából; az időszaki átlag **egyezik** a KRÉTA `Atlag` mezőjével (élő ellenőrzés) |
 | Tanév forrása (Kaneo #40) | a KRÉTA mobil API rekord-szintű tanévet nem ad (csak `TanuloAdatlap.TanevUid`, a többi tanév-végpont 403) | a tanév a **rekord dátumából számított** (szept. 1.); a `TanevUid` a váltás jelzője (a nevet a dátum adja) |
@@ -760,12 +760,12 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 
 | # | Lehetőség | Miért fontos | Becsült ráfordítás |
 |---|---|---|---|
-| C1 | **CDN-ek vendorolása** (`static/` alá) | internet nélkül most nem indul a felület | 0,5 nap |
-| C2 | **CI** (GitHub Actions; a tesztek megvannak — 180 ellenőrzés, 8 csomag, pytest-alakítás) | automatikus ellenőrzés minden commitnál | 0,5–1 nap |
+| C1 | **CDN-ek vendorolása** (`static/` alá) | internet nélkül most nem indul a felület | **KÉSZ (Kaneo #12):** Bootstrap 5.3.0, DataTables 1.13.6 + Responsive 2.5.0, FontAwesome 6.4.0 (webfontokkal), FullCalendar 6.1.8 + hu locale, jQuery 3.7.0 a `static/vendor/` alatt; a `test_karbantartas` ellenőrzi, hogy nincs külső URL és minden fájl megvan |
+| C2 | **CI** (GitHub Actions) | automatikus ellenőrzés minden commitnál | **KÉSZ:** fast job minden pushra/PR-ra, browser job main pushra/éjszakánként; 888 ellenőrzés / 29 csomag |
 | C3 | `app.py` / `index.html` szétbontása | karbantarthatóság | 3–5 nap |
 | C4 | DB-migrációs keret + indexek | hosszú távú stabilitás | 1 nap |
 | C5 | **Hitelesítés** (basic auth / reverse proxy) | gyerek-adatok védelme | 0,5–1 nap |
-| C6 | Apróságok: `SyntaxWarning`, `config.json.example` vessző, halott `autoSyncAlert` | tisztaság | 2–3 óra |
+| C6 | Apróságok: `SyntaxWarning`, `config.json.example` vessző, halott `autoSyncAlert` | tisztaság | **KÉSZ (Kaneo #17):** nincs `SyntaxWarning`, a példa-config érvényes JSON, a halott blokk törölve; a `test_karbantartas` ellenőrzi |
 | C7 | **Deploy előtti szerver-ellenőrzés** — Docker daemon, munkakönyvtár olvashatósága (I/O hiba), `config.json` megléte, szabad hely | **KÉSZ**: a deploy a másolás előtt leáll, ha valami hiányzik; 90% feletti HDD-kihasználtságnál figyelmeztet. A lemez-/Docker-áthelyezés (C7b–d) **elvetve** — a felhasználó szerint monitoring már van rá | – |
 
 > **Elvetett irány:** a KRÉTA JSON-végpontok használata a DOM-scraping helyett — a fejlesztés
@@ -819,7 +819,8 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.7.0** *(2026-11-03)* | **2026-11-03** | **Tanév-kezelés, 0–6. fázis:** új `kreta_tanev.py` (a tanév a rekord **dátumából** számítva, szept. 1. – aug. 31.; `KRETA_TODAY` / `KRETA_TANEV_KEZDO` env, tesztelhető `today=` paraméter; `teljesen_lekert` a törlési jogosultsághoz), `tanev` + `tanev_forras` oszlop a `esemenyek`/`uzenetek`/`hianyzasok`/`igazolasok`/`kifizetesek` táblán + `sync_runs.tanev` (**az órarend kivétel**), **csak UPDATE** backfill (ID-stabil, újraindítható) mindkét DDL-helyen. **Mentés tanév-tudatosan:** a teljes cserék törlése csak a letöltött tanévekre és az **ablakon belülre** hat, az arányos őr tanévenként számol, **üres batch soha nem töröl**; az igazolások **upsert** `kreta_id` kulcson; az API-ablak a **tanév első napjától** indul (a `MIN(stored)` megszűnt). **API:** `?tanev=` szűrő + `/api/tanevek`. **Felület:** tanév-választó a fejlécben (alap: aktuális tanév, „Összes tanév" opció; összes tanévnél nincs átlag); üres tanév súgó; a dátum-/hónapválasztók a tanév határain belül (#53); a dashboard-csempék tanévváltáskor azonnal frissülnek (#51). **Tanév-állapot (#43):** `tanevek` + `tanulo_tanev_uid` tábla; minden futás után a `TanuloAdatlap.TanevUid` ellenőrzése, változásnál **technikai zárás/nyitás adatlekérés nélkül** (a nevet a dátum adja); a fejlécben állapotjelzés, a választóban „lezárt” jelölés (a kézi záró gomb megszűnt). **Futásnapló:** a futás tanéve a `sync_runs.tanev`-be, tanévváltásnál naplósor + push; a `POST /api/kifizetes` a kifizetés tanévét az időszak kezdetéből írja be. **#42:** az igazolások adatvédelmi őrrel. **#46:** saját megjegyzések eseményhez/üzenethez (`kommentek` tábla, stabil tartalom-kulcs, `/api/kommentek`). Új tesztek: `test_tanev`, `test_tanev_migration`, `test_tanev_sync` (óra-bomba: 08-31 → 09-01 → 09-03), `test_tanev_api`, `test_tanev_state`, `test_tanev_ui`, `test_kommentek`; 867 ellenőrzés / 28 csomag |
 
 | **v1.7.1** | **2026-11-03** | **Élesítés:** a v1.7.0 kódja került élesbe (`.\deploy.ps1 -Release v1.7.1`). A `main` fast-forward merge-dzsel szintre került, majd **GitHub Actions CI** indult: `.github/workflows/ci.yml` — **fast** job minden pushra/PR-ra (23 csomag), **browser** job csak `main` pushra, éjszakánként és kézi indításra (5 csomag); `tests/run_all.py --fast/--browser`; hiba esetén képernyőkép-artifact. Kódbeli funkcióváltozás nincs |
-| **v1.7.2** *(élesítésre vár)* | **2026-11-03** | **Mobil fejléc:** a hosszú „Utolsó frissítés / Utolsó automatikus” szöveg tördel, nem csúszik ki; a szinkron állapota mobilon **egyetlen karcsú dinamikus sor** (zöld „Szinkronizálva: ma 21:33”, futáskor pörgő ikon, hiba esetén piros), a technikai részletek (ütemező, időablak, intervallum, következő/utolsó futás) **koppintásra nyíló ablakban**; asztali nézet változatlan. A `test_mobile_layout` a státuszsáv magasságát, a rejtett részleteket, a dinamikus állapotokat és a modált is ellenőrzi (a modál tartalma nem csúszik ki, a hosszú utolsó-futás sor tördel); 878 ellenőrzés / 28 csomag |
+| **v1.7.2** *(élesítésre vár)* | **2026-11-03** | **Mobil fejléc:** a hosszú „Utolsó frissítés / Utolsó automatikus” szöveg tördel, nem csúszik ki; a szinkron állapota mobilon **egyetlen karcsú dinamikus sor** (zöld „Szinkronizálva: ma 21:33”, futáskor pörgő ikon, hiba esetén piros), a technikai részletek (ütemező, időablak, intervallum, következő/utolsó futás) **koppintásra nyíló ablakban**; asztali nézet változatlan. A `test_mobile_layout` a státuszsáv magasságát, a rejtett részleteket, a dinamikus állapotokat és a modált is ellenőrzi (a modál tartalma nem csúszik ki, a hosszú utolsó-futás sor tördel); 878 ellenőrzés / 28 csomag. **A v1.8.0 részeként kerül élesbe** |
+| **v1.8.0** *(élesítésre vár)* | **2026-11-03** | **Külső CDN-ek vendorolása (Kaneo #12):** a 12 külső hivatkozás helyett minden frontend-függőség a `static/vendor/` alatt (Bootstrap 5.3.0 CSS+JS, DataTables 1.13.6 + Responsive 2.5.0 CSS/JS, FontAwesome 6.4.0 CSS + webfontok, FullCalendar 6.1.8 + hu locale, jQuery 3.7.0); a `templates/index.html` csak `url_for('static', ...)` hivatkozásokat használ, így internet nélkül is indul. **Apróságok (Kaneo #17):** `SyntaxWarning` nincs (a modulok figyelmeztetés nélkül fordulnak), a `config.json.example` érvényes JSON (a hiányzó vessző pótolva), a halott `autoSyncAlert` blokk törölve a frontendből. Új `test_karbantartas` (vendor-fájlok + webfontok létezése, nincs külső URL, JSON-példa, nincs halott hivatkozás, nincs SyntaxWarning); **888 ellenőrzés / 29 csomag** |
 
 ---
 

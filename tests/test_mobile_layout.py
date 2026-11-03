@@ -128,6 +128,23 @@ try:
             await page.goto(base, wait_until="networkidle", timeout=60000)
             await page.wait_for_timeout(2500)
 
+            # 0) a vendorolt frontend-könyvtárak tényleg betöltődtek (offline-képes)
+            libs = await page.evaluate("""() => ({
+                jquery: typeof window.jQuery,
+                bootstrap: typeof window.bootstrap,
+                datatable: !!(window.jQuery && window.jQuery.fn.DataTable),
+                fullcalendar: typeof window.FullCalendar,
+                fa: (() => {
+                    const i = document.querySelector('.fa-solid');
+                    return i ? getComputedStyle(i).fontFamily : '';
+                })()
+            })""")
+            ok(libs["jquery"] == "function" and libs["bootstrap"] == "object"
+               and libs["datatable"] and libs["fullcalendar"] == "object",
+               f"a vendorolt JS-könyvtárak betöltődtek: {libs}")
+            ok("Font Awesome" in libs["fa"],
+               f"a vendorolt FontAwesome CSS betöltődött (font-family: '{libs['fa']}')")
+
             # 1) nincs vízszintes túlcsordulás
             for tab in ("esemenyek", "hianyzasok", "orarend", "naptar", "uzenetek", "rewards", "logs"):
                 await page.evaluate(
