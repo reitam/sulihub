@@ -620,7 +620,10 @@
                 </div>
             </div>
 
-            <h6 class="fw-bold text-secondary mt-3 mb-2"><i class="fa-solid fa-user-graduate me-2"></i>Gyermekenkénti összesítő</h6>
+            <h6 class="fw-bold text-secondary mt-3 mb-2">
+                <i class="fa-solid fa-user-graduate me-2"></i>Gyermekenkénti összesítő
+                <span id="diakOsszesitoInfo" class="small fw-normal text-muted ms-2"></span>
+            </h6>
             <div class="row g-2 row-cols-1 row-cols-md-2 row-cols-xl-3" id="dashboardDiakCards"></div>
 
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
@@ -2724,39 +2727,45 @@ $(document).ready(function() {
 
     function renderDiakCards(diakok) {
         let $c = $('#dashboardDiakCards').empty();
+        // Összes tanévnél nincs értelmes tanulmányi átlag (Kaneo #40) — a
+        // magyarázat egyszer, a szakasz fejlécében van, nem minden kártyán.
+        const tanev = kivalasztottTanev();
+        $('#diakOsszesitoInfo')
+            .text(tanev ? `súlyozott tanulmányi átlag · ${tanev}. tanév`
+                        : 'az átlaghoz válassz tanévet a fejlécben')
+            .attr('title', 'A tanulmányi átlag a jegyek KRÉTA súlyszázaléka szerint súlyozva, a kiválasztott tanévben.');
         if (!diakok || !diakok.length) {
             $c.append('<div class="col-12 text-muted small">Nincs megjeleníthető diák.</div>');
             return;
         }
-        // Összes tanévnél nincs értelmes tanulmányi átlag (Kaneo #40).
-        const tanev = kivalasztottTanev();
         diakok.forEach(function (d) {
-            let atlag = (!tanev || d.atlag === null || d.atlag === undefined) ? '-' : d.atlag;
-            let atlagFelirat = tanev
-                ? `${escapeHtml(tanev)}. tanév · súlyozott`
-                : 'válassz tanévet az átlaghoz';
+            let vanAtlag = !!tanev && d.atlag !== null && d.atlag !== undefined;
+            let atlag = vanAtlag ? d.atlag : '-';
+            let c = avatarColor(d.diak);
+            let monogram = avatarInitials(d.diak);
+            let nev = escapeHtml(d.diak);
             let penz;
             if (d.rewards_enabled) {
-                penz = `<div class="mt-1 small">Kifizetetlen egyenleg: <strong>${fmtFtShort(d.hatralevo)}</strong>` +
+                penz = `<span class="small text-nowrap">Kifizetetlen: <strong>${fmtFtShort(d.hatralevo)}</strong>` +
                     (d.kifizetve_osszeg
                         ? ` <span class="text-muted">(már kifizetve: ${Math.abs(d.kifizetve_osszeg).toLocaleString('hu-HU')} Ft)</span>`
                         : '') +
-                    `</div>`;
+                    `</span>`;
             } else {
-                penz = '<div class="mt-1 small text-muted">zsebpénz modul kikapcsolva</div>';
+                penz = '<i class="fa-solid fa-ban text-secondary" title="zsebpénz modul kikapcsolva"></i>';
             }
             $c.append(`<div class="col">
                 <div class="card card-stat bg-white p-2 h-100">
-                    <div class="d-flex justify-content-between align-items-start gap-1">
-                        <div class="fw-bold text-truncate">${escapeHtml(d.diak)}</div>
-                        <span class="badge bg-light text-dark">${d.jegy_db} jegy</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="avatar" style="background:${c[0]};color:${c[1]}" title="${nev}">${monogram}</span>
+                        <div class="fw-bold text-truncate">${nev}</div>
+                        <span class="badge bg-light text-secondary ms-auto"
+                              title="${d.jegy_db} jegy a kiválasztott tanévben">${d.jegy_db} jegy</span>
                     </div>
-                    <div class="d-flex align-items-baseline gap-2 flex-wrap">
-                        <div class="fs-3 fw-bold lh-1 text-primary">${atlag}</div>
-                        <div class="text-muted text-truncate" style="font-size: 0.72rem;"
-                             title="tanulmányi átlag · ${atlagFelirat}">tanulmányi átlag · ${atlagFelirat}</div>
+                    <div class="d-flex align-items-baseline gap-2 flex-wrap mt-1">
+                        <div class="fs-3 fw-bold lh-1 ${vanAtlag ? 'text-primary' : 'text-secondary'}">${atlag}</div>
+                        ${penz}
                     </div>
-                    ${penz}
                 </div>
             </div>`);
         });
