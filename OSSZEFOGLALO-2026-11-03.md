@@ -3,8 +3,9 @@
 **Téma:** iskolai tanév kezelése a KRÉTA Adatbázis Áttekintőben (Kaneo #40) + a
 köré szervezett hibajavítások, tesztek és dokumentáció.
 
-**Ág:** `feature/tanev-kezeles` (a `main`-re még nincs beolvasztva, a `main` 4
-committal előrébb van az `origin/main`-nél). Élesítés: `v1.7.0`.
+**Ág:** `main` (a `feature/tanev-kezeles` fast-forward merge-dzsel beolvadt, `origin/main`
+pusholva). **Éles verzió: `v1.7.1`**; a mobil fejlécjavítás + kompakt státuszsáv
+`v1.7.2`-ként élesítésre vár.
 
 ---
 
@@ -114,7 +115,7 @@ A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backl
 
 ## 8. Tesztek
 
-- **868 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
+- **876 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
 - Új csomagok:
   - `test_tanev.py` — számítás, határok, `teljesen_lekert`,
   - `test_tanev_migration.py` — séma + backfill régi DB-n, ID-stabilitás, idempotencia,
@@ -171,7 +172,7 @@ A felhasználó helyi tesztelése három hibajegyet vett fel („Bug" címke); m
   `test_tanev_ui` 3. szakasz.
 
 Új tesztcsomagok: `test_tanev_state` (állapotgép) és `test_tanev_ui` (böngésző) —
-összesen **868 ellenőrzés / 28 csomag**.
+összesen **876 ellenőrzés / 28 csomag**.
 
 ## 12. Saját megjegyzések (Kaneo #46)
 
@@ -226,13 +227,14 @@ A felhasználói döntés és a mérés alapján:
 - a fejlécben állapotjelzés, a választóban „lezárt” jelölés; a kézi „Tanév lezárása”
   gomb megszűnt.
 
-## 15. Nyitott teendők
+## 15. Helyzetkép (a munkamenet végén)
 
-1. **Deploy:** `.\deploy.ps1 -Release v1.7.0` (interaktív SSH-jelszót kér, ezért az
-   agent nem tudta futtatni). A `v1.6.5` tartalma (hónap-oszlopok évszám nélkül +
-   tanév-felirat) már benne van ebben a kiadásban.
-2. Deploy után: `/health` = `v1.7.0`, majd az éles E2E (az első futás után a
-   `tanevek`/`tanulo_tanev_uid` sorok, a fejléc állapotjelzése, `sync_runs.tanev`).
-3. **#43** implementációja ezen az ágon készül (UID-alapú zárás/nyitás); élesítés a
-   v1.7.0-val, utána a #43 lezárható.
-4. A `main` 4 commitja és a `feature/tanev-kezeles` ág még nincs pusholva.
+1. **Éles: `v1.7.1`** — a `.\deploy.ps1 -Release v1.7.1` lefutott, a `/health` válasza
+   `v1.7.1`, a tanév-kezelés és a dashboard-újratervezés élesben van.
+2. **`main` szintre hozva és pusholva** (a `feature/tanev-kezeles` fast-forward merge-je),
+   új **GitHub Actions CI**: fast job minden pushra/PR-ra, browser job `main` pushra,
+   éjszakánként és kézi indításra; a main pushon mindkét job zöld.
+3. **`v1.7.2` élesítésre vár:** mobil fejléc (hosszú szöveg tördelése) + **kompakt
+   egysoros szinkron-státusz** mobilon, a technikai részletek koppintásra nyíló ablakban.
+   Élesítés: `.\deploy.ps1 -Release v1.7.2` (interaktív SSH-jelszó).
+4. Deploy után: `/health` = `v1.7.2`, mobil nézet ellenőrzése, majd a Kaneo #40/#50 lezárása.
