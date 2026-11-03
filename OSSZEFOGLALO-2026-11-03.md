@@ -101,10 +101,11 @@ ezek a 6. pontban olvashatók.
 | #40 Iskolai tanév kezelése | folyamatban | 0–6. fázis kész a `feature/tanev-kezeles` ágon; hátra: deploy |
 | #41 Tanév-információ forrása | done | a döntés: rekord-dátum, `TanevUid` csak diagnosztika |
 | #42 Igazolások teljes cseréje | in-review | upsert + arányos őr; a v1.7.0 élesíti |
-| #43 Tanévváltás automatizálása | to-do | blokkolva: a #40 2–3. fázisa még nincs élesben |
+| #43 Tanévváltás automatizálása | in-review | UID-alapú automatikus állapotváltás (lásd #54) |
+| #54 Implementáció: tanév-állapot | in-review | `tanevek`/`tanulo_tanev_uid`, UID-ellenőrzés futás után, technikai zárás/nyitás, UI badge |
 | #45 Teszt: tanévkezelés | in-review | 796/27 zöld; hátra: éles E2E a deploy után |
 | #51 Dashboard nem frissül tanévváltáskor | in-review | javítva: a csempék a friss adatból számolnak (versenyhelyzet megszüntetve) |
-| #52 Hol van az év lezárás gomb? | in-review | megvalósítva: „Tanév lezárása" gomb + `sync_runs.tanev_zaro` |
+| #52 Hol van az év lezárás gomb? | done | superseded: a kézi gomb helyett automatikus UID-alapú zárás/nyitás |
 | #53 Tanév vs. date picker | in-review | javítva: a dátum-/hónapválasztók a tanév határain belül |
 | #46 Saját megjegyzés | in-review | új `kommentek` tábla + API + felület (esemény és üzenet) |
 | #50 Teszt-lefedettség (P2/P3) | planned | a testmanager független ellenőrzésének nem blokkoló tételei (UI E2E, hiányzás/igazolás hatókör, API élek, tanévváltás-push, többkörös backfill) — a P1 kifizetés-hiba javítva |
@@ -145,6 +146,7 @@ A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backl
 | `4273993` | kifizetés tanéve + „Összes tanév” KPI-átlag + kihagyott sor jelzése (testmanager-lelet nyomán) |
 | *(bugkör)* | #51 dashboard-frissítés, #52 tanévzáró gomb, #53 dátumkorlátok |
 | *(a legutolsó commit)* | #46 saját megjegyzések (esemény + üzenet) |
+| `a5e6e8c` | #43 tanév-állapot: UID-alapú automatikus zárás/nyitás, a kézi záró gomb megszüntetése |
 
 Korábbi, `main`-en lévő kapcsolódó commit: `dc22213` (`kaneo_ticket.py --parent`),
 `824720e` (adatvédelem, v1.6.3).
