@@ -114,7 +114,7 @@ A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backl
 
 ## 8. Tesztek
 
-- **841 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
+- **844 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
 - Új csomagok:
   - `test_tanev.py` — számítás, határok, `teljesen_lekert`,
   - `test_tanev_migration.py` — séma + backfill régi DB-n, ID-stabilitás, idempotencia,
@@ -171,7 +171,7 @@ A felhasználó helyi tesztelése három hibajegyet vett fel („Bug" címke); m
   `test_tanev_ui` 3. szakasz.
 
 Új tesztcsomagok: `test_tanev_state` (állapotgép) és `test_tanev_ui` (böngésző) —
-összesen **841 ellenőrzés / 28 csomag**.
+összesen **844 ellenőrzés / 28 csomag**.
 
 ## 12. Saját megjegyzések (Kaneo #46)
 
@@ -203,6 +203,9 @@ tehát a 0 eredmény nem hibás lekérés: **a mobil API a korábbi tanévekre n
 csak az aktív tanévet szolgálja ki. Következmények:
 
 - nincs visszamenőleges adatlekérés; a tanév zárása **technikai** (állapot + időpont);
+- a **választó** csak az iskolai adatokból (jegy/hiányzás/igazolás/kifizetés) származó
+  tanéveket listázza; a helyi DB-ben a 2024/2025 és 2025/2026 eddig csak az
+  **üzenetek** miatt látszott — ezért ezek a választóból kikerültek;
 - a váltást a KRÉTA `TanevUid`-ja jelzi (a nevet a dátum adja, mert a `/Sajat/Tanevek`
   és `/Sajat/Tanulo` diák-scope-ban **403** — ezt külön is ellenőriztük 2026-11-03-án);
 - a #43 „szeptemberi záró futás az előző tanévre" premisszája hibás; helyette

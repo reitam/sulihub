@@ -55,6 +55,8 @@ a saját szerveren maradnak.
 - **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);
   az „Összes tanév" opcióval a teljes előzmény látszik (átlag ilyenkor nincs, mert az
   csak tanéven belül értelmezhető). Az üzenetek és az órarend tanév-független.
+  A választó csak az **iskolai adatokból** (jegy, hiányzás, igazolás, kifizetés)
+  származó tanéveket listázza — az üzenetek évei nem hoznak létre tanév-bejegyzést.
   A dátumválasztók a kiválasztott tanév határain belül maradnak. A tanév **zárása/nyitása
   automatikus**: minden futás után ellenőrizzük a KRÉTA `TanevUid`-t, és ha megváltozik,
   a nyitott tanévet technikailag lezárjuk, az újat megnyitjuk (adatlekérés nélkül; a régi

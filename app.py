@@ -2311,7 +2311,7 @@ def api_tanevek():
     cursor = conn.cursor()
     tanevek = set()
     ismeretlen = 0
-    for table in ("esemenyek", "hianyzasok", "igazolasok", "uzenetek", "kifizetesek"):
+    for table in kreta_tanev.TANEV_UI_TABLES:
         if not _has_tanev_column(cursor, table):
             continue
         try:

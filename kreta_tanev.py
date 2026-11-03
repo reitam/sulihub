@@ -42,6 +42,9 @@ ROW_DATE_FIELDS = {
 }
 
 TANEV_TABLES = tuple(ROW_DATE_FIELDS)
+#: A tanév-választóhoz (UI) tartozó táblák: az üzenetek tanév-függetlenek,
+#: ezért azokból nem származtatunk tanévet a választóhoz/állapot-seedhez.
+TANEV_UI_TABLES = ("esemenyek", "hianyzasok", "igazolasok", "kifizetesek")
 SYNC_RUN_TABLE = "sync_runs"
 TANEV_STATE_TABLE = "tanevek"
 TANEV_UID_TABLE = "tanulo_tanev_uid"
@@ -368,14 +371,17 @@ def nyitott_tanev(conn) -> str:
 
 
 def seed_tanev_state(conn, today_value=None, log_fn=print) -> list[str]:
-    """A meglévő adatokból a tanév-állapot inicializálása.
+    """A meglévő **iskolai** adatokból a tanév-állapot inicializálása.
 
-    A mai napnál korábbi tanévek ``lezart`` (a tanév végével), az aktuális
-    ``nyitott``. Csak a hiányzó sorokat szúrja be (idempotens).
+    Csak a `TANEV_UI_TABLES` táblákból (jegy/hiányzás/igazolás/kifizetés)
+    származó tanéveket veszi figyelembe — az üzenetek tanév-függetlenek, ezért
+    azokból nem lesz tanév a választóban/állapotban. A mai napnál korábbi
+    tanévek ``lezart`` (a tanév végével), az aktuális ``nyitott``. Csak a
+    hiányzó sorokat szúrja be (idempotens).
     """
     current = current_tanev(today_value)
     years = set()
-    for table in TANEV_TABLES:
+    for table in TANEV_UI_TABLES:
         columns = _table_columns(conn, table)
         if not columns or "tanev" not in columns:
             continue
@@ -405,6 +411,18 @@ def seed_tanev_state(conn, today_value=None, log_fn=print) -> list[str]:
             (year, kezdet, veg, allapot, lezarva_at, now))
         if cur.rowcount:
             created.append(year)
+    # A választóban nem szereplő, nem nyitott állapotsorok törlése (pl. csak
+    # üzenetekből származó évek) — így a DB és a felület konzisztens marad.
+    try:
+        if years:
+            placeholders = ",".join("?" for _ in years)
+            conn.execute(
+                f"DELETE FROM tanevek WHERE allapot <> 'nyitott'"
+                f" AND tanev NOT IN ({placeholders})", tuple(sorted(years)))
+        else:
+            conn.execute("DELETE FROM tanevek WHERE allapot <> 'nyitott'")
+    except Exception:
+        pass
     conn.commit()
     if created and log_fn:
         log_fn(f"  [Tanév-állapot] inicializálva: {', '.join(created)}")
