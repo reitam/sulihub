@@ -1645,6 +1645,67 @@ def api_sajat_orarend_kivetel(series_id):
     finally:
         conn.close()
 
+# ── Órarend-színek (Kaneo #56) ────────────────────────────────────────────
+_HEX_SZIN = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _orarend_szinek() -> dict:
+    """A diák→szín térkép: config alap, app_meta felülírással; csak érvényes hex."""
+    colors = {}
+    cfg = (load_config() or {}).get("ORAREND_SZINEK") or {}
+    if isinstance(cfg, dict):
+        for name, value in cfg.items():
+            if isinstance(value, str) and _HEX_SZIN.match(value.strip()):
+                colors[str(name)] = value.strip()
+    raw = get_meta("orarend_szinek", "")
+    if raw:
+        try:
+            db_colors = json.loads(raw)
+            if isinstance(db_colors, dict):
+                for name, value in db_colors.items():
+                    if isinstance(value, str) and _HEX_SZIN.match(value.strip()):
+                        colors[str(name)] = value.strip()
+        except (TypeError, ValueError):
+            pass
+    return colors
+
+
+@app.route("/api/orarend_szinek", methods=["GET", "PUT"])
+def api_orarend_szinek():
+    if not os.path.exists(DB_FILE):
+        return jsonify({"diakok": [], "szinek": {}})
+
+    conn = get_db_connection()
+    try:
+        names = sorted({
+            row["diak_nev"] for row in conn.execute(
+                "SELECT DISTINCT diak_nev FROM orarend WHERE diak_nev IS NOT NULL AND diak_nev != ''"
+            ).fetchall()
+        })
+        for student in (load_config() or {}).get("STUDENTS", []):
+            nev = (student.get("diak_nev") or "").strip()
+            if nev and nev not in names:
+                names.append(nev)
+    finally:
+        conn.close()
+
+    if request.method == "GET":
+        return jsonify({"diakok": names, "szinek": _orarend_szinek()})
+
+    data = request.get_json(silent=True) or {}
+    incoming = data.get("szinek") or {}
+    if not isinstance(incoming, dict):
+        return jsonify({"status": "error", "message": "Hibás színformátum"}), 400
+    colors = {}
+    for name, value in incoming.items():
+        value = str(value or "").strip()
+        if not _HEX_SZIN.match(value):
+            return jsonify({"status": "error", "message": f"Érvénytelen szín: {value}"}), 400
+        colors[str(name)] = value
+    set_meta("orarend_szinek", json.dumps(colors, ensure_ascii=False))
+    return jsonify({"status": "ok", "szinek": colors})
+
+
 @app.route("/api/orarend_naptar")
 def api_orarend_naptar():
     """Órarend lekérdezése a FullCalendar idősávos nézetéhez egyedi diák színkódolással."""
@@ -1666,9 +1727,15 @@ def api_orarend_naptar():
         {"bg": "#fd7e14", "border": "#ca6510"}
     ]
 
+    # Felhasználói színek (Kaneo #56): config + app_meta felülírás.
+    sajat_szinek = _orarend_szinek()
     diak_color_map = {}
     for idx, d_nev in enumerate(osszes_diak):
-        diak_color_map[d_nev] = color_palette[idx % len(color_palette)]
+        szin = sajat_szinek.get(d_nev)
+        if szin:
+            diak_color_map[d_nev] = {"bg": szin, "border": szin}
+        else:
+            diak_color_map[d_nev] = color_palette[idx % len(color_palette)]
 
     diak = request.args.get("diak", "")
     query = "SELECT * FROM orarend WHERE 1=1"
@@ -3194,6 +3261,70 @@ def api_clear_logs():
         return jsonify({"status": "ok", "message": "A sync.log sikeresen kiürítve."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/sync_runs")
+def api_sync_runs():
+    """Legutóbbi szinkronfutások a Rendszernapló fülhöz (Kaneo #10)."""
+    try:
+        limit = int(request.args.get("limit", 20))
+    except (TypeError, ValueError):
+        limit = 20
+    limit = max(1, min(100, limit))
+    if not os.path.exists(DB_FILE):
+        return jsonify([])
+
+    def _loads(value, default):
+        try:
+            return json.loads(value) if value else default
+        except (TypeError, ValueError):
+            return default
+
+    conn = get_db_connection()
+    try:
+        rows = conn.execute(
+            "SELECT id, trigger, started_at, finished_at, status, ok_count, total_count,"
+            " failed_students, new_events, new_messages, new_hianyzasok, duration_sec, tanev"
+            " FROM sync_runs ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+    except sqlite3.Error:
+        rows = []
+    finally:
+        conn.close()
+
+    result = []
+    for row in rows:
+        new_events = _loads(row["new_events"], {})
+        new_count = 0
+        if isinstance(new_events, dict):
+            for value in new_events.values():
+                if isinstance(value, dict):
+                    new_count += sum(int(x or 0) for x in value.values())
+                else:
+                    try:
+                        new_count += int(value or 0)
+                    except (TypeError, ValueError):
+                        pass
+        elif isinstance(new_events, list):
+            new_count = len(new_events)
+        failed = _loads(row["failed_students"], [])
+        if not isinstance(failed, list):
+            failed = [str(failed)]
+        result.append({
+            "id": row["id"],
+            "trigger": row["trigger"],
+            "started_at": row["started_at"],
+            "finished_at": row["finished_at"],
+            "status": row["status"],
+            "ok_count": row["ok_count"],
+            "total_count": row["total_count"],
+            "duration_sec": row["duration_sec"],
+            "new_event_count": new_count,
+            "failed_students": failed,
+            "tanev": row["tanev"],
+        })
+    return jsonify(result)
+
 
 @app.route("/static/csatolmanyok/<path:filename>")
 def download_csatolmany(filename):

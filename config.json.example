@@ -24,6 +24,11 @@
     "REMINDER_MINUTES": 30,
     "MESSAGE_DURATION_MINUTES": 30
   },
+  "ORAREND_SZINEK": {
+    "_comment": "Gyermekenkenti oraendszin (Kaneo #56). A felulet 'Szinek' ablaka felulirja (app_meta).",
+    "Teszt Elemér": "#0d6efd",
+    "Esti Tesztike": "#198754"
+  },
   "REWARDS": {
     "jegy_5": 500,
     "jegy_4": 200,

@@ -418,7 +418,7 @@ telepíti a mentő-cront.
 
 | Verzió | Tartalom |
 |---|---|
-| v1.9.x | **Saját órák** (kézi szakkör/pluszfoglalkozás tanévre/hétre/egyedi időszakra, egy alkalom vagy sorozat törlése) és **naptárbejegyzés** házihoz/számonkéréshez/üzenethez (Google Naptár-link + `.ics`) |
+| v1.9.x | **Saját órák** (kézi szakkör/pluszfoglalkozás tanévre/hétre/egyedi időszakra, egy alkalom vagy sorozat törlése), **naptárbejegyzés** házihoz/számonkéréshez/üzenethez (Google Naptár-link + `.ics`), **futástörténet**, **órarend-színek**, **SuliHub arculat** (logó/név) és **egysoros fejléc** |
 | v1.8.x | **Offline-képes frontend:** minden CDN-függőség vendorolva a `static/vendor/` alá (Bootstrap, DataTables, FontAwesome, FullCalendar, jQuery), nincs külső hivatkozás; apróságok (#17: `SyntaxWarning`, érvényes `config.json.example`, halott `autoSyncAlert` törlése) |
 | v1.7.x | **Tanév-kezelés** (tanév a rekord dátumából, tanév-választó, tanév-tudatos mentés, állapotgép), **dashboard-újratervezés** (6 csempe, tanulmányi átlag kártyák, 2 hasábos feed), **mobil fejléc** (kompakt egysoros szinkron-státusz, részletek koppintásra) + GitHub Actions CI |
 | v1.6.x | **API-first szinkron** (böngésző nélküli mobil API, Playwright fallback, token-tár), **Áttekintés dashboard** kattintható csempékkel, **jegy-súlyszázalék** + **súlyozott tanulmányi átlag**, **tantárgyi átlagok havi bontással** (mobilon kapcsoló), adatvédelem a teljes cserés mentésnél, DB-séma őr |
