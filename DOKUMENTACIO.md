@@ -201,6 +201,13 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
   bármelyik korábbi tanév lezárható. Csak `api`/`api_first` módban támogatott; a futás
   a `sync_runs.tanev_zaro` mezőben is rögzítődik. A tanévzáró futás **kézi** marad
   (nem automatikus).
+  * **Mérés (2026-11-03, 3 diák):** a KRÉTA mobil API a **korábbi tanévekre 0 sort ad**
+    (jegy/hiányzás/igazolás, teljes tanévre kérve is), csak az **aktuális tanévet**
+    szolgálja ki — a dátum-szűrő közben működik (kontroll ablakok). Ezért a záró futás
+    a gyakorlatban az **aktuális tanév újralekérését** jelenti; a régi tanévek adata
+    **pótolhatatlan**, ezért a napi backup és a „korábbi tanévet soha nem törlünk”
+    szabály kritikus. Ha a KRÉTA nem ad adatot, az üres-batch védelem miatt semmi nem
+    törlődik (a napló figyelmeztet).
 - **A kifizetetlen zsebpénz a dashboardon** a **kiválasztott tanév** egyenlege mínusz a
   `kifizetesek` táblában **kifizetettnek jelölt időszakok** összege (a maradék jelenik meg).
   A `POST /api/kifizetes` a kifizetés tanévét az időszak **kezdő dátumából** írja be, így a
@@ -649,7 +656,7 @@ Kreta/
 python tests/run_all.py
 ```
 
-Jelenleg **826 automatikus ellenőrzés** huszonnyolc csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **832 automatikus ellenőrzés** huszonnyolc csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -695,6 +702,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | `config.json` egyszerű szöveg | jelszavak olvashatók a fájlból | a data kötet védett |
 | A tanárgyi átlagok forrása | a KRÉTA webes `*_HaviAtlag` mezői üresek/nullák, a `Atlag` (időszaki) viszont súlyozott | a havi bontást a saját számításunk adja a jegyek súlyából; az időszaki átlag **egyezik** a KRÉTA `Atlag` mezőjével (élő ellenőrzés) |
 | Tanév forrása (Kaneo #40) | a KRÉTA mobil API rekord-szintű tanévet nem ad (csak `TanuloAdatlap.TanevUid`, a többi tanév-végpont 403) | a tanév a **rekord dátumából számított** (szept. 1.); a `TanevUid` csak diagnosztika. A tanévváltás a naptár szerint történik |
+| KRÉTA API tanév-scope (2026-11-03 mérés) | a mobil API a **korábbi tanévekre 0 sort ad**, csak az aktív tanévet szolgálja ki (dátum-szűrő közben működik) | a régi tanévek adata **pótolhatatlan** → soha nem törlünk korábbi tanévet; a napi backup és a törlésvédelem kritikus; a tanévzáró futás csak az aktuális tanév újralekérése |
 | Tanév-választó alapértéke | a fejléc-választó az **aktuális tanévet** mutatja | így a napi használatban nem keverednek a tanévek; az „Összes tanév" egy kattintás |
 | Átlag „Összes tanév" módban | tanévek közötti átlag nem értelmezhető | a felület ilyenkor **nem mutat átlagot**, tanévválasztásra kér; az API `tanev` nélkül (kompatibilitásból) továbbra is számol |
 | Törlési hatókör (Kaneo #40) | a teljes cserék csak a letöltött tanévekre + az ablakon belülre törölnek | üres batch soha nem töröl, ismeretlen tanév soha nem töröl; a korábbi tanév sorai érintetlenek |
@@ -775,7 +783,7 @@ A tesztek izolált temp könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.6.4** | **2026-11-02** | **Dokumentáció-frissítés:** a rendszerleírás naprakésszé tétele (fejléc, új API-végpontok a megfigyelhetőség táblában, v1.6.3 élesítési ellenőrzőlista, ismert korlát a KRÉTA havi átlag-mezőiről), README verziótörténet, `rendszerterv.md` jelölése történeti dokumentumnak. Kódbeli változás nincs |
 | **v1.6.5** *(élesítésre vár)* | **2026-11-02** | **Tantárgyi átlagok finomítás:** a mátrix hónap-oszlopai csak a hónap nevét mutatják („szept.", az évszám a tooltipben), a kártya tetején **tanév + időszak** felirat (pl. „2026/2027. tanév · időszak: 2026. 10. 01. – 2026. 11. 30."), a tanévet a hónapokból számolva. Teszt: a fejléc nem tartalmaz évszámot, a felirat látszik |
 
-| **v1.7.0** *(fejlesztés alatt)* | **2026-11-03** | **Tanév-kezelés, 0–6. fázis:** új `kreta_tanev.py` (a tanév a rekord **dátumából** számítva, szept. 1. – aug. 31.; `KRETA_TODAY` / `KRETA_TANEV_KEZDO` env, tesztelhető `today=` paraméter; `teljesen_lekert` a törlési jogosultsághoz), `tanev` + `tanev_forras` oszlop a `esemenyek`/`uzenetek`/`hianyzasok`/`igazolasok`/`kifizetesek` táblán + `sync_runs.tanev` (**az órarend kivétel**), **csak UPDATE** backfill (ID-stabil, újraindítható) mindkét DDL-helyen. **Mentés tanév-tudatosan:** a teljes cserék törlése csak a letöltött tanévekre és az **ablakon belülre** hat, az arányos őr tanévenként számol, **üres batch soha nem töröl**; az igazolások **upsert** `kreta_id` kulcson; az API-ablak a **tanév első napjától** indul (a `MIN(stored)` megszűnt). **API:** `?tanev=` szűrő + `/api/tanevek`. **Felület:** tanév-választó a fejlécben (alap: aktuális tanév, „Összes tanév" opció; összes tanévnél nincs átlag); üres tanév súgó; a dátum-/hónapválasztók a tanév határain belül (#53); a dashboard-csempék tanévváltáskor azonnal frissülnek (#51); „Tanév lezárása" gomb a lezárt tanév teljes újralekéréséhez (#52). **Futásnapló:** a futás tanéve a `sync_runs.tanev`-be (+ `tanev_zaro` a záró futásnál), tanévváltásnál naplósor + push; a `POST /api/kifizetes` a kifizetés tanévét az időszak kezdetéből írja be. **#42:** az igazolások adatvédelmi őrrel. **#46:** saját megjegyzések eseményhez/üzenethez (`kommentek` tábla, stabil tartalom-kulcs, `/api/kommentek`). Új tesztek: `test_tanev`, `test_tanev_migration`, `test_tanev_sync` (óra-bomba: 08-31 → 09-01 → 09-03), `test_tanev_api`, `test_tanev_zaro`, `test_tanev_ui`, `test_kommentek`; 826 ellenőrzés / 28 csomag |
+| **v1.7.0** *(fejlesztés alatt)* | **2026-11-03** | **Tanév-kezelés, 0–6. fázis:** új `kreta_tanev.py` (a tanév a rekord **dátumából** számítva, szept. 1. – aug. 31.; `KRETA_TODAY` / `KRETA_TANEV_KEZDO` env, tesztelhető `today=` paraméter; `teljesen_lekert` a törlési jogosultsághoz), `tanev` + `tanev_forras` oszlop a `esemenyek`/`uzenetek`/`hianyzasok`/`igazolasok`/`kifizetesek` táblán + `sync_runs.tanev` (**az órarend kivétel**), **csak UPDATE** backfill (ID-stabil, újraindítható) mindkét DDL-helyen. **Mentés tanév-tudatosan:** a teljes cserék törlése csak a letöltött tanévekre és az **ablakon belülre** hat, az arányos őr tanévenként számol, **üres batch soha nem töröl**; az igazolások **upsert** `kreta_id` kulcson; az API-ablak a **tanév első napjától** indul (a `MIN(stored)` megszűnt). **API:** `?tanev=` szűrő + `/api/tanevek`. **Felület:** tanév-választó a fejlécben (alap: aktuális tanév, „Összes tanév" opció; összes tanévnél nincs átlag); üres tanév súgó; a dátum-/hónapválasztók a tanév határain belül (#53); a dashboard-csempék tanévváltáskor azonnal frissülnek (#51); „Tanév lezárása" gomb a lezárt tanév teljes újralekéréséhez (#52). **Futásnapló:** a futás tanéve a `sync_runs.tanev`-be (+ `tanev_zaro` a záró futásnál), tanévváltásnál naplósor + push; a `POST /api/kifizetes` a kifizetés tanévét az időszak kezdetéből írja be. **#42:** az igazolások adatvédelmi őrrel. **#46:** saját megjegyzések eseményhez/üzenethez (`kommentek` tábla, stabil tartalom-kulcs, `/api/kommentek`). Új tesztek: `test_tanev`, `test_tanev_migration`, `test_tanev_sync` (óra-bomba: 08-31 → 09-01 → 09-03), `test_tanev_api`, `test_tanev_zaro`, `test_tanev_ui`, `test_kommentek`; 832 ellenőrzés / 28 csomag |
 
 ---
 

@@ -113,7 +113,7 @@ A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backl
 
 ## 8. Tesztek
 
-- **826 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
+- **832 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
 - Új csomagok:
   - `test_tanev.py` — számítás, határok, `teljesen_lekert`,
   - `test_tanev_migration.py` — séma + backfill régi DB-n, ID-stabilitás, idempotencia,
@@ -188,7 +188,29 @@ A felhasználó helyi tesztelése három hibajegyet vett fel („Bug" címke); m
 - **Tesztek:** `test_kommentek` (séma/migráció, kulcs-stabilitás újraírás után,
   validáció, törlés, darabszám, böngészős mentés/visszaolvasás).
 
-## 13. Nyitott teendők
+## 13. Mérés: a KRÉTA API és a korábbi tanévek (2026-11-03)
+
+Olvasás-only próba 3 diákkal, a valódi KRÉTA API-n:
+
+| Lekérés | 2024/2025 | 2025/2026 | 2026/2027 (kontroll) |
+|---|---|---|---|
+| jegyek (szept.) | 0 | 0 | 2–4 db |
+| jegyek (2026. március) | – | 0 | – |
+| hiányzások (szept.) | 0 | 0 | van adat |
+| igazolások | – | – | 1–3 db |
+
+A dátum-szűrő működik (az aktuális tanévben a szűk ablakok eltérő darabszámot adnak),
+tehát a 0 eredmény nem hibás lekérés: **a mobil API a korábbi tanévekre nem ad adatot**,
+csak az aktív tanévet szolgálja ki. Következmények:
+
+- a „Tanév lezárása" gomb korábbi tanévre lefut, de 0 sort kap → az üres-batch védelem
+  miatt semmi nem változik (a napló figyelmeztet);
+- a #43 „szeptemberi záró futás az előző tanévre" premisszája hibás (szeptember 1-jén
+  az előző tanév már nem elérhető); a `TanevUid` diagnosztika része marad értelmes;
+- a régi tanévek adata **pótolhatatlan** → a napi backup és a törlésvédelem kritikus;
+- a Playwright kivezetése mellett ez további érv (nincs mit „helyettesíteni").
+
+## 14. Nyitott teendők
 
 1. **Deploy:** `.\deploy.ps1 -Release v1.7.0` (interaktív SSH-jelszót kér, ezért az
    agent nem tudta futtatni). A `v1.6.5` tartalma (hónap-oszlopok évszám nélkül +
