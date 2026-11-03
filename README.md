@@ -55,9 +55,9 @@ a saját szerveren maradnak.
 - **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);
   az „Összes tanév" opcióval a teljes előzmény látszik (átlag ilyenkor nincs, mert az
   csak tanéven belül értelmezhető). Az üzenetek és az órarend tanév-független.
-  A dátumválasztók a kiválasztott tanév határain belül maradnak, és a lezárt tanévhez
-  **„Tanév lezárása"** gomb jelenik meg (a teljes tanév újralekérése a pótvizsga és az
-  augusztusi jegyek miatt).
+  A dátumválasztók a kiválasztott tanév határain belül maradnak, és a **kiválasztott
+  (vagy alapból az előző) lezárt tanévhez** „Tanév lezárása" gomb jelenik meg (a teljes
+  tanév újralekérése a pótvizsga és az augusztusi jegyek miatt).
 
 ### 📊 Iskolai események
 - DataTables táblázat: szűrés gyermek, típus, tantárgy, aktív/lejárt, dátumtartomány szerint;
