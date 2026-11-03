@@ -57,5 +57,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kreta-screenshots
-          path: ${{ runner.temp }}/kreta_*
+          path: |
+            ${{ runner.temp }}/kreta_*
+            /tmp/kreta_*
           if-no-files-found: ignore
