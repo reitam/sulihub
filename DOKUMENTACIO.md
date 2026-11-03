@@ -66,7 +66,7 @@ továbbítanak.
 
 | Fül | Mire való |
 |---|---|
-| **Áttekintés** | Nyitó dashboard: **5 kattintható csempe** (heti határidők, új jegyek / új üzenetek az elmúlt 7 napban, **igazolatlan hiányzás** órában, **kifizetetlen zsebpénz**), valamint **gyermekenkénti kártyák** (teljes időszaki súlyozott tanulmányi átlag + kifizetetlen egyenleg). Gyermek-chipek (egy kattintás); a csempére kattintva a megfelelő nézet nyílik |
+| **Áttekintés** | Nyitó dashboard: **5 kattintható csempe** (heti határidők, új jegyek / új üzenetek az elmúlt 7 napban, **igazolatlan hiányzás** órában, **kifizetetlen zsebpénz**), valamint **gyermekenkénti kártyák** (teljes időszaki súlyozott tanulmányi átlag + kifizetetlen egyenleg). **Kompakt elrendezés:** a csempék asztali nézetben **egy sorban** (5 oszlop), a kártyák szintén egy sorban; mobilon 2, illetve 1 oszlop. Gyermek-chipek (egy kattintás); a csempére kattintva a megfelelő nézet nyílik |
 | **Iskolai események** | Szűrhető, kereshető táblázat: jegyek (a jegy mellett a **súlyszázalék** jelvénye), feljegyzések, házik, számonkérések. Szűrők: gyermek (chip is), típus, tantárgy, időszak, dátumtartomány, gyorsszűrők; „Vissza az áttekintésre" gomb. Soronként **saját megjegyzés** fűzhető (Kaneo #46) |
 | **Hiányzások** | Hiányzások és késések havi bontásban: **5 összesítő kártya** (összes hiányzás óra, igazolt óra, igazolatlan óra, késés db/perc, igazolás db) + részletes tábla és igazolás-lista. Alapból a **teljes előzmény** látszik, a havi bontás hónapválasztóval / „Aktuális hónap" gombbal |
 | **Heti órarend** | Idősávos heti nézet, gyermekszínekkel; **A4 PDF export** |

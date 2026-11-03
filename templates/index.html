@@ -349,7 +349,7 @@
                     <label for="tanevValaszto" class="small fw-bold text-secondary mb-0">
                         <i class="fa-solid fa-calendar-days me-1"></i>Tanév:
                     </label>
-                    <select id="tanevValaszto" class="form-select form-select-sm" style="max-width: 175px;"
+                    <select id="tanevValaszto" class="form-select form-select-sm" style="max-width: 200px;"
                             title="A tanév az eseményeket, a hiányzásokat, az átlagokat és a zsebpénzt szűri. Az üzenetek és az órarend tanév-független.">
                         <option value="">Összes tanév</option>
                     </select>
@@ -531,63 +531,63 @@
     <div class="tab-content" id="mainTabContent">
         <!-- 0. FÜL: ÁTTEKINTÉS (DASHBOARD, Kaneo #38) -->
         <div class="tab-pane fade show active" id="attekintes-pane" role="tabpanel">
-            <div class="row g-3" id="dashboardTiles">
-                <div class="col-6 col-md-4">
-                    <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileHataridok" title="Ugrás a heti határidőkre szűrt eseménylistára">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="text-muted small fw-bold">Heti határidők</div>
+            <div class="row g-2 row-cols-2 row-cols-md-3 row-cols-lg-5" id="dashboardTiles">
+                <div class="col">
+                    <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileHataridok" title="Ugrás a heti határidőkre szűrt eseménylistára">
+                        <div class="d-flex justify-content-between align-items-start gap-1">
+                            <div class="text-muted small fw-bold text-truncate">Heti határidők</div>
                             <i class="fa-solid fa-calendar-week text-primary"></i>
                         </div>
-                        <div class="fs-3 fw-bold text-primary" id="tileHataridokSzam">0</div>
-                        <div class="text-muted" id="tileHataridokInfo" style="font-size: 0.75rem;">házik / számonkérések ezen a héten</div>
+                        <div class="fs-4 fw-bold lh-1 text-primary" id="tileHataridokSzam">0</div>
+                        <div class="text-muted text-truncate" id="tileHataridokInfo" style="font-size: 0.72rem;">házik / számonkérések ezen a héten</div>
                     </div>
                 </div>
-                <div class="col-6 col-md-4">
-                    <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileUjJegyek" title="Ugrás az elmúlt 7 nap jegyeire">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="text-muted small fw-bold">Új jegyek</div>
+                <div class="col">
+                    <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileUjJegyek" title="Ugrás az elmúlt 7 nap jegyeire">
+                        <div class="d-flex justify-content-between align-items-start gap-1">
+                            <div class="text-muted small fw-bold text-truncate">Új jegyek</div>
                             <i class="fa-solid fa-graduation-cap text-success"></i>
                         </div>
-                        <div class="fs-3 fw-bold text-success" id="tileUjJegyekSzam">0</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">az elmúlt 7 napban</div>
+                        <div class="fs-4 fw-bold lh-1 text-success" id="tileUjJegyekSzam">0</div>
+                        <div class="text-muted text-truncate" style="font-size: 0.72rem;">az elmúlt 7 napban</div>
                     </div>
                 </div>
-                <div class="col-6 col-md-4">
-                    <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileUjUzenetek" title="Ugrás a beérkezett üzenetekre">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="text-muted small fw-bold">Új üzenetek</div>
+                <div class="col">
+                    <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileUjUzenetek" title="Ugrás a beérkezett üzenetekre">
+                        <div class="d-flex justify-content-between align-items-start gap-1">
+                            <div class="text-muted small fw-bold text-truncate">Új üzenetek</div>
                             <i class="fa-solid fa-envelope text-info"></i>
                         </div>
-                        <div class="fs-3 fw-bold text-info" id="tileUjUzenetekSzam">0</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">az elmúlt 7 napban</div>
+                        <div class="fs-4 fw-bold lh-1 text-info" id="tileUjUzenetekSzam">0</div>
+                        <div class="text-muted text-truncate" style="font-size: 0.72rem;">az elmúlt 7 napban</div>
                     </div>
                 </div>
-                <div class="col-6 col-md-4">
-                    <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileIgazolatlan" title="Ugrás a hiányzásokra">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="text-muted small fw-bold">Igazolatlan hiányzás</div>
+                <div class="col">
+                    <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileIgazolatlan" title="Ugrás a hiányzásokra">
+                        <div class="d-flex justify-content-between align-items-start gap-1">
+                            <div class="text-muted small fw-bold text-truncate">Igazolatlan hiányzás</div>
                             <i class="fa-solid fa-user-clock text-danger"></i>
                         </div>
-                        <div class="fs-3 fw-bold text-danger" id="tileIgazolatlanSzam">0 óra</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">a teljes időszakban</div>
+                        <div class="fs-4 fw-bold lh-1 text-danger" id="tileIgazolatlanSzam">0 óra</div>
+                        <div class="text-muted text-truncate" style="font-size: 0.72rem;">a teljes időszakban</div>
                     </div>
                 </div>
-                <div class="col-6 col-md-4">
-                    <div class="card card-stat bg-white p-3 h-100 dash-tile" role="button" tabindex="0" id="tileZsebpenz" title="Ugrás a zsebpénz elszámolásra">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="text-muted small fw-bold">Kifizetetlen zsebpénz</div>
+                <div class="col">
+                    <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileZsebpenz" title="Ugrás a zsebpénz elszámolásra">
+                        <div class="d-flex justify-content-between align-items-start gap-1">
+                            <div class="text-muted small fw-bold text-truncate">Kifizetetlen zsebpénz</div>
                             <i class="fa-solid fa-sack-dollar text-warning"></i>
                         </div>
-                        <div class="fs-3 fw-bold text-warning" id="tileZsebpenzSzam">0 Ft</div>
-                        <div class="text-muted" id="tileZsebpenzInfo" style="font-size: 0.75rem;">teljes egyenleg mínusz a kifizetett időszakok</div>
+                        <div class="fs-4 fw-bold lh-1 text-warning" id="tileZsebpenzSzam">0 Ft</div>
+                        <div class="text-muted text-truncate" id="tileZsebpenzInfo" style="font-size: 0.72rem;">teljes egyenleg mínusz a kifizetett időszakok</div>
                     </div>
                 </div>
             </div>
 
-            <h6 class="fw-bold text-secondary mt-4 mb-2"><i class="fa-solid fa-user-graduate me-2"></i>Gyermekenkénti összesítő</h6>
-            <div class="row g-3" id="dashboardDiakCards"></div>
+            <h6 class="fw-bold text-secondary mt-3 mb-2"><i class="fa-solid fa-user-graduate me-2"></i>Gyermekenkénti összesítő</h6>
+            <div class="row g-2 row-cols-1 row-cols-md-2 row-cols-xl-3" id="dashboardDiakCards"></div>
 
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap" id="dashboardDiakChips">
                     <span class="text-muted small fw-bold"><i class="fa-solid fa-users me-1"></i>Gyermek:</span>
                     <button class="btn btn-sm btn-outline-dark py-0 px-2 chip-diak active" data-diak="" style="font-size: 0.78rem;">Mind</button>
@@ -2568,14 +2568,13 @@ $(document).ready(function() {
                 let allapot = (tanevAllapot[t] || {}).allapot || '';
                 let jelzes = t === tanevAktualis ? ' (aktuális)'
                             : (allapot === 'lezart' ? ' (lezárt)' : '');
-                $sel.append(`<option value="${escapeHtml(t)}">${escapeHtml(tanEvCimke(t))}` +
-                            `${jelzes}</option>`);
+                $sel.append(`<option value="${escapeHtml(t)}">${escapeHtml(t)}${jelzes}</option>`);
             });
             // Tanévváltás után (vagy üres DB-nél) az aktuális tanév még nem
             // szerepel a listában — ilyenkor is választható legyen.
             if (tanevAktualis && tanevLista.indexOf(tanevAktualis) === -1) {
                 $sel.append(`<option value="${escapeHtml(tanevAktualis)}">` +
-                            `${escapeHtml(tanEvCimke(tanevAktualis))} (aktuális)</option>`);
+                            `${escapeHtml(tanevAktualis)} (aktuális)</option>`);
             }
             // Szinkron utáni újratöltésnél tartsuk meg a felhasználó választását.
             let cel = tanevAktualis || '';
@@ -2692,8 +2691,8 @@ $(document).ready(function() {
         diakok.forEach(function (d) {
             let atlag = (!tanev || d.atlag === null || d.atlag === undefined) ? '-' : d.atlag;
             let atlagFelirat = tanev
-                ? `${escapeHtml(tanev)}. tanév<br>(súlyozott)`
-                : 'válassz tanévet<br>az átlaghoz';
+                ? `${escapeHtml(tanev)}. tanév · súlyozott`
+                : 'válassz tanévet az átlaghoz';
             let penz;
             if (d.rewards_enabled) {
                 penz = `<div class="mt-1 small">Kifizetetlen egyenleg: <strong>${fmtFtShort(d.hatralevo)}</strong>` +
@@ -2704,15 +2703,16 @@ $(document).ready(function() {
             } else {
                 penz = '<div class="mt-1 small text-muted">zsebpénz modul kikapcsolva</div>';
             }
-            $c.append(`<div class="col-12 col-md-6 col-xl-4">
-                <div class="card card-stat bg-white p-3 h-100">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div class="fw-bold">${escapeHtml(d.diak)}</div>
+            $c.append(`<div class="col">
+                <div class="card card-stat bg-white p-2 h-100">
+                    <div class="d-flex justify-content-between align-items-start gap-1">
+                        <div class="fw-bold text-truncate">${escapeHtml(d.diak)}</div>
                         <span class="badge bg-light text-dark">${d.jegy_db} jegy</span>
                     </div>
                     <div class="d-flex align-items-baseline gap-2 flex-wrap">
-                        <div class="fs-2 fw-bold text-primary">${atlag}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">tanulmányi átlag<br>${atlagFelirat}</div>
+                        <div class="fs-3 fw-bold lh-1 text-primary">${atlag}</div>
+                        <div class="text-muted text-truncate" style="font-size: 0.72rem;"
+                             title="tanulmányi átlag · ${atlagFelirat}">tanulmányi átlag · ${atlagFelirat}</div>
                     </div>
                     ${penz}
                 </div>

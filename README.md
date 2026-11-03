@@ -52,6 +52,8 @@ a saját szerveren maradnak.
   **új üzenetek** (7 nap), **igazolatlan hiányzás** (óra), **kifizetetlen zsebpénz**
   (teljes egyenleg mínusz a kifizetett időszakok) — a csempére kattintva a megfelelő nézet
   nyílik; **gyermekenkénti kártyák** (átlag + egyenleg); gyermekváltás egy kattintással.
+  **Kompakt:** asztali nézetben a csempék egy sorban (5 oszlop), a gyermekkártyák szintén
+  egy sorban; mobilon 2, illetve 1 oszlop.
 - **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);
   az „Összes tanév" opcióval a teljes előzmény látszik (átlag ilyenkor nincs, mert az
   csak tanéven belül értelmezhető). Az üzenetek és az órarend tanév-független.
