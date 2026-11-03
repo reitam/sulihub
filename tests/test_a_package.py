@@ -278,6 +278,26 @@ ok(_row and _row[0] == "2026/2027",
    f"a futásnapló tanéve: {_row[0] if _row else None}")
 os.environ.pop("KRETA_TODAY", None)
 
+print("\n6) Tanév-állapot: a futás utáni váltás értesítést küld")
+os.environ["KRETA_TODAY"] = "2026-11-03"
+kreta.subprocess.Popen = fake_popen(["##KRETA_RESULT##" + '{"total":1,"ok":1,"failed":[]}'], 0)
+_eredeti_hook = kreta.update_tanev_state_from_api
+_eredeti_notify = kreta.send_notification
+_uzenetek = []
+kreta.update_tanev_state_from_api = lambda log_fn=None: [
+    {"diak_nev": "Teszt", "lezart_tanev": "2025/2026", "uj_tanev": "2026/2027"}]
+kreta.send_notification = lambda title, message, *a, **k: _uzenetek.append((title, message)) or True
+try:
+    kreta.run_scraper_thread("manual")
+finally:
+    kreta.update_tanev_state_from_api = _eredeti_hook
+    kreta.send_notification = _eredeti_notify
+ok(any("új tanév" in str(t).lower() for t, _ in _uzenetek),
+   f"a tanévváltásról értesítés ment: {_uzenetek}")
+ok(any("2025/2026" in str(m) and "2026/2027" in str(m) for _, m in _uzenetek),
+   "az értesítés tartalmazza a lezárt és az új tanévet")
+os.environ.pop("KRETA_TODAY", None)
+
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

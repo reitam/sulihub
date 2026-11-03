@@ -173,6 +173,33 @@ try:
     ok(d2o.get("kifizetve_osszeg") == 500 and d2o.get("hatralevo") == 0,
        f"a friss kifizetés azonnal levonódik: {d2o.get('kifizetve_osszeg')} / "
        f"{d2o.get('hatralevo')}")
+
+    print("\n8) API élek: tanév-aliasok, igazolások, ismeretlen_db")
+    ok(len(get("/api/esemenyek?tanev=current")) == 2,
+       "tanev=current -> az aktuális tanév sorai")
+    ok(len(get("/api/esemenyek?tanev=all")) == 3, "tanev=all -> minden sor")
+    ok(len(get("/api/esemenyek?tanev=osszes")) == 3, "tanev=osszes -> minden sor")
+    ok(len(get("/api/esemenyek?tanev=ALL")) == 3, "tanev=ALL -> minden sor")
+    ok(get("/api/esemenyek?tanev=1999/2000") == [],
+       "ismeretlen tanév -> üres lista (nem hiba)")
+    ok(get("/api/igazolasok?tanev=2026/2027") == [], "igazolások tanév-szűrése (üres)")
+    ok(get("/api/igazolasok?tanev=all") == [], "igazolások tanev=all")
+    ok(get("/api/igazolasok?tanev=1999/2000") == [], "igazolások ismeretlen tanévre")
+
+    # ismeretlen (üres) tanév: a /api/tanevek számolja, de nem listázza
+    conn3 = sqlite3.connect(db)
+    conn3.execute(
+        "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
+        " suly_szazalek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz,"
+        " tanev, tanev_forras) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)",
+        ("Teszt Elek", "Értékelés", "Kémia", "Jeles(5)", 5, 100, "2026. 10. 09.", "",
+         "Tanár", "Évközi jegy", "Írásbeli", "Téma", "", "", "", "szamitott"))
+    conn3.commit()
+    conn3.close()
+    tv = get("/api/tanevek")
+    ok(tv.get("ismeretlen_db", 0) >= 1,
+       f"ismeretlen (üres) tanévű sor számolva: {tv.get('ismeretlen_db')}")
+    ok("" not in tv.get("tanevek", []), "az ismeretlen tanév nem kerül a listába")
 finally:
     proc.terminate()
     try:
