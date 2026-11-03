@@ -3084,22 +3084,25 @@ $(document).ready(function() {
 
         // 2) Következő futás / épp futó szinkron
         let nextHtml;
+        let nextModalHtml;
         if (!sched.enabled) {
-            nextHtml = '<span class="text-secondary">automatikus szinkron kikapcsolva</span>';
+            nextHtml = nextModalHtml = '<span class="text-secondary">automatikus szinkron kikapcsolva</span>';
         } else if (sched.running) {
-            nextHtml = (sched.trigger === 'scheduled'
+            const runTxt = sched.trigger === 'scheduled'
                 ? '<span class="text-success fw-bold">ütemezett szinkron fut...</span>'
-                : '<span class="text-primary fw-bold">kézi szinkron fut...</span>')
-                + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`;
+                : '<span class="text-primary fw-bold">kézi szinkron fut...</span>';
+            nextHtml = runTxt + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`;
+            nextModalHtml = runTxt;
         } else {
             const when = formatSchedTime(sched.next_run_iso);
             if (when) {
                 const overdue = new Date(String(sched.next_run_iso).replace(' ', 'T')) <= new Date();
-                nextHtml = `következő: <b>${when}</b>`
-                         + (overdue ? ' <span class="text-warning">(hamarosan)</span>' : '')
-                         + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`;
+                const base = `következő: <b>${when}</b>`
+                           + (overdue ? ' <span class="text-warning">(hamarosan)</span>' : '');
+                nextHtml = base + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`;
+                nextModalHtml = base;
             } else {
-                nextHtml = `<span class="text-secondary">${schedulerIntervalText(sched)}</span>`;
+                nextHtml = nextModalHtml = `<span class="text-secondary">${schedulerIntervalText(sched)}</span>`;
             }
         }
         $('#schedulerWindowText').html(schedulerWindowHtml(sched));
@@ -3141,8 +3144,8 @@ $(document).ready(function() {
         $('#schedModalState').html(stateHtml + ' &middot; ' + compact.text);
         $('#schedModalWindow').html(
             schedulerWindowHtml(sched)
-            + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`);
-        $('#schedModalNext').html(nextHtml);
+            + ` <span class="text-secondary">(${sched.interval_minutes} percenként)</span>`);
+        $('#schedModalNext').html(nextModalHtml);
         $('#schedModalLast').html(lastHtml);
     }
 
