@@ -87,6 +87,18 @@
         }
         .chip-diak.active { background-color: #0d6efd; border-color: #0d6efd; color: #fff; }
 
+        /* Fülek: semleges ikonok, csak az aktív fül kap kiemelést (Kaneo #? / UX) */
+        #mainTab .nav-link { color: #6c757d; }
+        #mainTab .nav-link i { color: #6c757d; }
+        #mainTab .nav-link:hover { color: #212529; }
+        #mainTab .nav-link:hover i { color: #212529; }
+        #mainTab .nav-link.active {
+            color: var(--bs-primary);
+            font-weight: 700;
+            box-shadow: inset 0 -2px 0 var(--bs-primary);
+        }
+        #mainTab .nav-link.active i { color: var(--bs-primary); }
+
         table.dataTable tbody tr.today-row td,
         table.dataTable.table-striped tbody tr.today-row td {
             background-color: #fff9c4 !important;
@@ -485,7 +497,7 @@
     </div>
 
     <!-- TABS (FÜLEK) -->
-    <ul class="nav nav-tabs mb-3 fw-bold" id="mainTab" role="tablist">
+    <ul class="nav nav-tabs mb-3" id="mainTab" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="attekintes-tab" data-bs-toggle="tab" data-bs-target="#attekintes-pane" type="button" role="tab">
                 <i class="fa-solid fa-gauge-high me-2"></i>Áttekintés
@@ -497,35 +509,35 @@
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link text-danger fw-bold" id="hianyzasok-tab" data-bs-toggle="tab" data-bs-target="#hianyzasok-pane" type="button" role="tab">
+            <button class="nav-link" id="hianyzasok-tab" data-bs-toggle="tab" data-bs-target="#hianyzasok-pane" type="button" role="tab">
                 <i class="fa-solid fa-user-clock me-2"></i>Hiányzások
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link text-warning fw-bold" id="orarend-tab" data-bs-toggle="tab" data-bs-target="#orarend-pane" type="button" role="tab">
+            <button class="nav-link" id="orarend-tab" data-bs-toggle="tab" data-bs-target="#orarend-pane" type="button" role="tab">
                 <i class="fa-solid fa-calendar-week me-2"></i><span class="d-none d-sm-inline">Heti </span>Órarend
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link text-primary" id="naptar-tab" data-bs-toggle="tab" data-bs-target="#naptar-pane" type="button" role="tab">
+            <button class="nav-link" id="naptar-tab" data-bs-toggle="tab" data-bs-target="#naptar-pane" type="button" role="tab">
                 <i class="fa-solid fa-calendar-days me-2"></i><span class="d-none d-sm-inline">Feladatok </span>Naptár<span class="d-none d-sm-inline"> Nézet</span>
             </button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link text-info" id="uzenetek-tab" data-bs-toggle="tab" data-bs-target="#uzenetek-pane" type="button" role="tab">
+            <button class="nav-link" id="uzenetek-tab" data-bs-toggle="tab" data-bs-target="#uzenetek-pane" type="button" role="tab">
                 <i class="fa-solid fa-envelope me-2"></i><span class="d-none d-sm-inline">Beérkezett </span>Üzenetek
             </button>
         </li>
         {% if global_enable_rewards %}
         <li class="nav-item" role="presentation">
-            <button class="nav-link text-success" id="rewards-tab" data-bs-toggle="tab" data-bs-target="#rewards-pane" type="button" role="tab">
+            <button class="nav-link" id="rewards-tab" data-bs-toggle="tab" data-bs-target="#rewards-pane" type="button" role="tab">
                 <i class="fa-solid fa-sack-dollar me-2"></i><span class="d-none d-sm-inline">Statisztika & </span>Zsebpénz
             </button>
         </li>
         {% endif %}
         <li class="nav-item" role="presentation">
-            <button class="nav-link text-dark" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-pane" type="button" role="tab">
-                <i class="fa-solid fa-terminal me-2 text-warning"></i>Napló<span class="d-none d-sm-inline"> (sync.log)</span>
+            <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-pane" type="button" role="tab">
+                <i class="fa-solid fa-terminal me-2"></i>Napló<span class="d-none d-sm-inline"> (sync.log)</span>
             </button>
         </li>
     </ul>

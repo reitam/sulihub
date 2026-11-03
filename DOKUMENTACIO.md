@@ -78,6 +78,10 @@ továbbítanak.
 **Fejléc:** ütemező állapota (BE/KI), időablak, következő futás, utolsó futás eredménye
 (kézi/ütemezett, sikeres/részleges hiba/hiba), valamint a **telepített verzió**.
 
+**Fülek:** semleges (sötétszürke) ikonok és feliratok; **csak az aktív fület** emeli ki a
+felület (kék szöveg/ikon + alsó kék vonal). A korábbi színes fül-ikonok (piros, sárga,
+zöld stb.) megszűntek — kevesebb vizuális zaj.
+
 **Oszlopok szélessége:** az *Iskolai események*, *Hiányzások*, *Igazolások* és *Beérkezett
 üzenetek* táblázat fejlécében a jobb szélen lévő fogantyúval (egérrel) állítható. Az
 átméretezés **nem változtatja meg a sorrendet** (a fogantyú kattintása nem rendez).

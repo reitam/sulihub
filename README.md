@@ -54,6 +54,8 @@ a saját szerveren maradnak.
   megfelelő nézet nyílik; **gyermekenkénti kártyák** (átlag + egyenleg); gyermekváltás
   egy kattintással. **Kompakt, 3×2 elrendezés**, egységes sablon; a 0 érték semleges
   (szürke/zöld), csak > 0 esetén élénk szín.
+- **Semleges fülek:** a navigáció ikonjai/feliratai sötétszürkék, csak az aktív fület
+  emeli ki a felület (kék szöveg/ikon + alsó kék vonal) — nincs színes ikonkáosz.
 - **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);
   az „Összes tanév" opcióval a teljes előzmény látszik (átlag ilyenkor nincs, mert az
   csak tanéven belül értelmezhető). Az üzenetek és az órarend tanév-független.
