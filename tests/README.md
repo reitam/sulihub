@@ -50,3 +50,15 @@ Ezek nélkül a tesztek lefutnak, csak a kapcsolódó ellenőrzések maradnak ki
 A tesztek izolált temp könyvtárban dolgoznak (`tempfile`), a valódi adatbázist és
 `config.json`-t nem érintik. A `config.json`-t, DB-t és `sync.log`-ot a teszt
 környezeti változókkal irányítja át.
+
+## Futtatás és CI
+
+```bash
+python tests/run_all.py            # minden teszt (28 csomag)
+python tests/run_all.py --fast     # böngésző nélkül (23 csomag)
+python tests/run_all.py --browser  # csak Playwright (5 csomag)
+```
+
+A GitHub Actions (`.github/workflows/ci.yml`) a **gyors** csoportot minden pushra/PR-ra,
+a **böngészőst** csak `main` pushra, éjszakánként és kézi indításra futtatja. A böngészős
+job hibája esetén a képernyőképek artifactként feltöltődnek.

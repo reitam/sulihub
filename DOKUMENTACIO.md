@@ -670,8 +670,15 @@ Kreta/
 ### 9.3. Tesztek
 
 ```bash
-python tests/run_all.py
+python tests/run_all.py            # mind (867 ellenőrzés, 28 csomag)
+python tests/run_all.py --fast     # böngésző nélkül (23 csomag, 738 ell.)
+python tests/run_all.py --browser  # Playwrightos (5 csomag, 129 ell.)
 ```
+
+**CI (GitHub Actions, `.github/workflows/ci.yml`):** a **gyors** job (23 csomag) minden
+pushra/PR-ra lefut; a **böngészős** job (5 csomag) csak `main` pushra, éjszakánként és
+kézi indításra. A tesztek fixture-ökkel/fake klienssel dolgoznak, valódi KRÉTA-hívás nem
+történik; a böngészős job hibája esetén a képernyőképek artifactként feltöltődnek.
 
 Jelenleg **867 automatikus ellenőrzés** huszonnyolc csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
