@@ -79,6 +79,7 @@
         /* Áttekintés (dashboard) csempék */
         .dash-tile { cursor: pointer; transition: transform .08s ease, box-shadow .08s ease; border: 1px solid #dee2e6; }
         .dash-tile .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
+        .dash-tile .kpi-title { font-size: .95rem; font-weight: 700; color: #343a40; }
         .dash-tile .kpi-caption { font-size: .72rem; line-height: 1.15; }
         .dash-tile:hover, .dash-tile:focus {
             transform: translateY(-2px);
@@ -568,7 +569,7 @@
                     <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileHazi" title="Ugrás a következő 10 nap házi feladataira">
                         <div class="d-flex align-items-center gap-2">
                             <i class="fa-solid fa-book text-primary"></i>
-                            <span class="text-muted small fw-bold text-truncate">Következő házi feladatok</span>
+                            <span class="kpi-title text-truncate">Következő házi feladatok</span>
                         </div>
                         <div class="d-flex align-items-baseline gap-2 mt-1">
                             <span class="kpi-value text-secondary" id="tileHaziSzam">0</span>
@@ -580,7 +581,7 @@
                     <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileSzam" title="Ugrás a következő 10 nap számonkéréseire">
                         <div class="d-flex align-items-center gap-2">
                             <i class="fa-solid fa-clipboard-list text-warning"></i>
-                            <span class="text-muted small fw-bold text-truncate">Következő számonkérések</span>
+                            <span class="kpi-title text-truncate">Következő számonkérések</span>
                         </div>
                         <div class="d-flex align-items-baseline gap-2 mt-1">
                             <span class="kpi-value text-secondary" id="tileSzamSzam">0</span>
@@ -592,7 +593,7 @@
                     <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileUjJegyek" title="Ugrás az elmúlt 10 nap jegyeire">
                         <div class="d-flex align-items-center gap-2">
                             <i class="fa-solid fa-graduation-cap text-success"></i>
-                            <span class="text-muted small fw-bold text-truncate">Új jegyek</span>
+                            <span class="kpi-title text-truncate">Új jegyek</span>
                         </div>
                         <div class="d-flex align-items-baseline gap-2 mt-1">
                             <span class="kpi-value text-secondary" id="tileUjJegyekSzam">0</span>
@@ -604,7 +605,7 @@
                     <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileUjUzenetek" title="Ugrás a beérkezett üzenetekre">
                         <div class="d-flex align-items-center gap-2">
                             <i class="fa-solid fa-envelope text-info"></i>
-                            <span class="text-muted small fw-bold text-truncate">Új üzenetek</span>
+                            <span class="kpi-title text-truncate">Új üzenetek</span>
                         </div>
                         <div class="d-flex align-items-baseline gap-2 mt-1">
                             <span class="kpi-value text-secondary" id="tileUjUzenetekSzam">0</span>
@@ -616,7 +617,7 @@
                     <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileIgazolatlan" title="Ugrás a hiányzásokra">
                         <div class="d-flex align-items-center gap-2">
                             <i class="fa-solid fa-user-clock text-danger"></i>
-                            <span class="text-muted small fw-bold text-truncate">Igazolatlan hiányzás</span>
+                            <span class="kpi-title text-truncate">Igazolatlan hiányzás</span>
                         </div>
                         <div class="d-flex align-items-baseline gap-2 mt-1">
                             <span class="kpi-value text-success" id="tileIgazolatlanSzam">0 óra</span>
@@ -628,7 +629,7 @@
                     <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileZsebpenz" title="Ugrás a zsebpénz elszámolásra">
                         <div class="d-flex align-items-center gap-2">
                             <i class="fa-solid fa-sack-dollar text-warning"></i>
-                            <span class="text-muted small fw-bold text-truncate">Kifizetetlen zsebpénz</span>
+                            <span class="kpi-title text-truncate">Kifizetetlen zsebpénz</span>
                         </div>
                         <div class="d-flex align-items-baseline gap-2 mt-1">
                             <span class="kpi-value text-secondary" id="tileZsebpenzSzam">0 Ft</span>
