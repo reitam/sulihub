@@ -86,6 +86,20 @@ ok("config.json" in ignored, "a config.json (jelszavak) ki van zárva a képből
 ok("config.json" not in re.sub(r"#.*", "", dockerfile),
    "a Dockerfile nem másolja be a config.json-t")
 ok("tests" in ignored, "a tesztek nem kerülnek a képbe")
+ok("api_tokens.json" in ignored, "az api_tokens.json (tokenek) ki van zárva a képből")
+ok({".opencode", "poc", "tools"} <= ignored,
+   "a fejlesztői mappák (.opencode, poc, tools) ki vannak zárva a képből")
+
+print("\n3b) deploy.ps1: csak a futásidejű fájlok mennek fel")
+deploy_src = (ROOT / "deploy.ps1").read_text(encoding="utf-8", errors="replace")
+ok('"api_tokens.json"' in deploy_src or "api_tokens.json" in deploy_src,
+   "a deploy kizárja az api_tokens.json-t")
+ok('"OSSZEFOGLALO-*.md"' in deploy_src, "a deploy kizárja az összefoglaló markdownokat")
+ok('"$SourceDir\\static\\csatolmanyok"' in deploy_src,
+   "a csatolmányok kizárása abszolút úttal történik (robocopy /XD)")
+ok("REMOTE_DIR_PLACEHOLDER/tools" in deploy_src
+   and "REMOTE_DIR_PLACEHOLDER/poc" in deploy_src,
+   "a szerveroldali tisztítás eltávolítja a fejlesztői mappákat")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)
