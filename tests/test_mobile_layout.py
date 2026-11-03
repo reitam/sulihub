@@ -223,6 +223,20 @@ try:
                "a státuszsávra koppintva megnyílik a részletek ablak")
             ok("időablak" in modal["text"] and "Utolsó frissítés" in modal["text"],
                "a részletek ablakban ott van az időablak és az utolsó frissítés")
+            modal_box = await page.evaluate("""() => {
+                const body = document.querySelector('#schedulerDetailModal .modal-body');
+                const wraps = [...document.querySelectorAll('#schedModalLast .text-nowrap')];
+                return {scroll: body.scrollWidth, client: body.clientWidth,
+                        wraps: wraps.length,
+                        wrapped: wraps.length > 1
+                            ? Math.round(wraps[1].getBoundingClientRect().top)
+                              >= Math.round(wraps[0].getBoundingClientRect().bottom) - 1
+                            : null};
+            }""")
+            ok(modal_box["scroll"] <= modal_box["client"] + 1,
+               f"a részletek ablak tartalma nem csúszik ki ({modal_box['scroll']} <= {modal_box['client']})")
+            ok(modal_box["wraps"] >= 2 and modal_box["wrapped"],
+               "az utolsó frissítés és az utolsó automatikus futás külön sorba tördelve látszik")
             await page.click('#schedulerDetailModal .btn-close')
             await page.wait_for_timeout(400)
 
