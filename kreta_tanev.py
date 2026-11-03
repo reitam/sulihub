@@ -168,6 +168,20 @@ def row_tanev(table: str, row) -> str:
     return ""
 
 
+def zaro_tanev() -> str:
+    """A tanévzáró futás cél-tanéve (env: ``KRETA_ZARO_TANEV``), vagy ``""``.
+
+    Kézi „Tanév lezárása” (Kaneo #52): ilyenkor a szinkron a megadott (már lezárt)
+    tanév **teljes** ablakát kéri le, hogy a pótvizsga/augusztusi jegyek is
+    bekerüljenek. Érvénytelen tanévre üres marad.
+    """
+    raw = str(os.environ.get("KRETA_ZARO_TANEV", "")).strip()
+    if not raw:
+        return ""
+    kezd, veg = tanev_bounds(raw)
+    return raw if (kezd and veg) else ""
+
+
 def teljesen_lekert(tanev: str, start, end, today_value=None) -> bool:
     """Lefedi-e a lekérési ablak a tanévet (a törlés előfeltétele).
 
