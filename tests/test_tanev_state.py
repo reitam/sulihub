@@ -92,6 +92,23 @@ r = kreta_tanev.apply_tanev_uid(conn, "Teszt Elek", "100", date(2026, 11, 3))
 conn.close()
 ok(not r["valtozas"] and not r["lezart_tanev"], "változatlan UID -> nincs zárás")
 
+print("\n3b) A naptári seed eltér a KRÉTA UID-tól: a UID az igazság")
+conn = kreta.get_db_connection()
+conn.execute("UPDATE tanevek SET allapot = 'lezart', lezarva_at = '2026-08-31T23:59:59'"
+             " WHERE tanev = '2026/2027'")
+conn.execute("INSERT INTO tanevek (tanev, kezdet, veg, allapot, forras, updated_at)"
+             " VALUES ('2027/2028', '2027-09-01', '2028-08-31', 'nyitott', 'szamitott', 'x')"
+             " ON CONFLICT(tanev) DO UPDATE SET allapot = 'nyitott', lezarva_at = NULL")
+conn.commit()
+r = kreta_tanev.apply_tanev_uid(conn, "Teszt Elek", "100", date(2027, 9, 1))
+allapot = kreta_tanev.tanev_allapotok(conn)
+conn.close()
+ok(r["lezart_tanev"] == "2027/2028" and r["uj_tanev"] == "2026/2027",
+   f"a UID szerinti tanévre áll vissza: {r['lezart_tanev']} -> {r['uj_tanev']}")
+ok(allapot.get("2026/2027", {}).get("allapot") == "nyitott"
+   and allapot.get("2027/2028", {}).get("allapot") == "lezart",
+   "a KRÉTA által jelzett tanév nyitott")
+
 print("\n4) UID-változás új tanévnél: technikai zárás + nyitás")
 conn = kreta.get_db_connection()
 r = kreta_tanev.apply_tanev_uid(conn, "Teszt Elek", "101", date(2027, 9, 1))

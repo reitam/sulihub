@@ -385,7 +385,6 @@ def seed_tanev_state(conn, today_value=None, log_fn=print) -> list[str]:
                 years.add(row[0])
         except Exception:
             continue
-    years.add(current)
     created = []
     now = _iso_now()
     for year in sorted(years):
@@ -462,9 +461,31 @@ def apply_tanev_uid(conn, diak_nev, tanev_uid, today_value=None, now=None,
         return result
 
     if elozo_uid == tanev_uid:
+        # A KRÉTA szerint ez az UID a mérvadó. Ha a naptári seed (vagy egy korábbi
+        # állapot) más tanévet nyitott, igazodjunk a KRÉTA-hoz — a UID az igazság.
+        stored_tanev = (row[1] or "") if row else ""
+        nyitott = nyitott_tanev(conn)
+        if stored_tanev and nyitott and stored_tanev != nyitott and stored_tanev < nyitott:
+            conn.execute(
+                "UPDATE tanevek SET allapot = 'lezart', lezarva_at = ?,"
+                " forras = 'kreta_uid', updated_at = ? WHERE tanev = ?",
+                (stamp, stamp, nyitott))
+            conn.execute(
+                "INSERT INTO tanevek (tanev, kezdet, veg, allapot, lezarva_at, forras, updated_at)"
+                " VALUES (?, ?, ?, 'nyitott', NULL, 'kreta_uid', ?)"
+                " ON CONFLICT(tanev) DO UPDATE SET allapot = 'nyitott', lezarva_at = NULL,"
+                " forras = 'kreta_uid', updated_at = excluded.updated_at",
+                (stored_tanev, *_year_bounds_iso(stored_tanev), stamp))
+            result["lezart_tanev"] = nyitott
+            result["uj_tanev"] = stored_tanev
+            result["megjegyzes"] = "a KRÉTA UID szerint a korábbi tanév az aktív"
+            if log_fn:
+                log_fn(f"  [Tanév-állapot] {diak_nev}: a KRÉTA UID szerint még a(z) "
+                       f"{stored_tanev} tanév az aktív — LEZÁRVA: {nyitott}, "
+                       f"MEGNYITVA: {stored_tanev}")
         conn.execute(
             "UPDATE tanulo_tanev_uid SET tanev = ?, last_seen = ? WHERE diak_nev = ?",
-            (current, stamp, diak_nev))
+            (stored_tanev or current, stamp, diak_nev))
         conn.commit()
         return result
 
