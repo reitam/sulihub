@@ -160,5 +160,31 @@ ok("sajat_orarend" not in kreta.SCRAPER_TABLES
    and "sajat_orarend_kivetel" not in kreta.SCRAPER_TABLES,
    f"a SCRAPER_TABLES nem tartalmazza őket ({kreta.SCRAPER_TABLES})")
 
+print("\n11) órarend-színek (Kaneo #56)")
+conn = sqlite3.connect(db)
+conn.execute(
+    "INSERT INTO orarend (diak_nev, kezdo_idopont, zaro_idopont, nap, tantargy, tanar, terem)"
+    " VALUES (?,?,?,?,?,?,?)",
+    ("Teszt Elek", "2026-11-04T08:00:00", "2026-11-04T08:45:00", "Szerda",
+     "Fizika", "Tanár", "101"),
+)
+conn.commit()
+conn.close()
+code, events = calendar("Teszt Elek", "2026-11-01", "2026-11-30")
+fizika = next((e for e in events if e["extendedProps"].get("tantargy") == "Fizika"), None)
+ok(fizika and fizika["backgroundColor"] == "#0d6efd",
+   f"alapból a paletta első színe ({fizika and fizika['backgroundColor']})")
+
+res = client.put("/api/orarend_szinek", json={"szinek": {"Teszt Elek": "#ff0000"}})
+ok(res.status_code == 200, "a szín mentése 200")
+code, events = calendar("Teszt Elek", "2026-11-01", "2026-11-30")
+fizika = next((e for e in events if e["extendedProps"].get("tantargy") == "Fizika"), None)
+ok(fizika and fizika["backgroundColor"] == "#ff0000",
+   f"a mentett szín érvényesül ({fizika and fizika['backgroundColor']})")
+info = client.get("/api/orarend_szinek").get_json()
+ok(info["szinek"].get("Teszt Elek") == "#ff0000", "a GET visszaadja a mentett színt")
+bad = client.put("/api/orarend_szinek", json={"szinek": {"Teszt Elek": "piros"}})
+ok(bad.status_code == 400, f"érvénytelen szín → 400 ({bad.status_code})")
+
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

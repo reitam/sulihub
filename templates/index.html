@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KRÉTA Adatbázis Áttekintő</title>
+    <title>SuliHub – KRÉTA Adatbázis Áttekintő</title>
     
     <!-- FAVICON -->
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='sulihub.svg') }}">
 
     <!-- Bootstrap 5 CSS (vendorolva, internet nélkül is működik) -->
     <link href="{{ url_for('static', filename='vendor/bootstrap/5.3.0/bootstrap.min.css') }}" rel="stylesheet">
@@ -24,6 +25,14 @@
     <style>
         body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 0.9rem; }
         .card-stat { border-radius: 8px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+        /* Fejléc: egysoros, kompakt navbar (Kaneo #62/#63) */
+        .app-header { min-height: 60px; }
+        .app-logo { width: 32px; height: 32px; border-radius: 8px; }
+        .app-title { font-size: 1.25rem; line-height: 1; }
+        .app-scheduler { flex: 1 1 320px; max-width: 520px; }
+        .app-controls { flex: 0 0 auto; }
+        #schedulerCompact { padding: .3rem .6rem; font-size: .82rem; max-width: 100%; }
 
         /* Monogramos avatar (diák oszlop) */
         .avatar {
@@ -233,20 +242,23 @@
             body { font-size: 15px; }
             .container-fluid { padding-left: .5rem !important; padding-right: .5rem !important; }
 
-            /* Fejléc */
+            /* Fejléc: mobilon a brand külön sor, alatta teljes széles státusz, majd controls */
             .app-header { padding: .75rem !important; }
             .app-header .app-title { font-size: 1.05rem; line-height: 1.2; }
-            .app-header .app-subtitle { font-size: .78rem; }
-            /* Ütemező mobilon: egyetlen karcsú státuszsáv, a részletek koppintásra.
-               Az asztali részletes sor ilyenkor rejtve van (d-md-flex). */
+            .app-logo { width: 26px; height: 26px; border-radius: 7px; }
+            .app-brand { flex: 1 1 100%; }
+            .app-scheduler { flex: 1 1 100%; max-width: none; order: 3; }
+            .app-controls { width: 100%; order: 4; }
             #schedulerCompact {
+                width: 100%;
                 padding: .3rem .55rem !important;
                 font-size: .8rem;
                 line-height: 1.2;
                 min-height: 0;
             }
             #schedulerCompact #schedulerCompactText { font-size: .8rem; }
-            #btnSync { width: 100%; padding: .65rem; font-size: .95rem; }
+            .app-controls .app-tanev { flex: 1 1 auto; width: auto !important; max-width: none; }
+            #btnSync { width: auto; flex: 0 0 auto; padding: .65rem .8rem; font-size: .95rem; }
 
             /* Dátum-tartomány: mobilegymás alatt egymás alatt, címkék nélkül */
             .date-range-group { flex-wrap: wrap; }
@@ -367,27 +379,27 @@
 <div class="container-fluid py-3 px-4">
 
 
-    <!-- FEJLÉC ÉS SZINKRONIZÁLÓ GOMB -->
-    <div class="row g-2 align-items-center mb-3 bg-white p-3 rounded shadow-sm app-header">
-        <div class="col-12 col-lg-4">
-            <h4 class="m-0 text-primary fw-bold app-title"><i class="fa-solid fa-graduation-cap me-2"></i>KRÉTA Adatbázis Áttekintő</h4>
-            <small class="text-muted app-subtitle">Központi SQLite Adatlekérő, Szűrő és Üzenetolvasó</small>
-            <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle ms-2 align-middle fw-normal"
+    <!-- FEJLÉC ÉS SZINKRONIZÁLÓ GOMB (Kaneo #62/#63: egysoros, kompakt navbar) -->
+    <div class="bg-white px-3 py-2 rounded shadow-sm app-header d-flex flex-wrap align-items-center gap-2 mb-3">
+        <div class="app-brand d-flex align-items-center gap-2 me-auto">
+            <img src="{{ url_for('static', filename='sulihub.svg') }}" alt="SuliHub" width="32" height="32" class="app-logo">
+            <span class="app-title fw-bold text-primary">SuliHub</span>
+            <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal"
                   title="Telepített verzió">{{ app_version }}</span>
         </div>
 
-        <div id="schedulerInfo" class="col-12 col-lg-5 d-none">
-            <!-- Mobil: egyetlen karcsú, dinamikus státuszsáv; a részletek koppintásra -->
+        <div id="schedulerInfo" class="app-scheduler d-none">
+            <!-- Egysoros, dinamikus státuszsáv; a technikai részletek koppintásra -->
             <button type="button" id="schedulerCompact"
-                    class="btn btn-light border w-100 d-flex d-md-none align-items-center gap-2 text-start"
+                    class="btn btn-light border d-flex align-items-center gap-2 text-start"
                     data-bs-toggle="modal" data-bs-target="#schedulerDetailModal"
                     aria-label="Szinkronizálás részletei">
                 <span id="schedulerCompactIcon" class="d-inline-flex"></span>
                 <span id="schedulerCompactText" class="flex-grow-1 text-truncate">Szinkron állapota</span>
                 <i class="fa-solid fa-circle-info text-secondary" aria-hidden="true"></i>
             </button>
-            <!-- Asztali: részletes sor -->
-            <div id="schedulerDetails" class="d-none d-md-flex flex-wrap align-items-center justify-content-center gap-3 bg-light border rounded px-3 py-2 small">
+            <!-- Rejtett részletes sor: a modál tartalmát és a JS-t szolgálja -->
+            <div id="schedulerDetails" class="d-none">
                 <span id="schedulerState" class="badge bg-secondary"><i class="fa-solid fa-clock me-1"></i>Ütemező: KI</span>
                 <span class="text-secondary sched-sep">|</span>
                 <span id="schedulerWindowText" class="text-nowrap"></span>
@@ -399,23 +411,19 @@
             </div>
         </div>
 
-        <div class="col-12 col-lg-3">
-            <div class="d-flex flex-wrap align-items-center justify-content-lg-end gap-2">
-                <div class="d-flex align-items-center gap-1">
-                    <label for="tanevValaszto" class="small fw-bold text-secondary mb-0">
-                        <i class="fa-solid fa-calendar-days me-1"></i>Tanév:
-                    </label>
-                    <select id="tanevValaszto" class="form-select form-select-sm" style="max-width: 200px;"
-                            title="A tanév az eseményeket, a hiányzásokat, az átlagokat és a zsebpénzt szűri. Az üzenetek és az órarend tanév-független.">
-                        <option value="">Összes tanév</option>
-                    </select>
-                    <span id="tanevAllapotBadge" class="badge bg-success-subtle text-success-emphasis border border-success-subtle d-none"
-                          title="A tanév állapota: a KRÉTA TanevUid változásakor automatikusan záródik/nyílik."></span>
-                </div>
-                <button id="btnSync" class="btn btn-success">
-                    <i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból
-                </button>
-            </div>
+        <div class="app-controls d-flex align-items-center gap-2">
+            <label for="tanevValaszto" class="small fw-bold text-secondary mb-0 d-none d-lg-block">
+                <i class="fa-solid fa-calendar-days me-1"></i>Tanév:
+            </label>
+            <select id="tanevValaszto" class="form-select form-select-sm app-tanev" style="width: 190px;"
+                    title="A tanév az eseményeket, a hiányzásokat, az átlagokat és a zsebpénzt szűri. Az üzenetek és az órarend tanév-független.">
+                <option value="">Összes tanév</option>
+            </select>
+            <span id="tanevAllapotBadge" class="badge bg-success-subtle text-success-emphasis border border-success-subtle d-none"
+                  title="A tanév állapota: a KRÉTA TanevUid változásakor automatikusan záródik/nyílik."></span>
+            <button id="btnSync" class="btn btn-success btn-sm text-nowrap">
+                <i class="fa-solid fa-rotate me-1"></i>Frissítés
+            </button>
         </div>
     </div>
 
@@ -837,6 +845,9 @@
                         <button id="btnSajatOra" class="btn btn-sm btn-outline-primary fw-bold">
                             <i class="fa-solid fa-plus me-1"></i>Saját óra
                         </button>
+                        <button id="btnOrarendSzinek" class="btn btn-sm btn-outline-secondary fw-bold">
+                            <i class="fa-solid fa-palette me-1"></i>Színek
+                        </button>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <span class="badge bg-primary">Tanóra</span>
@@ -1096,6 +1107,32 @@
 
         <!-- 6. FÜL: RENDSZERNAPLÓ TARTALOM -->
         <div class="tab-pane fade" id="logs-pane" role="tabpanel">
+            <div class="card card-stat bg-white p-3 shadow-sm mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <div>
+                        <h6 class="m-0 fw-bold text-secondary"><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>Legutóbbi szinkronizációk</h6>
+                        <small class="text-muted">Az utolsó 20 futás a futásnaplóból (Kaneo #10)</small>
+                    </div>
+                    <span id="syncRunsSummary" class="small text-muted"></span>
+                </div>
+                <div id="syncRunsSparkline" class="d-flex align-items-end gap-1 mb-2" style="height: 38px;"
+                     title="Futásidő-trend (balról a legrégebbi, jobbról a legutóbbi)"></div>
+                <div class="table-container overflow-auto">
+                    <table id="syncRunsTable" class="table table-sm table-hover align-middle w-100 mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 150px;">Indult</th>
+                                <th style="width: 100px;">Futásidő</th>
+                                <th style="width: 120px;">Státusz</th>
+                                <th style="width: 100px;">Új esemény</th>
+                                <th>Hibás diák</th>
+                                <th style="width: 100px;">Tanév</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
             <div class="card card-stat bg-white p-3 shadow-sm">
                 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2 log-toolbar">
                     <div>
@@ -1296,6 +1333,29 @@
   </div>
 </div>
 
+<!-- MODAL: ÓRAREND SZÍNEK (Kaneo #56) -->
+<div class="modal fade" id="szinekModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header bg-secondary text-white p-2 px-3">
+        <h6 class="modal-title m-0"><i class="fa-solid fa-palette me-2"></i>Órarend színei</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted">Gyermekenként válaszd ki az órarendi bejegyzések színét. A beállítás mentés után azonnal érvényes.</p>
+        <div id="szinekLista" class="d-grid gap-2"></div>
+        <div id="szinekHiba" class="alert alert-danger py-2 px-3 mb-0 mt-2 small d-none"></div>
+      </div>
+      <div class="modal-footer p-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Mégse</button>
+        <button type="button" class="btn btn-sm btn-primary" id="btnSzinekMent">
+          <i class="fa-solid fa-check me-1"></i>Mentés
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL SAJÁT MEGJEGYZÉSEKHEZ (Kaneo #46) -->
 <div class="modal fade" id="kommentModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
@@ -1425,7 +1485,7 @@ function schedulerCompactState(sched) {
                 cls: 'text-warning-emphasis fw-semibold'};
     }
     return {icon: '<i class="fa-solid fa-circle-check text-success"></i>',
-            text: `Szinkronizálva: ${when}`,
+            text: `Frissítve: ${when} (${sched.last_trigger === 'scheduled' ? 'auto' : 'kézi'})`,
             cls: 'text-success-emphasis fw-semibold'};
 }
 
@@ -2118,6 +2178,60 @@ $(document).ready(function() {
         });
     }
 
+    // ── Legutóbbi futások (Kaneo #10) ─────────────────────────────────────
+    function syncRunStatus(status) {
+        if (status === 'done') return {text: 'sikeres', cls: 'bg-success'};
+        if (status === 'done_with_errors') return {text: 'részleges hiba', cls: 'bg-warning text-dark'};
+        if (status === 'error') return {text: 'hiba', cls: 'bg-danger'};
+        if (status === 'running') return {text: 'fut...', cls: 'bg-primary'};
+        if (status === 'stopped') return {text: 'leállítva', cls: 'bg-secondary'};
+        if (status === 'interrupted') return {text: 'megszakadt', cls: 'bg-warning text-dark'};
+        return {text: status || '-', cls: 'bg-secondary'};
+    }
+    function syncRunDuration(sec) {
+        let n = Math.round(Number(sec) || 0);
+        if (n <= 0) return '-';
+        if (n < 60) return n + ' s';
+        return Math.floor(n / 60) + 'p ' + String(n % 60).padStart(2, '0') + 's';
+    }
+    function loadSyncRuns() {
+        $.getJSON('/api/sync_runs?limit=20', function(rows) {
+            let tbody = $('#syncRunsTable tbody').empty();
+            let spark = $('#syncRunsSparkline').empty();
+            if (!rows || !rows.length) {
+                tbody.append('<tr><td colspan="6" class="text-muted small">Még nincs rögzített futás.</td></tr>');
+                $('#syncRunsSummary').text('');
+                return;
+            }
+            let maxDur = Math.max.apply(null, rows.map(r => Number(r.duration_sec) || 0).concat([1]));
+            // A sparkline balról jobbra: legrégebbi → legutóbbi
+            rows.slice().reverse().forEach(function(r) {
+                let st = syncRunStatus(r.status);
+                let h = Math.max(6, Math.round(((Number(r.duration_sec) || 0) / maxDur) * 100));
+                let bar = $('<div></div>')
+                    .css({width: '8px', height: h + '%', borderRadius: '2px'})
+                    .addClass(st.cls)
+                    .attr('title', `${r.started_at || '-'} · ${syncRunDuration(r.duration_sec)} · ${st.text}`);
+                spark.append(bar);
+            });
+            let failedRuns = 0;
+            rows.forEach(function(r) {
+                let st = syncRunStatus(r.status);
+                let failed = (r.failed_students || []).join(', ');
+                if (r.status === 'done_with_errors' || r.status === 'error' || r.status === 'interrupted') failedRuns++;
+                tbody.append(`<tr>
+                    <td class="small text-nowrap">${formatSchedTime(r.started_at) || r.started_at || '-'}</td>
+                    <td class="small text-nowrap">${syncRunDuration(r.duration_sec)}</td>
+                    <td><span class="badge ${st.cls}">${st.text}</span></td>
+                    <td class="small">${r.new_event_count || 0}</td>
+                    <td class="small">${failed || '-'}</td>
+                    <td class="small">${r.tanev || '-'}</td>
+                </tr>`);
+            });
+            $('#syncRunsSummary').text(`${rows.length} futás · ${failedRuns} hibás/részleges`);
+        });
+    }
+
     $(document).on('click', '.btn-modal-toggle-kesz', function(e) {
         e.stopPropagation();
         let esemenyId = $(this).data('id');
@@ -2285,6 +2399,48 @@ $(document).ready(function() {
             if (orarendCalendar) orarendCalendar.refetchEvents();
         }).fail(function(xhr) {
             alert((xhr.responseJSON && xhr.responseJSON.message) || 'A törlés nem sikerült.');
+        });
+    });
+
+    // ── Órarend színek (Kaneo #56) ────────────────────────────────────────
+    $('#btnOrarendSzinek').click(function() {
+        $('#szinekHiba').addClass('d-none').text('');
+        $.getJSON('/api/orarend_szinek', function(res) {
+            let box = $('#szinekLista').empty();
+            let diakok = res.diakok || [];
+            let szinek = res.szinek || {};
+            if (!diakok.length) {
+                box.append($('<div class="text-muted small">').text('Nincs megjeleníthető diák.'));
+            }
+            diakok.forEach(function(nev) {
+                let row = $('<div class="d-flex align-items-center justify-content-between gap-2 border rounded px-2 py-1">');
+                row.append($('<span class="small fw-bold">').text(nev));
+                row.append($('<input type="color" class="form-control form-control-color szin-input">')
+                    .attr('data-diak', nev)
+                    .val(szinek[nev] || '#0d6efd'));
+                box.append(row);
+            });
+            new bootstrap.Modal(document.getElementById('szinekModal')).show();
+        });
+    });
+
+    $('#btnSzinekMent').click(function() {
+        let szinek = {};
+        $('#szinekLista .szin-input').each(function() {
+            szinek[$(this).attr('data-diak')] = $(this).val();
+        });
+        $.ajax({
+            url: '/api/orarend_szinek',
+            type: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify({ szinek: szinek })
+        }).done(function() {
+            let modal = bootstrap.Modal.getInstance(document.getElementById('szinekModal'));
+            if (modal) modal.hide();
+            if (orarendCalendar) orarendCalendar.refetchEvents();
+        }).fail(function(xhr) {
+            $('#szinekHiba').removeClass('d-none').text(
+                (xhr.responseJSON && xhr.responseJSON.message) || 'A mentés nem sikerült.');
         });
     });
 
@@ -3426,7 +3582,7 @@ $(document).ready(function() {
                     syncInterval = setInterval(checkSyncStatus, 1500);
                 }
             } else {
-                btn.prop('disabled', false).html('<i class="fa-solid fa-rotate me-2"></i>Adatok frissítése a KRÉTA-ból');
+                btn.prop('disabled', false).html('<i class="fa-solid fa-rotate me-1"></i>Frissítés');
                 spinner.addClass('d-none');
                 btnStop.addClass('d-none');
 
@@ -3494,6 +3650,10 @@ $(document).ready(function() {
             loadDashboardSummary();
         }
 
+        if (e.target.id === 'logs-tab') {
+            loadSyncRuns();
+        }
+
         // A rejtett fülben inicializált táblázatoknál a Responsive nem tud
         // összecsukni — itt újraszámoljuk (mobil nézet).
         setTimeout(function() {
@@ -3530,6 +3690,7 @@ $(document).ready(function() {
 
     $('#btnRefreshLogs').click(function() {
         fetchSyncLogFile();
+        loadSyncRuns();
     });
 
     $('#btnClearLogs').click(function() {

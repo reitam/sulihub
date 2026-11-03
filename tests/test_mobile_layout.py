@@ -204,7 +204,7 @@ try:
             ok(compact and compact["visible"], "mobilon látszik a kompakt szinkron-státuszsáv")
             ok(compact and compact["height"] <= 40,
                f"a státuszsáv egyetlen karcsú sor (magasság: {compact['height']} px)")
-            ok(compact and "Szinkronizálva" in compact["text"],
+            ok(compact and "Frissítve" in compact["text"],
                f"a státuszsáv rövid, emberi szöveget mutat ('{compact['text']}')")
             ok(compact and not compact["detailsVisible"],
                "a technikai részletek (időablak, intervallum) mobilon alapból rejtve vannak")
@@ -225,7 +225,7 @@ try:
                f"futás közben a sáv pörgő ikont és rövid szöveget mutat ('{states['running']}')")
             ok(states["red"] and "Sikertelen" in states["error"],
                f"hiba esetén piros állapot ('{states['error']}')")
-            ok(states["green"] and "Szinkronizálva" in states["done"],
+            ok(states["green"] and "Frissítve" in states["done"],
                f"siker esetén zöld állapot ('{states['done']}')")
 
             # 7b) koppintásra megnyílik a részletek ablak
@@ -257,17 +257,21 @@ try:
             await page.click('#schedulerDetailModal .btn-close')
             await page.wait_for_timeout(400)
 
-            # 7c) asztali nézetben továbbra is a részletes sor látszik
+            # 7c) asztali nézetben is az egysoros státuszsáv látszik (Kaneo #63)
             await page.set_viewport_size({"width": 1200, "height": 873})
             await page.wait_for_timeout(400)
             desk = await page.evaluate("""() => {
                 const d = document.querySelector('#schedulerDetails');
                 const c = document.querySelector('#schedulerCompact');
+                const h = document.querySelector('.app-header');
                 return {detailsVisible: !!d && d.getBoundingClientRect().height > 0,
-                        compactVisible: !!c && c.getBoundingClientRect().height > 0};
+                        compactVisible: !!c && c.getBoundingClientRect().height > 0,
+                        headerHeight: h ? Math.round(h.getBoundingClientRect().height) : 0};
             }""")
-            ok(desk["detailsVisible"] and not desk["compactVisible"],
-               "asztali nézetben a részletes szinkron-sor látszik")
+            ok(desk["compactVisible"] and not desk["detailsVisible"],
+               "asztali nézetben is az egysoros szinkron-státusz látszik")
+            ok(desk["headerHeight"] <= 80,
+               f"a fejléc asztalon kompakt marad ({desk['headerHeight']} px)")
             await page.set_viewport_size({"width": 393, "height": 873})
             await page.wait_for_timeout(300)
 

@@ -86,5 +86,18 @@ print("\n6) #17: nincs hivatkozás a törölt autoSyncAlert blokkra")
 ok("autoSyncAlert" not in tpl and "autoAlert" not in tpl,
    "a frontendben nincs autoSyncAlert / autoAlert hivatkozás")
 
+print("\n7) #62/#63: SuliHub brand és egysoros fejléc")
+ok("SuliHub" in tpl and "sulihub.svg" in tpl, "a felület a SuliHub nevet és logót használja")
+logo = ROOT / "static" / "sulihub.svg"
+ok(logo.is_file() and logo.stat().st_size > 100, "a Sulihub logó létezik")
+ok((ROOT / "static" / "favicon.svg").is_file(), "a favicon megvan")
+ok('class="app-brand' in tpl and 'class="app-controls' in tpl,
+   "a fejléc brand + controls szerkezetű")
+ok('id="schedulerDetails" class="d-none"' in tpl,
+   "a részletes szinkron-sor rejtett (a modál szolgálja ki)")
+compact_tag = tpl[tpl.find('id="schedulerCompact"'):tpl.find('id="schedulerCompact"') + 320]
+ok("d-md-none" not in compact_tag,
+   "a státuszsáv minden nézetben ugyanaz az egysoros elem")
+
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)
