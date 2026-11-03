@@ -32,6 +32,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_tanev_api.py` | Tanév-szűrés az API-n két tanév adatán: `/api/tanevek`, `?tanev=` az események/átlagok/statisztika/dashboard végpontokon; a korábbi tanév kifizetése nem csökkenti az új egyenlegét; `POST /api/kifizetes` a tanévet is beírja (azonnali levonás) |
 | `test_tanev_zaro.py` | Tanévzáró futás backendje (#52): `KRETA_ZARO_TANEV` / `tanev=` a teljes lezárt tanév ablaka, a +90 napos előretekintés is, `sync_runs.tanev_zaro`, `/api/sync/start` validáció (csak lezárt tanév) és a `start_sync` bekötése |
 | `test_tanev_ui.py` | Tanév-UI bugfixek valódi böngészőben: #51 a csempék frissülnek késleltetett esemény-válasz mellett is; #52 „Tanév lezárása" gomb a lezárt tanévvel hívja a `/api/sync/start`-ot; #53 a dátum-/hónapválasztók a tanév határain belül maradnak |
+| `test_kommentek.py` | Saját megjegyzések (#46): a `kommentek` séma/migráció, stabil tartalom-kulcs (az id újraírása után is megmarad), hozzáfűzés eseményhez és üzenethez, validáció, törlés, darabszám a listákban; böngészőben a modál mentés/visszaolvasás |
 | `test_oszlop_szelesseg.py` | Oszlopszélesség valódi böngészőben: az átméretezés/húzás nem rendezi át a táblát, a fogantyúk megvannak a hiányzások/igazolások táblán is |
 | `test_mobile_layout.py` | Mobil elrendezés valódi böngészőben (393 px): nincs vízszintes túlcsordulás egyik fülön sem, avatar, összecsukott táblázat, hiányzások fül |
 

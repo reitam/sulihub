@@ -66,6 +66,8 @@ a saját szerveren maradnak.
 - A jegyeknél a **súlyszázalék** is látszik (pl. `5 (Írásbeli) 100%`), a mobil API
   `SulySzazalekErteke` mezőjéből (Playwright-módban a webes hónap-cella tooltipjének
   `data-suly` attribútumából); tooltip: „Az értékelés 100%-os súllyal számít bele az átlagba."
+- **Saját megjegyzés** fűzhető bármelyik sorhoz (jegy, feljegyzés, házi, számonkérés) és
+  bármelyik üzenethez — a megjegyzés a szinkronok után is megmarad (tartalom-alapú kulcs).
 
 ### 📝 Házi feladat kezelés
 - „Elkészült" jelölés, amely **megmarad** a következő szinkronok után is (zöld kiemelés).
