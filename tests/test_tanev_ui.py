@@ -76,6 +76,8 @@ add_event("Értékelés", "Matematika", "Jeles(5)", 5, "2026. 11. 01.", "", AKTU
 add_event("Házi feladat", "Magyar", "", 0, "2026. 11. 02.", "2026. 11. 05.", AKTUALIS)
 # Előző tanév: 1 jegy (a záró gomb és a dátumkorlát miatt kell).
 add_event("Értékelés", "Fizika", "Közepes(3)", 3, "2026. 03. 10.", "", ELOZO)
+# Még korábbi tanév: a választóval ez is zárható legyen.
+add_event("Értékelés", "Kémia", "Jó(4)", 4, "2025. 03. 10.", "", "2024/2025")
 conn.commit()
 conn.close()
 
@@ -108,16 +110,34 @@ try:
         print("\n1) #52: Tanév lezárása gomb és a záró tanév elküldése")
         ok(page.is_visible("#btnTanevZaras"), "a gomb látszik")
         ok(ELOZO in page.inner_text("#btnTanevZaras"),
-           f"a gomb a lezárt tanévet nevezi meg: {page.inner_text('#btnTanevZaras')}")
+           f"alapból az előző tanévet zársa: {page.inner_text('#btnTanevZaras')}")
         captured = {}
 
         def fake_start(route):
             captured["body"] = route.request.post_data_json
             route.fulfill(status=200, content_type="application/json",
-                          body=json.dumps({"status": "started", "tanev": ELOZO}))
+                          body=json.dumps({"status": "started",
+                                           "tanev": captured["body"].get("tanev")}))
 
         page.route("**/api/sync/start", fake_start)
         page.on("dialog", lambda d: d.accept())
+
+        # A választóval bármelyik korábbi tanév zárható.
+        page.select_option("#tanevValaszto", "2024/2025")
+        page.wait_for_timeout(700)
+        ok("2024/2025" in page.inner_text("#btnTanevZaras"),
+           f"a kiválasztott tanévre vált a gomb: {page.inner_text('#btnTanevZaras')}")
+        page.click("#btnTanevZaras")
+        page.wait_for_timeout(800)
+        ok((captured.get("body") or {}).get("tanev") == "2024/2025",
+           f"a kérés a kiválasztott tanévvel megy: {captured.get('body')}")
+
+        # Az aktuális tanévnél visszaáll az előző tanévre.
+        page.select_option("#tanevValaszto", AKTUALIS)
+        page.wait_for_timeout(700)
+        ok(ELOZO in page.inner_text("#btnTanevZaras"),
+           f"az aktuális tanévnél az előző a zárható: {page.inner_text('#btnTanevZaras')}")
+        captured.clear()
         page.click("#btnTanevZaras")
         page.wait_for_timeout(800)
         ok((captured.get("body") or {}).get("tanev") == ELOZO,

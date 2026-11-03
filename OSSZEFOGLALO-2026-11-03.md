@@ -113,7 +113,7 @@ A #41, #42, #43, #45, #50 a #40 **subtaskja** (task-relation), nem külön backl
 
 ## 8. Tesztek
 
-- **823 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
+- **826 automatikus ellenőrzés / 28 csomag — mind zöld** (`python tests/run_all.py`).
 - Új csomagok:
   - `test_tanev.py` — számítás, határok, `teljesen_lekert`,
   - `test_tanev_migration.py` — séma + backfill régi DB-n, ID-stabilitás, idempotencia,
@@ -160,18 +160,19 @@ A felhasználó helyi tesztelése három hibajegyet vett fel („Bug" címke); m
   `updateDashboard()`; a szinkron után a tanév-lista is frissül, megtartva a
   kiválasztást. Teszt: `test_tanev_ui` 2. szakasz (késleltetett esemény-válasz).
 - **#52 – hiányzó „év lezárás" gomb.** Megvalósult a **kézi tanévzáró**: a fejlécben
-  a lezárt (előző) tanévhez megjelenő gomb a teljes tanév (szept. 1. – aug. 31.)
-  újralekérését indítja (`POST /api/sync/start {"tanev": ...}`), hogy a pótvizsga és
-  az augusztusi jegyek bekerüljenek. Backend: `KRETA_ZARO_TANEV`,
-  `tanev_api_window(tanev=...)`, `sync_runs.tanev_zaro`; csak `api`/`api_first`
-  módban. Teszt: `test_tanev_zaro`.
+  a **kiválasztott lezárt** tanévhez (alapból az előzőhöz) megjelenő gomb a teljes
+  tanév (szept. 1. – aug. 31.) újralekérését indítja
+  (`POST /api/sync/start {"tanev": ...}`), hogy a pótvizsga és az augusztusi jegyek
+  bekerüljenek. A választóval bármelyik korábbi tanév lezárható. Backend:
+  `KRETA_ZARO_TANEV`, `tanev_api_window(tanev=...)`, `sync_runs.tanev_zaro`; csak
+  `api`/`api_first` módban. Teszt: `test_tanev_zaro`.
 - **#53 – tanév vs. dátumválasztó.** A bejegyzés-dátum, a zsebpénz-időszak és a
   hiányzás-hónap választó `min`/`max` korlátot kap a tanév határaira, a tanéven
   kívüli érték törlődik, a gyorsgombok intervalluma a tanévre vágódik. Teszt:
   `test_tanev_ui` 3. szakasz.
 
 Új tesztcsomagok: `test_tanev_zaro` (backend) és `test_tanev_ui` (böngésző) —
-összesen **823 ellenőrzés / 28 csomag**.
+összesen **826 ellenőrzés / 28 csomag**.
 
 ## 12. Saját megjegyzések (Kaneo #46)
 

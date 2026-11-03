@@ -2473,15 +2473,23 @@ $(document).ready(function() {
         return `${y}/${y + 1}`;
     }
 
+    // A zárható tanév: a kiválasztott (lezárt) tanév, különben az előző.
+    // Így a választóval bármelyik korábbi tanév lezárható.
+    function zarhatoTanev() {
+        let t = kivalasztottTanev();
+        if (t && t !== tanevAktualis) return t;
+        return elozoTanev();
+    }
+
     function updateTanevZarasButton() {
-        let elozo = elozoTanev();
+        let cel = zarhatoTanev();
         let $b = $('#btnTanevZaras');
-        if (!elozo) {
+        if (!cel) {
             $b.addClass('d-none');
             return;
         }
         $b.removeClass('d-none').html(
-            `<i class="fa-solid fa-calendar-check me-1"></i>${elozo} zárása`);
+            `<i class="fa-solid fa-calendar-check me-1"></i>${cel} zárása`);
     }
 
     function reloadTanevFuggoNezetek() {
@@ -2582,6 +2590,7 @@ $(document).ready(function() {
 
     $('#tanevValaszto').change(function () {
         applyTanevDateLimits();
+        updateTanevZarasButton();
         reloadTanevFuggoNezetek();
     });
 
@@ -3282,17 +3291,17 @@ $(document).ready(function() {
         startSync('');
     });
 
-    // Tanévzáró: a már lezárt (előző) tanév teljes újralekérése (Kaneo #52).
+    // Tanévzáró: a kiválasztott (vagy az előző) lezárt tanév teljes újralekérése (Kaneo #52).
     $('#btnTanevZaras').click(function() {
-        let elozo = elozoTanev();
-        if (!elozo) return;
-        let uzenet = 'Tanévzáró futás: a(z) ' + elozo + ' tanév teljes újralekérése.\n\n' +
+        let cel = zarhatoTanev();
+        if (!cel) return;
+        let uzenet = 'Tanévzáró futás: a(z) ' + cel + ' tanév teljes újralekérése.\n\n' +
             'A pótvizsga és az augusztusi jegyek miatt a teljes tanév (szept. 1. – aug. 31.) ' +
             'újra letöltődik, ezért ez több percig is tarthat. ' +
             'Csak ennek a tanévnek az adatai frissülnek, a többi érintetlen marad.\n\n' +
             'Indulhat?';
         if (!confirm(uzenet)) return;
-        startSync(elozo);
+        startSync(cel);
     });
 
     $('#btnStopSync').click(function(e) {
