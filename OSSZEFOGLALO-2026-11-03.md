@@ -4,8 +4,8 @@
 köré szervezett hibajavítások, tesztek és dokumentáció.
 
 **Ág:** `main` (a `feature/tanev-kezeles` fast-forward merge-dzsel beolvadt, `origin/main`
-pusholva). **Éles verzió: `v1.7.1`**; a mobil fejlécjavítás + kompakt státuszsáv
-`v1.7.2`-ként élesítésre vár.
+pusholva). **Éles verzió: `v1.8.0`** (2026-11-04; a mobil fejlécjavítás + kompakt
+státuszsáv és a CDN-vendorolás + apróságok is élesben).
 
 ---
 
@@ -229,16 +229,17 @@ A felhasználói döntés és a mérés alapján:
 
 ## 15. Helyzetkép (a munkamenet végén)
 
-1. **Éles: `v1.7.1`** — a `.\deploy.ps1 -Release v1.7.1` lefutott, a `/health` válasza
-   `v1.7.1`, a tanév-kezelés és a dashboard-újratervezés élesben van.
+1. **Éles: `v1.8.0`** — a `.\deploy.ps1 -Release v1.8.0` lefutott (2026-11-04), a `/health`
+   válasza `v1.8.0`; a vendorolt Bootstrap CSS, a FontAwesome webfont és a FullCalendar JS
+   200-at ad, a HTML-ben nincs CDN-hivatkozás. A kompakt mobil státuszsáv és a modál-javítás
+   szintén élesben van.
 2. **`main` szintre hozva és pusholva** (a `feature/tanev-kezeles` fast-forward merge-je),
    új **GitHub Actions CI**: fast job minden pushra/PR-ra, browser job `main` pushra,
    éjszakánként és kézi indításra; a main pushon mindkét job zöld.
-3. **`v1.8.0` élesítésre vár:** mobil fejléc (hosszú szöveg tördelése) + **kompakt
+3. **`v1.8.0` tartalma (éles):** mobil fejléc (hosszú szöveg tördelése) + **kompakt
    egysoros szinkron-státusz** mobilon, a technikai részletek koppintásra nyíló ablakban;
    a modál tartalma sem csúszik ki (a hosszú utolsó-futás sor tördel). Emellett **#12**:
    minden CDN-függőség a `static/vendor/` alatt (offline indulás), és **#17**: apróságok
    (`SyntaxWarning`, `config.json.example`, halott `autoSyncAlert`). Új `test_karbantartas`.
-   Élesítés: `.\deploy.ps1 -Release v1.8.0` (interaktív SSH-jelszó).
-4. Deploy után: `/health` = `v1.8.0`, mobil nézet + offline próba, majd a Kaneo #40/#50
-   lezárása (a #12/#17 in-review státuszba kerül).
+4. **Hátra:** a Kaneo #40/#50 lezárása, valamint a #12/#17 in-review → done, ha a
+   felhasználó az éles nézetet rendben találta.
