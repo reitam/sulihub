@@ -126,15 +126,15 @@ try:
 
         print("\n2) #51: a csempék a friss adatból számolnak (versenyhelyzet)")
         page.wait_for_timeout(300)
-        ok(page.inner_text("#tileHataridokSzam").strip() == "1",
-           f"alap heti határidő: {page.inner_text('#tileHataridokSzam')}")
+        ok(page.inner_text("#tileHaziSzam").strip() == "1",
+           f"alap heti határidő: {page.inner_text('#tileHaziSzam')}")
         page.select_option("#tanevValaszto", ELOZO)
         page.wait_for_timeout(1200)
-        ok(page.inner_text("#tileHataridokSzam").strip() == "0",
-           f"a korábbi tanévben nincs heti határidő: {page.inner_text('#tileHataridokSzam')}")
+        ok(page.inner_text("#tileHaziSzam").strip() == "0",
+           f"a korábbi tanévben nincs heti határidő: {page.inner_text('#tileHaziSzam')}")
         page.select_option("#tanevValaszto", AKTUALIS)
         page.wait_for_timeout(1200)
-        ok(page.inner_text("#tileHataridokSzam").strip() == "1",
+        ok(page.inner_text("#tileHaziSzam").strip() == "1",
            "visszaváltás után is friss a csempe")
 
         # Késleltetett esemény-válasz: az üzenet-válasz előbb érkezik.
@@ -148,9 +148,9 @@ try:
         p2.route("**/api/esemenyek*", slow_events)
         p2.goto(base, wait_until="networkidle")
         p2.wait_for_timeout(3000)
-        ok(p2.inner_text("#tileHataridokSzam").strip() == "1",
+        ok(p2.inner_text("#tileHaziSzam").strip() == "1",
            f"késleltetett esemény-válasz után is friss a csempe: "
-           f"{p2.inner_text('#tileHataridokSzam')}")
+           f"{p2.inner_text('#tileHaziSzam')}")
         ok(p2.inner_text("#tileUjJegyekSzam").strip() == "1",
            f"az új jegyek csempe is friss: {p2.inner_text('#tileUjJegyekSzam')}")
         ctx.close()

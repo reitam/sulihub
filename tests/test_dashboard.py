@@ -140,13 +140,21 @@ conn.close()
 # Zsebpénz: 5-ös +500, 4-es +200, 3-as 0 -> 700; ebből 500 kifizetve -> 200 marad.
 expected_hatralevo = 700 - 500
 
-# Várt értékek (ugyanaz a szabály, mint a frontenden)
-week_deadlines = sum(
-    1 for t, h in [("Házi feladat", today),
-                   ("Bejelentett számonkérés", monday + timedelta(days=min(6, max(0, (today - monday).days + 1)))),
-                   ("Házi feladat", today + timedelta(days=10)),
-                   ("Házi feladat", today - timedelta(days=10))]
-    if monday <= h <= sunday)
+# Várt értékek (ugyanaz a szabály, mint a frontenden): következő 10 nap.
+deadline_end = today + timedelta(days=10)
+
+
+def _in10(d):
+    return today <= d <= deadline_end
+
+
+hazi_10 = sum(1 for t, h in [("Házi feladat", today),
+                             ("Házi feladat", today + timedelta(days=10)),
+                             ("Házi feladat", today - timedelta(days=10))]
+              if t == "Házi feladat" and _in10(h))
+szam_10 = sum(1 for t, h in [("Bejelentett számonkérés",
+                              monday + timedelta(days=min(6, max(0, (today - monday).days + 1))))]
+              if _in10(h))
 new_grades = 2
 new_messages = 2
 
@@ -185,10 +193,12 @@ try:
            "a szűrőpanel a dashboardon nem látszik")
 
         print("\n2) Csempék számai")
-        hat = page.inner_text("#tileHataridokSzam").strip()
+        hazi = page.inner_text("#tileHaziSzam").strip()
+        szam = page.inner_text("#tileSzamSzam").strip()
         jegy = page.inner_text("#tileUjJegyekSzam").strip()
         uzen = page.inner_text("#tileUjUzenetekSzam").strip()
-        ok(hat == str(week_deadlines), f"heti határidők: {hat} (várt {week_deadlines})")
+        ok(hazi == str(hazi_10), f"következő házi feladatok: {hazi} (várt {hazi_10})")
+        ok(szam == str(szam_10), f"következő számonkérések: {szam} (várt {szam_10})")
         ok(jegy == str(new_grades), f"új jegyek: {jegy} (várt {new_grades})")
         ok(uzen == str(new_messages), f"új üzenetek: {uzen} (várt {new_messages})")
 

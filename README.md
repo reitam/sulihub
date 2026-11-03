@@ -48,13 +48,12 @@ a saját szerveren maradnak.
 - Tantárgy szerinti színkódolás, egész napos események külön sávban.
 
 ### 🧭 Áttekintés (dashboard)
-- Nyitó fül **5 kattintható csempével**: **heti határidők**, **új jegyek** (7 nap),
-  **új üzenetek** (7 nap), **igazolatlan hiányzás** (óra), **kifizetetlen zsebpénz**
-  (teljes egyenleg mínusz a kifizetett időszakok) — a csempére kattintva a megfelelő nézet
-  nyílik; **gyermekenkénti kártyák** (átlag + egyenleg); gyermekváltás egy kattintással.
-  **Kompakt:** a csempék **3+2** elrendezésben (mint korábban), de tömör, egysoros
-  tartalommal (ikon + cím + szám + rövid leírás); a gyermekkártyák egy sorban,
-  egysoros átlag-felirattal.
+- Nyitó fül **6 kattintható csempével** (**következő házi feladatok** és **következő
+  számonkérések** a következő 10 napra, **új jegyek** / **új üzenetek** az elmúlt 7 napban,
+  **igazolatlan hiányzás** órában, **kifizetetlen zsebpénz**) — a csempére kattintva a
+  megfelelő nézet nyílik; **gyermekenkénti kártyák** (átlag + egyenleg); gyermekváltás
+  egy kattintással. **Kompakt, 3×2 elrendezés**, egységes sablon; a 0 érték semleges
+  (szürke/zöld), csak > 0 esetén élénk szín.
 - **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);
   az „Összes tanév" opcióval a teljes előzmény látszik (átlag ilyenkor nincs, mert az
   csak tanéven belül értelmezhető). Az üzenetek és az órarend tanév-független.
