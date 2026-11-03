@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 2 * * *"   # éjszakai böngészős futás (UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    name: Gyors tesztek (böngésző nélkül)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Függőségek
+        run: pip install -r requirements.txt
+      - name: Tesztek (fast)
+        run: python tests/run_all.py --fast
+
+  browser:
+    name: Böngészős tesztek (Playwright)
+    # Csak main pushra, éjszakánként vagy kézi indításra — minden pushra túl drága.
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Függőségek
+        run: pip install -r requirements.txt
+      - name: Playwright cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('requirements.txt') }}
+      - name: Chromium telepítés
+        run: python -m playwright install --with-deps chromium
+      - name: Tesztek (browser)
+        run: python tests/run_all.py --browser
+      - name: Képernyőképek hibánál
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kreta-screenshots
+          path: ${{ runner.temp }}/kreta_*
+          if-no-files-found: ignore
