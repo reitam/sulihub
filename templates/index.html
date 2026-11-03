@@ -340,6 +340,15 @@
             .fc .fc-toolbar-chunk { display: flex; justify-content: center; flex-wrap: wrap; gap: .3rem; }
         }
 
+        /* Szinkronizálás részletei modál: a hosszú „utolsó frissítés / utolsó
+           automatikus” sor tördeljen, ne csússzon ki a kis képernyőn. */
+        #schedulerDetailModal .modal-body { overflow-wrap: anywhere; }
+        #schedulerDetailModal #schedModalLast .text-nowrap {
+            display: block;
+            white-space: normal !important;
+        }
+        #schedulerDetailModal #schedModalLast .sched-last-sep { display: none; }
+
         /* Hiányzások / igazolások: a hosszú szövegek több sorban, ne legyenek levágva */
         @media (min-width: 768px) {
             #hianyzasokTable tbody tr, #igazolasokTable tbody tr { height: auto !important; }
@@ -3129,7 +3138,7 @@ $(document).ready(function() {
                 parts.push(`<span class="text-nowrap">Utolsó automatikus: <b>${aw}</b>${ast ? ' &middot; ' + ast : ''}</span>`);
             }
 
-            lastHtml = parts.join('<span class="text-secondary mx-1">|</span>');
+            lastHtml = parts.join('<span class="text-secondary mx-1 sched-last-sep">|</span>');
         }
         $('#schedulerLastText').html(lastHtml);
 
