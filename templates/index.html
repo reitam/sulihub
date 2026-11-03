@@ -77,7 +77,7 @@
         .balance-card-negative { background: linear-gradient(135deg, #dc3545, #b02a37); color: white; }
 
         /* Áttekintés (dashboard) csempék */
-        .dash-tile { cursor: pointer; transition: transform .08s ease, box-shadow .08s ease; }
+        .dash-tile { cursor: pointer; transition: transform .08s ease, box-shadow .08s ease; border: 1px solid #dee2e6; }
         .dash-tile .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
         .dash-tile .kpi-caption { font-size: .72rem; line-height: 1.15; }
         .dash-tile:hover, .dash-tile:focus {
@@ -86,6 +86,12 @@
             outline: none;
         }
         .chip-diak.active { background-color: #0d6efd; border-color: #0d6efd; color: #fff; }
+
+        /* Dashboard: széles kijelzőn középre igazított, tömörebb tartalom
+           (a két szélen szimmetrikus üres sáv marad). */
+        @media (min-width: 1400px) {
+            #attekintes-pane { max-width: 1200px; margin-left: auto; margin-right: auto; }
+        }
 
         /* Fülek: semleges ikonok, csak az aktív fül kap kiemelést (Kaneo #? / UX) */
         #mainTab .nav-link { color: #6c757d; }
@@ -497,7 +503,7 @@
     </div>
 
     <!-- TABS (FÜLEK) -->
-    <ul class="nav nav-tabs mb-3" id="mainTab" role="tablist">
+    <ul class="nav nav-tabs mb-2" id="mainTab" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="attekintes-tab" data-bs-toggle="tab" data-bs-target="#attekintes-pane" type="button" role="tab">
                 <i class="fa-solid fa-gauge-high me-2"></i>Áttekintés
@@ -583,14 +589,14 @@
                     </div>
                 </div>
                 <div class="col">
-                    <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileUjJegyek" title="Ugrás az elmúlt 7 nap jegyeire">
+                    <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileUjJegyek" title="Ugrás az elmúlt 10 nap jegyeire">
                         <div class="d-flex align-items-center gap-2">
                             <i class="fa-solid fa-graduation-cap text-success"></i>
                             <span class="text-muted small fw-bold text-truncate">Új jegyek</span>
                         </div>
                         <div class="d-flex align-items-baseline gap-2 mt-1">
                             <span class="kpi-value text-secondary" id="tileUjJegyekSzam">0</span>
-                            <span class="kpi-caption text-truncate">az elmúlt 7 napban</span>
+                            <span class="kpi-caption text-truncate">az elmúlt 10 napban</span>
                         </div>
                     </div>
                 </div>
@@ -602,7 +608,7 @@
                         </div>
                         <div class="d-flex align-items-baseline gap-2 mt-1">
                             <span class="kpi-value text-secondary" id="tileUjUzenetekSzam">0</span>
-                            <span class="kpi-caption text-truncate">az elmúlt 7 napban</span>
+                            <span class="kpi-caption text-truncate">az elmúlt 10 napban</span>
                         </div>
                     </div>
                 </div>
@@ -626,13 +632,12 @@
                         </div>
                         <div class="d-flex align-items-baseline gap-2 mt-1">
                             <span class="kpi-value text-secondary" id="tileZsebpenzSzam">0 Ft</span>
-                            <span class="kpi-caption text-truncate" id="tileZsebpenzInfo">teljes egyenleg mínusz a kifizetett időszakok</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="d-flex align-items-baseline flex-wrap gap-2 mt-3 mb-2">
+            <div class="d-flex align-items-baseline flex-wrap gap-2 mt-2 mb-2">
                 <h6 class="fw-bold text-secondary mb-0">
                     <i class="fa-solid fa-chart-line me-2"></i>Tanulmányi átlag
                 </h6>
@@ -2707,21 +2712,22 @@ $(document).ready(function() {
         setKpiSzam('#tileHaziSzam', hazi, 'text-primary');
         setKpiSzam('#tileSzamSzam', szamonkeres, 'text-warning');
 
-        let from7 = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
-        let f7Num = dateToNumObj(from7);
+        // Egységes ablak: jegyek és üzenetek is az elmúlt 10 napban.
+        let from10 = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 10);
+        let f10Num = dateToNumObj(from10);
 
         let ujJegy = 0;
         rawData.forEach(function (item) {
             if (item.esemeny_tipus !== 'Értékelés') return;
             let d = dateToNum(item.bej_datum);
-            if (d && d >= f7Num) ujJegy++;
+            if (d && d >= f10Num) ujJegy++;
         });
         setKpiSzam('#tileUjJegyekSzam', ujJegy, 'text-success');
 
         let ujUzenet = 0;
         rawUzenetek.forEach(function (msg) {
             let d = dateToNum(msg.idopont);
-            if (d && d >= f7Num) ujUzenet++;
+            if (d && d >= f10Num) ujUzenet++;
         });
         setKpiSzam('#tileUjUzenetekSzam', ujUzenet, 'text-info');
     }
@@ -2781,18 +2787,11 @@ $(document).ready(function() {
 
             if ($('#rewards-tab').length === 0) {
                 setKpiSzam('#tileZsebpenzSzam', '-', 'text-secondary', 'text-secondary', 0);
-                $('#tileZsebpenzInfo').text('a zsebpénz modul ki van kapcsolva');
             } else {
                 let hatralevo = Number(res.osszes_hatralevo) || 0;
                 setKpiSzam('#tileZsebpenzSzam', fmtFtShort(hatralevo),
                            hatralevo > 0 ? 'text-warning' : 'text-danger',
                            'text-success', hatralevo);
-                let db = (res.diakok || []).filter(function (d) {
-                    return d.rewards_enabled && d.hatralevo;
-                }).length;
-                $('#tileZsebpenzInfo').text(db
-                    ? db + ' gyermeknél van elszámolatlan tétel (teljes időszak)'
-                    : 'minden kifizetett időszak el van számolva');
             }
             renderDiakCards(res.diakok || []);
         });
@@ -3233,7 +3232,7 @@ $(document).ready(function() {
 
     $('#tileUjJegyek').on('click keydown', function(e) {
         if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
-        let r = lastNDaysRange(7);
+        let r = lastNDaysRange(10);
         let diak = $('.chip-diak.active').first().data('diak') || '';
         goToEvents({ diak: diak, tipus: 'Értékelés', status: '', kezdo: r.kezdo, zaro: r.zaro,
                      hatKezdo: '', hatZaro: '' });

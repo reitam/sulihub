@@ -49,11 +49,12 @@ a saját szerveren maradnak.
 
 ### 🧭 Áttekintés (dashboard)
 - Nyitó fül **6 kattintható csempével** (**következő házi feladatok** és **következő
-  számonkérések** a következő 10 napra, **új jegyek** / **új üzenetek** az elmúlt 7 napban,
+  számonkérések** a következő 10 napra, **új jegyek** / **új üzenetek** az elmúlt 10 napban,
   **igazolatlan hiányzás** órában, **kifizetetlen zsebpénz**) — a csempére kattintva a
   megfelelő nézet nyílik; **gyermekenkénti kártyák** (átlag + egyenleg); gyermekváltás
-  egy kattintással. **Kompakt, 3×2 elrendezés**, egységes sablon; a 0 érték semleges
-  (szürke/zöld), csak > 0 esetén élénk szín.
+  egy kattintással. **Kompakt, 3×2 elrendezés**, egységes sablon, **látható kerettel**;
+  széles kijelzőn a dashboard **középre igazított (max. 1200 px)**. A 0 érték semleges
+  (szürke/zöld), csak > 0 esetén élénk szín; a zsebpénz-csempén nincs kiegészítő felirat.
   A gyermekkártyákon **monogramos avatar**, név, diszkrét jegyszám-badge és nagy átlag;
   a tanév/súlyozás magyarázata a **szakasz fejlécében** van, kikapcsolt zsebpénznél
   diszkrét ikon. A **gyermekszűrő chipek** és az **„Események listája”** gomb a **fül-sáv
