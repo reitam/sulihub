@@ -510,6 +510,17 @@ derül ki.
 **A deploy NEM másolja** a `config.json`-t, az adatbázist és a `sync.log`-ot (ezek a data
 köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data kötetre másolni.
 
+**Csak a futásidejű fájlok mennek fel.** A munkakönyvtárba (`/opt/sulihub`) a
+következők kerülnek: `app.py`, `kreta_*.py`, `requirements.txt`, `Dockerfile`,
+`docker-compose.yml`, `.dockerignore`, `entrypoint.sh`, `templates/`, `static/`
+(a csatolmányok nélkül) és `backup/kreta_backup.sh` (a `-InstallBackup` kapcsolóhoz).
+**Soha nem kerül fel:** `config.json`, `*.db`, `api_tokens.json`, `.env`, `sync.log`,
+`browser_user_data/`, `static/csatolmanyok/`, `tests/`, `.opencode/`, `poc/`,
+`tools/`, `OSSZEFOGLALO-*.md`, `README.md`, `DOKUMENTACIO.md`, `rendszerterv.md`,
+`deploy.ps1`, `KretaApp_Start.bat`. A `.dockerignore` ugyanezt kizárja a képből is.
+A deploy a korábbi futásokból ott maradt fejlesztői fájlokat/mappákat a
+szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
+
 #### 7.3.1. v1.6.0 (API-first) élesítési ellenőrzőlista
 
 1. `.\deploy.ps1 -Release v1.6.0` — a Chromium **benne marad** az image-ben
