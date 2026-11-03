@@ -17,3 +17,21 @@ README.md
 tests/
 DOKUMENTACIO.md
 scheduler_state.json.migrated
+
+# Fejlesztői / agent-eszközök és POC — nem futásidejűek
+.opencode/
+poc/
+tools/
+Tools/
+.venv/
+venv/
+.idea/
+.vscode/
+.pytest_cache/
+node_modules/
+
+# Titkok / munkamenet-tár / összefoglalók
+api_tokens.json
+api_tokens.json.tmp
+OSSZEFOGLALO-*.md
+*.log

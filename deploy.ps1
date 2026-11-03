@@ -272,14 +272,22 @@ $robocopyArgs = @(
     $SourceDir,
     $SambaShare,
     "/MIR",
-    "/XD", ".git", "__pycache__", "browser_user_data", "static\csatolmanyok", ".claude", "tests",
+    # Fejlesztoi / nem futasideju mappak (a szerveren sem kellenek).
+    # FIGYELEM: a "static\csatolmanyok" csak ABSZOLUT uttal zarhato ki jol
+    # (a relativ ut a robocopy /XD-ben nem a forraskonyvtarhoz igazodik).
+    "/XD", ".git", "__pycache__", "browser_user_data", "$SourceDir\static\csatolmanyok", ".claude",
+    "tests", ".opencode", "poc", "tools", "Tools", ".venv", "venv", ".idea", ".vscode",
+    ".pytest_cache", "node_modules",
+    # Titkok / adatok / dokumentacio: SOHA nem kerulnek a szerver munkakonyvtaraba.
     "/XF", ".env", "deploy.ps1", "config.json", "*.db", "sync.log", "KretaApp_Start.bat",
+    "api_tokens.json", "api_tokens.json.tmp",
     # Csak fejlesztoi/dokumentacios fajlok — a futasidohoz nem kellenek, ezert
     # ne keruljenek at a szerver munkakonyvtaraba (a /MIR a kizart fajlokat
     # nem masolja; a korabban odakerult peldanyokat a szerveroldali tisztitas
     # torli).
-    "README.md", "rendszerterv.md", "DOKUMENTACIO.md", "config.json.example", ".env.example",
-    ".gitignore", ".gitattributes", "scheduler_state.json",
+    "README.md", "rendszerterv.md", "DOKUMENTACIO.md", "OSSZEFOGLALO-*.md",
+    "config.json.example", ".env.example",
+    ".gitignore", ".gitattributes", "scheduler_state.json", "*.log",
     "/NP", "/NDL", "/NJH", "/NJS",
     "/R:2", "/W:3", "/MT:4"
 )
@@ -289,13 +297,28 @@ Write-Host "  robocopy $SourceDir -> $SambaShare"
 # A korabbi deployokbol a stagingben maradt, futasidoben felesleges fajlok
 # torlese (a /MIR a kizart neveket nem torli, ezert kulon kell).
 $obsoleteNames = @("README.md", "rendszerterv.md", "config.json.example",
-                   ".env.example", ".gitignore", ".gitattributes", "scheduler_state.json")
+                   ".env.example", ".gitignore", ".gitattributes", "scheduler_state.json",
+                   "api_tokens.json", "api_tokens.json.tmp")
+$obsoleteDirs = @(".opencode", "poc", "tools", "Tools", ".venv", ".pytest_cache")
 if (-not $WhatIf) {
     foreach ($name in $obsoleteNames) {
         $stale = Join-Path $SambaShare $name
         if (Test-Path $stale) {
             Remove-Item $stale -Force
             Write-Host "  Torolve (staging): $name" -ForegroundColor DarkGray
+        }
+    }
+    # OSSZEFOGLALO-*.md (munkamenet-osszefoglalok) sem kellenek a szerverre.
+    Get-ChildItem -Path $SambaShare -Filter "OSSZEFOGLALO-*.md" -File -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            Remove-Item $_.FullName -Force
+            Write-Host "  Torolve (staging): $($_.Name)" -ForegroundColor DarkGray
+        }
+    foreach ($dirName in $obsoleteDirs) {
+        $staleDir = Join-Path $SambaShare $dirName
+        if (Test-Path $staleDir) {
+            Remove-Item $staleDir -Recurse -Force
+            Write-Host "  Torolve (staging): $dirName\" -ForegroundColor DarkGray
         }
     }
     # A csatolmányok Dockerben a data koteten vannak (/app/data/csatolmanyok),
@@ -402,8 +425,8 @@ fi
 
 echo ""
 echo "===[ FELESLEGES FAJLOK TISZTITASA (munkakonyvtar) ]==="
-# A cp -rf nem torol, ezert a korabbi deployok docs/example fajljai itt
-# maradnanak — ezekre futasidoben nincs szukseg.
+# A cp -rf nem torol, ezert a korabbi deployok docs/example/titok fajljai itt
+# maradnanak - ezekre futasidoben nincs szukseg.
 rm -f REMOTE_DIR_PLACEHOLDER/README.md \
       REMOTE_DIR_PLACEHOLDER/DOKUMENTACIO.md \
       REMOTE_DIR_PLACEHOLDER/rendszerterv.md \
@@ -411,7 +434,15 @@ rm -f REMOTE_DIR_PLACEHOLDER/README.md \
       REMOTE_DIR_PLACEHOLDER/.env.example \
       REMOTE_DIR_PLACEHOLDER/.gitignore \
       REMOTE_DIR_PLACEHOLDER/.gitattributes \
-      REMOTE_DIR_PLACEHOLDER/scheduler_state.json
+      REMOTE_DIR_PLACEHOLDER/scheduler_state.json \
+      REMOTE_DIR_PLACEHOLDER/scheduler_state.json.migrated \
+      REMOTE_DIR_PLACEHOLDER/api_tokens.json \
+      REMOTE_DIR_PLACEHOLDER/api_tokens.json.tmp
+rm -f REMOTE_DIR_PLACEHOLDER/OSSZEFOGLALO-*.md
+# Fejlesztoi mappak (az agent/tooling es a POC nem fut a szerveren).
+rm -rf REMOTE_DIR_PLACEHOLDER/.opencode REMOTE_DIR_PLACEHOLDER/poc \
+       REMOTE_DIR_PLACEHOLDER/tools REMOTE_DIR_PLACEHOLDER/Tools \
+       REMOTE_DIR_PLACEHOLDER/.pytest_cache REMOTE_DIR_PLACEHOLDER/__pycache__
 # A csatolmányok az eles kornyezetben a data koteten vannak
 # (/app/data/csatolmanyok), a munkakonyvtar static/csatolmanyok masolata
 # felesleges (a .dockerignore is kizarja a kepbol).
