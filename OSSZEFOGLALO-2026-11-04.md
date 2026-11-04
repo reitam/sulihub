@@ -36,10 +36,11 @@
 
 ## 3. Tesztek
 
-- **997 automatikus ellenőrzés / 33 csomag — mind zöld.**
-  - fast: **845 ellenőrzés / 28 csomag**
+- **1023 automatikus ellenőrzés / 36 csomag — mind zöld.**
+  - fast: **871 ellenőrzés / 31 csomag**
   - browser: **152 ellenőrzés / 5 csomag**
-- Új csomagok: `test_sajat_orarend`, `test_naptar`, `test_sync_runs`.
+- Új csomagok: `test_sajat_orarend`, `test_naptar`, `test_sync_runs`, `test_ai_uzenet`,
+  `test_auth`, `test_db_indexes`, `test_kifizetes_csv`.
 - A `test_mobile_layout` a saját óra mentését, a naptárgombokat és az egysoros
   fejlécet is ellenőrzi; a `test_dashboard` dátuma fixálva (determinisztikus).
 
@@ -60,7 +61,17 @@
   kitöltött Google Naptár esemény nyílik, egy kattintással menthető. A valódi, OAuth-os
   közvetlen írás külön fejlesztés; az `.ics` végpont programozottan megmaradt.
 
-## 5. Nyitott
+## 5. Backlog-kör (2026-11-04)
+
+- **#16 Hitelesítés:** opcionális **basic auth** (`AUTH` config, `PASSWORD_HASH`),
+  `/health` kivétel; kikapcsolva változatlan a működés. Élesben HTTPS/reverse proxy javasolt.
+- **#15 DB-indexek:** `esemenyek`/`uzenetek`/`kifizetesek`/`sync_runs` gyorsító indexei,
+  `app_meta.schema_version`, migráció előtti automatikus `.bak` másolat; idempotens init.
+- **#11 (rész):** zsebpénz-elszámolások **CSV exportja** (UTF-8 BOM, `;` elválasztó,
+  diák-szűrő) a Zsebpénz fülön. A keresés/olvasottság és a melléklet-dedupe nyitva maradt.
+- **Lezárt jegyek:** #61 és #65–#69 (AI), #71 (fejléc), #16, #15; a #11 részlegesen.
+
+## 6. Nyitott
 
 - **#61 Üzenetek AI elemzése:** a jegy maga is tervezést igényel; a tervet
   `AI-ELEMZES-TERV.md` tartalmazza, a részfeladatok a Kaneo #61 alatt vannak.

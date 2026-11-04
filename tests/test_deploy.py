@@ -71,6 +71,7 @@ aliases = {
     "reportlab": "reportlab",
     "waitress": "waitress",
     "requests": "requests",
+    "werkzeug": "flask",   # a Flask része, külön nem kell a requirements-be
 }
 not_declared = [name for name in third_party
                 if aliases.get(name, name).lower() not in requirements]
