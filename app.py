@@ -1731,6 +1731,68 @@ def api_sajat_orarend_kivetel(series_id):
     finally:
         conn.close()
 
+# ── Órarend ICS export (Kaneo #73) ────────────────────────────────────────
+def _orarend_period_bounds(period: str, ref):
+    """Az ICS export időszaka: het / honap / felev / tanev."""
+    period = (period or "het").lower()
+    if period == "het":
+        monday = ref - timedelta(days=ref.weekday())
+        return monday, monday + timedelta(days=6)
+    if period == "honap":
+        first = ref.replace(day=1)
+        if first.month == 12:
+            last = first.replace(year=first.year + 1, month=1, day=1) - timedelta(days=1)
+        else:
+            last = first.replace(month=first.month + 1, day=1) - timedelta(days=1)
+        return first, last
+    if period == "felev":
+        if ref.month >= 9:
+            return ref.replace(month=9, day=1), ref.replace(year=ref.year + 1, month=1, day=31)
+        if ref.month <= 1:
+            return ref.replace(year=ref.year - 1, month=9, day=1), ref.replace(month=1, day=31)
+        return ref.replace(month=2, day=1), ref.replace(month=8, day=31)
+    # tanev (alapértelmezés)
+    tanev = kreta_tanev.current_tanev(ref)
+    start, end = kreta_tanev.tanev_bounds(tanev)
+    if start and end:
+        return start, end
+    return ref, ref + timedelta(days=365)
+
+
+@app.route("/api/orarend/export_ics")
+def api_orarend_export_ics():
+    if not os.path.exists(DB_FILE):
+        return jsonify({"status": "error", "message": "Nincs adatbázis"}), 404
+    diak = request.args.get("diak", "")
+    period = request.args.get("period", "het")
+    try:
+        ref = datetime.strptime(request.args.get("datum", ""), "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        ref = kreta_tanev.today()
+    start, end = _orarend_period_bounds(period, ref)
+
+    conn = get_db_connection()
+    try:
+        query = "SELECT * FROM orarend"
+        params = []
+        if diak:
+            query += " WHERE diak_nev = ?"
+            params.append(diak)
+        query += " ORDER BY kezdo_idopont"
+        rows = conn.execute(query, params).fetchall()
+    finally:
+        conn.close()
+
+    cfg = kreta_naptar.calendar_config(load_config())
+    ics = kreta_naptar.ics_orarend(rows, start, end, cfg, diak_prefix=not diak)
+    response = Response(ics, mimetype="text/calendar; charset=utf-8")
+    suffix = re.sub(r"[^A-Za-z0-9._-]+", "_", diak)[:40] if diak else "osszes"
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename=\"orarend_{suffix}_{period}_{start.isoformat()}.ics\""
+    )
+    return response
+
+
 # ── Órarend-színek (Kaneo #56) ────────────────────────────────────────────
 _HEX_SZIN = re.compile(r"^#[0-9a-fA-F]{6}$")
 

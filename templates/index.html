@@ -728,7 +728,7 @@
                 <div class="col">
                     <div class="card card-stat bg-white p-2 h-100 dash-tile" role="button" tabindex="0" id="tileZsebpenz" title="Ugrás a zsebpénz elszámolásra">
                         <div class="d-flex align-items-center gap-2">
-                            <i class="fa-solid fa-sack-dollar text-warning"></i>
+                            <i class="fa-solid fa-sack-dollar text-warning-emphasis"></i>
                             <span class="kpi-title text-truncate">Kifizetetlen zsebpénz</span>
                         </div>
                         <div class="d-flex align-items-baseline gap-2 mt-1">
@@ -905,6 +905,18 @@
                         <button id="btnOrarendSzinek" class="btn btn-sm btn-outline-secondary fw-bold">
                             <i class="fa-solid fa-palette me-1"></i>Színek
                         </button>
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-outline-success fw-bold dropdown-toggle" type="button"
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fa-solid fa-calendar-plus me-1"></i>ICS export
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><button class="dropdown-item btn-orarend-ics" data-period="het">Aktuális hét</button></li>
+                                <li><button class="dropdown-item btn-orarend-ics" data-period="honap">Aktuális hónap</button></li>
+                                <li><button class="dropdown-item btn-orarend-ics" data-period="felev">Félév</button></li>
+                                <li><button class="dropdown-item btn-orarend-ics" data-period="tanev">Teljes tanév</button></li>
+                            </ul>
+                        </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
                         <span class="badge bg-primary">Tanóra</span>
@@ -2373,6 +2385,19 @@ $(document).ready(function() {
         window.open(url, '_blank');
     });
 	
+    $('.btn-orarend-ics').click(function() {
+        let selectedDiak = $('#orarendFilterDiak').val() || $('#filterDiak').val() || '';
+        let period = $(this).data('period') || 'het';
+        let datum = '';
+        if (orarendCalendar && orarendCalendar.view && orarendCalendar.view.currentStart) {
+            let vs = orarendCalendar.view.currentStart;
+            datum = `${vs.getFullYear()}-${String(vs.getMonth() + 1).padStart(2, '0')}-${String(vs.getDate()).padStart(2, '0')}`;
+        }
+        let url = `/api/orarend/export_ics?diak=${encodeURIComponent(selectedDiak)}`
+                + `&period=${encodeURIComponent(period)}&datum=${encodeURIComponent(datum)}`;
+        window.location.href = url;
+    });
+
 	$('#orarendFilterDiak').change(function() {
         if (orarendCalendar) {
             orarendCalendar.refetchEvents();
@@ -3524,7 +3549,7 @@ $(document).ready(function() {
             } else {
                 let hatralevo = Number(res.osszes_hatralevo) || 0;
                 setKpiSzam('#tileZsebpenzSzam', fmtFtShort(hatralevo),
-                           hatralevo > 0 ? 'text-warning' : 'text-danger',
+                           hatralevo > 0 ? 'text-warning-emphasis' : 'text-danger',
                            'text-success', hatralevo);
             }
             renderDiakCards(res.diakok || []);

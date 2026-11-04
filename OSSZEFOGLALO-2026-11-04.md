@@ -36,8 +36,8 @@
 
 ## 3. Tesztek
 
-- **1023 automatikus ellenőrzés / 36 csomag — mind zöld.**
-  - fast: **871 ellenőrzés / 31 csomag**
+- **1035 automatikus ellenőrzés / 37 csomag — mind zöld.**
+  - fast: **883 ellenőrzés / 32 csomag**
   - browser: **152 ellenőrzés / 5 csomag**
 - Új csomagok: `test_sajat_orarend`, `test_naptar`, `test_sync_runs`, `test_ai_uzenet`,
   `test_auth`, `test_db_indexes`, `test_kifizetes_csv`.
@@ -69,7 +69,11 @@
   `app_meta.schema_version`, migráció előtti automatikus `.bak` másolat; idempotens init.
 - **#11 (rész):** zsebpénz-elszámolások **CSV exportja** (UTF-8 BOM, `;` elválasztó,
   diák-szűrő) a Zsebpénz fülön. A keresés/olvasottság és a melléklet-dedupe nyitva maradt.
-- **Lezárt jegyek:** #61 és #65–#69 (AI), #71 (fejléc), #16, #15; a #11 részlegesen.
+- **#73:** órarend **ICS export** hét/hónap/félév/tanév időszakra, heti ismétlődő
+  VEVENT-ekkel (RRULE), a kiválasztott gyermekre vagy az összesre.
+- **#72:** a kifizetetlen zsebpénz sárga összege sötétebb (`text-warning-emphasis`),
+  hogy fehér háttéren is olvasható legyen.
+- **Lezárt jegyek:** #61 és #65–#69 (AI), #71 (fejléc), #16, #15, #73, #72; a #11 részlegesen.
 
 ## 6. Nyitott
 

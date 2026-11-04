@@ -293,6 +293,42 @@ def event_from_ai_item(item: dict, cfg: dict, index: int = 0) -> dict | None:
     )
 
 
+def ics_orarend(rows, start_date, end_date, cfg: dict,
+                diak_prefix: bool = False, now: datetime | None = None) -> str:
+    """Heti ismétlődő órarendi sorokból `.ics` (Kaneo #73).
+
+    Egy VEVENT = egy heti minta (tantárgy + időpont), `RRULE:FREQ=WEEKLY`
+    szabállyal a kért időszakra. Az egész napos (dátum nélküli) sorokat kihagyjuk.
+    """
+    now = now or datetime.now(timezone.utc)
+    event_lines = []
+    for row in rows:
+        kezdo = parse_datetime(row["kezdo_idopont"])
+        if not kezdo or "T" not in str(row["kezdo_idopont"] or ""):
+            continue
+        zaro = parse_datetime(row["zaro_idopont"]) if row["zaro_idopont"] else None
+        duration = (zaro - kezdo) if zaro and zaro > kezdo else timedelta(minutes=45)
+        first = start_date + timedelta(days=(kezdo.weekday() - start_date.weekday()) % 7)
+        if first > end_date:
+            continue
+        tantargy = (row["tantargy"] or "Tanóra").strip()
+        diak = (row["diak_nev"] or "").strip()
+        title = f"[{diak}] {tantargy}" if diak_prefix and diak else tantargy
+        event = _event(
+            "orarend", f"{row['id']}-{first.isoformat()}", title,
+            datetime.combine(first, kezdo.time()), cfg, all_day=False,
+            description=(row["tanar"] or ""), location=(row["terem"] or ""),
+        )
+        event["end"] = event["start"] + duration
+        lines = _vevent_lines(event, cfg, now)
+        lines.insert(-1, "RRULE:FREQ=WEEKLY;UNTIL="
+                           + end_date.strftime("%Y%m%d") + "T235959Z")
+        event_lines.append(lines)
+    event_lines.sort(key=lambda lines: next(
+        (line for line in lines if line.startswith("DTSTART:")), ""))
+    return _ics_wrap(event_lines)
+
+
 def safe_filename(event: dict) -> str:
     """Böngészőbarát fájlnév (ASCII, az esemény azonosítójával)."""
     base = re.sub(r"[^A-Za-z0-9._-]+", "_", str(event["title"]))[:60].strip("_")
