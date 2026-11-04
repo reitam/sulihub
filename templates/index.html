@@ -29,7 +29,7 @@
         /* Fejléc: egysoros, kompakt navbar (Kaneo #62/#63) */
         .app-header {
             display: grid;
-            grid-template-columns: auto minmax(0, 1fr) auto;
+            grid-template-columns: auto minmax(0, 1fr) auto auto;
             align-items: center;
             gap: 1rem;
             min-height: 64px;
@@ -39,19 +39,19 @@
             border-radius: 14px;
             box-shadow: 0 6px 18px rgba(13, 110, 253, .07);
         }
-        .app-brand { display: flex; align-items: center; gap: .6rem; min-width: 0; }
-        .app-logo { width: 40px; height: 40px; border-radius: 12px; flex: 0 0 auto;
-                    box-shadow: 0 4px 10px rgba(13, 110, 253, .22); }
+        .app-brand { display: flex; align-items: center; gap: .6rem; min-width: 0; justify-self: center; }
+        .app-logo { width: 44px; height: 44px; border-radius: 13px; flex: 0 0 auto;
+                    box-shadow: 0 4px 12px rgba(13, 110, 253, .25); }
         .app-title {
-            font-size: 1.35rem; letter-spacing: -.02em; line-height: 1;
+            font-size: 1.45rem; letter-spacing: -.02em; line-height: 1;
             background: linear-gradient(90deg, #0d6efd, #6f42c1);
             -webkit-background-clip: text; background-clip: text; color: transparent;
         }
         .app-version {
-            font-size: .66rem; font-weight: 600; padding: .18rem .45rem; border-radius: 999px;
+            font-size: .7rem; font-weight: 600; padding: .2rem .5rem; border-radius: 999px;
             color: #5b6b82; background: #eef3fb; border: 1px solid #dbe6f5; white-space: nowrap;
         }
-        .app-scheduler { justify-self: center; width: 100%; max-width: 520px; min-width: 0; }
+        .app-scheduler { justify-self: end; width: 100%; max-width: 440px; min-width: 0; }
         #schedulerCompact {
             width: 100%; justify-content: center; background: #f8fafc; border: 1px solid #e2e8f0;
             border-radius: 999px; padding: .42rem .9rem; font-size: .82rem; box-shadow: none;
@@ -289,16 +289,16 @@
             body { font-size: 15px; }
             .container-fluid { padding-left: .5rem !important; padding-right: .5rem !important; }
 
-            /* Fejléc: mobilon a brand külön sor, alatta teljes széles státusz, majd controls */
+            /* Fejléc: mobilon brand (középen), státusz, majd tanév + Frissítés */
             .app-header {
                 display: flex; flex-wrap: wrap; gap: .5rem;
                 min-height: 0; padding: .75rem !important;
             }
-            .app-header .app-title { font-size: 1.15rem; line-height: 1.2; }
-            .app-logo { width: 32px; height: 32px; border-radius: 10px; }
-            .app-brand { flex: 1 1 100%; }
-            .app-scheduler { flex: 1 1 100%; max-width: none; order: 3; }
-            .app-controls { width: 100%; order: 4; justify-self: stretch; }
+            .app-header .app-title { font-size: 1.2rem; line-height: 1.2; }
+            .app-logo { width: 34px; height: 34px; border-radius: 10px; }
+            .app-brand { flex: 1 1 100%; order: 1; justify-content: center; }
+            .app-scheduler { flex: 1 1 100%; max-width: none; order: 2; justify-self: stretch; }
+            .app-left { order: 3; flex: 1 1 auto; height: 44px; }
             #schedulerCompact {
                 width: 100%;
                 padding: .35rem .55rem !important;
@@ -307,10 +307,10 @@
                 min-height: 0;
             }
             #schedulerCompact #schedulerCompactText { font-size: .8rem; }
-            .app-control-group { flex: 1 1 auto; height: 44px; padding-left: .6rem; }
+            .app-control-group { height: 44px; padding-left: .6rem; }
             .app-control-label { display: none; }
-            .app-controls .app-tanev { flex: 1 1 auto; width: auto !important; max-width: none; height: 32px; }
-            .app-sync-btn { height: 44px; padding: 0 .8rem; font-size: .9rem; }
+            .app-left .app-tanev { flex: 1 1 auto; width: auto !important; max-width: none; height: 32px; }
+            .app-sync-btn { order: 4; height: 44px; padding: 0 .8rem; font-size: .9rem; }
 
             /* Dátum-tartomány: mobilegymás alatt egymás alatt, címkék nélkül */
             .date-range-group { flex-wrap: wrap; }
@@ -433,8 +433,20 @@
 
     <!-- FEJLÉC ÉS SZINKRONIZÁLÓ GOMB (Kaneo #62/#63: egysoros, kompakt navbar) -->
     <div class="app-header mb-3">
+        <div class="app-control-group app-left">
+            <label for="tanevValaszto" class="app-control-label">
+                <i class="fa-solid fa-calendar-days me-1"></i>Tanév
+            </label>
+            <select id="tanevValaszto" class="form-select app-tanev"
+                    title="A tanév az eseményeket, a hiányzásokat, az átlagokat és a zsebpénzt szűri. Az üzenetek és az órarend tanév-független.">
+                <option value="">Összes tanév</option>
+            </select>
+            <span id="tanevAllapotBadge" class="badge bg-success-subtle text-success-emphasis border border-success-subtle d-none"
+                  title="A tanév állapota: a KRÉTA TanevUid változásakor automatikusan záródik/nyílik."></span>
+        </div>
+
         <div class="app-brand">
-            <img src="{{ url_for('static', filename='sulihub.svg') }}" alt="SuliHub" width="40" height="40" class="app-logo">
+            <img src="{{ url_for('static', filename='sulihub.svg') }}" alt="SuliHub" width="44" height="44" class="app-logo">
             <span class="app-title fw-bold">SuliHub</span>
             <span class="app-version" title="Telepített verzió">{{ app_version }}</span>
         </div>
@@ -462,22 +474,9 @@
             </div>
         </div>
 
-        <div class="app-controls">
-            <div class="app-control-group">
-                <label for="tanevValaszto" class="app-control-label">
-                    <i class="fa-solid fa-calendar-days me-1"></i>Tanév
-                </label>
-                <select id="tanevValaszto" class="form-select app-tanev"
-                        title="A tanév az eseményeket, a hiányzásokat, az átlagokat és a zsebpénzt szűri. Az üzenetek és az órarend tanév-független.">
-                    <option value="">Összes tanév</option>
-                </select>
-                <span id="tanevAllapotBadge" class="badge bg-success-subtle text-success-emphasis border border-success-subtle d-none"
-                      title="A tanév állapota: a KRÉTA TanevUid változásakor automatikusan záródik/nyílik."></span>
-            </div>
-            <button id="btnSync" class="btn btn-success app-sync-btn text-nowrap">
-                <i class="fa-solid fa-rotate me-1"></i>Frissítés
-            </button>
-        </div>
+        <button id="btnSync" class="btn btn-success app-sync-btn text-nowrap">
+            <i class="fa-solid fa-rotate me-1"></i>Frissítés
+        </button>
     </div>
 
     <!-- ÉLŐ SZINKRONIZÁCIÓS KONZOL -->
@@ -1298,10 +1297,11 @@
   <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
     <div class="modal-content">
       <div class="modal-header bg-primary text-white p-2 px-3">
-        <h6 class="modal-title m-0"><i class="fa-solid fa-calendar-plus me-2"></i>Saját óra rögzítése</h6>
+        <h6 class="modal-title m-0"><i class="fa-solid fa-calendar-plus me-2"></i><span id="sajatOraModalTitle">Saját óra rögzítése</span></h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
+        <input type="hidden" id="sajatOraEditId" value="">
         <div class="row g-2">
           <div class="col-12">
             <label for="sajatOraDiak" class="form-label small fw-bold mb-1">Diák</label>
@@ -2107,6 +2107,7 @@ $(document).ready(function() {
                 actionContainer.empty();
 
                 if (props.sajat) {
+                    aktualisSajatProps = props;
                     let bodyText = `Diák: ${props.diak}\nMegnevezés: ${props.cim || props.tantargy}`
                         + `\nIdőpont: ${props.datum} ${props.kezdes}–${props.vege}`
                         + `\nTerem / helyszín: ${props.terem || '-'}`
@@ -2116,6 +2117,9 @@ $(document).ready(function() {
                     $('#detailsModalBody').text(bodyText);
                     actionContainer.removeClass('d-none').html(`
                         <div class="d-flex gap-2 justify-content-end flex-wrap">
+                            <button class="btn btn-sm btn-outline-primary btn-sajat-szerkeszt" data-id="${props.sajat_id}">
+                                <i class="fa-solid fa-pen me-1"></i>Módosítás
+                            </button>
                             <button class="btn btn-sm btn-outline-danger btn-sajat-kivetel"
                                     data-id="${props.sajat_id}" data-datum="${props.datum}">
                                 <i class="fa-solid fa-calendar-xmark me-1"></i>Csak ezt az alkalmat törli
@@ -2359,6 +2363,9 @@ $(document).ready(function() {
 
     $('#btnSajatOra').click(function() {
         sajatOraHiba('');
+        $('#sajatOraEditId').val('');
+        $('#sajatOraModalTitle').text('Saját óra rögzítése');
+        $('#btnSajatOraMent').html('<i class="fa-solid fa-check me-1"></i>Rögzítés');
         $('#sajatOraCim').val('');
         $('#sajatOraTerem').val('');
         $('#sajatOraMegjegyzes').val('');
@@ -2414,9 +2421,11 @@ $(document).ready(function() {
             }
         }
         let btn = $(this).prop('disabled', true);
+        let editId = $('#sajatOraEditId').val();
+        let url = editId ? `/api/sajat_orarend/${editId}` : '/api/sajat_orarend';
         $.ajax({
-            url: '/api/sajat_orarend',
-            type: 'POST',
+            url: url,
+            type: editId ? 'PUT' : 'POST',
             contentType: 'application/json',
             data: JSON.stringify(body)
         }).done(function() {
@@ -2428,6 +2437,29 @@ $(document).ready(function() {
         }).always(function() {
             btn.prop('disabled', false);
         });
+    });
+
+    $(document).on('click', '.btn-sajat-szerkeszt', function() {
+        let p = aktualisSajatProps;
+        if (!p) return;
+        let modal = bootstrap.Modal.getInstance(document.getElementById('detailsModal'));
+        if (modal) modal.hide();
+        sajatOraHiba('');
+        $('#sajatOraEditId').val(p.sajat_id);
+        $('#sajatOraModalTitle').text('Saját óra módosítása');
+        $('#btnSajatOraMent').html('<i class="fa-solid fa-check me-1"></i>Mentés');
+        $('#sajatOraDiak').val(p.diak);
+        $('#sajatOraCim').val(p.cim || p.tantargy || '');
+        $('#sajatOraNap').val(String(p.nap || 1));
+        $('#sajatOraKezdes').val(p.kezdes || '16:00');
+        $('#sajatOraVege').val(p.vege || '17:00');
+        $('#sajatOraTerem').val(p.terem || '');
+        $('#sajatOraMegjegyzes').val(p.megjegyzes || '');
+        $('#sajatOraSzin').val(p.szin || '#6f42c1');
+        $('#sajatOraErveny').val('egyedi').trigger('change');
+        $('#sajatOraTol').val(p.ervenyes_tol || '');
+        $('#sajatOraIg').val(p.ervenyes_ig || '');
+        new bootstrap.Modal(document.getElementById('sajatOraModal')).show();
     });
 
     $(document).on('click', '.btn-sajat-kivetel', function() {
@@ -2518,6 +2550,7 @@ $(document).ready(function() {
     let kommentCel = { tipus: '', kulcs: '', diak: '', gomb: null };
     let uzenetKommentCel = { kulcs: '', diak: '' };
     let uzenetAktualisId = null;
+    let aktualisSajatProps = null;
 
     function betoltUzenetKommentek() {
         if (!uzenetKommentCel.kulcs) {

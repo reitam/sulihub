@@ -215,6 +215,26 @@ def delete_series(conn, series_id: int) -> bool:
     return cursor.rowcount > 0
 
 
+def update_series(conn, series_id: int, payload: dict, today: date | None = None) -> dict | None:
+    """Meglévő sorozat módosítása (a kivételek megmaradnak)."""
+    data = validate_entry(payload, today=today)
+    cursor = conn.execute(
+        "UPDATE sajat_orarend SET diak_nev = ?, cim = ?, nap = ?, kezdes = ?, vege = ?,"
+        " terem = ?, megjegyzes = ?, szin = ?, ervenyes_tol = ?, ervenyes_ig = ?"
+        " WHERE id = ?",
+        (
+            data["diak_nev"], data["cim"], data["nap"], data["kezdes"], data["vege"],
+            data["terem"], data["megjegyzes"], data["szin"], data["ervenyes_tol"],
+            data["ervenyes_ig"], series_id,
+        ),
+    )
+    conn.commit()
+    if cursor.rowcount == 0:
+        return None
+    row = conn.execute("SELECT * FROM sajat_orarend WHERE id = ?", (series_id,)).fetchone()
+    return dict(row)
+
+
 def add_exception(conn, series_id: int, datum) -> bool:
     """Egyetlen alkalom kivétele; False, ha a sorozat nem létezik."""
     row = conn.execute("SELECT * FROM sajat_orarend WHERE id = ?", (series_id,)).fetchone()
