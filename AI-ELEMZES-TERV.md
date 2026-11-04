@@ -4,7 +4,10 @@
 kinyerni az **eseményeket és határidőket**, majd azokból egy kattintással
 naptárbejegyzést készíteni (Google Naptár-link / `.ics`, mint a #47-nél).
 
-**Státusz:** terv + részfeladatok; a megvalósítás a szolgáltató kiválasztása után indul.
+**Státusz:** **MVP megvalósítva (2026-11-04, commit a v1.9.0-ban)** — a `kreta_ai.py`
+OpenAI-kompatibilis kliens, JSON-validáció, magánhálózati őr, csatolmány-szöveg,
+UI-találatlista checkboxokkal, Google-linkek és több VEVENT-es `.ics`. A részfeladatok
+(#65–#69) done; a teljesen közvetlen Google OAuth írás külön jegy (#70).
 
 ---
 

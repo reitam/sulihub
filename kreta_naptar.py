@@ -219,16 +219,9 @@ def _ics_dt(event: dict, cfg: dict) -> tuple[str, str]:
     )
 
 
-def ics_content(event: dict, cfg: dict, now: datetime | None = None) -> str:
-    """Egy esemény `.ics` tartalma (CRLF, RFC 5545)."""
-    now = now or datetime.now(timezone.utc)
+def _vevent_lines(event: dict, cfg: dict, now: datetime) -> list[str]:
     dtstart, dtend = _ics_dt(event, cfg)
     lines = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//Kreta Adatbazis Attekinto//HU",
-        "CALSCALE:GREGORIAN",
-        "METHOD:PUBLISH",
         "BEGIN:VEVENT",
         f"UID:kreta-{event['kind']}-{event['id']}@kreta.local",
         "DTSTAMP:" + now.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
@@ -249,8 +242,55 @@ def ics_content(event: dict, cfg: dict, now: datetime | None = None) -> str:
             "DESCRIPTION:" + _ics_escape(event["title"]),
             "END:VALARM",
         ])
-    lines.extend(["END:VEVENT", "END:VCALENDAR"])
+    lines.append("END:VEVENT")
+    return lines
+
+
+def _ics_wrap(event_lines: list[list[str]]) -> str:
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Kreta Adatbazis Attekinto//HU",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+    ]
+    for event in event_lines:
+        lines.extend(event)
+    lines.append("END:VCALENDAR")
     return "\r\n".join(_ics_fold(line) for line in lines) + "\r\n"
+
+
+def ics_content(event: dict, cfg: dict, now: datetime | None = None) -> str:
+    """Egy esemény `.ics` tartalma (CRLF, RFC 5545)."""
+    now = now or datetime.now(timezone.utc)
+    return _ics_wrap([_vevent_lines(event, cfg, now)])
+
+
+def ics_multi(events: list[dict], cfg: dict, now: datetime | None = None) -> str:
+    """Több esemény egy `.ics` fájlban (AI-találatokhoz, Kaneo #61)."""
+    now = now or datetime.now(timezone.utc)
+    return _ics_wrap([_vevent_lines(event, cfg, now) for event in events])
+
+
+def event_from_ai_item(item: dict, cfg: dict, index: int = 0) -> dict | None:
+    """Az AI által kinyert esemény → naptáresemény (Google-link/ICS generáláshoz)."""
+    day = parse_datetime(item.get("datum"))
+    if not day:
+        return None
+    ido = (item.get("ido") or "").strip()
+    all_day = not ido
+    if not all_day:
+        try:
+            hh, mm = ido.split(":")[:2]
+            day = day.replace(hour=int(hh), minute=int(mm))
+        except (ValueError, TypeError):
+            all_day = True
+    return _event(
+        "ai", f"{item.get('datum')}-{index}", str(item.get("cim") or "Esemény"),
+        day, cfg, all_day=all_day,
+        description=str(item.get("leiras") or ""),
+        location=str(item.get("helyszin") or ""),
+    )
 
 
 def safe_filename(event: dict) -> str:
