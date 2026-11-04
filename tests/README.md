@@ -36,7 +36,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_oszlop_szelesseg.py` | Oszlopszélesség valódi böngészőben: az átméretezés/húzás nem rendezi át a táblát, a fogantyúk megvannak a hiányzások/igazolások táblán is |
 | `test_mobile_layout.py` | Mobil elrendezés valódi böngészőben (393 px): nincs vízszintes túlcsordulás egyik fülön sem, avatar, összecsukott táblázat, hiányzások fül; a szinkron-státusz egy karcsú sor, a technikai részletek koppintásra nyíló ablakban (a modál tartalma sem csúszik ki, a hosszú utolsó-futás sor tördel), asztali nézetben a részletes sor |
 | `test_karbantartas.py` | Karbantarthatóság (#12, #17): nincs külső CDN-hivatkozás, minden `static/vendor` fájl és a CSS-ek webfontjai léteznek; nincs `SyntaxWarning`, a `config.json.example` érvényes JSON, nincs hivatkozás a törölt `autoSyncAlert` blokkra |
-| `test_sajat_orarend.py` | Kézi órarend (#55): tanév/hét/egyedi érvényesség, heti ismétlődés, egy alkalom kivétele, sorozat törlése, diák-szűrés, érvénytelen bemenetek; a szinkron nem érinti a saját táblákat; órarend-színek (#56) |
+| `test_sajat_orarend.py` | Kézi órarend (#55): tanév/hét/egyedi érvényesség, heti ismétlődés, egy alkalom kivétele, sorozat törlése, diák-szűrés, saját szín, érvénytelen bemenetek; a szinkron nem érinti a saját táblákat; órarend-színek (#56) |
 | `test_naptar.py` | Naptárbejegyzés (#47): Google-link (egész napos/időpontos, időzóna), `.ics` (CRLF, all-day, UTC, escape, VALARM), config, API 200/404 |
 | `test_sync_runs.py` | Futástörténet (#10): `/api/sync_runs` sorrend, limit, `new_events` összegzés (szótár/lista), hibás diákok parse-olása, a Rendszernapló táblázat/sparkline megléte |
 
@@ -59,7 +59,7 @@ környezeti változókkal irányítja át.
 
 ```bash
 python tests/run_all.py            # minden teszt (32 csomag, 974 ell.)
-python tests/run_all.py --fast     # böngésző nélkül (27 csomag, 824 ell.)
+python tests/run_all.py --fast     # böngésző nélkül (27 csomag, 827 ell.)
 python tests/run_all.py --browser  # csak Playwright (5 csomag, 150 ell.)
 ```
 

@@ -27,12 +27,59 @@
         .card-stat { border-radius: 8px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 
         /* Fejléc: egysoros, kompakt navbar (Kaneo #62/#63) */
-        .app-header { min-height: 60px; }
-        .app-logo { width: 32px; height: 32px; border-radius: 8px; }
-        .app-title { font-size: 1.25rem; line-height: 1; }
-        .app-scheduler { flex: 1 1 320px; max-width: 520px; }
-        .app-controls { flex: 0 0 auto; }
-        #schedulerCompact { padding: .3rem .6rem; font-size: .82rem; max-width: 100%; }
+        .app-header {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 1rem;
+            min-height: 64px;
+            padding: .55rem 1rem;
+            background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+            border: 1px solid #e3ebf7;
+            border-radius: 14px;
+            box-shadow: 0 6px 18px rgba(13, 110, 253, .07);
+        }
+        .app-brand { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+        .app-logo { width: 40px; height: 40px; border-radius: 12px; flex: 0 0 auto;
+                    box-shadow: 0 4px 10px rgba(13, 110, 253, .22); }
+        .app-title {
+            font-size: 1.35rem; letter-spacing: -.02em; line-height: 1;
+            background: linear-gradient(90deg, #0d6efd, #6f42c1);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .app-version {
+            font-size: .66rem; font-weight: 600; padding: .18rem .45rem; border-radius: 999px;
+            color: #5b6b82; background: #eef3fb; border: 1px solid #dbe6f5; white-space: nowrap;
+        }
+        .app-scheduler { justify-self: center; width: 100%; max-width: 520px; min-width: 0; }
+        #schedulerCompact {
+            width: 100%; justify-content: center; background: #f8fafc; border: 1px solid #e2e8f0;
+            border-radius: 999px; padding: .42rem .9rem; font-size: .82rem; box-shadow: none;
+            transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+        }
+        #schedulerCompact:hover, #schedulerCompact:focus {
+            background: #ffffff; border-color: #c7d7ee; box-shadow: 0 2px 8px rgba(13, 110, 253, .10);
+        }
+        .app-info-icon { color: #94a3b8; }
+        .app-controls { display: flex; align-items: center; gap: .5rem; justify-self: end; }
+        .app-control-group {
+            display: flex; align-items: center; gap: .45rem; height: 40px;
+            padding: .2rem .25rem .2rem .8rem; background: #f8fafc;
+            border: 1px solid #e2e8f0; border-radius: 999px;
+        }
+        .app-control-label {
+            font-size: .7rem; font-weight: 700; color: #64748b; text-transform: uppercase;
+            letter-spacing: .04em; margin: 0; white-space: nowrap;
+        }
+        .app-tanev {
+            width: auto; max-width: 210px; height: 32px; border: 0; background: transparent;
+            box-shadow: none; font-weight: 600; font-size: .84rem; color: #1e293b; padding-left: .2rem;
+        }
+        .app-tanev:focus { box-shadow: none; border: 0; }
+        .app-sync-btn {
+            height: 40px; border-radius: 999px; padding: 0 1rem; font-weight: 600;
+            box-shadow: 0 4px 10px rgba(25, 135, 84, .22);
+        }
 
         /* Monogramos avatar (diák oszlop) */
         .avatar {
@@ -243,22 +290,27 @@
             .container-fluid { padding-left: .5rem !important; padding-right: .5rem !important; }
 
             /* Fejléc: mobilon a brand külön sor, alatta teljes széles státusz, majd controls */
-            .app-header { padding: .75rem !important; }
-            .app-header .app-title { font-size: 1.05rem; line-height: 1.2; }
-            .app-logo { width: 26px; height: 26px; border-radius: 7px; }
+            .app-header {
+                display: flex; flex-wrap: wrap; gap: .5rem;
+                min-height: 0; padding: .75rem !important;
+            }
+            .app-header .app-title { font-size: 1.15rem; line-height: 1.2; }
+            .app-logo { width: 32px; height: 32px; border-radius: 10px; }
             .app-brand { flex: 1 1 100%; }
             .app-scheduler { flex: 1 1 100%; max-width: none; order: 3; }
-            .app-controls { width: 100%; order: 4; }
+            .app-controls { width: 100%; order: 4; justify-self: stretch; }
             #schedulerCompact {
                 width: 100%;
-                padding: .3rem .55rem !important;
+                padding: .35rem .55rem !important;
                 font-size: .8rem;
                 line-height: 1.2;
                 min-height: 0;
             }
             #schedulerCompact #schedulerCompactText { font-size: .8rem; }
-            .app-controls .app-tanev { flex: 1 1 auto; width: auto !important; max-width: none; }
-            #btnSync { width: auto; flex: 0 0 auto; padding: .65rem .8rem; font-size: .95rem; }
+            .app-control-group { flex: 1 1 auto; height: 44px; padding-left: .6rem; }
+            .app-control-label { display: none; }
+            .app-controls .app-tanev { flex: 1 1 auto; width: auto !important; max-width: none; height: 32px; }
+            .app-sync-btn { height: 44px; padding: 0 .8rem; font-size: .9rem; }
 
             /* Dátum-tartomány: mobilegymás alatt egymás alatt, címkék nélkül */
             .date-range-group { flex-wrap: wrap; }
@@ -380,23 +432,22 @@
 
 
     <!-- FEJLÉC ÉS SZINKRONIZÁLÓ GOMB (Kaneo #62/#63: egysoros, kompakt navbar) -->
-    <div class="bg-white px-3 py-2 rounded shadow-sm app-header d-flex flex-wrap align-items-center gap-2 mb-3">
-        <div class="app-brand d-flex align-items-center gap-2 me-auto">
-            <img src="{{ url_for('static', filename='sulihub.svg') }}" alt="SuliHub" width="32" height="32" class="app-logo">
-            <span class="app-title fw-bold text-primary">SuliHub</span>
-            <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle fw-normal"
-                  title="Telepített verzió">{{ app_version }}</span>
+    <div class="app-header mb-3">
+        <div class="app-brand">
+            <img src="{{ url_for('static', filename='sulihub.svg') }}" alt="SuliHub" width="40" height="40" class="app-logo">
+            <span class="app-title fw-bold">SuliHub</span>
+            <span class="app-version" title="Telepített verzió">{{ app_version }}</span>
         </div>
 
         <div id="schedulerInfo" class="app-scheduler d-none">
             <!-- Egysoros, dinamikus státuszsáv; a technikai részletek koppintásra -->
             <button type="button" id="schedulerCompact"
-                    class="btn btn-light border d-flex align-items-center gap-2 text-start"
+                    class="btn d-flex align-items-center gap-2 text-start"
                     data-bs-toggle="modal" data-bs-target="#schedulerDetailModal"
                     aria-label="Szinkronizálás részletei">
                 <span id="schedulerCompactIcon" class="d-inline-flex"></span>
                 <span id="schedulerCompactText" class="flex-grow-1 text-truncate">Szinkron állapota</span>
-                <i class="fa-solid fa-circle-info text-secondary" aria-hidden="true"></i>
+                <i class="fa-solid fa-circle-info app-info-icon" aria-hidden="true"></i>
             </button>
             <!-- Rejtett részletes sor: a modál tartalmát és a JS-t szolgálja -->
             <div id="schedulerDetails" class="d-none">
@@ -411,17 +462,19 @@
             </div>
         </div>
 
-        <div class="app-controls d-flex align-items-center gap-2">
-            <label for="tanevValaszto" class="small fw-bold text-secondary mb-0 d-none d-lg-block">
-                <i class="fa-solid fa-calendar-days me-1"></i>Tanév:
-            </label>
-            <select id="tanevValaszto" class="form-select form-select-sm app-tanev" style="width: 190px;"
-                    title="A tanév az eseményeket, a hiányzásokat, az átlagokat és a zsebpénzt szűri. Az üzenetek és az órarend tanév-független.">
-                <option value="">Összes tanév</option>
-            </select>
-            <span id="tanevAllapotBadge" class="badge bg-success-subtle text-success-emphasis border border-success-subtle d-none"
-                  title="A tanév állapota: a KRÉTA TanevUid változásakor automatikusan záródik/nyílik."></span>
-            <button id="btnSync" class="btn btn-success btn-sm text-nowrap">
+        <div class="app-controls">
+            <div class="app-control-group">
+                <label for="tanevValaszto" class="app-control-label">
+                    <i class="fa-solid fa-calendar-days me-1"></i>Tanév
+                </label>
+                <select id="tanevValaszto" class="form-select app-tanev"
+                        title="A tanév az eseményeket, a hiányzásokat, az átlagokat és a zsebpénzt szűri. Az üzenetek és az órarend tanév-független.">
+                    <option value="">Összes tanév</option>
+                </select>
+                <span id="tanevAllapotBadge" class="badge bg-success-subtle text-success-emphasis border border-success-subtle d-none"
+                      title="A tanév állapota: a KRÉTA TanevUid változásakor automatikusan záródik/nyílik."></span>
+            </div>
+            <button id="btnSync" class="btn btn-success app-sync-btn text-nowrap">
                 <i class="fa-solid fa-rotate me-1"></i>Frissítés
             </button>
         </div>
@@ -1188,12 +1241,10 @@
         </div>
       </div>
       <div class="modal-footer p-2 flex-wrap gap-1">
-        <button type="button" class="btn btn-sm btn-outline-primary" id="btnUzenetNaptarGoogle">
-          <i class="fa-brands fa-google me-1"></i>Google naptárba
+        <button type="button" class="btn btn-sm btn-primary" id="btnUzenetNaptarGoogle"
+                title="Előre kitöltött Google Naptár esemény nyílik; ott egy kattintással menthető">
+          <i class="fa-brands fa-google me-1"></i>Naptárba küldés
         </button>
-        <a class="btn btn-sm btn-outline-secondary" id="btnUzenetNaptarIcs" href="#">
-          <i class="fa-solid fa-calendar-plus me-1"></i>ICS
-        </a>
         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Bezárás</button>
       </div>
     </div>
@@ -1289,7 +1340,12 @@
             <label for="sajatOraTerem" class="form-label small fw-bold mb-1">Terem / helyszín</label>
             <input type="text" id="sajatOraTerem" class="form-control form-control-sm" maxlength="80" placeholder="Opcionális">
           </div>
-          <div class="col-12 col-sm-6">
+          <div class="col-6 col-sm-3">
+            <label for="sajatOraSzin" class="form-label small fw-bold mb-1">Szín</label>
+            <input type="color" id="sajatOraSzin" class="form-control form-control-color w-100"
+                   value="#6f42c1" title="A saját óra színe (a gyermek alap színétől eltérő legyen)">
+          </div>
+          <div class="col-6 col-sm-3">
             <label for="sajatOraErveny" class="form-label small fw-bold mb-1">Érvényesség</label>
             <select id="sajatOraErveny" class="form-select form-select-sm">
               <option value="tanev">Teljes tanév</option>
@@ -2146,11 +2202,10 @@ $(document).ready(function() {
                     }
                 }
                 if (props.tipus === 'Házi feladat' || props.tipus === 'Bejelentett számonkérés') {
-                    actions.push(`<button class="btn btn-sm btn-outline-primary btn-naptar-google" data-kind="esemeny" data-id="${eventId}">
-                        <i class="fa-brands fa-google me-1"></i>Google naptárba
+                    actions.push(`<button class="btn btn-sm btn-primary btn-naptar-google" data-kind="esemeny" data-id="${eventId}"
+                        title="Előre kitöltött Google Naptár esemény nyílik; ott egy kattintással menthető">
+                        <i class="fa-brands fa-google me-1"></i>Naptárba küldés
                     </button>`);
-                    actions.push(`<a class="btn btn-sm btn-outline-secondary btn-naptar-ics" data-kind="esemeny" data-id="${eventId}"
-                        href="/api/naptar/esemeny/${eventId}.ics"><i class="fa-solid fa-calendar-plus me-1"></i>ICS</a>`);
                 }
                 if (actions.length) {
                     actionContainer.removeClass('d-none').html(
@@ -2312,6 +2367,11 @@ $(document).ready(function() {
         $('#sajatOraErveny').val('tanev').trigger('change');
         let filterDiak = $('#orarendFilterDiak').val();
         if (filterDiak) $('#sajatOraDiak').val(filterDiak);
+        $('#sajatOraSzin').val('#6f42c1');
+        $.getJSON('/api/orarend_szinek', function(res) {
+            let base = String(((res.szinek || {})[$('#sajatOraDiak').val()] || '')).toLowerCase();
+            if (base === '#6f42c1') $('#sajatOraSzin').val('#d63384');
+        });
         let ma = new Date();
         $('#sajatOraNap').val(String(ma.getDay() === 0 ? 7 : ma.getDay()));
         $('#sajatOraTol').val(sajatOraIsoDate(ma));
@@ -2343,6 +2403,7 @@ $(document).ready(function() {
             vege: vege,
             terem: $('#sajatOraTerem').val().trim(),
             megjegyzes: $('#sajatOraMegjegyzes').val().trim(),
+            szin: $('#sajatOraSzin').val(),
             ervenyesites: mode
         };
         if (mode === 'egyedi') {
@@ -3900,7 +3961,6 @@ $(document).ready(function() {
 
         // Naptárbejegyzés (Kaneo #47)
         uzenetAktualisId = msg.id;
-        $('#btnUzenetNaptarIcs').attr('href', `/api/naptar/uzenet/${msg.id}.ics`);
 
         let myModal = new bootstrap.Modal(document.getElementById('uzenetModal'));
         myModal.show();

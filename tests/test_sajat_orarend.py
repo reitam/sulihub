@@ -186,5 +186,17 @@ ok(info["szinek"].get("Teszt Elek") == "#ff0000", "a GET visszaadja a mentett sz
 bad = client.put("/api/orarend_szinek", json={"szinek": {"Teszt Elek": "piros"}})
 ok(bad.status_code == 400, f"érvénytelen szín → 400 ({bad.status_code})")
 
+res = post({"diak_nev": "Teszt Elek", "cim": "Színes szakkör", "nap": 4,
+            "kezdes": "16:00", "vege": "17:00", "ervenyesites": "tanev",
+            "szin": "#00aa88"})
+ok(res.status_code == 201, "a saját óra saját színnel menthető")
+code, events = calendar("Teszt Elek", "2026-11-01", "2026-11-30")
+szines = next((e for e in events if e["extendedProps"].get("cim") == "Színes szakkör"), None)
+ok(szines and szines["backgroundColor"] == "#00aa88",
+   f"a saját óra a választott színt kapja ({szines and szines['backgroundColor']})")
+bad = post({"diak_nev": "Teszt Elek", "cim": "X", "nap": 1, "kezdes": "16:00",
+            "vege": "17:00", "szin": "zöld"})
+ok(bad.status_code == 400, "érvénytelen saját szín → 400")
+
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

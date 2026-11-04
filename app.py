@@ -1811,8 +1811,8 @@ def api_orarend_naptar():
             "start": f"{alkalom['datum']}T{alkalom['kezdes']}:00",
             "end": f"{alkalom['datum']}T{alkalom['vege']}:00",
             "allDay": False,
-            "backgroundColor": "#6f42c1",
-            "borderColor": "#59359a",
+            "backgroundColor": alkalom.get("szin") or "#6f42c1",
+            "borderColor": alkalom.get("szin") or "#6f42c1",
             "extendedProps": {
                 "sajat": True,
                 "sajat_id": alkalom["sajat_id"],
