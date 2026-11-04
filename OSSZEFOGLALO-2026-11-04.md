@@ -20,6 +20,10 @@
 | **#62 Ikon és név** | **SuliHub** név, saját SVG logó + favicon. |
 | **#63 Fejléc** | Egysoros, kompakt navbar: brand + verzió, egy státuszsor („Frissítve: … (kézi)”), a technikai részletek modálban; tanévválasztó + Frissítés gomb egy sorban; asztalon ~60 px. |
 | **#56 Órarend-színek** | Gyermekenkénti szín a `ORAREND_SZINEK` configból vagy a „Színek” felületről (app_meta); a naptár azonnal frissül. |
+| **#73 Órarend ICS** | `/api/orarend/export_ics?period=het|honap|felev|tanev` — heti ismétlődő VEVENT-ek (RRULE), a kiválasztott gyermekre vagy az összesre; UI dropdown a Heti órarend fülön. |
+| **#72 Sötétebb sárga** | A kifizetetlen zsebpénz összege `text-warning-emphasis` (a user elfogadta). |
+| **#61 Üzenet-AI** | `kreta_ai.py` (OpenAI-kompatibilis, helyi Ollama) + JSON-validáció + API-végpontok (`/api/uzenet/<id>/ai`, `/api/naptar/ai/ics`); csatolmány-szöveg (txt/pdf). **A felületi „AI elemzés” gombot a felhasználó kérésére kivettük** — a háttér API-ként megmaradt. |
+| **#74 Üzenet előnézete** | A KRÉTA üzenetlista csak rövid előnézetet ad, a sortörések nélkül: mentéskor a `postaladaelemek/<posta_id>` **részletes választ** használjuk, és a bekezdések megmaradnak. Új `uzenetek.posta_id` oszlop; a már mentett, rövid szövegű üzenetek utólag feltöltődnek (futásonként max. 20). |
 
 ## 2. Döntések
 
@@ -36,7 +40,7 @@
 
 ## 3. Tesztek
 
-- **1035 automatikus ellenőrzés / 37 csomag — mind zöld.**
+- **1045 automatikus ellenőrzés / 37 csomag — mind zöld.**
   - fast: **883 ellenőrzés / 32 csomag**
   - browser: **152 ellenőrzés / 5 csomag**
 - Új csomagok: `test_sajat_orarend`, `test_naptar`, `test_sync_runs`, `test_ai_uzenet`,
@@ -73,13 +77,23 @@
   VEVENT-ekkel (RRULE), a kiválasztott gyermekre vagy az összesre.
 - **#72:** a kifizetetlen zsebpénz sárga összege sötétebb (`text-warning-emphasis`),
   hogy fehér háttéren is olvasható legyen.
-- **Lezárt jegyek:** #61 és #65–#69 (AI), #71 (fejléc), #16, #15, #73, #72; a #11 részlegesen.
+- **#61 UI:** a felhasználó kérésére az **„AI elemzés” gomb kikerült a felületből**
+  (eredménylista, kijelölés, ICS-gombok); a háttér (`/api/uzenet/<id>/ai`,
+  `/api/naptar/ai/ics`, `kreta_ai.py`, tesztek) megmaradt.
+- **#74 Üzenet előnézete (hibajegy):** a tárolt üzenetszöveg a lista API előnézete volt —
+  rövid és a bekezdések nélkül. Most a **részletes API-válasz** kerül mentésre
+  (`html_to_text`, sortörések megőrzése), új `uzenetek.posta_id` oszlop, és a már mentett
+  rövid szövegű üzenetek **utólag feltöltődnek** (futásonként max. 20).
+- **Lezárt jegyek:** #61 és #65–#69 (AI), #71 (fejléc), #16, #15, #73, #72, #58; a #11 részlegesen.
 
 ## 6. Nyitott
 
-- **#61 Üzenetek AI elemzése:** a jegy maga is tervezést igényel; a tervet
-  `AI-ELEMZES-TERV.md` tartalmazza, a részfeladatok a Kaneo #61 alatt vannak.
-  Szükséges döntés: melyik ingyenes AI-szolgáltatás/model fusson (helyi Ollama vagy
-  felhős ingyenes tier), és ehhez kulcs/hozzáférés.
+- **#11:** üzenetek olvasott/olvasatlan jelölés + melléklet-dedupe (a CSV export kész).
+- **#70:** Google Calendar OAuth — közvetlen írás configban megadott naptárba.
+- **#14 / #8 / #64 / #48 / #49 / #33:** a nagyobb refaktorok/döntések a backlogban
+  (felbontás, digest, Playwright-kivezetés, publikálás, felhasználókezelés, licenc).
+- **#61:** a felületi gomb kivéve; ha később kell, a UI-t újra be lehet kötni az
+  API-végpontokra (`AI-ELEMZES-TERV.md`).
 - **Élesítés:** `.\deploy.ps1 -Release v1.9.0` (interaktív SSH-jelszó), utána
-  `/health` = v1.9.0 és a mobil/asztali fejléc ellenőrzése.
+  `/health` = v1.9.0, fejléc + **teljes üzenetszövegek** (a régiek fokozatosan
+  feltöltődnek a szinkronokkal) és az AI-gomb hiányának ellenőrzése.

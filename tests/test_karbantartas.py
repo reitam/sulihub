@@ -98,6 +98,8 @@ ok('id="schedulerDetails" class="d-none"' in tpl,
 compact_tag = tpl[tpl.find('id="schedulerCompact"'):tpl.find('id="schedulerCompact"') + 320]
 ok("d-md-none" not in compact_tag,
    "a státuszsáv minden nézetben ugyanaz az egysoros elem")
+ok("btnUzenetAi" not in tpl and "aiEredmeny" not in tpl,
+   "az üzenet felületéből az AI-elemzés gomb ki van véve (#61)")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

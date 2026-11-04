@@ -33,6 +33,7 @@ from kreta_api_sync import (  # noqa: E402
     fetch_homeworks,
     fetch_justifications,
     fetch_lessons,
+    fetch_message_body,
     fetch_messages,
     fetch_notes,
     fetch_omissions,
@@ -64,6 +65,7 @@ class FakeClient:
         self._notes = notes or []
         self._consultations = consultations or []
         self._messages = messages or []
+        self._message_detail = {}
         self.calls = []
 
     def fetch_omissions(self, start, end):
@@ -101,6 +103,19 @@ class FakeClient:
     def fetch_messages(self):
         self.calls.append(("messages",))
         return list(self._messages)
+
+    def fetch_message_detail(self, mailbox_id):
+        self.calls.append(("message_detail", mailbox_id))
+        return self._message_detail.get(mailbox_id, {})
+
+
+print("\n0) Az üzenet teljes törzse a részletes végpontból (Kaneo #74)")
+fake = FakeClient()
+fake._message_detail = {20: {"uzenet": {"szoveg": "<p>Első sor</p><p>Második sor</p>"}}}
+szoveg = fetch_message_body(fake, 20)
+ok(szoveg == "Első sor\nMásodik sor", f"a sortörések megmaradnak ({szoveg!r})")
+ok(fetch_message_body(fake, None) == "", "azonosító nélkül nincs hívás")
+ok(("message_detail", None) not in fake.calls, "az üres azonosító nem kerül a hálózatba")
 
 
 print("1) Lekérési ablak")
@@ -284,7 +299,7 @@ mrows = fetch_messages(msg_client)
 ok(len(mrows) == 1, "1 üzenet")
 ok(mrows[0]["felado"] == "Szőke Gáborné (tanár)", "feladó + titulus")
 ok(mrows[0]["idopont"] == "2026. 09. 22. 1:33", "üzenet helyi ideje")
-ok(mrows[0]["szoveg"] == "Első üzenet", "üzenet HTML-mentes")
+ok(mrows[0]["szoveg"] == "Első\nüzenet", "üzenet HTML-mentes, a sortöréssel")
 ok(mrows[0]["csatolmanyok"][0]["fajlNev"] == "tajekoztato.pdf", "csatolmány neve")
 ok(mrows[0]["olvasott"] is True, "olvasottság")
 
@@ -443,6 +458,12 @@ class FakeClient:
     def fetch_messages(self):
         return MESSAGES
 
+    def fetch_message_detail(self, mailbox_id):
+        # A lista csak előnézet; a részletes válasz a teljes törzs (Kaneo #74).
+        if int(mailbox_id) == 1:
+            return {{"uzenet": {{"szoveg": "<p>Teljes törzs</p><p>második sor</p>"}}}}
+        return {{}}
+
     def download_attachment(self, attachment_id, max_bytes=None):
         # Csatolmány API-ból (fake): a FAIL_DOWNLOADS-ban lévő ID-k hibát dobnak.
         if str(attachment_id) in FAIL_DOWNLOADS:
@@ -562,6 +583,15 @@ k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
 uz2 = uzenet_snapshot()
 uj2 = k.NEW_MESSAGE_COUNTS.get("Teszt")
 
+# #74 backfill: a rövid (előnézet) szövegű, már mentett üzenet törzse utólag feltöltődik
+conn = sqlite3.connect(k.DB_FILE)
+conn.execute("UPDATE uzenetek SET szoveg = ?, posta_id = '' WHERE targy = ?",
+             ("Első\\nüzenet", "Első üzenet"))
+conn.commit()
+conn.close()
+k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
+uz_backfill = uzenet_snapshot()
+
 # új csatolmányos üzenet: az API letölti a fájlt (api_first is böngésző nélkül)
 MESSAGES.append({{"azonosito": 3, "isElolvasva": False, "uzenet": {{
     "azonosito": 12, "feladoNev": "Szentkirályi Zsuzsanna", "feladoTitulus": "tanár",
@@ -624,6 +654,7 @@ print("RESULT=" + json.dumps({{
     "ora_first": ora1,
     "ora_second": ora2,
     "uz_first": uz1,
+    "uz_backfill": uz_backfill,
     "uz_second": uz2,
     "uz_after_ok": uz_after_ok,
     "dl_first_ok": dl_first_ok,
@@ -755,7 +786,11 @@ elso = next((u for u in uz_first if u[1] == "Első üzenet"), None)
 csat = next((u for u in uz_first if u[1] == "Csatolmányos"), None)
 ok(elso and elso[0] == "Szőke Gáborné (tanár)", f"feladó + titulus: {elso}")
 ok(elso and elso[2] == "2026. 09. 22. 1:33", "üzenet helyi ideje")
-ok(elso and elso[3] == "Első üzenet", "üzenet szövege HTML-mentes")
+ok(elso and elso[3] == "Teljes törzs\nmásodik sor",
+   f"a mentett szöveg a részletes törzs: {elso[3] if elso else None!r}")
+back_elso = next((u for u in (payload.get("uz_backfill") or []) if u[1] == "Első üzenet"), None)
+ok(back_elso and back_elso[3] == "Teljes törzs\nmásodik sor",
+   "a rövidített szövegű, már mentett üzenet utólag feltöltődik (#74)")
 ok(csat and csat[4] == "tajekoztato.pdf", "a csatolmány neve mentve")
 ok(csat and (csat[5] or "").startswith("Teszt/"),
    f"api módban a csatolmány a könyvtárba kerül, relatív úttal: {csat[5] if csat else None}")

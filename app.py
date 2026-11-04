@@ -701,6 +701,13 @@ def init_db_extensions():
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_igazolasok_diak ON igazolasok(diak_nev, kezdete)")
 
+            # Üzenetek: a postalada-elem azonosítója (a teljes törzs lekéréséhez, Kaneo #74).
+            cursor.execute("PRAGMA table_info(uzenetek)")
+            uzenet_cols = [row["name"] for row in cursor.fetchall()]
+            if uzenet_cols and "posta_id" not in uzenet_cols:
+                cursor.execute("ALTER TABLE uzenetek ADD COLUMN posta_id TEXT")
+                print("[Adatbázis séma frissítve]: 'posta_id' oszlop hozzáadva az 'uzenetek' táblához.")
+
             # Órarend tábla
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS orarend (
