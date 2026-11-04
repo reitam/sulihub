@@ -266,12 +266,16 @@ try:
                 const h = document.querySelector('.app-header');
                 return {detailsVisible: !!d && d.getBoundingClientRect().height > 0,
                         compactVisible: !!c && c.getBoundingClientRect().height > 0,
-                        headerHeight: h ? Math.round(h.getBoundingClientRect().height) : 0};
+                        headerHeight: h ? Math.round(h.getBoundingClientRect().height) : 0,
+                        headerScroll: h ? h.scrollWidth : 0,
+                        headerClient: h ? h.clientWidth : 0};
             }""")
             ok(desk["compactVisible"] and not desk["detailsVisible"],
                "asztali nézetben is az egysoros szinkron-státusz látszik")
             ok(desk["headerHeight"] <= 80,
                f"a fejléc asztalon kompakt marad ({desk['headerHeight']} px)")
+            ok(desk["headerScroll"] <= desk["headerClient"] + 1,
+               f"a fejléc asztalon sem csúszik ki ({desk['headerScroll']} <= {desk['headerClient']})")
             await page.set_viewport_size({"width": 393, "height": 873})
             await page.wait_for_timeout(300)
 

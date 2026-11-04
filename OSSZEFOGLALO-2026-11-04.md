@@ -36,9 +36,9 @@
 
 ## 3. Tesztek
 
-- **973 automatikus ellenőrzés / 32 csomag — mind zöld.**
+- **974 automatikus ellenőrzés / 32 csomag — mind zöld.**
   - fast: **824 ellenőrzés / 27 csomag**
-  - browser: **149 ellenőrzés / 5 csomag**
+  - browser: **150 ellenőrzés / 5 csomag**
 - Új csomagok: `test_sajat_orarend`, `test_naptar`, `test_sync_runs`.
 - A `test_mobile_layout` a saját óra mentését, a naptárgombokat és az egysoros
   fejlécet is ellenőrzi; a `test_dashboard` dátuma fixálva (determinisztikus).
