@@ -60,7 +60,7 @@ továbbítanak.
 | **Hiányzások / késések** | Dátum, **aznap hányadik óra** (1 sor = 1 tanóra), tantárgy, téma, mulasztás típusa (késésnél percek), igazolt/igazolatlan, igazolás típusa, rögzítés dátuma. A „tanórai célú” jelző is tárolva van, de a felületen nem jelenik meg |
 | **Igazolások** | Érvényesség kezdete–vége, igazolás típusa, megjegyzés |
 | **Heti órarend** | Aktuális és következő hét: tanár, terem, időpont, esetleg egész napos esemény; **fogadóórák** is |
-| **e-Ügyintézés üzenetek** | Beérkezett üzenetek (csak az újak) a teljes szöveggel, **a csatolmányokkal együtt** — a fájl API-ból töltődik le (`dokumentumok/uzenetek/{id}` → `files.e-kreta.hu` nonce URL), böngésző nélkül |
+| **e-Ügyintézés üzenetek** | Beérkezett üzenetek (csak az újak) a **teljes szöveggel és bekezdésekkel** — a lista csak előnézetet ad, ezért a mentéskor a `postaladaelemek/<posta_id>` részletes válasz kerül felhasználásra (Kaneo #74); **a csatolmányokkal együtt** — a fájl API-ból töltődik le (`dokumentumok/uzenetek/{id}` → `files.e-kreta.hu` nonce URL), böngésző nélkül |
 
 ### 2.3. Felület (fő nézetek)
 
@@ -71,7 +71,7 @@ továbbítanak.
 | **Hiányzások** | Hiányzások és késések havi bontásban: **5 összesítő kártya** (összes hiányzás óra, igazolt óra, igazolatlan óra, késés db/perc, igazolás db) + részletes tábla és igazolás-lista. Alapból a **teljes előzmény** látszik, a havi bontás hónapválasztóval / „Aktuális hónap" gombbal |
 | **Heti órarend** | Idősávos heti nézet, gyermekszínekkel; **A4 PDF export**; **kézi „Saját óra”** tételek (szakkör, plusz foglalkozás) tanévre / hétre / egyedi időszakra, egy alkalom vagy a teljes sorozat törlésével (Kaneo #55); **ICS export** hét / hónap / félév / tanév időszakra (Kaneo #73) |
 | **Feladatok naptár nézet** | Házik és számonkérések határidő szerint, színkódolva; a részletek ablakból **közvetlen „Naptárba küldés”** (előre kitöltött Google Naptár esemény, egy kattintásos mentés) (Kaneo #47) |
-| **Beérkezett üzenetek** | Üzenetek olvasása, csatolmányok letöltése; az üzenethez is fűzhető **saját megjegyzés** (Kaneo #46), **„Naptárba küldés”** Google Naptárba (Kaneo #47/#60), valamint **AI-elemzés** a szövegben/csatolmányban talált határidőkkel (Kaneo #61) |
+| **Beérkezett üzenetek** | Üzenetek olvasása (a **teljes törzs** a részletes API-válaszból, a sortörések megőrzésével — Kaneo #74), csatolmányok letöltése; az üzenethez is fűzhető **saját megjegyzés** (Kaneo #46), valamint **„Naptárba küldés”** Google Naptárba (Kaneo #47/#60) |
 | **Statisztika & Zsebpénz** | Havi jegyeloszlás, átlag, dicséret/hiány mutatók, elszámolás |
 | **Rendszernapló** | A szinkronizációk naplója, hibák, előzmények; **legutóbbi 20 futás** táblázata (indult, futásidő, státusz, új esemény, hibás diák, tanév) és **futásidő-sparkline** (Kaneo #10) |
 
@@ -255,22 +255,19 @@ Naptárba külön fejlesztés; a mostani megoldás API-kulcs nélkül működik.
 végpont programozottan továbbra is elérhető.) A viselkedés a `CALENDAR` config-blokkból
 állítható (időzóna, emlékeztető, üzenet hossza).
 
-### 2.8. Üzenetek AI-elemzése (Kaneo #61)
+### 2.8. Üzenetek AI-elemzése (Kaneo #61) — **API-only**
 
-Az üzenet ablakban az **„AI elemzés”** gomb az üzenet szövegét és a csatolmány
+A **felületi „AI elemzés” gombot a felhasználó kérésére 2026-11-04-én kivettük**; a
+háttér megmaradt és API-ból hívható. Az endpoint az üzenet szövegét és a csatolmány
 szövegét (txt/md/csv/pdf, max. ~20 ezer karakter) elküldi egy **OpenAI-kompatibilis**
-AI-végpontnak (alapból helyi **Ollama**, pl. `qwen3:0.6b`; a modell a configban
-cserélhető). A válaszból **validált eseménylista** készül (cím, dátum, idő, helyszín,
-leírás); a találatok checkboxszal jelölhetők, majd:
+AI-végpontnak (alapból helyi **Ollama**), a válaszból **validált eseménylista** készül:
 
-- **Kijelöltek naptárba** — előre kitöltött Google Naptár események nyílnak,
-- **Kijelöltek ICS** — egyetlen `.ics` fájl a kijelölt eseményekkel (több VEVENT).
+- `POST /api/uzenet/<id>/ai` → `{"items":[{cim, datum, ido, helyszin, leiras, google_url}]}`
+- `POST /api/naptar/ai/ics` → a kiválasztott elemekből **több VEVENT-es `.ics`**
 
-Adatvédelem: `ALLOW_CLOUD=false` mellett csak magánhálózati AI-URL engedett; a
-naplóba nem kerül a gyerek szövege. Az elemzés **csak gombnyomásra** fut. Ha nincs
-elérhető AI, a felület érthető hibát mutat (502/503), a többi funkció változatlan.
-**Megjegyzés:** a nagyon kicsi modellek (pl. 0.6b) gyengébb minőséget adnak; élesben
-érdemes nagyobb (3–8B) modellt beállítani.
+Adatvédelem: `ALLOW_CLOUD=false` mellett csak magánhálózati AI-URL engedett; a naplóba
+nem kerül a gyerek szövege. **Megjegyzés:** a nagyon kicsi modellek (pl. 0.6b) gyengébb
+minőséget adnak — API-használatnál érdemes a `AI.MODEL`-ben 3–8B modellt beállítani.
 
 ### 2.9. Órarend ICS export (Kaneo #73)
 
@@ -431,7 +428,7 @@ Az adatok egyetlen SQLite adatbázisban (`kreta_adatok.db`) vannak, a data köte
 |---|---|---|
 | `esemenyek` | Jegyek, feljegyzések, házik, számonkérések (közös séma) | `esemeny_tipus` különböztet; a `kesz` jelző a házi „elkészült" állapota; a `suly_szazalek` a jegy súlyszázaléka (0 = nincs adat / nem API-ból jött) |
 | `orarend` | Heti órarend sorai (diák, nap, időpont, tantárgy, tanár, terem) | Az aktuális és a következő hét |
-| `uzenetek` | e-Ügyintézés üzenetek + csatolmány hivatkozás | Csak az új üzenetek kerülnek be |
+| `uzenetek` | e-Ügyintézés üzenetek + csatolmány hivatkozás | Csak az új üzenetek kerülnek be; a `posta_id` a postalada-elem azonosítója — ezzel kérhető le a **teljes szöveg** a részletes API-válaszból (Kaneo #74) |
 | `hianyzasok` | Hiányzások és késések (dátum, órasorszám, tantárgy, téma, típus, igazolt, igazolás típusa) | ISO dátum; a rekordot a **dátum + órasorszám** azonosítja; késést a `perc` és/vagy a típus neve jelöli |
 | `igazolasok` | Igazolások érvényességi intervalluma + típus + megjegyzés | A hónaphoz a metsző igazolások tartoznak |
 | `kifizetesek` | Zsebpénz-elszámolások havi tételei | „KIFIZETVE" állapot, összeg |
@@ -742,7 +739,7 @@ Kreta/
 ### 9.3. Tesztek
 
 ```bash
-python tests/run_all.py            # mind (1035 ellenőrzés, 37 csomag)
+python tests/run_all.py            # mind (1045 ellenőrzés, 37 csomag)
 python tests/run_all.py --fast     # böngésző nélkül (32 csomag, 883 ell.)
 python tests/run_all.py --browser  # Playwrightos (5 csomag, 152 ell.)
 ```
@@ -752,7 +749,7 @@ pushra/PR-ra lefut; a **böngészős** job (5 csomag) csak `main` pushra, éjsza
 kézi indításra. A tesztek fixture-ökkel/fake klienssel dolgoznak, valódi KRÉTA-hívás nem
 történik; a böngészős job hibája esetén a képernyőképek artifactként feltöltődnek.
 
-Jelenleg **1035 automatikus ellenőrzés** harminchét csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **1045 automatikus ellenőrzés** harminchét csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -799,6 +796,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | Üzenet-csatolmány letöltése | az eAdmin API csak fájl-metadatot ad, a fájl egy rövid életű `nonce` URL-en jön | a kliens a `dokumentumok/uzenetek/{id}` 302-jét követi, és a `files.e-kreta.hu/fajlok/?nonce=…` címről tölt (2026-10-31 óta API-ból, böngésző nélkül); hiba esetén `api_first` fallback |
 | „Új bejelentkezés" e-mailek | az API-út minden futásnál belépne (a Playwright-nál a profil megjegyezte a munkamenetet) | tokentárolás a data köteten (`api_tokens.json`): a 2. futástól **nincs új belépés**, lejárat után refresh token; teljes belépés csak token nélkül/hibánál |
 | Nincs `MESSAGE_LIMIT` | az első API-s futás az összes üzenetet letölti (nálunk ~76 sor), utána már csak az újakat | tudatos döntés: az inkrementális futások így is 1–5 üzenetet hoznak |
+| Az üzenetlista csak előnézetet ad | az eAdmin `postaladaelemek/sajat` válasz `szoveg` mezője rövid és a sortörések nélkül | a mentéskor (és utólagos backfill-lel) a `postaladaelemek/<posta_id>` részletes választ használjuk, ami megőrzi a bekezdéseket (Kaneo #74) |
 | Chromium az image-ben | nagyobb image | a Playwright fallback miatt szükséges, amíg az API hosszú távon nem bizonyít |
 | CDN-függő frontend | internet nélkül nem indulna a felület | **megoldva (Kaneo #12):** minden CDN-fájl a `static/vendor/` alatt, a sablon csak helyi `url_for('static', ...)` hivatkozásokat használ |
 | `config.json` egyszerű szöveg | jelszavak olvashatók a fájlból | a data kötet védett |
@@ -891,7 +889,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.7.1** | **2026-11-03** | **Élesítés:** a v1.7.0 kódja került élesbe (`.\deploy.ps1 -Release v1.7.1`). A `main` fast-forward merge-dzsel szintre került, majd **GitHub Actions CI** indult: `.github/workflows/ci.yml` — **fast** job minden pushra/PR-ra (23 csomag), **browser** job csak `main` pushra, éjszakánként és kézi indításra (5 csomag); `tests/run_all.py --fast/--browser`; hiba esetén képernyőkép-artifact. Kódbeli funkcióváltozás nincs |
 | **v1.7.2** *(2026-11-03, éles)* | **2026-11-03** | **Mobil fejléc:** a hosszú „Utolsó frissítés / Utolsó automatikus” szöveg tördel, nem csúszik ki; a szinkron állapota mobilon **egyetlen karcsú dinamikus sor** (zöld „Szinkronizálva: ma 21:33”, futáskor pörgő ikon, hiba esetén piros), a technikai részletek (ütemező, időablak, intervallum, következő/utolsó futás) **koppintásra nyíló ablakban**; asztali nézet változatlan. A `test_mobile_layout` a státuszsáv magasságát, a rejtett részleteket, a dinamikus állapotokat és a modált is ellenőrzi (a modál tartalma nem csúszik ki, a hosszú utolsó-futás sor tördel); 878 ellenőrzés / 28 csomag |
 | **v1.8.0** *(2026-11-04, éles)* | **2026-11-04** | **Külső CDN-ek vendorolása (Kaneo #12):** a 12 külső hivatkozás helyett minden frontend-függőség a `static/vendor/` alatt (Bootstrap 5.3.0 CSS+JS, DataTables 1.13.6 + Responsive 2.5.0 CSS/JS, FontAwesome 6.4.0 CSS + webfontok, FullCalendar 6.1.8 + hu locale, jQuery 3.7.0); a `templates/index.html` csak `url_for('static', ...)` hivatkozásokat használ, így internet nélkül is indul. **Apróságok (Kaneo #17):** `SyntaxWarning` nincs (a modulok figyelmeztetés nélkül fordulnak), a `config.json.example` érvényes JSON (a hiányzó vessző pótolva), a halott `autoSyncAlert` blokk törölve a frontendből. Új `test_karbantartas` (vendor-fájlok + webfontok létezése, nincs külső URL, JSON-példa, nincs halott hivatkozás, nincs SyntaxWarning); **888 ellenőrzés / 29 csomag**. **Éles ellenőrzés (2026-11-04):** `/health` = `v1.8.0`, a vendorolt Bootstrap CSS, FontAwesome webfont és FullCalendar JS 200-at ad, a HTML-ben nincs CDN-hivatkozás |
-| **v1.9.0** *(élesítésre vár)* | **2026-11-04** | **Saját órák (Kaneo #55):** `sajat_orarend` + `sajat_orarend_kivetel` táblák; a „Saját óra” gombbal gyermekenként rögzíthető szakkör/pluszfoglalkozás (nap, időpont, terem, megjegyzés), **teljes tanév / aktuális hét / egyedi időszak** érvényességgel; heti ismétlődés a naptárban, **egy alkalom** (kivétel) vagy a **teljes sorozat** törlése; a KRÉTA szinkron nem érinti. **Naptárbejegyzés (Kaneo #47/#60):** házi feladat / számonkérés és üzenet részleteinél **„Naptárba küldés”** — előre kitöltött Google Naptár esemény, egy kattintásos mentés, import/letöltés nélkül (az `.ics` végpont programozottan továbbra is elérhető); `CALENDAR` config (időzóna, emlékeztető, üzenet hossza), a timed események UTC-re konvertálva. Új tesztek: `test_sajat_orarend`, `test_naptar`; a mobil teszt a saját óra mentését és a naptárgombokat is ellenőrzi. **Futástörténet (Kaneo #10):** `/api/sync_runs` + a Rendszernapló fülön 20 futás táblázata és futásidő-sparkline. **Órarend-színek (Kaneo #56):** gyermekenkénti szín a configból vagy a „Színek” felületről (app_meta). **SuliHub arculat (Kaneo #62):** logó + favicon + név. **Egysoros fejléc (Kaneo #63):** kompakt navbar, egy státuszsor, tanévválasztó + Frissítés gomb egy sorban. **Finomítás (2026-11-04):** letisztított logó (gradiens + könyvjelző), gradiens hátterű fejléc; **brand bal sarokban (1,5× logó/név), tanév + státusz + Frissítés a jobb oldali sávban**; a saját óra színe az ablakban választható (a gyermek alap színétől eltérő) és a sorozat **módosítható**; a naptárgomb közvetlen **„Naptárba küldés”** (előre kitöltött Google esemény), ICS nélkül; a közvetlen Google API-s írás külön subtask (#70). **Üzenet-AI (Kaneo #61):** `kreta_ai.py` OpenAI-kompatibilis kliens (helyi Ollama), szigorú JSON-validáció, magánhálózati őr, csatolmány-szöveg (txt/pdf), UI-találatlista checkboxokkal, Google-linkek + több VEVENT-es `.ics`; fake HTTP-szerveres teszt. **Backlog-kör (2026-11-04):** opcionális **basic auth** (#16), **DB-indexek + sémaverzió + migráció előtti másolat** (#15), **zsebpénz CSV export** (#11 része), **órarend ICS export** hét/hónap/félév/tanév időszakra (#73), a sárga zsebpénz-összeg sötétebb árnyalata (#72). **1035 ellenőrzés / 37 csomag** |
+| **v1.9.0** *(élesítésre vár)* | **2026-11-04** | **Saját órák (Kaneo #55):** `sajat_orarend` + `sajat_orarend_kivetel` táblák; a „Saját óra” gombbal gyermekenként rögzíthető szakkör/pluszfoglalkozás (nap, időpont, terem, megjegyzés), **teljes tanév / aktuális hét / egyedi időszak** érvényességgel; heti ismétlődés a naptárban, **egy alkalom** (kivétel) vagy a **teljes sorozat** törlése; a KRÉTA szinkron nem érinti. **Naptárbejegyzés (Kaneo #47/#60):** házi feladat / számonkérés és üzenet részleteinél **„Naptárba küldés”** — előre kitöltött Google Naptár esemény, egy kattintásos mentés, import/letöltés nélkül (az `.ics` végpont programozottan továbbra is elérhető); `CALENDAR` config (időzóna, emlékeztető, üzenet hossza), a timed események UTC-re konvertálva. Új tesztek: `test_sajat_orarend`, `test_naptar`; a mobil teszt a saját óra mentését és a naptárgombokat is ellenőrzi. **Futástörténet (Kaneo #10):** `/api/sync_runs` + a Rendszernapló fülön 20 futás táblázata és futásidő-sparkline. **Órarend-színek (Kaneo #56):** gyermekenkénti szín a configból vagy a „Színek” felületről (app_meta). **SuliHub arculat (Kaneo #62):** logó + favicon + név. **Egysoros fejléc (Kaneo #63):** kompakt navbar, egy státuszsor, tanévválasztó + Frissítés gomb egy sorban. **Finomítás (2026-11-04):** letisztított logó (gradiens + könyvjelző), gradiens hátterű fejléc; **brand bal sarokban (1,5× logó/név), tanév + státusz + Frissítés a jobb oldali sávban**; a saját óra színe az ablakban választható (a gyermek alap színétől eltérő) és a sorozat **módosítható**; a naptárgomb közvetlen **„Naptárba küldés”** (előre kitöltött Google esemény), ICS nélkül; a közvetlen Google API-s írás külön subtask (#70). **Üzenet-AI (Kaneo #61):** `kreta_ai.py` OpenAI-kompatibilis kliens (helyi Ollama), szigorú JSON-validáció, magánhálózati őr, csatolmány-szöveg (txt/pdf), API-végpontok (`/api/uzenet/<id>/ai`, `/api/naptar/ai/ics` — több VEVENT-es `.ics`); fake HTTP-szerveres teszt. **A felületi „AI elemzés” gombot a felhasználó kérésére kivettük, a háttér API-ként megmaradt.** **Backlog-kör (2026-11-04):** opcionális **basic auth** (#16), **DB-indexek + sémaverzió + migráció előtti másolat** (#15), **zsebpénz CSV export** (#11 része), **órarend ICS export** hét/hónap/félév/tanév időszakra (#73), a sárga zsebpénz-összeg sötétebb árnyalata (#72). **Üzenet-előnézet javítás (Kaneo #74):** a teljes szöveg a `postaladaelemek/<posta_id>` részletes válaszából jön, a bekezdések megmaradnak; `uzenetek.posta_id` oszlop + utólagos backfill (futásonként max. 20). **1045 ellenőrzés / 37 csomag** |
 
 ---
 

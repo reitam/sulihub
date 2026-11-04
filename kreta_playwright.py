@@ -140,6 +140,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             diak_nev TEXT,
             uzenet_id TEXT,
+            posta_id TEXT,
             felado TEXT,
             targy TEXT,
             idopont TEXT,
@@ -234,6 +235,7 @@ def init_db():
     required_columns = {
         "diak_nev": "TEXT",
         "uzenet_id": "TEXT",
+        "posta_id": "TEXT",
         "felado": "TEXT",
         "targy": "TEXT",
         "idopont": "TEXT",
@@ -806,6 +808,32 @@ def api_provider_uzenetek(student, client_factory=None):
         if not is_uzenet_saved(diak_nev, m["felado"], m["targy"], m["idopont"])
     ]
 
+    # A lista csak előnézetet ad (rövid, sortörések nélkül): az ÚJ üzenetekhez
+    # lekérjük a részletes törzset, és a hosszabb szöveget mentjük (Kaneo #74).
+    for m in new_messages:
+        teljes = kreta_api_sync.fetch_message_body(client, m.get("posta_id"))
+        if len(teljes) > len(m.get("szoveg") or ""):
+            m["szoveg"] = teljes
+
+    # #74: a már mentett üzenetekhez utólag rögzítjük a postalada-elem azonosítóját
+    # (feladó + tárgy + időpont egyezéssel a listából), hogy a teljes törzs lekérhető legyen.
+    lista_index = {(m["felado"], m["targy"], m["idopont"]): m.get("posta_id")
+                   for m in messages}
+    for sor in uzenet_hianyzo_posta_idk(diak_nev):
+        posta = lista_index.get((sor["felado"], sor["targy"], sor["idopont"]))
+        if posta:
+            uzenet_posta_id_mentes(sor["id"], posta)
+
+    # A korábban mentett, előnézet-szövegű üzenetek utólag feltöltése (Kaneo #74).
+    feltoltott = 0
+    for row in uzenet_rovid_szoveguak(diak_nev):
+        teljes = kreta_api_sync.fetch_message_body(client, row["posta_id"])
+        if len(teljes) > (row["len"] or 0):
+            update_uzenet_szoveg(row["id"], teljes)
+            feltoltott += 1
+    if feltoltott:
+        log(f"    [Üzenetek] {feltoltott} korábbi üzenet szövege feltöltve (teljes törzs).")
+
     # A csatolmányokat ELŐBB töltjük le, hogy hiba esetén még semmi ne kerüljön
     # a DB-be (a Playwright-fallback így teljes adatkört kap).
     downloads: dict[str, list[tuple[str, bytes]]] = {}
@@ -855,7 +883,7 @@ def api_provider_uzenetek(student, client_factory=None):
             # az útvonal üres marad — a felület így is látja, hogy volt csatolmány
             csatolmany_nev = expected_names[m["uzenet_id"]][0]
         save_uzenet_to_db(diak_nev, m["felado"], m["targy"], m["idopont"], m["szoveg"],
-                          csatolmany_nev, csatolmany_utvonal)
+                          csatolmany_nev, csatolmany_utvonal, m.get("posta_id") or "")
         uj += 1
 
     NEW_MESSAGE_COUNTS[diak_nev] = uj
@@ -1121,7 +1149,65 @@ def is_uzenet_saved(diak_nev, felado, targy, idopont):
     conn.close()
     return row is not None
 
-def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="", csatolmany_utvonal=""):
+
+def uzenet_rovid_szoveguak(diak_nev, max_len=200, limit=20):
+    """A mentett, de rövid (valószínűleg előnézet) szövegű üzenetek.
+
+    Csak olyan sorok jöhetnek szóba, amelyekben van `posta_id` — e nélkül nem
+    lehet kikérni a részletes törzset. (Kaneo #74)
+    """
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    try:
+        return conn.execute(
+            "SELECT id, posta_id, length(szoveg) AS len FROM uzenetek "
+            "WHERE diak_nev = ? AND posta_id IS NOT NULL AND posta_id != '' "
+            "AND length(szoveg) < ? ORDER BY id DESC LIMIT ?",
+            (diak_nev, max_len, limit),
+        ).fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+
+
+def uzenet_hianyzo_posta_idk(diak_nev, limit=25):
+    """A mentett üzenetek, amelyekhez még nem rögzült a postalada-elem azonosító."""
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    try:
+        return conn.execute(
+            "SELECT id, felado, targy, idopont FROM uzenetek "
+            "WHERE diak_nev = ? AND (posta_id IS NULL OR posta_id = '') "
+            "ORDER BY id DESC LIMIT ?", (diak_nev, limit)).fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+
+
+def uzenet_posta_id_mentes(row_id, posta_id):
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        conn.execute("UPDATE uzenetek SET posta_id = ? WHERE id = ?", (posta_id, row_id))
+        conn.commit()
+    except sqlite3.Error:
+        pass
+    finally:
+        conn.close()
+
+
+def update_uzenet_szoveg(row_id, szoveg):
+    """A teljes szövegre cseréli a mentett előnézetet (Kaneo #74)."""
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        conn.execute("UPDATE uzenetek SET szoveg = ? WHERE id = ?", (szoveg, row_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="",
+                      csatolmany_utvonal="", posta_id=""):
     """Menti a beolvasott új üzenetet az adatbázisba."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -1130,10 +1216,10 @@ def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="
         cursor.execute('''
             INSERT INTO uzenetek 
             (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal,
-             tanev, tanev_forras)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             posta_id, tanev, tanev_forras)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal,
-              tanev, kreta_tanev.TANEV_FORRAS_SZAMITOTT))
+              posta_id, tanev, kreta_tanev.TANEV_FORRAS_SZAMITOTT))
         conn.commit()
     except Exception as ex:
         log(f"      [Hiba az üzenet mentésekor]: {ex}")

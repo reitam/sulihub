@@ -21,10 +21,12 @@ from kreta_api import (  # noqa: E402
     KretaResponseError,
     ApiToken,
     chunk_date_range,
+    html_to_text,
     hu_date,
     hu_datetime,
     iso_date,
     lesson_index,
+    message_body_from_detail,
     normalize_evaluation,
     normalize_homework,
     normalize_justification,
@@ -311,6 +313,24 @@ message = normalize_message({
 ok(message["idopont"] == "2026. 09. 22. 1:33", "üzenet helyi idő")
 ok(message["felado"] == "Rendszer (-)", "üzenet feladó + titulus")
 ok(message["szoveg"] == "Üzenet", "üzenet HTML-mentes")
+
+print("\n6b) Üzenet-törzs: sortörések és részletes válasz (Kaneo #74)")
+body = html_to_text(
+    "<p>Tisztelt Szülők!</p><p>Sajnálattal értesítjük Önöket, hogy a program "
+    "2028-as.</p><br><p>A szervezők</p><p>Minta Magdolna</p><p>Minta László</p>")
+ok("\n" in body and body.splitlines()[0] == "Tisztelt Szülők!",
+   f"a <p> blokkok sortörésként maradnak meg ({body!r})")
+ok("Tisztelt Szülők!" in normalize_message({
+    "azonosito": 11,
+    "uzenet": {"azonosito": 21, "feladoNev": "x", "targy": "y",
+               "kuldesDatum": "2026-09-22T01:33:31",
+               "szoveg": "<p>Tisztelt Szülők!</p><p>More</p>"}})["szoveg"],
+   "normalize_message megőrzi a sortörést")
+ok(message_body_from_detail({"uzenet": {"szoveg": "<p>Részletes<br>test</p>"}})
+   == "Részletes\ntest", "a részletes válasz alaku {uzenet:{szoveg}}")
+ok(message_body_from_detail([{"szoveg": "Tömb a válasz"}]) == "Tömb a válasz",
+   "a részletes válasz lista alak is kezelt")
+ok(message_body_from_detail({"egyeb": 1}) == "", "ha nincs szöveg, üres string")
 
 print("\n7) Órarend-join párhuzamos csoportokkal")
 lessons = [

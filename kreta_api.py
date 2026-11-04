@@ -260,6 +260,30 @@ def plain_text(value) -> str:
     return " ".join(html_lib.unescape(text).split())
 
 
+def html_to_text(value) -> str:
+    """HTML-ből szöveg a **sortörések megőrzésével** (üzenetek, #74).
+
+    A KRÉTA üzenettörzse HTML: `<p>`/`<br>` tagjeit sortörésre váltjuk, a többi
+    tag-et eldobtuk, és a több üres sort egyre húzzuk össze.
+    """
+    text = "" if value is None else str(value)
+    text = re.sub(r"<\s*br\s*/?\s*>", "\n", text, flags=re.I)
+    text = re.sub(r"</\s*(p|div|li|ul|ol|tr|h[1-6]|blockquote|pre)\s*>", "\n",
+                  text, flags=re.I)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html_lib.unescape(text).replace("\r\n", "\n").replace("\r", "\n")
+    lines = []
+    for line in text.split("\n"):
+        line = re.sub(r"[ \t\u00a0]+", " ", line).strip()
+        if line:
+            lines.append(line)
+        elif lines and lines[-1] != "":
+            lines.append("")
+    while lines and lines[-1] == "":
+        lines.pop()
+    return "\n".join(lines)
+
+
 def _local_moment(value) -> datetime | None:
     text = _text(value)
     if not text:
@@ -896,6 +920,26 @@ def normalize_justification(item: dict) -> dict:
     }
 
 
+def message_body_from_detail(detail) -> str:
+    """Az eAdmin részletes válaszból a teljes üizenszöveg (sortörésekkel).
+
+    A válasz alakja nem dokumentált: lehet `{uzenet: {szoveg: …}}`, közvetlen
+    `{szoveg: …}`, vagy ezek listája. Ha semmit sem talál, üres sztringet ad,
+    és a hívó maradhat a lista short szövegénél.
+    """
+    for candidate in (detail if isinstance(detail, list) else [detail]):
+        if not isinstance(candidate, dict):
+            continue
+        inner = candidate.get("uzenet") if isinstance(candidate.get("uzenet"), dict) else candidate
+        for key in ("szoveg", "content", "uzenetSzoveg", "Tartalom", "tartalom"):
+            value = inner.get(key)
+            if isinstance(value, str) and value.strip():
+                text = html_to_text(value)
+                if text:
+                    return text
+    return ""
+
+
 def normalize_message(item: dict) -> dict:
     message = item.get("uzenet") or {}
     name = _text(message.get("feladoNev"))
@@ -903,10 +947,12 @@ def normalize_message(item: dict) -> dict:
     sender = f"{name} ({title})" if title else name
     return {
         "uzenet_id": _text(message.get("azonosito") or item.get("azonosito")),
+        # A postalada-elem azonosítója — a részletes törzs ezzel kérhető le.
+        "posta_id": _text(item.get("azonosito")),
         "felado": sender,
         "targy": _text(message.get("targy")),
         "idopont": hu_datetime(message.get("kuldesDatum")),
-        "szoveg": plain_text(message.get("szoveg")),
+        "szoveg": html_to_text(message.get("szoveg")),
         "csatolmanyok": message.get("csatolmanyok") or [],
         "olvasott": bool(item.get("isElolvasva")),
     }

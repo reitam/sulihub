@@ -20,6 +20,7 @@ import kreta_tanev
 from kreta_api import (
     KretaApiClient,
     lesson_index,
+    message_body_from_detail,
     normalize_consultations,
     normalize_evaluation,
     normalize_homework,
@@ -207,12 +208,30 @@ def fetch_consultations(client, start: date, end: date) -> list[dict]:
 
 
 def fetch_messages(client) -> list[dict]:
-    """Beérkezett üzenetek normalizált sorai (a lista a teljes szöveget adja).
+    """Beérkezett üzenetek normalizált sorai.
+
+    **Figyelem:** a lista-válasz `szoveg` mezője előnézet lehet (rövid, a
+    sortörések nélkül). A teljes törzsért a `fetch_message_body()` hívható meg
+    üzenetenként — csak az új soroknál, hogy ne termeljen felesleges forgalmat.
 
     A csatolmányok a `csatolmanyok` mezőben `{azonosito, fajlNev}` alakban
     jönnek; a fájl tartalmát a `fetch_attachment` hozza.
     """
     return [normalize_message(item) for item in client.fetch_messages()]
+
+
+def fetch_message_body(client, mailbox_id) -> str:
+    """A teljes üizenszöveg a részletes végpontból; üres string, ha nem elérhető.
+
+    A hiba nem dobás: az üzenet így is elmentődik a lista-elemből származó
+    (esetleg rövidke) szöveggel.
+    """
+    if not mailbox_id:
+        return ""
+    try:
+        return message_body_from_detail(client.fetch_message_detail(mailbox_id))
+    except Exception:  # noqa: BLE001 — a részletes válasz hibája nem törölheti az üzenetet
+        return ""
 
 
 def fetch_attachment(client, attachment_id) -> tuple[bytes, str]:

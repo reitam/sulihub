@@ -1260,26 +1260,8 @@
                 </button>
             </div>
         </div>
-        <!-- AI-elemzés (Kaneo #61) -->
-        <div id="aiEredmeny" class="mt-3 pt-2 border-top d-none">
-            <div class="fw-bold small mb-2"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>AI-elemzés – talált határidők</div>
-            <div id="aiLista" class="d-grid gap-2"></div>
-            <div class="d-flex gap-2 mt-2 flex-wrap align-items-center">
-                <button type="button" class="btn btn-sm btn-outline-primary" id="btnAiMind">Mind kijelölése</button>
-                <button type="button" class="btn btn-sm btn-primary" id="btnAiKijeloltGoogle">
-                    <i class="fa-brands fa-google me-1"></i>Kijelöltek naptárba
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnAiKijeloltIcs">
-                    <i class="fa-solid fa-calendar-plus me-1"></i>Kijelöltek ICS
-                </button>
-            </div>
-            <div id="aiHiba" class="alert alert-danger py-2 px-3 mt-2 mb-0 small d-none"></div>
-        </div>
       </div>
       <div class="modal-footer p-2 flex-wrap gap-1">
-        <button type="button" class="btn btn-sm btn-outline-primary" id="btnUzenetAi">
-          <i class="fa-solid fa-wand-magic-sparkles me-1"></i>AI elemzés
-        </button>
         <button type="button" class="btn btn-sm btn-primary" id="btnUzenetNaptarGoogle"
                 title="Előre kitöltött Google Naptár esemény nyílik; ott egy kattintással menthető">
           <i class="fa-brands fa-google me-1"></i>Naptárba küldés
@@ -2604,7 +2586,6 @@ $(document).ready(function() {
     let uzenetKommentCel = { kulcs: '', diak: '' };
     let uzenetAktualisId = null;
     let aktualisSajatProps = null;
-    let aiAktualisItems = [];
 
     function betoltUzenetKommentek() {
         if (!uzenetKommentCel.kulcs) {
@@ -4054,10 +4035,6 @@ $(document).ready(function() {
 
         // Naptárbejegyzés (Kaneo #47)
         uzenetAktualisId = msg.id;
-        aiAktualisItems = [];
-        $('#aiEredmeny').addClass('d-none');
-        $('#aiLista').empty();
-        $('#aiHiba').addClass('d-none').text('');
 
         let myModal = new bootstrap.Modal(document.getElementById('uzenetModal'));
         myModal.show();
@@ -4079,95 +4056,8 @@ $(document).ready(function() {
     });
 
     // ── Üzenet AI-elemzése (Kaneo #61) ─────────────────────────────────────
-    function aiHiba(msg) {
-        let box = $('#aiHiba');
-        if (msg) box.removeClass('d-none').text(msg);
-        else box.addClass('d-none').text('');
-    }
-    function aiKijelolt() {
-        return aiAktualisItems.filter(function(item, idx) {
-            return $('#aiLista .ai-item-check[data-index="' + idx + '"]').prop('checked');
-        });
-    }
-
-    $('#btnUzenetAi').click(function() {
-        let id = uzenetAktualisId;
-        if (!id) return;
-        aiHiba('');
-        $('#aiEredmeny').addClass('d-none');
-        let btn = $(this).prop('disabled', true).html(
-            '<span class="spinner-border spinner-border-sm me-1"></span>Elemzés...');
-        $.ajax({ url: `/api/uzenet/${id}/ai`, type: 'POST' })
-            .done(function(res) {
-                aiAktualisItems = (res && res.items) || [];
-                let box = $('#aiLista').empty();
-                if (!aiAktualisItems.length) {
-                    box.append($('<div class="text-muted small">').text(
-                        'Nem találtam határidőt vagy eseményt az üzenetben.'));
-                }
-                aiAktualisItems.forEach(function(item, idx) {
-                    let row = $('<label class="d-flex gap-2 align-items-start border rounded p-2 small mb-0">');
-                    row.append($('<input type="checkbox" class="form-check-input ai-item-check mt-1">')
-                        .attr('data-index', idx).prop('checked', true));
-                    let text = $('<div class="flex-grow-1">');
-                    text.append($('<div class="fw-bold">').text(item.cim));
-                    let when = item.datum + (item.ido ? ' ' + item.ido : ' (egész nap)');
-                    text.append($('<div class="text-muted">').text(
-                        when + (item.helyszin ? ' · ' + item.helyszin : '')));
-                    if (item.leiras) {
-                        text.append($('<div class="text-secondary">').text(item.leiras));
-                    }
-                    row.append(text);
-                    box.append(row);
-                });
-                $('#btnAiMind').toggle(aiAktualisItems.length > 0);
-                $('#aiEredmeny').removeClass('d-none');
-            })
-            .fail(function(xhr) {
-                $('#aiEredmeny').removeClass('d-none');
-                aiHiba((xhr.responseJSON && xhr.responseJSON.message) || 'Az AI-elemzés nem sikerült.');
-            })
-            .always(function() {
-                btn.prop('disabled', false).html(
-                    '<i class="fa-solid fa-wand-magic-sparkles me-1"></i>AI elemzés');
-            });
-    });
-
-    $('#btnAiMind').click(function() {
-        $('#aiLista .ai-item-check').prop('checked', true);
-    });
-
-    $('#btnAiKijeloltGoogle').click(function() {
-        let selected = aiKijelolt();
-        if (!selected.length) return aiHiba('Jelölj ki legalább egy elemet.');
-        selected.forEach(function(item) {
-            if (item.google_url) window.open(item.google_url, '_blank', 'noopener');
-        });
-    });
-
-    $('#btnAiKijeloltIcs').click(function() {
-        let selected = aiKijelolt();
-        if (!selected.length) return aiHiba('Jelölj ki legalább egy elemet.');
-        fetch('/api/naptar/ai/ics', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: selected })
-        }).then(function(res) {
-            if (!res.ok) throw new Error('ICS hiba');
-            return res.blob();
-        }).then(function(blob) {
-            let url = URL.createObjectURL(blob);
-            let a = document.createElement('a');
-            a.href = url;
-            a.download = 'kreta_ai_esemenyek.ics';
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            URL.revokeObjectURL(url);
-        }).catch(function() {
-            aiHiba('Az ICS fájl elkészítése nem sikerült.');
-        });
-    });
+    // A felületi gombot a felhasználó kérésére kivettük (2026-11-04): a háttér
+    // (/api/uzenet/<id>/ai, /api/naptar/ai/ics) megmaradt, API-ból hívható.
 
     $('#btnUzenetKommentMent').click(function() {
         let szoveg = $('#uzenetKommentUj').val().trim();
