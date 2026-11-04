@@ -320,14 +320,13 @@ try:
             await page.wait_for_selector('#uzenetModal.show', timeout=5000)
             naptar_gombok = await page.evaluate("""() => {
                 const google = document.querySelector('#btnUzenetNaptarGoogle');
-                const ics = document.querySelector('#btnUzenetNaptarIcs');
                 return {google: !!google && google.getBoundingClientRect().height > 0,
-                        icsHref: ics ? ics.getAttribute('href') : ''};
+                        text: google ? google.innerText.trim() : '',
+                        ics: !!document.querySelector('#btnUzenetNaptarIcs')};
             }""")
-            ok(naptar_gombok["google"], "az üzenet ablakban látszik a Google naptár gomb")
-            ok("/api/naptar/uzenet/" in (naptar_gombok["icsHref"] or "")
-               and naptar_gombok["icsHref"].endswith(".ics"),
-               f"az ICS letöltés az üzenethez mutat ({naptar_gombok['icsHref']})")
+            ok(naptar_gombok["google"] and "Naptárba" in naptar_gombok["text"],
+               f"az üzenet ablakban látszik a közvetlen naptárgomb ('{naptar_gombok['text']}')")
+            ok(not naptar_gombok["ics"], "az üzenet ablakban nincs ICS-letöltés (közvetlen küldés)")
             await page.click('#uzenetModal .btn-secondary')
             await page.wait_for_timeout(400)
 

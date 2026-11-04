@@ -28,6 +28,7 @@ NAPOS_NEVEK = {
 }
 
 ERVENYESSEG_MODOK = ("tanev", "het", "egyedi")
+DEFAULT_SZIN = "#6f42c1"
 
 _MAX_TEXT = {"cim": 120, "terem": 80, "megjegyzes": 500}
 
@@ -49,12 +50,17 @@ def ensure_schema(conn) -> None:
             vege TEXT NOT NULL,
             terem TEXT DEFAULT '',
             megjegyzes TEXT DEFAULT '',
+            szin TEXT DEFAULT '#6f42c1',
             ervenyes_tol TEXT NOT NULL,
             ervenyes_ig TEXT NOT NULL,
             letrehozva TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
+    # Régi DB: a szín oszlop utólag is bekerül (Kaneo #55).
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(sajat_orarend)").fetchall()}
+    if "szin" not in cols:
+        conn.execute("ALTER TABLE sajat_orarend ADD COLUMN szin TEXT DEFAULT '#6f42c1'")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS sajat_orarend_kivetel (
@@ -160,6 +166,9 @@ def validate_entry(payload: dict, today: date | None = None) -> dict:
     if vege <= kezdes:
         raise SajatOrarendError("A vég időpontjának később kell lennie a kezdésnél.")
     start, end = resolve_validity(payload, today=today)
+    szin = str(payload.get("szin") or DEFAULT_SZIN).strip()
+    if not re.match(r"^#[0-9a-fA-F]{6}$", szin):
+        raise SajatOrarendError("A szín #rrggbb formátumú legyen.")
     return {
         "diak_nev": diak,
         "cim": cim,
@@ -168,6 +177,7 @@ def validate_entry(payload: dict, today: date | None = None) -> dict:
         "vege": vege,
         "terem": _text(payload.get("terem"), "terem"),
         "megjegyzes": _text(payload.get("megjegyzes"), "megjegyzés"),
+        "szin": szin,
         "ervenyes_tol": start.isoformat(),
         "ervenyes_ig": end.isoformat(),
     }
@@ -187,10 +197,10 @@ def create_series(conn, payload: dict, today: date | None = None) -> dict:
     data = validate_entry(payload, today=today)
     cursor = conn.execute(
         "INSERT INTO sajat_orarend (diak_nev, cim, nap, kezdes, vege, terem, "
-        "megjegyzes, ervenyes_tol, ervenyes_ig) VALUES (?,?,?,?,?,?,?,?,?)",
+        "megjegyzes, szin, ervenyes_tol, ervenyes_ig) VALUES (?,?,?,?,?,?,?,?,?,?)",
         (
             data["diak_nev"], data["cim"], data["nap"], data["kezdes"], data["vege"],
-            data["terem"], data["megjegyzes"], data["ervenyes_tol"], data["ervenyes_ig"],
+            data["terem"], data["megjegyzes"], data["szin"], data["ervenyes_tol"], data["ervenyes_ig"],
         ),
     )
     conn.commit()
@@ -270,6 +280,7 @@ def expand_occurrences(conn, diak: str = "", start=None, end=None) -> list[dict]
                     "vege": row["vege"],
                     "terem": row["terem"] or "",
                     "megjegyzes": row["megjegyzes"] or "",
+                    "szin": row["szin"] or DEFAULT_SZIN,
                     "ervenyes_tol": row["ervenyes_tol"],
                     "ervenyes_ig": row["ervenyes_ig"],
                 })

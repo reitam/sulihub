@@ -1,12 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SuliHub">
-  <rect x="4" y="4" width="56" height="56" rx="14" fill="#0d6efd"/>
-  <rect x="14" y="10" width="36" height="44" rx="5" fill="#ffffff"/>
-  <rect x="14" y="10" width="7" height="44" rx="3.5" fill="#0a58ca"/>
-  <path d="M40 10h10v17l-5-3.6-5 3.6z" fill="#ffc107"/>
-  <rect x="26" y="20" width="16" height="3" rx="1.5" fill="#9ec5fe"/>
-  <rect x="26" y="28" width="16" height="3" rx="1.5" fill="#9ec5fe"/>
-  <rect x="26" y="36" width="11" height="3" rx="1.5" fill="#9ec5fe"/>
-  <circle cx="45" cy="46" r="9" fill="#198754"/>
-  <path d="M41 46l2.8 2.8L49 43.6" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="0.55" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eff6ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#0b2a6b" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <rect x="15" y="8" width="34" height="48" rx="6" fill="url(#page)"/>
+    <rect x="15" y="8" width="9" height="48" rx="4.5" fill="#dbeafe"/>
+    <rect x="15" y="8" width="4.5" height="48" rx="2.25" fill="#93c5fd"/>
+    <rect x="29" y="17" width="15" height="3.2" rx="1.6" fill="#bfdbfe"/>
+    <rect x="29" y="25" width="15" height="3.2" rx="1.6" fill="#bfdbfe"/>
+    <rect x="29" y="33" width="10" height="3.2" rx="1.6" fill="#bfdbfe"/>
+    <path d="M40 8h7v16l-3.5-2.6L40 24z" fill="#fbbf24"/>
+    <circle cx="47" cy="47" r="7.5" fill="#22c55e"/>
+    <path d="M43.6 47l2.4 2.4 4.6-5" fill="none" stroke="#ffffff"
+          stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
 </svg>
