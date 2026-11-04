@@ -91,8 +91,8 @@ ok("SuliHub" in tpl and "sulihub.svg" in tpl, "a felület a SuliHub nevet és lo
 logo = ROOT / "static" / "sulihub.svg"
 ok(logo.is_file() and logo.stat().st_size > 100, "a Sulihub logó létezik")
 ok((ROOT / "static" / "favicon.svg").is_file(), "a favicon megvan")
-ok('class="app-brand' in tpl and 'class="app-controls' in tpl,
-   "a fejléc brand + controls szerkezetű")
+ok('class="app-brand' in tpl and 'app-left' in tpl,
+   "a fejléc brand + bal oldali tanév + controls szerkezetű")
 ok('id="schedulerDetails" class="d-none"' in tpl,
    "a részletes szinkron-sor rejtett (a modál szolgálja ki)")
 compact_tag = tpl[tpl.find('id="schedulerCompact"'):tpl.find('id="schedulerCompact"') + 320]

@@ -1615,16 +1615,24 @@ def api_sajat_orarend():
         conn.close()
 
 
-@app.route("/api/sajat_orarend/<int:series_id>", methods=["DELETE"])
+@app.route("/api/sajat_orarend/<int:series_id>", methods=["DELETE", "PUT"])
 def api_sajat_orarend_torles(series_id):
     if not os.path.exists(DB_FILE):
         return jsonify({"status": "error", "message": "Nincs adatbázis"}), 404
     conn = get_db_connection()
     try:
         kreta_sajat_orarend.ensure_schema(conn)
+        if request.method == "PUT":
+            data = request.get_json(silent=True) or {}
+            row = kreta_sajat_orarend.update_series(conn, series_id, data)
+            if not row:
+                return jsonify({"status": "error", "message": "A tétel nem található"}), 404
+            return jsonify({"status": "ok", "sajat": row})
         if not kreta_sajat_orarend.delete_series(conn, series_id):
             return jsonify({"status": "error", "message": "A tétel nem található"}), 404
         return jsonify({"status": "ok"})
+    except kreta_sajat_orarend.SajatOrarendError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
     finally:
         conn.close()
 
@@ -1824,6 +1832,8 @@ def api_orarend_naptar():
                 "megjegyzes": alkalom["megjegyzes"],
                 "kezdes": alkalom["kezdes"],
                 "vege": alkalom["vege"],
+                "szin": alkalom.get("szin") or "#6f42c1",
+                "nap": alkalom["nap"],
                 "ervenyes_tol": alkalom["ervenyes_tol"],
                 "ervenyes_ig": alkalom["ervenyes_ig"],
             }

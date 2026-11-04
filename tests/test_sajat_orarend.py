@@ -190,6 +190,7 @@ res = post({"diak_nev": "Teszt Elek", "cim": "Színes szakkör", "nap": 4,
             "kezdes": "16:00", "vege": "17:00", "ervenyesites": "tanev",
             "szin": "#00aa88"})
 ok(res.status_code == 201, "a saját óra saját színnel menthető")
+szines_id = (res.get_json() or {}).get("sajat", {}).get("id")
 code, events = calendar("Teszt Elek", "2026-11-01", "2026-11-30")
 szines = next((e for e in events if e["extendedProps"].get("cim") == "Színes szakkör"), None)
 ok(szines and szines["backgroundColor"] == "#00aa88",
@@ -197,6 +198,29 @@ ok(szines and szines["backgroundColor"] == "#00aa88",
 bad = post({"diak_nev": "Teszt Elek", "cim": "X", "nap": 1, "kezdes": "16:00",
             "vege": "17:00", "szin": "zöld"})
 ok(bad.status_code == 400, "érvénytelen saját szín → 400")
+
+print("\n12) sorozat módosítása (Kaneo #55)")
+res = client.put(f"/api/sajat_orarend/{szines_id}", json={
+    "diak_nev": "Teszt Elek", "cim": "Módosított szakkör", "nap": 5,
+    "kezdes": "15:30", "vege": "16:30", "terem": "Aula", "szin": "#123456",
+    "ervenyesites": "egyedi", "tol": "2026-11-01", "ig": "2026-11-30",
+})
+ok(res.status_code == 200, f"a módosítás 200 ({res.status_code})")
+row = (res.get_json() or {}).get("sajat") or {}
+ok(row.get("cim") == "Módosított szakkör" and row.get("kezdes") == "15:30",
+   "a válasz a módosított adatokat tartalmazza")
+code, events = calendar("Teszt Elek", "2026-11-01", "2026-11-30")
+mod = next((e for e in events if e["extendedProps"].get("cim") == "Módosított szakkör"), None)
+ok(mod and mod["start"].endswith("T15:30:00") and mod["backgroundColor"] == "#123456",
+   f"a naptárban az új időpont/szín látszik ({mod and mod['start']})")
+ok(not any(e["extendedProps"].get("cim") == "Színes szakkör" for e in events),
+   "a régi cím eltűnt")
+ok(client.put("/api/sajat_orarend/99999", json={
+    "diak_nev": "Teszt Elek", "cim": "X", "nap": 1, "kezdes": "16:00",
+    "vege": "17:00"}).status_code == 404, "ismeretlen sorozat módosítása → 404")
+ok(client.put(f"/api/sajat_orarend/{szines_id}", json={
+    "diak_nev": "Teszt Elek", "cim": "", "nap": 1, "kezdes": "16:00",
+    "vege": "17:00"}).status_code == 400, "érvénytelen módosítás → 400")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

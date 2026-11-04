@@ -37,7 +37,7 @@
 ## 3. Tesztek
 
 - **974 automatikus ellenőrzés / 32 csomag — mind zöld.**
-  - fast: **827 ellenőrzés / 27 csomag**
+  - fast: **833 ellenőrzés / 27 csomag**
   - browser: **150 ellenőrzés / 5 csomag**
 - Új csomagok: `test_sajat_orarend`, `test_naptar`, `test_sync_runs`.
 - A `test_mobile_layout` a saját óra mentését, a naptárgombokat és az egysoros
@@ -49,10 +49,12 @@
   finom árnyék); a fejlécben 40 px-en, mobilon 32 px-en jelenik meg.
 - **#63:** a fejléc modernebb: gradiens háttér, lekerekített kontrollcsoport, egységes
   40 px-es vezérlők, a státusz kapszula alakú; asztalon 64 px, mobilon három tömör sor.
-  Képernyőképpel ellenőrizve (asztal + 393 px).
+  Képernyőképpel ellenőrizve (asztal + 393 px). **Elrendezés:** tanév balra, logó/verzió
+  középen hangsúlyosan, státusz jobbra, Frissítés a jobb szélen.
 - **#55:** a saját óra **színe az ablakban választható**; alapból lila, de ha a gyermek
   alap színe épp lila, automatikusan másikat ajánl. A választott szín a sorozathoz
-  mentődik (`sajat_orarend.szin`).
+  mentődik (`sajat_orarend.szin`). A létrehozott sorozat **módosítható** (eseményre
+  koppintva „Módosítás”), nem csak törölhető.
 - **#47/#60:** a felületen már nem ICS-letöltés van, hanem **„Naptárba küldés”**: előre
   kitöltött Google Naptár esemény nyílik, egy kattintással menthető. A valódi, OAuth-os
   közvetlen írás külön fejlesztés; az `.ics` végpont programozottan megmaradt.
