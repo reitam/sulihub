@@ -268,14 +268,24 @@ try:
                         compactVisible: !!c && c.getBoundingClientRect().height > 0,
                         headerHeight: h ? Math.round(h.getBoundingClientRect().height) : 0,
                         headerScroll: h ? h.scrollWidth : 0,
-                        headerClient: h ? h.clientWidth : 0};
+                        headerClient: h ? h.clientWidth : 0,
+                        logoWidth: (() => {
+                            const l = document.querySelector('.app-logo');
+                            return l ? Math.round(l.getBoundingClientRect().width) : 0;
+                        })(),
+                        titleSize: (() => {
+                            const t = document.querySelector('.app-title');
+                            return t ? Math.round(parseFloat(getComputedStyle(t).fontSize)) : 0;
+                        })()};
             }""")
             ok(desk["compactVisible"] and not desk["detailsVisible"],
                "asztali nézetben is az egysoros szinkron-státusz látszik")
-            ok(desk["headerHeight"] <= 80,
+            ok(desk["headerHeight"] <= 100,
                f"a fejléc asztalon kompakt marad ({desk['headerHeight']} px)")
             ok(desk["headerScroll"] <= desk["headerClient"] + 1,
                f"a fejléc asztalon sem csúszik ki ({desk['headerScroll']} <= {desk['headerClient']})")
+            ok(desk["logoWidth"] >= 64 and desk["titleSize"] >= 32,
+               f"a középső logó/név nagy (logó {desk['logoWidth']} px, név {desk['titleSize']} px)")
             await page.set_viewport_size({"width": 393, "height": 873})
             await page.wait_for_timeout(300)
 
