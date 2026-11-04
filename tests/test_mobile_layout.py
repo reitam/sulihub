@@ -337,6 +337,12 @@ try:
             ok(naptar_gombok["google"] and "Naptárba" in naptar_gombok["text"],
                f"az üzenet ablakban látszik a közvetlen naptárgomb ('{naptar_gombok['text']}')")
             ok(not naptar_gombok["ics"], "az üzenet ablakban nincs ICS-letöltés (közvetlen küldés)")
+            ai_gomb = await page.evaluate("""() => {
+                const b = document.querySelector('#btnUzenetAi');
+                return !!b && b.getBoundingClientRect().height > 0
+                    && b.innerText.indexOf('AI') >= 0;
+            }""")
+            ok(ai_gomb, "az üzenet ablakban van AI-elemzés gomb (#61)")
             await page.click('#uzenetModal .btn-secondary')
             await page.wait_for_timeout(400)
 

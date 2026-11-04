@@ -39,6 +39,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_sajat_orarend.py` | Kézi órarend (#55): tanév/hét/egyedi érvényesség, heti ismétlődés, egy alkalom kivétele, sorozat törlése és **módosítása**, diák-szűrés, saját szín, érvénytelen bemenetek; a szinkron nem érinti a saját táblákat; órarend-színek (#56) |
 | `test_naptar.py` | Naptárbejegyzés (#47): Google-link (egész napos/időpontos, időzóna), `.ics` (CRLF, all-day, UTC, escape, VALARM), config, API 200/404 |
 | `test_sync_runs.py` | Futástörténet (#10): `/api/sync_runs` sorrend, limit, `new_events` összegzés (szótár/lista), hibás diákok parse-olása, a Rendszernapló táblázat/sparkline megléte |
+| `test_ai_uzenet.py` | Üzenet-AI (#61): config + magánhálózati őr, JSON-fence/dedup/validáció, fake OpenAI-szerver, API 200/502/503/404, több VEVENT-es `.ics` |
 
 ## Függőségek
 
@@ -58,9 +59,9 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (32 csomag, 974 ell.)
-python tests/run_all.py --fast     # böngésző nélkül (27 csomag, 833 ell.)
-python tests/run_all.py --browser  # csak Playwright (5 csomag, 151 ell.)
+python tests/run_all.py            # minden teszt (33 csomag, 997 ell.)
+python tests/run_all.py --fast     # böngésző nélkül (28 csomag, 845 ell.)
+python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
 ```
 
 A GitHub Actions (`.github/workflows/ci.yml`) a **gyors** csoportot minden pushra/PR-ra,

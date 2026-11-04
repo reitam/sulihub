@@ -10,3 +10,5 @@ waitress>=3.0,<4
 requests>=2.32,<3
 # A naptár .ics időzóna-konverziójához (Windows-on nincs rendszer tz-adatbázis).
 tzdata>=2024.1
+# AI-elemzéshez a PDF csatolmányok szövegének kinyerése (#61).
+pypdf>=5,<7
