@@ -60,7 +60,7 @@ környezeti változókkal irányítja át.
 ```bash
 python tests/run_all.py            # minden teszt (32 csomag, 974 ell.)
 python tests/run_all.py --fast     # böngésző nélkül (27 csomag, 833 ell.)
-python tests/run_all.py --browser  # csak Playwright (5 csomag, 150 ell.)
+python tests/run_all.py --browser  # csak Playwright (5 csomag, 151 ell.)
 ```
 
 A GitHub Actions (`.github/workflows/ci.yml`) a **gyors** csoportot minden pushra/PR-ra,

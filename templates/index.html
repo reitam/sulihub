@@ -32,26 +32,26 @@
             grid-template-columns: auto minmax(0, 1fr) auto auto;
             align-items: center;
             gap: 1rem;
-            min-height: 64px;
-            padding: .55rem 1rem;
+            min-height: 84px;
+            padding: .6rem 1rem;
             background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
             border: 1px solid #e3ebf7;
             border-radius: 14px;
             box-shadow: 0 6px 18px rgba(13, 110, 253, .07);
         }
-        .app-brand { display: flex; align-items: center; gap: .6rem; min-width: 0; justify-self: center; }
-        .app-logo { width: 44px; height: 44px; border-radius: 13px; flex: 0 0 auto;
-                    box-shadow: 0 4px 12px rgba(13, 110, 253, .25); }
+        .app-brand { display: flex; align-items: center; gap: .8rem; min-width: 0; justify-self: center; }
+        .app-logo { width: 66px; height: 66px; border-radius: 18px; flex: 0 0 auto;
+                    box-shadow: 0 6px 16px rgba(13, 110, 253, .28); }
         .app-title {
-            font-size: 1.45rem; letter-spacing: -.02em; line-height: 1;
+            font-size: 2.1rem; letter-spacing: -.03em; line-height: 1;
             background: linear-gradient(90deg, #0d6efd, #6f42c1);
             -webkit-background-clip: text; background-clip: text; color: transparent;
         }
         .app-version {
-            font-size: .7rem; font-weight: 600; padding: .2rem .5rem; border-radius: 999px;
+            font-size: .8rem; font-weight: 600; padding: .22rem .55rem; border-radius: 999px;
             color: #5b6b82; background: #eef3fb; border: 1px solid #dbe6f5; white-space: nowrap;
         }
-        .app-scheduler { justify-self: end; width: 100%; max-width: 440px; min-width: 0; }
+        .app-scheduler { justify-self: end; width: 100%; max-width: 360px; min-width: 0; }
         #schedulerCompact {
             width: 100%; justify-content: center; background: #f8fafc; border: 1px solid #e2e8f0;
             border-radius: 999px; padding: .42rem .9rem; font-size: .82rem; box-shadow: none;
@@ -294,8 +294,9 @@
                 display: flex; flex-wrap: wrap; gap: .5rem;
                 min-height: 0; padding: .75rem !important;
             }
-            .app-header .app-title { font-size: 1.2rem; line-height: 1.2; }
-            .app-logo { width: 34px; height: 34px; border-radius: 10px; }
+            .app-header .app-title { font-size: 1.8rem; line-height: 1.2; }
+            .app-logo { width: 51px; height: 51px; border-radius: 14px; }
+            .app-version { font-size: .78rem; }
             .app-brand { flex: 1 1 100%; order: 1; justify-content: center; }
             .app-scheduler { flex: 1 1 100%; max-width: none; order: 2; justify-self: stretch; }
             .app-left { order: 3; flex: 1 1 auto; height: 44px; }
