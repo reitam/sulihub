@@ -988,6 +988,11 @@
                     <div class="col-md-3 text-end d-flex align-items-center justify-content-end">
                         <button id="btnQuickThisMonth" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1" style="font-size: 0.75rem;">Aktuális hónap</button>
                         <button id="btnQuickLastMonth" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;">Előző hónap</button>
+                        <a id="btnExportKifizetesCsv" class="btn btn-sm btn-outline-success py-0 px-2 ms-1"
+                           style="font-size: 0.75rem;" href="/api/kifizetesek/export.csv"
+                           title="Zsebpénz-elszámolások CSV exportja">
+                            <i class="fa-solid fa-file-csv me-1"></i>CSV
+                        </a>
                     </div>
                 </div>
             </div>
@@ -3138,6 +3143,12 @@ $(document).ready(function() {
         $('#rewardKezdoDatum').val(r.kezdo);
         $('#rewardZaroDatum').val(r.zaro);
         loadRewardsData();
+    });
+
+    $('#btnExportKifizetesCsv').click(function(e) {
+        e.preventDefault();
+        let diak = $('#rewardFilterDiak').val() || '';
+        window.location.href = '/api/kifizetesek/export.csv?diak=' + encodeURIComponent(diak);
     });
 
     // ── Tanév-választó (Kaneo #40, 5. fázis) ────────────────────────────────

@@ -1,6 +1,13 @@
 {
   "HEADLESS": true,
   "SCRAPE_MESSAGES": true,
+  "AUTH": {
+    "_comment": "Opcionalis basic auth (Kaneo #16). Elesben PASSWORD_HASH (werkzeug generate_password_hash); a PASSWORD csak teszthez. /health kivetel.",
+    "ENABLED": false,
+    "USERNAME": "",
+    "PASSWORD_HASH": "",
+    "PASSWORD": ""
+  },
   "SYNC_MODE": "api_first",
   "SYNC_SHADOW": false,
   "ENABLE_REWARDS": true,

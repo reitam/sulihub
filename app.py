@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, make_response
+from flask import Flask, render_template, request, jsonify, send_from_directory, make_response, Response
 import sqlite3
 import os
 import sys
@@ -8,6 +8,8 @@ import threading
 import re
 import io
 import hashlib
+import hmac
+import csv
 import socket
 import time
 import urllib.request
@@ -26,8 +28,41 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
+
+
+@app.before_request
+def _basic_auth_guard():
+    """Opcionális basic auth (Kaneo #16); a /health végpont kivétel."""
+    if request.path == "/health":
+        return None
+    try:
+        cfg = (load_config() or {}).get("AUTH") or {}
+    except Exception:
+        cfg = {}
+    if not cfg.get("ENABLED"):
+        return None
+    auth = request.authorization
+    username = str(cfg.get("USERNAME") or "")
+    password_hash = str(cfg.get("PASSWORD_HASH") or "")
+    password_plain = str(cfg.get("PASSWORD") or "")
+    valid = bool(auth and username and auth.username == username)
+    if valid:
+        if password_hash:
+            valid = check_password_hash(password_hash, auth.password or "")
+        else:
+            valid = bool(password_plain) and hmac.compare_digest(
+                password_plain, auth.password or "")
+    if not valid:
+        return Response(
+            "Bejelentkezés szükséges.",
+            401,
+            {"WWW-Authenticate": 'Basic realm="SuliHub", charset="UTF-8"'},
+        )
+    return None
+
 
 # ── Útvonalak ────────────────────────────────────────────────────────────────
 # Alapból minden az aktuális könyvtárban él (lokális Windows-futtatás, változatlan
@@ -86,6 +121,7 @@ def get_db_connection():
 # → minden oldal 500-as hibát adott. Ezért a hiányzó sémát itt pótoljuk.
 SCRAPER_TABLES = ("esemenyek", "uzenetek", "orarend", "hianyzasok", "igazolasok")
 APP_OWN_TABLES = ("kifizetesek", "sync_runs", "app_meta", "kommentek")
+SCHEMA_VERSION = 3
 CORE_TABLES = SCRAPER_TABLES + APP_OWN_TABLES
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 _schema_lock = threading.Lock()
@@ -590,6 +626,23 @@ def init_db_extensions():
             ensure_run_tables(conn)
             migrate_state_file(conn)
             mark_interrupted_runs()
+
+            # Migráció előtti automatikus DB-másolat (Kaneo #15).
+            try:
+                row = cursor.execute(
+                    "SELECT value FROM app_meta WHERE key = 'schema_version'").fetchone()
+                current_version = int(row[0]) if row and str(row[0]).isdigit() else 0
+            except (sqlite3.Error, TypeError, ValueError):
+                current_version = 0
+            if 0 < current_version < SCHEMA_VERSION:
+                backup_path = f"{DB_FILE}.bak-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                try:
+                    dst = sqlite3.connect(backup_path)
+                    conn.backup(dst)
+                    dst.close()
+                    print(f"[Migráció] DB-másolat: {backup_path}")
+                except sqlite3.Error as exc:
+                    print(f"[Migráció] A DB-másolat nem sikerült: {exc}")
             
             # Kifizetések tábla
             cursor.execute("""
@@ -684,6 +737,30 @@ def init_db_extensions():
             # Tanév-állapot (Kaneo #43): tanevek + tanulo_tanev_uid, kezdeti állapot.
             kreta_tanev.ensure_tanev_state_schema(conn, log_fn=print)
             kreta_tanev.seed_tanev_state(conn, log_fn=print)
+
+            # Gyakori lekérdezések indexei (Kaneo #15). Idempotens, régi DB-n is fut.
+            indexes = [
+                ("idx_esemenyek_diak_hatarido", "esemenyek(diak_nev, hatarido)"),
+                ("idx_esemenyek_diak_bej", "esemenyek(diak_nev, bej_datum)"),
+                ("idx_esemenyek_tanev", "esemenyek(tanev)"),
+                ("idx_uzenetek_diak_idopont", "uzenetek(diak_nev, idopont)"),
+                ("idx_uzenetek_tanev", "uzenetek(tanev)"),
+                ("idx_kifizetesek_diak", "kifizetesek(diak_nev)"),
+                ("idx_sync_runs_started", "sync_runs(started_at)"),
+            ]
+            for index_name, target in indexes:
+                try:
+                    cursor.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {target}")
+                except sqlite3.Error as exc:
+                    print(f"[Index] {index_name} kihagyva: {exc}")
+            # Sémaverzió-jelző (a későbbi migrációs keret alapja).
+            try:
+                cursor.execute(
+                    "INSERT OR IGNORE INTO app_meta (key, value, updated_at) VALUES (?,?,?)",
+                    ("schema_version", "3", datetime.now().replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")),
+                )
+            except sqlite3.Error:
+                pass
 
             conn.commit()
             conn.close()
@@ -3247,6 +3324,51 @@ def api_statisztika():
         "kifizetve": kifizetve,
         "teteles_lista": teteles_lista
     })
+
+@app.route("/api/kifizetesek/export.csv")
+def api_kifizetesek_csv():
+    """Zsebpénz-elszámolások CSV exportja (Kaneo #11)."""
+    if not os.path.exists(DB_FILE):
+        return Response("\ufeffNincs adatbázis.\n", mimetype="text/csv; charset=utf-8")
+    diak = request.args.get("diak", "")
+    conn = get_db_connection()
+    try:
+        query = ("SELECT diak_nev, kezdo_datum, zaro_datum, osszeg, kifizetve, updated_at"
+                 " FROM kifizetesek")
+        params = []
+        if diak:
+            query += " WHERE diak_nev = ?"
+            params.append(diak)
+        query += " ORDER BY kezdo_datum, diak_nev"
+        rows = conn.execute(query, params).fetchall()
+    except sqlite3.Error:
+        rows = []
+    finally:
+        conn.close()
+
+    out = io.StringIO()
+    writer = csv.writer(out, delimiter=";")
+    writer.writerow(["diak_nev", "kezdo_datum", "zaro_datum", "osszeg",
+                     "kifizetve", "kategoria", "megjegyzes", "updated_at"])
+    for row in rows:
+        writer.writerow([
+            row["diak_nev"] or "",
+            row["kezdo_datum"] or "",
+            row["zaro_datum"] or "",
+            row["osszeg"] if row["osszeg"] is not None else 0,
+            "igen" if row["kifizetve"] else "nem",
+            "zsebpenz",
+            "",
+            row["updated_at"] or "",
+        ])
+    data = "\ufeff" + out.getvalue()
+    response = Response(data, mimetype="text/csv; charset=utf-8")
+    suffix = re.sub(r"[^A-Za-z0-9._-]+", "_", diak)[:40] if diak else "osszes"
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename=\"kifizetesek_{suffix}.csv\""
+    )
+    return response
+
 
 @app.route("/api/kifizetes", methods=["POST"])
 def api_kifizetes_save():

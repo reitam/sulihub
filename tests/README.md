@@ -40,6 +40,9 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_naptar.py` | Naptárbejegyzés (#47): Google-link (egész napos/időpontos, időzóna), `.ics` (CRLF, all-day, UTC, escape, VALARM), config, API 200/404 |
 | `test_sync_runs.py` | Futástörténet (#10): `/api/sync_runs` sorrend, limit, `new_events` összegzés (szótár/lista), hibás diákok parse-olása, a Rendszernapló táblázat/sparkline megléte |
 | `test_ai_uzenet.py` | Üzenet-AI (#61): config + magánhálózati őr, JSON-fence/dedup/validáció, fake OpenAI-szerver, API 200/502/503/404, több VEVENT-es `.ics` |
+| `test_auth.py` | Opcionális basic auth (#16): kikapcsolva nyitott, bekapcsolva 401/200, `/health` kivétel, statikus védelem, hash és sima jelszó |
+| `test_db_indexes.py` | DB-indexek (#15): a gyorsító indexek léteznek, `schema_version`, ismételt init, migráció előtti `.bak` másolat |
+| `test_kifizetes_csv.py` | Zsebpénz CSV (#11): BOM, fejléc, sorok, diák-szűrő, melléklet-fejléc |
 
 ## Függőségek
 
@@ -59,8 +62,8 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (33 csomag, 997 ell.)
-python tests/run_all.py --fast     # böngésző nélkül (28 csomag, 845 ell.)
+python tests/run_all.py            # minden teszt (36 csomag, 1023 ell.)
+python tests/run_all.py --fast     # böngésző nélkül (31 csomag, 871 ell.)
 python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
 ```
 
