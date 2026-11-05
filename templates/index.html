@@ -3317,10 +3317,6 @@ $(document).ready(function() {
         $.getJSON(`/api/esemenyek?diak=${encodeURIComponent(diak)}&tipus=${encodeURIComponent(tipus)}&tantargy=${encodeURIComponent(tantargy)}${tanevQueryParam()}`, function(data) {
             rawData = data;
             applyFilters();
-            // A csempék (heti határidők / új jegyek) a friss adatból számoljanak
-            // (Kaneo #51: a versenyhelyzet miatt F5 nélkül elavultak maradtak).
-            updateDashboard();
-            renderDashboardFeeds();
 
             // Üres tanév: segítsünk megtalálni az adatot.
             let hint = $('#esemenyTanevHint');
@@ -3336,8 +3332,11 @@ $(document).ready(function() {
         $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(diak)}`, function(data) {
             rawUzenetek = data;
             uzenetekTable.clear().rows.add(data).draw();
-            updateDashboard();
         });
+
+        // A dashboard a saját, szűrő nélküli adatát kéri (Kaneo #76) — így az
+        // eseménylista filtrációja nem tudja kiüríteni a csempéket/feedet.
+        loadDashboardData();
 
         if ($('#rewards-tab').length > 0) {
             loadRewardsData();
@@ -3346,6 +3345,24 @@ $(document).ready(function() {
     }
 
     // ── Áttekintés (dashboard) ─────────────────────────────────────────────
+    // A dashboard a saját, SZŰRŐK NÉLKÜLI adatforrását használja (Kaneo #76):
+    // az eseménylistás filtráció (tipus/tantargy) nem nyomhatta el a csempéken
+    // és a feeden az adatokat — csak a gyermek- és tanév-szűrés számít itt.
+    let dashRaw = { esemenyek: [], uzenetek: [] };
+
+    function loadDashboardData() {
+        let diak = $('#filterDiak').val() || '';
+        $.getJSON(`/api/esemenyek?diak=${encodeURIComponent(diak)}${tanevQueryParam()}`, function (data) {
+            dashRaw.esemenyek = data || [];
+            updateDashboard();
+            renderDashboardFeeds();
+        });
+        $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(diak)}`, function (data) {
+            dashRaw.uzenetek = data || [];
+            updateDashboard();
+        });
+    }
+
     function fmtFtShort(num) {
         let n = Number(num) || 0;
         return (n > 0 ? '+' : '') + n.toLocaleString('hu-HU') + ' Ft';
@@ -3373,7 +3390,7 @@ $(document).ready(function() {
 
         let hazi = 0;
         let szamonkeres = 0;
-        rawData.forEach(function (item) {
+        dashRaw.esemenyek.forEach(function (item) {
             if (item.esemeny_tipus !== 'Házi feladat' &&
                 item.esemeny_tipus !== 'Bejelentett számonkérés') return;
             let hNum = dateToNum(item.hatarido);
@@ -3388,7 +3405,7 @@ $(document).ready(function() {
         let f10Num = dateToNumObj(from10);
 
         let ujJegy = 0;
-        rawData.forEach(function (item) {
+        dashRaw.esemenyek.forEach(function (item) {
             if (item.esemeny_tipus !== 'Értékelés') return;
             let d = dateToNum(item.bej_datum);
             if (d && d >= f10Num) ujJegy++;
@@ -3396,7 +3413,7 @@ $(document).ready(function() {
         setKpiSzam('#tileUjJegyekSzam', ujJegy, 'text-success');
 
         let ujUzenet = 0;
-        rawUzenetek.forEach(function (msg) {
+        dashRaw.uzenetek.forEach(function (msg) {
             let d = dateToNum(msg.idopont);
             if (d && d >= f10Num) ujUzenet++;
         });
@@ -3469,7 +3486,7 @@ $(document).ready(function() {
     // Dashboard alsó sáv: utolsó 10 feljegyzés + utolsó 10 jegy (a rawData a
     // kiválasztott gyermekre/tanévre már szűrve van).
     function renderDashboardFeeds() {
-        let feljegyzesek = rawData
+        let feljegyzesek = dashRaw.esemenyek
             .filter(function (x) { return x.esemeny_tipus === 'Feljegyzés'; })
             .sort(function (a, b) { return dateToNum(b.bej_datum) - dateToNum(a.bej_datum); })
             .slice(0, 10);
@@ -3492,7 +3509,7 @@ $(document).ready(function() {
             </div>`);
         });
 
-        let jegyek = rawData
+        let jegyek = dashRaw.esemenyek
             .filter(function (x) {
                 return x.esemeny_tipus === 'Értékelés' && Number(x.szam_ertek) >= 1;
             })
@@ -3781,7 +3798,11 @@ $(document).ready(function() {
         }
 
         if (e.target.id === 'attekintes-tab') {
+            // Visszaérkezéskor azonnal számoljunk a már letöltött dashboard-adatból,
+            // majd frissítsük is — F5 nélkül is teljes képet adjon (Kaneo #76).
             updateDashboard();
+            renderDashboardFeeds();
+            loadDashboardData();
             loadDashboardSummary();
         }
 

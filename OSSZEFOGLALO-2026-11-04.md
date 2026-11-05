@@ -40,7 +40,7 @@
 
 ## 3. Tesztek
 
-- **1045 automatikus ellenőrzés / 37 csomag — mind zöld.**
+- **1049 automatikus ellenőrzés / 37 csomag — mind zöld.**
   - fast: **883 ellenőrzés / 32 csomag**
   - browser: **152 ellenőrzés / 5 csomag**
 - Új csomagok: `test_sajat_orarend`, `test_naptar`, `test_sync_runs`, `test_ai_uzenet`,
@@ -65,7 +65,23 @@
   kitöltött Google Naptár esemény nyílik, egy kattintással menthető. A valódi, OAuth-os
   közvetlen írás külön fejlesztés; az `.ics` végpont programozottan megmaradt.
 
-## 5. Backlog-kör (2026-11-04)
+## 5. Hibajegyek: #75 (CI) és #76 (dashboard) — 2026-11-05
+
+- **#76 — üres eredmények navigáció után:** az Áttekintés a szűrt eseménylista
+  adatsorozatából számolta a csempéket és a feedet, így ha az eseménylistán
+  szűrtél (pl. „új jegyek" csempe), és visszaléptél, a dashboard üresen maradt
+  (F5 segített csak). **Fix:** a dashboard a saját, szűrő nélküli adatforrását
+  tölti be (`/api/esemenyek` csak gyermek- + tanév-szűrővel, `/api/uzenetek`),
+  és fülre visszatéréskor azonnal újraszámol, majd frissít.
+- **#75 — a CI (GitHub Actions, scheduled) futás elbukott:** a `test_dashboard`
+  fix tesztdátummal (2026-11-04) generál adatot, de a dashboard timeablakát a
+  böngésző valódi ideje számolja — másnapi futásnál a „mai" házi kicsúszott a
+  10 napos ablakból. **Fix:** `page.clock.install(...)` rögzíti a böngésző óráját
+  a tesztdátumra (asztali és mobil kontextusban is).
+- Erősített tesztek: a `test_dashboard` 4. lépése most azt is ellenőrzi, hogy
+  szűrés utáni visszatéréskor a csempék és a feedek újra tele vannak.
+
+## 6. Backlog-kör (2026-11-04)
 
 - **#16 Hitelesítés:** opcionális **basic auth** (`AUTH` config, `PASSWORD_HASH`),
   `/health` kivétel; kikapcsolva változatlan a működés. Élesben HTTPS/reverse proxy javasolt.
@@ -86,7 +102,7 @@
   rövid szövegű üzenetek **utólag feltöltődnek** (futásonként max. 20).
 - **Lezárt jegyek:** #61 és #65–#69 (AI), #71 (fejléc), #16, #15, #73, #72, #58; a #11 részlegesen.
 
-## 6. Nyitott
+## 7. Nyitott
 
 - **#11:** üzenetek olvasott/olvasatlan jelölés + melléklet-dedupe (a CSV export kész).
 - **#70:** Google Calendar OAuth — közvetlen írás configban megadott naptárba.
