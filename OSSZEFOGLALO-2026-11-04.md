@@ -40,7 +40,7 @@ A **#75/#76 javítás a `v1.9.1`** (tag `ddb5321`) részeként megy élesbe.
 
 ## 3. Tesztek
 
-- **1049 automatikus ellenőrzés / 37 csomag — mind zöld.**
+- **1051 automatikus ellenőrzés / 37 csomag — mind zöld.**
   - fast: **883 ellenőrzés / 32 csomag**
   - browser: **152 ellenőrzés / 5 csomag**
 - Új csomagok: `test_sajat_orarend`, `test_naptar`, `test_sync_runs`, `test_ai_uzenet`,
@@ -65,7 +65,7 @@ A **#75/#76 javítás a `v1.9.1`** (tag `ddb5321`) részeként megy élesbe.
   kitöltött Google Naptár esemény nyílik, egy kattintással menthető. A valódi, OAuth-os
   közvetlen írás külön fejlesztés; az `.ics` végpont programozottan megmaradt.
 
-## 5. Hibajegyek: #75 (CI) és #76 (dashboard) — 2026-11-05
+## 5. Hibajegyek: #75 (CI), #76 (dashboard) és #73 (ICS-duplikáció) — 2026-11-05
 
 - **#76 — üres eredmények navigáció után:** az Áttekintés a szűrt eseménylista
   adatsorozatából számolta a csempéket és a feedet, így ha az eseménylistán
@@ -80,6 +80,12 @@ A **#75/#76 javítás a `v1.9.1`** (tag `ddb5321`) részeként megy élesbe.
   a tesztdátumra (asztali és mobil kontextusban is).
 - Erősített tesztek: a `test_dashboard` 4. lépése most azt is ellenőrzi, hogy
   szűrés utáni visszatéréskor a csempék és a feedek újra tele vannak.
+- **#73 — órarend ICS export duplikáció (a felhasználó visszadobta):** a táblában a
+  szinkron miatt az aktuális **és** a következő hét is szerepel, a generator pedig
+  soronként csinált heti `RRULE` eseményt → minden kétszer került az exportba.
+  **Fix:** az azonos heti minta (diák + tantárgy + nap + kezdés + időtartam)
+  **egyetlen VEVENT**-té vonódik össze. Éles adaton ellenőrizve: 67 sor → 31 esemény.
+  Teszt: `test_orarend_ics` 5. szakasz.
 
 ## 6. Backlog-kör (2026-11-04)
 

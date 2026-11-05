@@ -281,8 +281,11 @@ A Heti órarend fülön az **„ICS export”** menüben választható időszak:
 aktuális hónap, félév, teljes tanév**. A kiválasztott gyermek (vagy az összes) heti
 órarendi mintái **ismétlődő VEVENT**-ként (`RRULE:FREQ=WEEKLY`) kerülnek a `.ics`-be,
 a megfelelő időszakra szűkítve; a terem `LOCATION`, a tanár `DESCRIPTION` mezőbe kerül.
-A fájl Google Naptárba/Apple/Outlookba importálható. A „félév” szeptember–január,
-illetve február–augusztus; a tanév szeptember 1. – augusztus 31.
+A fájl Google Naptárba/Apple/Outlookba importálható. A félév szeptember–január,
+illetve február–augusztus; a tanév szeptember 1. – augusztus 31. Az azonos heti minta
+(diák + tantárgy + nap + kezdés + időtartam) **egyetlen VEVENT** — a szinkron az aktuális
+és a következő hetet is leéri, és a tábla sorait nem vonnánk össze, minden kétszer
+kerülne az exportba (Kaneo #73).
 
 ---
 
@@ -745,7 +748,7 @@ Kreta/
 ### 9.3. Tesztek
 
 ```bash
-python tests/run_all.py            # mind (1049 ellenőrzés, 37 csomag)
+python tests/run_all.py            # mind (1051 ellenőrzés, 37 csomag)
 python tests/run_all.py --fast     # böngésző nélkül (32 csomag, 883 ell.)
 python tests/run_all.py --browser  # Playwrightos (5 csomag, 152 ell.)
 ```
@@ -755,7 +758,7 @@ pushra/PR-ra lefut; a **böngészős** job (5 csomag) csak `main` pushra, éjsza
 kézi indításra. A tesztek fixture-ökkel/fake klienssel dolgoznak, valódi KRÉTA-hívás nem
 történik; a böngészős job hibája esetén a képernyőképek artifactként feltöltődnek.
 
-Jelenleg **1049 automatikus ellenőrzés** harminchét csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **1051 automatikus ellenőrzés** harminchét csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -896,7 +899,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.7.2** *(2026-11-03, éles)* | **2026-11-03** | **Mobil fejléc:** a hosszú „Utolsó frissítés / Utolsó automatikus” szöveg tördel, nem csúszik ki; a szinkron állapota mobilon **egyetlen karcsú dinamikus sor** (zöld „Szinkronizálva: ma 21:33”, futáskor pörgő ikon, hiba esetén piros), a technikai részletek (ütemező, időablak, intervallum, következő/utolsó futás) **koppintásra nyíló ablakban**; asztali nézet változatlan. A `test_mobile_layout` a státuszsáv magasságát, a rejtett részleteket, a dinamikus állapotokat és a modált is ellenőrzi (a modál tartalma nem csúszik ki, a hosszú utolsó-futás sor tördel); 878 ellenőrzés / 28 csomag |
 | **v1.8.0** *(2026-11-04, éles)* | **2026-11-04** | **Külső CDN-ek vendorolása (Kaneo #12):** a 12 külső hivatkozás helyett minden frontend-függőség a `static/vendor/` alatt (Bootstrap 5.3.0 CSS+JS, DataTables 1.13.6 + Responsive 2.5.0 CSS/JS, FontAwesome 6.4.0 CSS + webfontok, FullCalendar 6.1.8 + hu locale, jQuery 3.7.0); a `templates/index.html` csak `url_for('static', ...)` hivatkozásokat használ, így internet nélkül is indul. **Apróságok (Kaneo #17):** `SyntaxWarning` nincs (a modulok figyelmeztetés nélkül fordulnak), a `config.json.example` érvényes JSON (a hiányzó vessző pótolva), a halott `autoSyncAlert` blokk törölve a frontendből. Új `test_karbantartas` (vendor-fájlok + webfontok létezése, nincs külső URL, JSON-példa, nincs halott hivatkozás, nincs SyntaxWarning); **888 ellenőrzés / 29 csomag**. **Éles ellenőrzés (2026-11-04):** `/health` = `v1.8.0`, a vendorolt Bootstrap CSS, FontAwesome webfont és FullCalendar JS 200-at ad, a HTML-ben nincs CDN-hivatkozás |
 | **v1.9.0** *(2026-11-05, éles)* | **2026-11-04** | **Saját órák (Kaneo #55):** `sajat_orarend` + `sajat_orarend_kivetel` táblák; a „Saját óra” gombbal gyermekenként rögzíthető szakkör/pluszfoglalkozás (nap, időpont, terem, megjegyzés), **teljes tanév / aktuális hét / egyedi időszak** érvényességgel; heti ismétlődés a naptárban, **egy alkalom** (kivétel) vagy a **teljes sorozat** törlése; a KRÉTA szinkron nem érinti. **Naptárbejegyzés (Kaneo #47/#60):** házi feladat / számonkérés és üzenet részleteinél **„Naptárba küldés”** — előre kitöltött Google Naptár esemény, egy kattintásos mentés, import/letöltés nélkül (az `.ics` végpont programozottan továbbra is elérhető); `CALENDAR` config (időzóna, emlékeztető, üzenet hossza), a timed események UTC-re konvertálva. Új tesztek: `test_sajat_orarend`, `test_naptar`; a mobil teszt a saját óra mentését és a naptárgombokat is ellenőrzi. **Futástörténet (Kaneo #10):** `/api/sync_runs` + a Rendszernapló fülön 20 futás táblázata és futásidő-sparkline. **Órarend-színek (Kaneo #56):** gyermekenkénti szín a configból vagy a „Színek” felületről (app_meta). **SuliHub arculat (Kaneo #62):** logó + favicon + név. **Egysoros fejléc (Kaneo #63):** kompakt navbar, egy státuszsor, tanévválasztó + Frissítés gomb egy sorban. **Finomítás (2026-11-04):** letisztított logó (gradiens + könyvjelző), gradiens hátterű fejléc; **brand bal sarokban (1,5× logó/név), tanév + státusz + Frissítés a jobb oldali sávban**; a saját óra színe az ablakban választható (a gyermek alap színétől eltérő) és a sorozat **módosítható**; a naptárgomb közvetlen **„Naptárba küldés”** (előre kitöltött Google esemény), ICS nélkül; a közvetlen Google API-s írás külön subtask (#70). **Üzenet-AI (Kaneo #61):** `kreta_ai.py` OpenAI-kompatibilis kliens (helyi Ollama), szigorú JSON-validáció, magánhálózati őr, csatolmány-szöveg (txt/pdf), API-végpontok (`/api/uzenet/<id>/ai`, `/api/naptar/ai/ics` — több VEVENT-es `.ics`); fake HTTP-szerveres teszt. **A felületi „AI elemzés” gombot a felhasználó kérésére kivettük, a háttér API-ként megmaradt.** **Backlog-kör (2026-11-04):** opcionális **basic auth** (#16), **DB-indexek + sémaverzió + migráció előtti másolat** (#15), **zsebpénz CSV export** (#11 része), **órarend ICS export** hét/hónap/félév/tanév időszakra (#73), a sárga zsebpénz-összeg sötétebb árnyalata (#72). **Üzenet-előnézet javítás (Kaneo #74):** a teljes szöveg a `postaladaelemek/<posta_id>` részletes válaszából jön, a bekezdések megmaradnak; `uzenetek.posta_id` oszlop + utólagos backfill (futásonként max. 20). **1045 ellenőrzés / 37 csomag** |
-| **v1.9.1** *(élesítésre vár; a board már 1.9.1-ként jelöli)* | **2026-11-05** | **Dashboard-visszatöltés (Kaneo #76):** az Áttekintés saját, szűrés nélküli adatforrást használ (`loadDashboardData`/`dashRaw`), és fülre visszatéréskor azonnal újraszámol — az eseménylistás szűrés után nem maradhat üres csempe/feed (F5 nélkül teljes kép). **CI-determinizmus (Kaneo #75):** a `test_dashboard` a böngésző óráját is rögzíti (`page.clock.install`), így a fix tesztdátum nem csúszik el a másnapi (scheduled) futásban — ez buktatta az éjszakai CI-t. Erősített tesztek (visszatéréskor csempe + feed tele). **1049 ellenőrzés / 37 csomag** |
+| **v1.9.1** *(élesítésre vár; a board már 1.9.1-ként jelöli)* | **2026-11-05** | **Dashboard-visszatöltés (Kaneo #76):** az Áttekintés saját, szűrés nélküli adatforrást használ (`loadDashboardData`/`dashRaw`), és fülre visszatéréskor azonnal újraszámol — az eseménylistás szűrés után nem maradhat üres csempe/feed (F5 nélkül teljes kép). **CI-determinizmus (Kaneo #75):** a `test_dashboard` a böngésző óráját is rögzíti (`page.clock.install`), így a fix tesztdátum nem csúszik el a másnapi (scheduled) futásban — ez buktatta az éjszakai CI-t. Erősített tesztek (visszatéréskor csempe + feed tele). **ICS-duplikáció (Kaneo #73, a user visszadobta):** az órarend-exportnál az azonos heti minta (diák + tantárgy + nap + kezdés + időtartam) most **egyetlen** weekly VEVENT — korábban a következő hétre szóló sor is saját eseményt generált, így minden kétszer szerepelt az exportban (éles adatokon ellenőrizve: 67 sor → 31 esemény). **1051 ellenőrzés / 37 csomag** |
 
 ---
 

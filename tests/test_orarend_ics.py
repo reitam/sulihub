@@ -44,6 +44,13 @@ conn.execute(
     ("Másik Diák", "2026-11-03T09:00:00", "2026-11-03T09:45:00", "Kedd",
      "Kémia", "Tanár2", "102"),
 )
+# #73: a szinkron a következő hetet is leéri — ugyanaz a minta duplán a táblában.
+conn.execute(
+    "INSERT INTO orarend (diak_nev, kezdo_idopont, zaro_idopont, nap, tantargy, tanar, terem)"
+    " VALUES (?,?,?,?,?,?,?)",
+    ("Teszt Elek", "2026-11-09T08:00:00", "2026-11-09T08:45:00", "Hétfő",
+     "Fizika", "Tanár", "101"),
+)
 conn.commit()
 conn.close()
 
@@ -79,6 +86,13 @@ res = client.get("/api/orarend/export_ics?diak=Nincs%20Ilyen&period=het&datum=20
 ics = res.get_data(as_text=True)
 ok(res.status_code == 200 and "BEGIN:VCALENDAR" in ics and "BEGIN:VEVENT" not in ics,
    "ismeretlen diák → üres, érvényes naptár")
+
+print("\n5) duplikáció-mentesítés (Kaneo #73)")
+res = client.get("/api/orarend/export_ics?diak=Teszt%20Elek&period=honap&datum=2026-11-04")
+ics = res.get_data(as_text=True)
+ok(ics.count("BEGIN:VEVENT") == 1,
+   f"aktuális + következő hétre szóló azonos minta → 1 weekly VEVENT ({ics.count('BEGIN:VEVENT')})")
+ok("SUMMARY:Fizika" in ics and "RRULE:FREQ=WEEKLY" in ics, "a minta megmarad")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)
