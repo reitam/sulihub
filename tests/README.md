@@ -25,7 +25,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_db_guard.py` | DB-séma őr: zárolt adatbázisnál nincs init-db subprocess, az önjavítás nem kapcsol ki véglegesen, a zárolás után bootstrapol |
 | `test_jegy_suly.py` | Jegyek súlyszázaléka: webes tooltip `data-suly` szövegének parse-olása, mobil API `SulySzazalekErteke` normalizálása (szám/sztring/null), DB-oszlop és mentés (0 = nincs adat) |
 | `test_statisztika.py` | `/api/statisztika`: súlyozott tanulmányi átlag (0%-os súly kimarad), súlyadat nélküli visszaesés az egyszerű átlagra, kikapcsolt zsebpénz (`rewards_enabled: false`, statisztika él, pénz 0); `/api/atlagok`: tantárgyi átlagok havi bontással; `/api/dashboard`: diákonkénti átlag, kifizetett időszak levonása, igazolatlan óra |
-| `test_dashboard.py` | Áttekintés dashboard valódi böngészőben: csempeszámok (következő házi/számonkérés 10 napra, új jegyek/üzenetek, igazolatlan hiányzás, kifizetetlen zsebpénz), gyermekkártyák, alsó feed (figyelmeztetés + legutóbbi jegyek), csempére kattintás → szűrt eseménylista, visszalépés, szűrőpanel láthatósága, zárt átlag-accordion kinyitása; tanév-választó (alap = aktuális tanév, „Összes tanév" módban nincs átlag) |
+| `test_dashboard.py` | Áttekintés dashboard valódi böngészőben, **rögzített böngésző-órával** (`page.clock` — a CI másnapi futás ne csússzon el, #75): csempeszámok (következő házi/számonkérés 10 napra, új jegyek/üzenetek, igazolatlan hiányzás, kifizetetlen zsebpénz), gyermekkártyák, alsó feed (figyelmeztetés + legutóbbi jegyek), csempére kattintás → szűrt eseménylista, **visszalépéskor a szűrés nem tartja üresen a csempét/feedet (#76)**, szűrőpanel láthatósága, zárt átlag-accordion kinyitása; tanév-választó (alap = aktuális tanév, „Összes tanév" módban nincs átlag) |
 | `test_tanev.py` | Tanév-számítás (Kaneo #40): határnapok, szökőév, KRÉTA magyar és ISO dátumok, `tanev_bounds`, `current_tanev` injektált dátummal, `KRETA_TODAY`/`KRETA_TANEV_KEZDO` env, táblánkénti dátummező (`row_tanev`), `teljesen_lekert` a törlési jogosultsághoz |
 | `test_tanev_migration.py` | Tanév-séma migráció régi (oszlop nélküli) DB-n: 5 tábla + `sync_runs` kap oszlopot, az `orarend` nem; backfill két tanévre + ismeretlen dátum; ID-stabilitás; idempotens második futás; **450 soros, többkörös (batch=100) backfill** + `unsynced_rows` |
 | `test_tanev_sync.py` | Tanév-tudatos szinkron éles KRÉTA nélkül: az API-ablak a tanév elejétől indul, csak a tanévbe eső sorok cserélődnek, a korábbi tanév érintetlen, az ablakon túli (jövőbeli) sor nem törlődik; **óra-bomba** (08-31 → 09-01 üres válasz → 09-03 új adat); a **hiányzások** korábbi tanévét nem törli, az **igazolás** upsert ID-stabil (módosított megjegyzés) |
@@ -63,7 +63,7 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (37 csomag, 1045 ell.)
+python tests/run_all.py            # minden teszt (37 csomag, 1049 ell.)
 python tests/run_all.py --fast     # böngésző nélkül (32 csomag, 883 ell.)
 python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
 ```

@@ -16,7 +16,7 @@ import sys
 import tempfile
 import time
 import urllib.request
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -189,6 +189,10 @@ try:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1280, "height": 950})
+        # A dashboard timeablak a BÖNGÉSZŐ dátumát használja — rögzítjük, hogy a
+        # teszt fix "today"-je és a oldal megegyezzen (Kaneo #75: a CI-ban a
+        # másnapi futásnál a "ma" határidő kicsúszott a 10 napos ablakból).
+        page.clock.install(time=datetime(today.year, today.month, today.day, 12, 0))
         page.goto(base, wait_until="networkidle")
         page.wait_for_timeout(1200)
 
@@ -244,11 +248,22 @@ try:
                                          "rows => rows.filter(r => r.querySelectorAll('td').length > 1).length")
         ok(rows == new_grades, f"a listában {rows} jegy (várt {new_grades}, a régi kimaradt)")
 
-        print("\n4) Vissza az áttekintésre")
+        print("\n4) Vissza az áttekintésre — az adatok F5 nélkül is visszatérnek (Kaneo #76)")
         page.click(".btn-back-dashboard")
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(900)
         ok(page.is_visible("#attekintes-pane"), "visszalépés a dashboardra")
         ok(not page.is_visible("#accordionFilterBlock"), "a szűrőpanel ismét rejtve")
+        jegy_ujra = page.inner_text("#tileUjJegyekSzam").strip()
+        hazi_ujra = page.inner_text("#tileHaziSzam").strip()
+        ok(jegy_ujra == str(new_grades),
+           f"új jegyek csempe visszaállt szűrés nélkül: {jegy_ujra} (várt {new_grades})")
+        ok(hazi_ujra == str(hazi_10),
+           f"házi feladatok csempe szűrés nélkül: {hazi_ujra} (várt {hazi_10})")
+        figy_ujra = " ".join(page.inner_text("#dashFigyelemLista").split())
+        ok("Nincs" not in figy_ujra, f"a feed nem maradt üres: {figy_ujra[:80]}")
+        jegy_ujra_feed = page.eval_on_selector_all(
+            "#dashJegyLista .list-group-item", "els => els.length")
+        ok(jegy_ujra_feed >= 3, f"a legutóbbi jegyek feed megint feltöltődött: {jegy_ujra_feed}")
 
         print("\n5) Tantárgyi átlagok a Statisztika fülön (#39)")
         page.click("#rewards-tab")
@@ -282,6 +297,7 @@ try:
         print("\n6) Mobil nézet: két bontás kapcsolóval (#39)")
         mctx = browser.new_context(viewport={"width": 393, "height": 873})
         mp = mctx.new_page()
+        mp.clock.install(time=datetime(today.year, today.month, today.day, 12, 0))
         mp.goto(base, wait_until="networkidle")
         mp.click("#rewards-tab")
         mp.wait_for_timeout(1500)
