@@ -297,17 +297,29 @@ def ics_orarend(rows, start_date, end_date, cfg: dict,
                 diak_prefix: bool = False, now: datetime | None = None) -> str:
     """Heti ismétlődő órarendi sorokból `.ics` (Kaneo #73).
 
-    Egy VEVENT = egy heti minta (tantárgy + időpont), `RRULE:FREQ=WEEKLY`
-    szabállyal a kért időszakra. Az egész napos (dátum nélküli) sorokat kihagyjuk.
+    Egy VEVENT = egy heti minta (diák + tantárgy + nap + kezdés + időtartam),
+    `RRULE:FREQ=WEEKLY` szabállyal a kért időszakra. Az azonos minta **többször
+    is szerepelhet a táblában** (szinkron az aktuális és a következő hetet is
+    lekéri) — ezeket egy eseményre vonjuk össze, különben minden kétszer kerülne
+    az exportba. Az egész napos (dátum nélküli) sorokat kihagyjuk.
     """
     now = now or datetime.now(timezone.utc)
-    event_lines = []
+    mintak: dict[tuple, dict] = {}
     for row in rows:
         kezdo = parse_datetime(row["kezdo_idopont"])
         if not kezdo or "T" not in str(row["kezdo_idopont"] or ""):
             continue
         zaro = parse_datetime(row["zaro_idopont"]) if row["zaro_idopont"] else None
         duration = (zaro - kezdo) if zaro and zaro > kezdo else timedelta(minutes=45)
+        key = (str(row["diak_nev"] or "").strip(), str(row["tantargy"] or "").strip(),
+               kezdo.weekday(), kezdo.strftime("%H:%M"), duration.total_seconds())
+        korabbi = mintak.get(key)
+        if korabbi is None or kezdo < korabbi["kezdo"]:
+            mintak[key] = {"row": row, "kezdo": kezdo, "duration": duration}
+
+    event_lines = []
+    for entry in mintak.values():
+        row, kezdo, duration = entry["row"], entry["kezdo"], entry["duration"]
         first = start_date + timedelta(days=(kezdo.weekday() - start_date.weekday()) % 7)
         if first > end_date:
             continue
