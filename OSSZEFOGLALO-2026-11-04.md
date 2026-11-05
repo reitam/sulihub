@@ -3,8 +3,8 @@
 **Téma:** a Kaneo To Do-ba tett jegyek megvalósítása a KRÉTA Adatbázis Áttekintő
 (SuliHub) alkalmazásban.
 
-**Ág:** `main` (pusholva). **Éles verzió:** `v1.8.0`; a munkamenet eredménye
-**`v1.9.0`** néven élesítésre vár.
+**Ág:** `main` (pusholva). **Éles verzió: `v1.9.0`** (2026-11-05; `/health` = v1.9.0).
+A **#75/#76 javítás a `v1.9.1`** (tag `ddb5321`) részeként megy élesbe.
 
 ---
 
@@ -110,6 +110,8 @@
   (felbontás, digest, Playwright-kivezetés, publikálás, felhasználókezelés, licenc).
 - **#61:** a felületi gomb kivéve; ha később kell, a UI-t újra be lehet kötni az
   API-végpontokra (`AI-ELEMZES-TERV.md`).
-- **Élesítés:** `.\deploy.ps1 -Release v1.9.0` (interaktív SSH-jelszó), utána
-  `/health` = v1.9.0, fejléc + **teljes üzenetszövegek** (a régiek fokozatosan
-  feltöltődnek a szinkronokkal) és az AI-gomb hiányának ellenőrzése.
+- **Élesítés:** `.\deploy.ps1 -Release v1.9.1` (interaktív SSH-jelszó; a tag már
+  létezik: `ddb5321`), utána `/health` = v1.9.1, a dashboard szűrés-csempére kattintás
+  után visszatérve is teljes (#76), és a következő napon futó scheduled CI is zöld
+  (#75 — ezt követően a #74 miatt a régebbi üzenetek a szinkronokkal fokozatosan
+  feltöltődnek).
