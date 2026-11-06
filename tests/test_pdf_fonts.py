@@ -27,14 +27,15 @@ os.environ.update({
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import app as kreta
+import kreta_exports  # a PDF-betűk a kreta_exports.py-ban élnek (KRÉ-14 #96)
 
-print("regisztrált betű (route előtt):", kreta._pdf_font(), "| bold:", kreta._pdf_font_bold())
+print("regisztrált betű (route előtt):", kreta_exports._pdf_font(), "| bold:", kreta_exports._pdf_font_bold())
 
 c = kreta.app.test_client()
 r = c.get("/api/orarend/export_pdf?diak=" + "Teszt%20Di%C3%A1k" + "&datum=2026-10-26")
 print("HTTP", r.status_code, "| méret", len(r.data), "byte")
 
-print("regisztrált betűk (route után):", sorted(kreta.pdfmetrics.getRegisteredFontNames()))
+print("regisztrált betűk (route után):", sorted(kreta_exports.pdfmetrics.getRegisteredFontNames()))
 open(os.path.join(work, "out.pdf"), "wb").write(r.data)
 
 # A beágyazott betűk listája (fitz/PyMuPDF) — opcionális, csak diagnosztikához
