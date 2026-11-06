@@ -34,7 +34,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_tanev_ui.py` | Tanév-UI valódi böngészőben: #43 a tanév-állapot jelzése (nyitott/lezárt, a kézi gomb megszűnt), #51 a csempék frissülnek késleltetett esemény-válasz mellett is, #53 a dátum-/hónapválasztók a tanév határain belül maradnak |
 | `test_kommentek.py` | Saját megjegyzések (#46): a `kommentek` séma/migráció, stabil tartalom-kulcs (az id újraírása után is megmarad), hozzáfűzés eseményhez és üzenethez, validáció, törlés, darabszám a listákban; böngészőben a modál mentés/visszaolvasás |
 | `test_oszlop_szelesseg.py` | Oszlopszélesség valódi böngészőben: az átméretezés/húzás nem rendezi át a táblát, a fogantyúk megvannak a hiányzások/igazolások táblán is |
-| `test_mobile_layout.py` | Mobil elrendezés valódi böngészőben (393 px): nincs vízszintes túlcsordulás egyik fülön sem, avatar, összecsukott táblázat, hiányzások fül; a szinkron-státusz egy karcsú sor, a technikai részletek koppintásra nyíló ablakban (a modál tartalma sem csúszik ki, a hosszú utolsó-futás sor tördel), asztali nézetben a részletes sor |
+| `test_mobile_layout.py` | Mobil elrendezés valódi böngészőben (393 px): nincs vízszintes túlcsordulás egyik fülön sem, avatar, összecsukott táblázat, hiányzások fül; a szinkron-státusz egy karcsú sor, a technikai részletek koppintásra nyíló ablakban; **sötét mód (mentés újratöltés után) és a nyomtatásbarát órarend** (#86) |
 | `test_karbantartas.py` | Karbantarthatóság (#12, #17): nincs külső CDN-hivatkozás, minden `static/vendor` fájl és a CSS-ek webfontjai léteznek; nincs `SyntaxWarning`, a `config.json.example` érvényes JSON, nincs hivatkozás a törölt `autoSyncAlert` blokkra |
 | `test_sajat_orarend.py` | Kézi órarend (#55): tanév/hét/egyedi érvényesség, heti ismétlődés, egy alkalom kivétele, sorozat törlése és **módosítása**, diák-szűrés, saját szín, érvénytelen bemenetek; a szinkron nem érinti a saját táblákat; órarend-színek (#56) |
 | `test_naptar.py` | Naptárbejegyzés (#47): Google-link (egész napos/időpontos, időzóna), `.ics` (CRLF, all-day, UTC, escape, VALARM), config, API 200/404 |
@@ -46,6 +46,11 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_kifizetes_csv.py` | Kaneo #11/#77 (B6): az egyenleg tételeinek Excel exportja — *Elszámolás* összegzés (ebből rendezve, fennálló egyenleg), *Tételes zsebpénz* a kiválasztott **időszakra / teljes tanévre / teljes előzményre**, tételes **rendezettség-jelöléssel** (kifizetett időszak fedi-e a tételt); az egyenleg egyezik a felület `/api/statisztika` értékével; CSV export; üzenetek helyi `olvasott` állapota (`POST /api/uzenetek/<id>/olvasott` és a tömeges `POST /api/uzenetek/olvasott`), a migráció előtti üzenetek olvasottként indulnak, tartalmi kereshetőség |
 | `test_routes_contract.py` | **KRÉ-14 refaktor-őr:** a Flask `url_map` teljes listája (42 rule = 41 route + beépített `static`) rule + metódus szerint egy fagyasztott konstanshoz mérve; nincs dupla regisztráció, minden endpoint-név egyedi. Ha ez piros, a refaktor megváltoztatta a nyilvános API-t — a kódot kell visszaállítani, nem a tesztet |
 | `test_data_dir.py` | **KRÉ-14 #98:** az útvonal-feloldás alapértéke `data/` (DB, csatolmányok), a legacy (gyökér) elrendezés felismerése és a `data/`-elsőbbség; a `tools/migrate_local_data.py` dry-run → migráció → rollback köre (DB-integrity ellenőrzéssel) |
+| `test_jegy_kalkulator.py` | **#78:** „Milyen jegy kell?” — súlyozott átlag, egy jegy/több ötös, elérhetetlen cél, 0%-os súly, hiányzó jegy, tanév-szűrés, érvénytelen bemenet; a felületi kártya és a JS |
+| `test_kereses.py` | **#85:** globális kereső — több adatforrás, üzenet teljes törzs, rendezés/limit, rövid keresés, LIKE-escape, modal és Ctrl+K, navigáció |
+| `test_kedvencek.py` | **#86:** `/api/kedvencek` add/remove/toggle, perzisztencia (`app_meta`), érvénytelen kérés; a dashboard-panel és a csillag gomb |
+| `test_ma.py` | **#9:** `/api/ma` — mai órák duplikátum nélkül, ma/holnapi határidők, friss jegyek, olvasatlan üzenetek, diák-szűrés, üres/hibás dátum |
+| `test_trend.py` | **#80:** tantárgyi trend (utolsó két hónap), romlás-figyelmeztetés, hiányzás-mintázat nap/óra/tantárgy/hónap bontásban, tanév-szűrés; a felületi kötés |
 
 ## Függőségek
 
@@ -76,8 +81,8 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (39 csomag, 1177 ell.)
-python tests/run_all.py --fast     # böngésző nélkül (34 csomag, 1025 ell.)
+python tests/run_all.py            # minden teszt (44 csomag, 1269 ell.)
+python tests/run_all.py --fast     # böngésző nélkül (39 csomag, 1117 ell.)
 python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
 ```
 

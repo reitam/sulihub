@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Dokumentum verziója** | 1.3 (KRÉ-14 refaktor: moduláris szerkezet) |
-| **A rendszer verziója** | v2.0.0 (refaktor, kiadásra kész — élesítésre vár) |
+| **Dokumentum verziója** | 1.4 (Kaneo #9, #78, #80, #85, #86) |
+| **A rendszer verziója** | v2.1.0 (kiadásra kész — élesítésre vár) |
 | **Utolsó frissítés** | 2026-11-06 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
@@ -287,6 +287,49 @@ illetve február–augusztus; a tanév szeptember 1. – augusztus 31. Az azonos
 és a következő hetet is leéri, és a tábla sorait nem vonnánk össze, minden kétszer
 kerülne az exportba (Kaneo #73).
 
+### 2.10. „Ma” nézet (Kaneo #9)
+
+Az Áttekintés tetején **napi összefoglaló kártya** (mobilon és asztalon): a **mai órák**
+(kezdés, tantárgy, terem), a **ma/holnap esedékes** házik és számonkérések pipával
+(egy kattintás → kész), az **elmúlt 7 nap jegyei** és az **olvasatlan üzenetek**
+(db + legutóbbi tárgyak, kattintásra megnyílnak). A kártya a fejléc diák-szűrőjét követi;
+a `/api/ma?diak=&datum=` végpont adja az adatot (dátum paraméterrel tesztelhető).
+
+### 2.11. Globális kereső (Kaneo #85)
+
+**Ctrl+K** (mobilon a nagyító gomb) → kereső ablak. Egyszerre keres a **jegyekben,
+feljegyzésekben, házikban/számonkérésekben, üzenetekben (a teljes törzsben) és
+hiányzásokban**. Legfeljebb 20 találat, dátum szerint csökkenő sorrendben; a találat
+a megfelelő fület/modalit nyitja (esemény → szűrt lista, üzenet → üzenet-ablak,
+hiányzás → havi nézet). A keresés a `/api/kereses` végponton fut (LIKE, escape-elt
+speciális karakterekkel), tipikusan <10 ms.
+
+### 2.12. „Milyen jegy kell?” kalkulátor (Kaneo #78)
+
+A Statisztika fülön tantárgy + **célátlag** + a következő jegy **várható súlya** alapján
+megmondja, **milyen jegy(ek) kellenek**: egy jegy (1–5) vagy több ötös, illetve hogy a cél
+már nem érhető el. A számítás a KRÉTA súlyozását használja (a 0%-os súlyú jegy kimarad;
+súlyadat nélkül egyszerű átlag). A tételes válasz a `/api/jegy_kalkulator` végponton is
+elérhető; a kiválasztott időszakot és tanévet követi.
+
+### 2.13. UX csomag: sötét mód, nyomtatás, kedvencek (Kaneo #86)
+
+- **Sötét mód:** fejléc-gomb, Bootstrap 5.3 `data-bs-theme`; a választás `localStorage`-ban marad.
+- **Nyomtatásbarát heti órarend:** a Heti órarend fülön **„Nyomtatás”** — A4 fekvő, nagy
+  betűs, színes táblázat (diákonként, nap × időpont), böngésző-nyomtatással.
+- **Kitűzött események:** az eseménysorban a **csillag** gomb az Áttekintésre tűzi a tételt
+  (stabil tartalom-kulccsal, `app_meta`); a dashboardon megjelenő panelről egy kattintással
+  a szűrt listára lehet ugrani vagy le lehet venni.
+
+### 2.14. Tantárgyi trend és hiányzás-mintázat (Kaneo #80)
+
+A tantárgyi átlagok táblázat **Trend** oszlopa a havi átlagok **sparkline-ját** és az utolsó
+két hónap különbségét mutatja (zöld/javul, piros/romlik); ha a romlás ≥ 0,5, az Áttekintés
+tetején **figyelmeztető sáv** jelenik meg. A `/api/atlagok` válasza tantárgyanként
+`trend`-et és `figyelmeztetesek` listát ad. A Hiányzások fülön a **Hiányzás-mintázat**
+kártya bontja a hiányzásokat **nap, órasorszám és tantárgy** szerint
+(`/api/hianyzas-mintazat`), a tanév- és diák-szűrőt követve.
+
 ---
 
 ## 3. Hogyan működik (architektúra)
@@ -328,7 +371,7 @@ frontend szétbontva; a viselkedés (URL-ek, válaszok, DB-séma) változatlan:
 | Réteg | Modulok |
 |---|---|
 | belépő + futásidejű mag | `app.py` (~1 100 sor): Flask app, auth, szinkron/ütemező/ntfy/napló, re-export a tesztekhez |
-| útvonalak (prefix nélküli blueprint-ek) | `views_pages`, `views_events`, `views_orarend`, `views_messages`, `views_absences`, `views_stats`, `views_rewards`, `kreta_exports` |
+| útvonalak (prefix nélküli blueprint-ek) | `views_pages`, `views_events`, `views_orarend`, `views_messages`, `views_absences`, `views_stats`, `views_rewards`, `views_search`, `kreta_exports` |
 | közös rétegek | `kreta_paths` (útvonalak), `kreta_db` (séma, meta, futásnapló), `kreta_settings` (config, verzió, színek), `views_common` (request-segédek) |
 | frontend | `templates/index.html` (váz + modálok), `static/js/core.js` (globális segédek), `static/js/app-main.js` (a `$(document).ready` blokk) |
 | futásidejű adatok | `data/` (DB, config.json, napló, tokenek, böngészőprofil, csatolmányok) — lásd 9.2 |
@@ -787,12 +830,12 @@ egy kiadásig még működik, figyelmeztetéssel. Átköltöztetés (az app áll
 ### 9.3. Tesztek
 
 ```bash
-python tests/run_all.py            # mind (1177 ellenőrzés, 39 csomag)
-python tests/run_all.py --fast     # böngésző nélkül (34 csomag, 1025 ell.)
+python tests/run_all.py            # mind (1269 ellenőrzés, 44 csomag)
+python tests/run_all.py --fast     # böngésző nélkül (39 csomag, 1117 ell.)
 python tests/run_all.py --browser  # Playwrightos (5 csomag, 152 ell.)
 ```
 
-**CI (GitHub Actions, `.github/workflows/ci.yml`):** a **gyors** job (34 csomag) minden
+**CI (GitHub Actions, `.github/workflows/ci.yml`):** a **gyors** job (39 csomag) minden
 pushra/PR-ra lefut; a **böngészős** job (5 csomag) csak `main` pushra, éjszakánként és
 kézi indításra. A tesztek fixture-ökkel/fake klienssel dolgoznak, valódi KRÉTA-hívás nem
 történik; a böngészős job hibája esetén a képernyőképek artifactként feltöltődnek.
@@ -804,7 +847,7 @@ idejétől függő csempe-ellenőrzéseket tartalmazó tesztek (`test_dashboard`
 csempe-ablak. Új, dátumfüggő assertion-t tartalmazó böngészős teszt esetén ezt a mintát kell
 követni (a szerver oldali `KRETA_TODAY` mellé a kliens óráját is rögzíteni).
 
-Jelenleg **1177 automatikus ellenőrzés** harminckilenc csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **1269 automatikus ellenőrzés** negyvennégy csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -948,6 +991,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.9.1** *(nem élesedett önállóan — a v1.9.2 tartalmazza)* | **2026-11-05** | **Dashboard-visszatöltés (Kaneo #76):** az Áttekintés saját, szűrés nélküli adatforrást használ (`loadDashboardData`/`dashRaw`), és fülre visszatéréskor azonnal újraszámol — az eseménylistás szűrés után nem maradhat üres csempe/feed (F5 nélkül teljes kép). **CI-determinizmus (Kaneo #75):** a `test_dashboard` a böngésző óráját is rögzíti (`page.clock.install`), így a fix tesztdátum nem csúszik el a másnapi (scheduled) futásban — ez buktatta az éjszakai CI-t. Erősített tesztek (visszatéréskor csempe + feed tele). (A `v1.9.1` tag a `9826e2c` commiton maradt; a felhasználó a **v1.9.2**-vel élesített.) |
 | **v1.9.2** *(2026-11-06, éles)* | **2026-11-06** | **ICS-duplikáció javítás (Kaneo #73, a felhasználó visszadobta):** az órarend-exportban minden esemény kétszer szerepelt — a szinkron az aktuális **és** a következő hetet is leéri, a generator pedig soronként csinált heti `RRULE` eseményt. Most az azonos heti minta (diák + tantárgy + nap + kezdés + időtartam) **egyetlen weekly VEVENT**, a legrégebbi előfordulás kezdetével; éles adaton ellenőrizve: 67 sor → 31 esemény. **Éles ellenőrzés (2026-11-06):** `/health` = `v1.9.2`; a tanév ICS exportban 109 egyedi heti minta, **0 duplikáció**. Tartalmazza a v1.9.1-re tervezett #76 dashboard- és #75 CI-fixet is. **1051 ellenőrzés / 37 csomag** |
 | **v2.0.0** *(refaktor, kiadásra kész)* | **2026-11-06** | **KRÉ-14 monolit-bontás, viselkedésváltozás nélkül.** `app.py` 4 107 → ~1 180 sor: a DB-réteg (`kreta_db`), az útvonalak (`kreta_paths`), a beállítások (`kreta_settings`) és a közös nézet-segédek (`views_common`) kiemelve; a HTTP-réteg **8 prefix nélküli blueprintbe** (`views_pages/events/orarend/messages/absences/stats/rewards`, `kreta_exports`), a stateful mag (sync/ütemező/ntfy/napló) szándékosan az `app.py`-ban maradt (a tesztek monkeypatch-elik). A frontend inline scriptje `static/js/core.js` + `static/js/app-main.js` alá került (`?v=` cache-busttal). **Futásidejű adatok `data/` alá** (DB, config, napló, tokenek, böngészőprofil, csatolmányok) legacy-fallbackkel és `tools/migrate_local_data.py` migráló/rollback szkripttel. **Az audit után javítva:** a tanév-szűrős súlyozott átlag (F1), a `data/` auto-létrehozás (F2), a Docker-füstteszt teljes modulgráfja (F3). **Új őrök:** `tests/test_routes_contract.py` (42 rule rule+metódus rögzítése), `tools/api_snapshot.py` (17 végpont válasz-diff), `tests/test_data_dir.py` (útvonal-feloldás + migráció). **1177 ellenőrzés / 39 csomag** (fast 34/1025, browser 5/152) |
+| **v2.1.0** *(kiadásra kész)* | **2026-11-06** | **Öt új funkció (Kaneo #9, #78, #80, #85, #86):** **„Ma” nézet** (napi kártya: mai órák, ma/holnapi határidők pipával, friss jegyek, olvasatlan üzenetek; `/api/ma`), **globális kereső** (Ctrl+K, `/api/kereses` — jegy, feljegyzés, házi, üzenet teljes törzs, hiányzás; találat a megfelelő nézetet nyitja), **„Milyen jegy kell?” kalkulátor** (`/api/jegy_kalkulator`, célátlag + a következő jegy súlya; egy jegy vagy több ötös, elérhetetlen cél), **UX csomag** (sötét mód `data-bs-theme`-tel + localStorage, nyomtatásbarát A4 fekvő heti órarend, kitűzött események a dashboardon `app_meta`-ban), **tantárgyi trend + hiányzás-mintázat** (`/api/atlagok` trend + romlás-figyelmeztetés, sparkline a táblázatban; `/api/hianyzas-mintazat` nap/óra/tantárgy bontás). Új tesztek: `test_jegy_kalkulator`, `test_kereses`, `test_kedvencek`, `test_ma`, `test_trend`; a `test_mobile_layout` a sötét módot és a nyomtatást is ellenőrzi. **1269 ellenőrzés / 44 csomag** (fast 39/1117, browser 5/152) |
 
 ---
 
