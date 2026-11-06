@@ -2704,15 +2704,7 @@ $(document).ready(function() {
         setUzenetOlvasott(uzenetAktualisId, !target.olvasott);
     });
 
-    $('#uzenetekTable').on('click', '.btn-read-msg', function() {
-        let idx = $(this).data('index');
-        let msg = uzenetekTable.row(idx).data();
-        if (!msg) {
-            let id = Number($(this).data('id'));
-            msg = (rawUzenetek || []).find(function(m) { return m.id === id; });
-        }
-        if (!msg) return;
-
+    function openUzenetModal(msg) {
         $('#uzenetModalTitle').html(`<i class="fa-solid fa-envelope-open me-2"></i>${msg.targy}`);
         $('#modalFelado').text(msg.felado);
         $('#modalIdopont').text(msg.idopont);
@@ -2749,6 +2741,17 @@ $(document).ready(function() {
 
         let myModal = new bootstrap.Modal(document.getElementById('uzenetModal'));
         myModal.show();
+    }
+
+    $('#uzenetekTable').on('click', '.btn-read-msg', function() {
+        let idx = $(this).data('index');
+        let msg = uzenetekTable.row(idx).data();
+        if (!msg) {
+            let id = Number($(this).data('id'));
+            msg = (rawUzenetek || []).find(function(m) { return m.id === id; });
+        }
+        if (!msg) return;
+        openUzenetModal(msg);
     });
 
     // Naptárbejegyzés: Google Naptár (előre kitöltött esemény) — Kaneo #47
@@ -2833,5 +2836,124 @@ $(document).ready(function() {
                 checkSyncStatus();
             });
         }
+    });
+
+    // ── Globális kereső (Kaneo #85) ────────────────────────────────────────
+    let keresesTimer = null;
+    let keresesTalalatok = [];
+
+    function keresesModalNyitas() {
+        const el = document.getElementById('keresesModal');
+        if (!el) return;
+        bootstrap.Modal.getOrCreateInstance(el).show();
+        setTimeout(function() { $('#keresesInput').trigger('focus'); }, 200);
+    }
+
+    function keresesBadge(t) {
+        if (t.tipus === 'uzenet') return { cls: 'bg-info text-dark', text: 'Üzenet' };
+        if (t.tipus === 'hianyzas') return { cls: 'bg-danger', text: 'Hiányzás' };
+        if (t.esemeny_tipus === 'Értékelés') return { cls: 'bg-primary', text: 'Jegy' };
+        if (t.esemeny_tipus === 'Feljegyzés') return { cls: 'bg-warning text-dark', text: 'Feljegyzés' };
+        if (t.esemeny_tipus === 'Házi feladat') return { cls: 'bg-success', text: 'Házi' };
+        if (t.esemeny_tipus === 'Bejelentett számonkérés') {
+            return { cls: 'bg-secondary', text: 'Számonkérés' };
+        }
+        return { cls: 'bg-secondary', text: t.esemeny_tipus || 'Esemény' };
+    }
+
+    function renderKereses(res) {
+        keresesTalalatok = res.talalatok || [];
+        let $box = $('#keresesEredmeny').empty();
+        if (!keresesTalalatok.length) {
+            $box.append('<div class="text-muted small p-2">Nincs találat.</div>');
+            return;
+        }
+        keresesTalalatok.forEach(function(t, idx) {
+            const b = keresesBadge(t);
+            const datum = t.datum ? fmtIsoToHu(t.datum) : '';
+            let html = `<button type="button" class="list-group-item list-group-item-action kereses-talalat p-2" data-idx="${idx}">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div class="text-truncate">
+                        <span class="badge ${b.cls} me-1">${escapeHtml(b.text)}</span>
+                        <span class="fw-semibold">${escapeHtml(t.cim || '')}</span>
+                    </div>
+                    <small class="text-muted text-nowrap">${escapeHtml(datum)}</small>
+                </div>`;
+            if (t.reszlet) {
+                html += `<div class="small text-muted text-truncate mt-1">${escapeHtml(t.reszlet)}</div>`;
+            }
+            html += `<div class="small text-secondary mt-1">${escapeHtml(t.diak || '')}</div></button>`;
+            $box.append(html);
+        });
+    }
+
+    function keresesFuttat(q) {
+        if (!q || q.length < 2) return;
+        $.getJSON(`/api/kereses?q=${encodeURIComponent(q)}&limit=20`)
+            .done(renderKereses)
+            .fail(function() {
+                $('#keresesEredmeny').html('<div class="text-danger small p-2">A keresés nem sikerült.</div>');
+            });
+    }
+
+    function keresesTalalatMegnyit(t) {
+        const el = document.getElementById('keresesModal');
+        const inst = el ? bootstrap.Modal.getInstance(el) : null;
+        if (inst) inst.hide();
+
+        if (t.tipus === 'esemeny') {
+            goToEvents({
+                diak: t.diak || '', tipus: t.esemeny_tipus || '', tantargy: t.tantargy || '',
+                status: '', kezdo: '', zaro: '', hatKezdo: '', hatZaro: ''
+            });
+        } else if (t.tipus === 'uzenet') {
+            showMainTab('uzenetek-tab');
+            let msg = (rawUzenetek || []).find(function(m) { return m.id === t.id; });
+            if (msg) {
+                openUzenetModal(msg);
+            } else {
+                // A keresett üzenet más diákhoz tartozhat: töltsük be arra a diákra.
+                $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(t.diak || '')}`, function(list) {
+                    const found = (list || []).find(function(m) { return m.id === t.id; });
+                    if (found) openUzenetModal(found);
+                });
+            }
+        } else if (t.tipus === 'hianyzas') {
+            showMainTab('hianyzasok-tab');
+            if (t.diak) $('#hianyzasFilterDiak').val(t.diak);
+            $('#hianyzasHonap').val(t.datum ? String(t.datum).slice(0, 7) : '');
+            $('#hianyzasFilterDiak').trigger('change');
+            $('#hianyzasHonap').trigger('change');
+        }
+    }
+
+    $('#btnKereses').on('click', keresesModalNyitas);
+    $(document).on('keydown', function(e) {
+        const key = (e.key || '').toLowerCase();
+        if ((e.ctrlKey || e.metaKey) && key === 'k') {
+            e.preventDefault();
+            keresesModalNyitas();
+        }
+    });
+    $('#keresesInput').on('input', function() {
+        const q = $(this).val().trim();
+        clearTimeout(keresesTimer);
+        if (q.length < 2) {
+            keresesTalalatok = [];
+            $('#keresesEredmeny').empty();
+            return;
+        }
+        keresesTimer = setTimeout(function() { keresesFuttat(q); }, 250);
+    });
+    $('#keresesInput').on('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            clearTimeout(keresesTimer);
+            keresesFuttat($(this).val().trim());
+        }
+    });
+    $('#keresesEredmeny').on('click', '.kereses-talalat', function() {
+        const idx = Number($(this).data('idx'));
+        if (keresesTalalatok[idx]) keresesTalalatMegnyit(keresesTalalatok[idx]);
     });
 });

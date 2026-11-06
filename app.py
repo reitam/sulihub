@@ -111,12 +111,13 @@ from views_events import bp as _events_bp  # noqa: E402
 from views_messages import bp as _messages_bp  # noqa: E402
 from views_orarend import bp as _orarend_bp  # noqa: E402
 from views_rewards import bp as _rewards_bp  # noqa: E402
+from views_search import bp as _search_bp  # noqa: E402
 from views_stats import bp as _stats_bp  # noqa: E402
 from kreta_exports import bp as _exports_bp  # noqa: E402
 from views_pages import bp as _pages_bp  # noqa: E402
 
 for _bp in (_pages_bp, _events_bp, _orarend_bp, _messages_bp, _absences_bp,
-            _stats_bp, _rewards_bp, _exports_bp):
+            _stats_bp, _rewards_bp, _exports_bp, _search_bp):
     app.register_blueprint(_bp)
 
 sync_state = {
