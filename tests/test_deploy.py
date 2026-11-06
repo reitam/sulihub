@@ -89,6 +89,7 @@ ok("config.json" not in re.sub(r"#.*", "", dockerfile),
    "a Dockerfile nem másolja be a config.json-t")
 ok("tests" in ignored, "a tesztek nem kerülnek a képbe")
 ok("docs" in ignored, "a docs/ (dokumentáció) nem kerül a képbe")
+ok("data" in ignored, "a data/ (futásidejű adatok) nem kerül a képbe")
 ok("api_tokens.json" in ignored, "az api_tokens.json (tokenek) ki van zárva a képből")
 ok({".opencode", "poc", "tools"} <= ignored,
    "a fejlesztői mappák (.opencode, poc, tools) ki vannak zárva a képből")
@@ -100,6 +101,7 @@ ok('"api_tokens.json"' in deploy_src or "api_tokens.json" in deploy_src,
 ok('"OSSZEFOGLALO-*.md"' in deploy_src, "a deploy kizárja az összefoglaló markdownokat")
 ok('"docs"' in deploy_src and "REMOTE_DIR_PLACEHOLDER/docs" in deploy_src,
    "a docs/ mappa nem kerül a szerverre, és a szerveroldali tisztítás eltávolítja")
+ok('"data"' in deploy_src, "a deploy kizárja a data/ (futásidejű adatok) mappát")
 ok('"$SourceDir\\static\\csatolmanyok"' in deploy_src,
    "a csatolmányok kizárása abszolút úttal történik (robocopy /XD)")
 ok("REMOTE_DIR_PLACEHOLDER/tools" in deploy_src

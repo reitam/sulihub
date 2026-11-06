@@ -98,7 +98,8 @@ _FAJLNEV_TILTOTT = '<>:"/\\|?*'
 # A Playwright-os megoldásnál ezt a perzisztens böngészőprofil kerülte el; az
 # API-nál a refresh tokent tároljuk a data köteten, így egy szinkron sem lép be
 # újra, amíg a refresh token él (a hozzáférési token 30 percenként frissül).
-_DATA_DIR = os.environ.get("KRETA_DATA_DIR", ".")
+from kreta_paths import DATA_DIR as _DATA_DIR
+
 TOKEN_STORE_FILE = (os.environ.get("KRETA_API_TOKEN_FILE")
                     or os.path.join(_DATA_DIR, "api_tokens.json"))
 

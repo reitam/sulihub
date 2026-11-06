@@ -45,6 +45,15 @@ for rel in vendor:
         missing.append(rel)
 ok(not missing, f"minden hivatkozott vendor-fájl létezik (hiányzó: {missing or 'nincs'})")
 
+print("\n2b) KRÉ-14: a frontend JS modulok helyben vannak, nincs inline script")
+js_assets = sorted(a for a in assets if a.startswith("js/"))
+ok(js_assets == ["js/app-main.js", "js/core.js"],
+   f"a két JS modul hivatkozva van ({js_assets})")
+js_missing = [rel for rel in js_assets
+              if not (ROOT / "static" / rel).is_file() or (ROOT / "static" / rel).stat().st_size == 0]
+ok(not js_missing, f"a JS fájlok léteznek és nem üresek (hiányzó: {js_missing or 'nincs'})")
+ok(not re.search(r"<script>\s", tpl), "a sablonban nincs beágyazott (inline) script")
+
 print("\n3) #12: a vendor CSS-ek belső hivatkozásai (webfontok) is helyben vannak")
 font_missing = []
 font_count = 0
