@@ -197,12 +197,16 @@ if ($MigrateLocalData) {
         exit 1
     }
 
+    # KRÉ-14 #98: a futásidejű adatok már a data/ alatt vannak; a régi (gyökér)
+    # elrendezés csak visszafelé kompatibilitás miatt marad itt.
+    $dataRoot = if (Test-Path (Join-Path $SourceDir "data")) { Join-Path $SourceDir "data" } else { $SourceDir }
     $migrateItems = @(
-        @{ Src = (Join-Path $SourceDir "config.json");               Dst = (Join-Path $SambaDataShare "config.json") },
-        @{ Src = (Join-Path $SourceDir "kreta_adatok.db");           Dst = (Join-Path $SambaDataShare "kreta_adatok.db") }
+        @{ Src = (Join-Path $dataRoot "config.json");                Dst = (Join-Path $SambaDataShare "config.json") },
+        @{ Src = (Join-Path $dataRoot "kreta_adatok.db");            Dst = (Join-Path $SambaDataShare "kreta_adatok.db") }
     )
     $migrateDirs = @(
-        @{ Src = (Join-Path $SourceDir "browser_user_data");         Dst = (Join-Path $SambaDataShare "browser_user_data") },
+        @{ Src = (Join-Path $dataRoot "browser_user_data");          Dst = (Join-Path $SambaDataShare "browser_user_data") },
+        @{ Src = (Join-Path $dataRoot "csatolmanyok");               Dst = (Join-Path $SambaDataShare "csatolmanyok") },
         @{ Src = (Join-Path $SourceDir "static\csatolmanyok");       Dst = (Join-Path $SambaDataShare "csatolmanyok") }
     )
 
@@ -277,7 +281,7 @@ $robocopyArgs = @(
     # (a relativ ut a robocopy /XD-ben nem a forraskonyvtarhoz igazodik).
     "/XD", ".git", "__pycache__", "browser_user_data", "$SourceDir\static\csatolmanyok", ".claude",
     "tests", ".opencode", "poc", "tools", "Tools", ".venv", "venv", ".idea", ".vscode",
-    ".pytest_cache", "node_modules", "docs",
+    ".pytest_cache", "node_modules", "docs", "data",
     # Titkok / adatok / dokumentacio: SOHA nem kerulnek a szerver munkakonyvtaraba.
     "/XF", ".env", "deploy.ps1", "config.json", "*.db", "sync.log", "KretaApp_Start.bat",
     "api_tokens.json", "api_tokens.json.tmp",

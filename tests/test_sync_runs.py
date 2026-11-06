@@ -84,9 +84,10 @@ ok(data and data[0]["new_event_count"] == 2, "a lista alakú new_events hossza i
 
 print("\n4) a felület tartalmazza a futástörténetet")
 html = client.get("/").get_data(as_text=True)
+js = client.get("/static/js/app-main.js").get_data(as_text=True)
 ok('id="syncRunsTable"' in html and 'id="syncRunsSparkline"' in html,
    "a Rendszernapló fülön van táblázat és sparkline")
-ok("loadSyncRuns" in html, "a betöltő JS-függvény hivatkozva van")
+ok("loadSyncRuns" in js, "a betöltő JS-függvény hivatkozva van")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

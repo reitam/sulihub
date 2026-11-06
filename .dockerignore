@@ -1,5 +1,6 @@
 # A build kontextusból kizárt fájlok — a config.json SOHA ne kerüljön a képbe
 .git
+data/
 __pycache__/
 *.py[cod]
 *.db

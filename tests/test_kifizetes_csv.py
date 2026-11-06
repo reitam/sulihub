@@ -308,7 +308,8 @@ ok(old_val == 1, f"a migráció előtti üzenet olvasott (nem olvasatlan): {old_
 
 print("\n4) UI-elemek a sablonban")
 html = client.get("/").get_data(as_text=True)
-ok('id="btnExportKifizetesXlsx"' in html and "/api/kifizetesek/export.xlsx" in html,
+js = client.get("/static/js/app-main.js").get_data(as_text=True)
+ok('id="btnExportKifizetesXlsx"' in html and "/api/kifizetesek/export.xlsx" in (html + js),
    "a Zsebpénz fülön az Excel (.xlsx) export gomb szerepel")
 ok('data-export="period"' in html and 'data-export="tanev"' in html and 'data-export="all"' in html,
    "az exportnak van időszak / teljes tanév / teljes előzmény választója")

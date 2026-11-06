@@ -15,20 +15,21 @@ import kreta_api_sync
 import kreta_shadow
 import kreta_sync
 import kreta_tanev
+from kreta_paths import CSATOLMANYOK_DIR as _PATHS_CSATOLMANYOK_DIR
+from kreta_paths import DATA_DIR as _PATHS_DATA_DIR
 
 # --- KONFIGURÁCIÓ ÉS LOGGING BEÁLLÍTÁSA ---
-# Az útvonalak felülírhatók környezeti változókkal (Docker): alapból a régi,
-# relatív elrendezés él (lokális futtatás), a konténerben KRETA_DATA_DIR=/app/data.
-# FONTOS: a data könyvtárból (KRETA_DATA_DIR) vezetjük le az alapértékeket, mert
-# a konténerben a munkakönyvtár /app, az adatok viszont /app/data alatt vannak.
-# Lokálisan KRETA_DATA_DIR nincs beállítva -> "." -> a régi viselkedés.
-DATA_DIR = os.environ.get("KRETA_DATA_DIR", ".")
+# Az útvonalak a `kreta_paths.py`-ból jönnek (egy igazságforrás, KRÉ-14 #98).
+# A konténerben KRETA_DATA_DIR=/app/data jön a compose-ból; lokálisan a `data/`
+# (vagy visszafelé kompatibilisen a régi gyökér-elrendezés) él.
+DATA_DIR = _PATHS_DATA_DIR
 CONFIG_FILE = os.environ.get("KRETA_CONFIG_FILE", os.path.join(DATA_DIR, "config.json"))
 DB_FILE = os.environ.get("KRETA_DB_FILE", os.path.join(DATA_DIR, "kreta_adatok.db"))
 LOG_FILE = os.environ.get("KRETA_LOG_FILE", os.path.join(DATA_DIR, "sync.log"))
 # WAL csak opt-in (a data kötet FUSE mount — lásd a Dockerfile/compose megjegyzést)
 SQLITE_WAL = os.environ.get("KRETA_SQLITE_WAL", "0").strip().lower() in ("1", "true", "yes", "on")
-CSATOLMANYOK_DIR = os.environ.get("KRETA_CSATOLMANYOK_DIR", os.path.join("static", "csatolmanyok"))# Napló-rotáció: ne nőjön korlátlanul a sync.log (a felület is ezt olvassa).
+CSATOLMANYOK_DIR = _PATHS_CSATOLMANYOK_DIR
+# Napló-rotáció: ne nőjön korlátlanul a sync.log (a felület is ezt olvassa).
 LOG_MAX_BYTES = int(os.environ.get("KRETA_LOG_MAX_BYTES", 1000000))
 LOG_BACKUP_COUNT = int(os.environ.get("KRETA_LOG_BACKUP_COUNT", 2))
 # A Flakon (app.py) ezt a jelölőt keresi a kimenetben az összegzéshez.

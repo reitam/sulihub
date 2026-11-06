@@ -1,4 +1,5 @@
-# SQLite adatbázis és érzékeny konfigurációk
+# Futásidejű adatok (KRÉ-14 #98): DB, config, napló, tokenek, böngészőprofil, csatolmányok
+data/
 *.db
 kreta_adatok.db
 config.json
