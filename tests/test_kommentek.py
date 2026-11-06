@@ -258,6 +258,38 @@ try:
         page.wait_for_timeout(800)
         ok("Üzenet-UI megjegyzés" in page.inner_text("#uzenetKommentLista"),
            "az üzenet-megjegyzés mentődött")
+        page.click("#uzenetModal .btn-secondary")
+        page.wait_for_timeout(500)
+
+        # Kaneo #11: checkboxos kijelölés + tömeges olvasott/olvasatlan váltás
+        ok(page.is_visible("#uzenetSelectAll"), "van 'mind kijelölése' checkbox a fejlécben")
+        ok(page.locator("#uzenetekTable tbody .uzenet-select").count() == 2,
+           "minden üzenetsorban van kijelölő checkbox")
+        page.check("#uzenetSelectAll")
+        page.wait_for_timeout(400)
+        ok(page.inner_text("#uzenetKijeloltDb").strip() == "2",
+           f"a mind-kijelölés 2 üzenetet jelöl ({page.inner_text('#uzenetKijeloltDb')})")
+        page.click("#btnUzenetKijeloltOlvasatlan")
+        page.wait_for_timeout(800)
+        ok(page.inner_text("#uzenetekOlvasatlanBadge").strip() == "2",
+           "a kijelölt üzenetek olvasatlanok lettek")
+        ok(page.locator("#uzenetekTable tbody tr.uzenet-olvasatlan").count() == 2,
+           "a két sor vizuálisan is olvasatlan")
+
+        page.click("#btnUzenetMindOlvasott")
+        page.wait_for_timeout(800)
+        ok(page.locator("#uzenetekOlvasatlanBadge").is_hidden(),
+           "a 'Mind olvasott' után nincs olvasatlan üzenet")
+        ok(page.locator("#uzenetekTable tbody tr.uzenet-olvasatlan").count() == 0,
+           "egyik sor sem olvasatlan")
+
+        # Egyedi kijelölés + sáv törlése
+        page.locator("#uzenetekTable tbody .uzenet-select").first.check()
+        page.wait_for_timeout(300)
+        ok(page.inner_text("#uzenetKijeloltDb").strip() == "1", "egyedi kijelölés: 1 üzenet")
+        page.click("#btnUzenetKijelolesTorles")
+        page.wait_for_timeout(300)
+        ok(page.locator("#uzenetBulkBar").is_hidden(), "a kijelölés törlése után a sáv eltűnik")
 
         page.screenshot(path=str(work / "kommentek.png"))
         print("SCREENSHOT:", work / "kommentek.png")
