@@ -1,4 +1,4 @@
-# Tesztek
+﻿# Tesztek
 
 Futtatás (a projekt gyökeréből):
 
@@ -76,8 +76,8 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (39 csomag, 1158 ell.)
-python tests/run_all.py --fast     # böngésző nélkül (34 csomag, 1006 ell.)
+python tests/run_all.py            # minden teszt (39 csomag, 1177 ell.)
+python tests/run_all.py --fast     # böngésző nélkül (34 csomag, 1025 ell.)
 python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
 ```
 

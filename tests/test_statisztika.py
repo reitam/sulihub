@@ -211,6 +211,39 @@ try:
     ok(nz0.get("rewards_enabled") is False and nz0.get("hatralevo") == 0,
        "kikapcsolt zsebpénznél 0 egyenleg")
     ok(nz0.get("atlag") == 4.67, f"az átlag kikapcsolt zsebpénznél is él: {nz0.get('atlag')}")
+
+    print("\n7) Tanév-szűrő + súlyozott átlag (KRÉ-14 audit, F1)")
+    # A felület mindig küld tanev-et; korábban ilyenkor a súly-lekérdezés
+    # elszállt (2 paraméter, 1 placeholder), és a súlyozott átlag csendben
+    # elveszett. A régi tanévű jegyet a szűrőnek ki kell hagynia.
+    conn2 = sqlite3.connect(db)
+    conn2.execute("UPDATE esemenyek SET tanev = '2026/2027' WHERE tanev IS NULL")
+    conn2.execute(
+        "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
+        " suly_szazalek, bej_datum, tanev, kesz)"
+        " VALUES (?,?,?,?,?,?,?,?,0)",
+        ("Sulyos", "Értékelés", "Matematika", "Elégtelen(1)", 1, 100,
+         "2025. 10. 10.", "2025/2026"))
+    conn2.commit()
+    conn2.close()
+
+    st = get_json("/api/statisztika?diak=Sulyos&tanev=2026/2027")
+    ok(st.get("atlag_sulyozott") == 4.5,
+       f"tanév-szűrővel is súlyozott az átlag (5*100+5*100+4*200)/400: {st.get('atlag_sulyozott')}")
+    ok(st.get("sulyozott_db") == 3, f"3 súlyozott jegy: {st.get('sulyozott_db')}")
+    ok(st.get("jegy_total_count") == 4,
+       f"a régi tanévű jegy kimarad, a 0%-os beszámít: {st.get('jegy_total_count')}")
+    ok(st.get("atlag") == 4.5, f"a megjelenített atlag: {st.get('atlag')}")
+    tet = st.get("teteles_lista") or []
+    ok(any(str(t.get("reszletek") or "").endswith("%)") for t in tet),
+       "a tételes listában látszik a súly (X%)")
+    ok(not any("2025" in str(t.get("datum") or "") for t in tet),
+       "a régi tanévű jegy nem kerül a tételes listába")
+
+    dash_t = get_json("/api/dashboard?diak=Sulyos&tanev=2026/2027")
+    d_t0 = (dash_t.get("diakok") or [{}])[0]
+    ok(d_t0.get("atlag") == st.get("atlag") == 4.5,
+       f"a statisztika és a dashboard átlaga egyezik: {d_t0.get('atlag')} / {st.get('atlag')}")
 finally:
     proc.terminate()
     try:

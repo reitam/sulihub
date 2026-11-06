@@ -72,3 +72,20 @@ VERSION_FILE = os.environ.get("KRETA_VERSION_FILE", os.path.join(DATA_DIR, "vers
 if LEGACY_LAYOUT:
     print("[Útvonalak] Régi (gyökér) adatelrendezés — átköltöztetés: "
           "python tools/migrate_local_data.py")
+
+
+def ensure_data_dir() -> bool:
+    """Létrehozza a DATA_DIR-t (ha nem `.`), hogy az első indítás ne hasaljon el.
+
+    Szándékosan **nem** az import mellékhatása: az app indulásakor és a scraper
+    indulásakor hívjuk. Friss klónnál / törölt `data/` mappánál ez menti meg a
+    „unable to open database file" hibától (KRÉ-14 audit, F2).
+    """
+    if not DATA_DIR or DATA_DIR == ".":
+        return True
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        return True
+    except OSError as exc:
+        print(f"[Útvonalak] A data könyvtár nem hozható létre ({DATA_DIR}): {exc}")
+        return False

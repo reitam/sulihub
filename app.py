@@ -75,6 +75,10 @@ from kreta_paths import (  # noqa: E402
     APP_DIR, CONFIG_FILE, CSATOLMANYOK_DIR, DATA_DIR, DB_FILE, LOG_API_MAX_BYTES,
     LOG_BACKUP_COUNT, LOG_FILE, LOG_MAX_BYTES, SCHEDULER_STATE_FILE, VERSION_FILE,
 )
+from kreta_paths import ensure_data_dir  # noqa: E402
+
+# A data/ könyvtár létrehozása még a DB-megnyitás előtt (friss klón / törölt data/).
+ensure_data_dir()
 
 # Az adatbázis-réteg (KRÉ-14 #93) — a re-export a teszt-kompatibilitást tartja:
 # a tesztek `kreta.get_db_connection()` / `kreta.ensure_db_schema()` néven hívják.

@@ -110,5 +110,15 @@ ok("d-md-none" not in compact_tag,
 ok("btnUzenetAi" not in tpl and "aiEredmeny" not in tpl,
    "az üzenet felületéből az AI-elemzés gomb ki van véve (#61)")
 
+print("\n8) KRÉ-14: nincs körkörös import (a modulok nem importálják az app-ot)")
+offenders = []
+for path in sorted(ROOT.glob("*.py")):
+    if path.name == "app.py":
+        continue
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if re.search(r"^\s*(?:import\s+app\b|from\s+app\s+import\b)", text, re.M):
+        offenders.append(path.name)
+ok(not offenders, f"egyik modul sem importálja az app.py-t (talált: {offenders or 'nincs'})")
+
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)
