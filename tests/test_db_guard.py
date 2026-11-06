@@ -34,6 +34,7 @@ os.environ.update({
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import app as kreta  # noqa: E402
+import kreta_db  # noqa: E402  — a séma-bootstrap a kreta_db.py-ban él (KRÉ-14 #93)
 
 _hibak = []
 
@@ -66,20 +67,20 @@ class GuardSubprocess:
         raise AssertionError("zárolt DB-nél nem indulhat init-db subprocess")
 
 
-original_subprocess = kreta.subprocess
-kreta.subprocess = types.SimpleNamespace(run=GuardSubprocess.run)
+original_subprocess = kreta_db.subprocess
+kreta_db.subprocess = types.SimpleNamespace(run=GuardSubprocess.run)
 try:
     started = time.time()
     locked_result = kreta.ensure_db_schema(reason="lock-teszt")
     elapsed = time.time() - started
 finally:
-    kreta.subprocess = original_subprocess
+    kreta_db.subprocess = original_subprocess
     lock.rollback()
     lock.close()
 
 ok(locked_result is False, f"False-t ad zárolt DB-nél ({elapsed:.1f} s)")
 ok(calls == [], f"nem indult subprocess ({len(calls)} hívás)")
-ok(kreta._schema_failed is False, "az önjavítás nincs véglegesen kikapcsolva")
+ok(kreta_db._schema_failed is False, "az önjavítás nincs véglegesen kikapcsolva")
 
 print("\n2) A zárolás után bootstrap")
 ok(kreta.ensure_db_schema(reason="bootstrap-teszt") is True, "a hiányzó séma létrejött (True)")
