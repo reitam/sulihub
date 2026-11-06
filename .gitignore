@@ -24,3 +24,6 @@ venv/scheduler_state.json.migrated
 
 # POC (helyi, a spike branchen el; szemelyes kimenet)
 poc/
+
+# API-pillanatkep (KRÉ-14): a valódi DB-ből készül, személyes adatot tartalmaz
+tools/snapshots/
