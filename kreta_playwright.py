@@ -17,6 +17,10 @@ import kreta_sync
 import kreta_tanev
 from kreta_paths import CSATOLMANYOK_DIR as _PATHS_CSATOLMANYOK_DIR
 from kreta_paths import DATA_DIR as _PATHS_DATA_DIR
+from kreta_paths import ensure_data_dir as _ensure_data_dir
+
+# A data/ könyvtár létrehozása a napló/DB megnyitása előtt (KRÉ-14 audit, F2).
+_ensure_data_dir()
 
 # --- KONFIGURÁCIÓ ÉS LOGGING BEÁLLÍTÁSA ---
 # Az útvonalak a `kreta_paths.py`-ból jönnek (egy igazságforrás, KRÉ-14 #98).

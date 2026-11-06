@@ -410,15 +410,27 @@ def compute_zsebpenz_statisztika(diak="", kezdo_datum="", zaro_datum="", tanev_s
 
     # A súlyszázalék csak az API-s szinkronból van meg; régi DB-ben lehet, hogy
     # még nincs oszlop, ezért a SELECT *-ot nem használjuk, hanem külön kérdezzük.
+    # FONTOS: a szűrőfeltételeknek és a paramétereknek pontosan egyezniük kell
+    # (a diák + tanév szűrő itt is!), különben a lekérdezés elszáll, és a
+    # súlyozott átlag csendben elveszne (KRÉ-14 audit, F1).
     jegy_suly = {}
     try:
-        cursor.execute(
-            "SELECT id, suly_szazalek FROM esemenyek WHERE esemeny_tipus = 'Értékelés'"
-            + (" AND diak_nev = ?" if diak else ""),
-            params,
-        )
+        suly_query = ("SELECT id, suly_szazalek FROM esemenyek "
+                      "WHERE esemeny_tipus = 'Értékelés'")
+        suly_params = []
+        if diak:
+            suly_query += " AND diak_nev = ?"
+            suly_params.append(diak)
+        if tanev_szuro:
+            suly_query += " AND tanev = ?"
+            suly_params.append(tanev_szuro)
+        cursor.execute(suly_query, suly_params)
         jegy_suly = {row["id"]: (row["suly_szazalek"] or 0) for row in cursor.fetchall()}
-    except sqlite3.Error:
+    except sqlite3.Error as exc:
+        # Várt eset: régi DB, ahol még nincs suly_szazalek oszlop. Minden más
+        # hiba látszódjon a naplóban (ne nyelje el csendben).
+        if "suly_szazalek" not in str(exc):
+            print(f"[Statisztika] A súlyadatok nem olvashatók: {exc}")
         jegy_suly = {}
 
     jegy_counts = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}

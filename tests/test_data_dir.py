@@ -117,6 +117,26 @@ ok((mig / "config.json").is_file() and (mig / "kreta_adatok.db").is_file(),
    "a fájlok visszakerültek a gyökérbe")
 ok((mig / "static" / "csatolmanyok" / "a.txt").is_file(), "a csatolmányok visszakerültek")
 
+print("\n5) Friss klón: data/ nélkül indulva létrejön a data/ és a DB (F2)")
+fresh = work / "fresh"
+fresh.mkdir()
+for src_py in ROOT.glob("*.py"):
+    shutil.copy2(src_py, fresh / src_py.name)
+env = os.environ.copy()
+for key in ("KRETA_DATA_DIR", "KRETA_DB_FILE", "KRETA_CONFIG_FILE", "KRETA_LOG_FILE",
+            "KRETA_CSATOLMANYOK_DIR", "KRETA_SCHEDULER_STATE_FILE", "KRETA_VERSION_FILE",
+            "PYTHONPATH"):
+    env.pop(key, None)
+env["PYTHONIOENCODING"] = "utf-8"
+r = subprocess.run([sys.executable, "-c", "import app; print('DB=' + app.DB_FILE)"],
+                   cwd=str(fresh), env=env, capture_output=True, text=True,
+                   encoding="utf-8", errors="replace", timeout=180)
+out = r.stdout + r.stderr
+ok(r.returncode == 0, f"az app importálható data/ nélkül (exit {r.returncode})")
+ok("unable to open database file" not in out, "nincs 'unable to open database file' hiba")
+ok((fresh / "data" / "kreta_adatok.db").is_file(), "a data/kreta_adatok.db létrejött")
+ok("DB=" in r.stdout, f"a DB-út feloldható: {r.stdout.strip().splitlines()[-1] if r.stdout.strip() else '-'}")
+
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

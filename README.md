@@ -1,4 +1,4 @@
-# 🎓 KRÉTA Adatbázis Áttekintő & Zsebpénz Menedzser
+﻿# 🎓 KRÉTA Adatbázis Áttekintő & Zsebpénz Menedzser
 
 > **Teljes rendszerdokumentáció:** [`docs/DOKUMENTACIO.md`](docs/DOKUMENTACIO.md) — üzleti áttekintés,
 > architektúra, adatmodell, üzemeltetés, hibaelhárítás, verziótörténet.
@@ -365,7 +365,7 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**39 csomag, 1158 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**39 csomag, 1177 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,

@@ -1,4 +1,4 @@
-# KRÉ-14 refaktor — összefoglaló (2026-11-06)
+﻿# KRÉ-14 refaktor — összefoglaló (2026-11-06)
 
 **Ág:** `refactor/kre14-monolit` (a `main`-ról indítva)
 **Kiadás:** v2.0.0 (a felhasználó döntése: élesítés csak a teljesen kész verzióval)
@@ -25,7 +25,26 @@
 - **Közös rétegek:** `kreta_paths`, `kreta_db`, `kreta_settings`, `views_common`.
 - **Frontend:** nincs inline script; `core.js` (globális segédek) + `app-main.js`.
 - **Adatok:** `data/` (DB, config, napló, tokenek, böngészőprofil, csatolmányok).
-- **Tesztek:** 1158 ellenőrzés / 39 csomag (fast 34/1006, browser 5/152).
+- **Tesztek:** 1177 ellenőrzés / 39 csomag (fast 34/1025, browser 5/152).
+
+## Audit utáni javítások (2026-11-06)
+
+A tesztmenedzser-féle audit három valós hibát talált; mind javítva, teszttel:
+
+- **F1 – súlyozott átlag tanév-szűrővel:** a súly-lekérdezés csak a diák-szűrőt
+  fűzte hozzá, de a tanév paramétert is átadta → `ProgrammingError`, amit a széles
+  `except` elnyelt, így a felület (amely mindig küld `tanev`-et) egyszerű átlagot
+  mutatott. Javítva: külön `suly_params`; a néma elnyelés helyett naplózás.
+  Teszt: `test_statisztika` 7. szakasz (súlyozott átlag + dashboard-egyezés).
+- **F2 – hiányzó `data/`:** friss klónnál nem jött létre a mappa → „unable to open
+  database file". Javítva: `kreta_paths.ensure_data_dir()`, az app és a scraper
+  indulásakor hívva (nem import-mellékhatásként). Teszt: `test_data_dir` 5. szakasz.
+- **F3 – Docker füstteszt:** az építéskori ellenőrzés nem importálta a teljes
+  modulgráfot. Javítva: `KRETA_DATA_DIR=/tmp/kreta-buildcheck python -c "import app"`
+  a buildben (a temp mappa törlődik). Teszt: `test_deploy` +1 ellenőrzés.
+
+Plusz: `test_auth` a blueprint-végpontok auth-védelmét is ellenőrzi, `test_karbantartas`
+pedig azt, hogy egyetlen modul sem importálja az `app`-ot (nincs körkörösség).
 
 ## Hogyan maradt bizonyítottan változatlan a viselkedés
 

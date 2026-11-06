@@ -77,5 +77,17 @@ ok(client.get("/", headers=auth_header(password="titok")).status_code == 200,
 ok(client.get("/", headers=auth_header(password="jelszo")).status_code == 401,
    "a régi jelszó nem jó")
 
+print("\n4) A blueprint-ek is védettek (KRÉ-14: app-szintű before_request)")
+write_config(True, generate_password_hash("jelszo"))
+api_checks = ["/api/esemenyek", "/api/statisztika", "/api/orarend", "/api/uzenetek",
+              "/api/kifizetesek/export.xlsx"]
+for path in api_checks:
+    no_auth = client.get(path)
+    with_auth = client.get(path, headers=auth_header())
+    ok(no_auth.status_code == 401 and with_auth.status_code != 401,
+       f"{path}: auth nélkül 401 ({no_auth.status_code}), helyes jelszóval {with_auth.status_code}")
+res = client.post("/api/sync/start")
+ok(res.status_code == 401, f"POST /api/sync/start auth nélkül 401 ({res.status_code})")
+
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

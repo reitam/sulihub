@@ -49,6 +49,8 @@ for module in root_modules:
         missing.append(module)
 ok(not missing, f"minden modul bemásolva (hiányzó: {missing or 'nincs'})")
 ok(glob_copy or len(copy_lines) >= 3, "a kódmásolás külön lépésben történik")
+ok("import app" in dockerfile,
+   "az építéskori füstteszt a teljes modulgráfot importálja (import app)")
 
 print("\n2) requirements.txt: a harmadik féltől származó importok lefedve")
 imports = set()

@@ -33,7 +33,11 @@ COPY entrypoint.sh ./
 
 # Építéskori füstteszt: ha egy modul vagy csomag hiányzik, már a build elszáll
 # (a 2026-11-02-i hiba így azonnal kiderült volna, nem éles szinkron közben).
-RUN python -c "import requests, playwright, openpyxl; import kreta_api, kreta_api_sync, kreta_sync, kreta_shadow"
+# Az `import app` a teljes modulgráfot behúzza (a blueprint-eket és a kiemelt
+# rétegeket is), temp data-dirrel, hogy a képbe ne kerüljön adatbázis.
+RUN python -c "import requests, playwright, openpyxl; import kreta_api, kreta_api_sync, kreta_sync, kreta_shadow" \
+    && KRETA_DATA_DIR=/tmp/kreta-buildcheck python -c "import app" \
+    && rm -rf /tmp/kreta-buildcheck
 
 
 # Nem-root futás (a szerveren a reitam user uid/gid = 1000, lásd a compose args-t).
