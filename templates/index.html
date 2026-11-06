@@ -416,6 +416,20 @@
         }
         #schedulerDetailModal #schedModalLast .sched-last-sep { display: none; }
 
+        /* Olvasatlan üzenet sor (Kaneo #11) */
+        #uzenetekTable tbody tr.uzenet-olvasatlan td {
+            font-weight: 700;
+            background-color: #f4f8ff;
+        }
+        .uzenet-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            background: #0d6efd;
+            vertical-align: middle;
+        }
+
         /* Hiányzások / igazolások: a hosszú szövegek több sorban, ne legyenek levágva */
         @media (min-width: 768px) {
             #hianyzasokTable tbody tr, #igazolasokTable tbody tr { height: auto !important; }
@@ -632,7 +646,7 @@
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="uzenetek-tab" data-bs-toggle="tab" data-bs-target="#uzenetek-pane" type="button" role="tab">
-                <i class="fa-solid fa-envelope me-2"></i><span class="d-none d-sm-inline">Beérkezett </span>Üzenetek
+                <i class="fa-solid fa-envelope me-2"></i><span class="d-none d-sm-inline">Beérkezett </span>Üzenetek<span id="uzenetekOlvasatlanBadge" class="badge bg-primary rounded-pill ms-1 d-none">0</span>
             </button>
         </li>
         {% if global_enable_rewards %}
@@ -953,6 +967,18 @@
 
         <!-- 4. FÜL: BEÉRKEZETT ÜZENETEK -->
         <div class="tab-pane fade" id="uzenetek-pane" role="tabpanel">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Olvasottság szűrő" id="uzenetOlvasottFilter">
+                    <button type="button" class="btn btn-outline-primary active" data-filter="all">Mind</button>
+                    <button type="button" class="btn btn-outline-primary" data-filter="unread">
+                        <i class="fa-solid fa-envelope me-1"></i>Olvasatlan
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" data-filter="read">
+                        <i class="fa-solid fa-envelope-open me-1"></i>Olvasott
+                    </button>
+                </div>
+                <small class="text-muted"><i class="fa-solid fa-magnifying-glass me-1"></i>A kereső a tárgyban, a feladóban és az üzenet szövegében is keres.</small>
+            </div>
             <div class="table-container overflow-auto">
                 <table id="uzenetekTable" class="table table-striped table-hover w-100">
                     <thead>
@@ -1000,10 +1026,10 @@
                     <div class="col-md-3 text-end d-flex align-items-center justify-content-end">
                         <button id="btnQuickThisMonth" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1" style="font-size: 0.75rem;">Aktuális hónap</button>
                         <button id="btnQuickLastMonth" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;">Előző hónap</button>
-                        <a id="btnExportKifizetesCsv" class="btn btn-sm btn-outline-success py-0 px-2 ms-1"
-                           style="font-size: 0.75rem;" href="/api/kifizetesek/export.csv"
-                           title="Zsebpénz-elszámolások CSV exportja">
-                            <i class="fa-solid fa-file-csv me-1"></i>CSV
+                        <a id="btnExportKifizetesXlsx" class="btn btn-sm btn-outline-success py-0 px-2 ms-1"
+                           style="font-size: 0.75rem;" href="/api/kifizetesek/export.xlsx"
+                           title="Zsebpénz-elszámolások Excel (.xlsx) exportja">
+                            <i class="fa-solid fa-file-excel me-1"></i>Excel
                         </a>
                     </div>
                 </div>
@@ -1262,6 +1288,10 @@
         </div>
       </div>
       <div class="modal-footer p-2 flex-wrap gap-1">
+        <button type="button" class="btn btn-sm btn-outline-secondary me-auto" id="btnModalToggleOlvasott"
+                title="Helyi olvasott/olvasatlan állapot váltása">
+          <i class="fa-solid fa-envelope me-1"></i>Olvasatlannak jelölés
+        </button>
         <button type="button" class="btn btn-sm btn-primary" id="btnUzenetNaptarGoogle"
                 title="Előre kitöltött Google Naptár esemény nyílik; ott egy kattintással menthető">
           <i class="fa-brands fa-google me-1"></i>Naptárba küldés
@@ -1834,6 +1864,28 @@ $(document).ready(function() {
         }
     });
 
+    let uzenetOlvasottMode = 'all';
+
+    function updateUzenetOlvasatlanBadge() {
+        let cnt = 0;
+        (rawUzenetek || []).forEach(function(m) {
+            if (!m.olvasott) cnt++;
+        });
+        let $b = $('#uzenetekOlvasatlanBadge');
+        if (cnt > 0) {
+            $b.text(cnt).removeClass('d-none');
+        } else {
+            $b.text('0').addClass('d-none');
+        }
+    }
+
+    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {
+        if (!settings.nTable || settings.nTable.id !== 'uzenetekTable') return true;
+        if (uzenetOlvasottMode === 'unread') return !rowData.olvasott;
+        if (uzenetOlvasottMode === 'read') return !!rowData.olvasott;
+        return true;
+    });
+
     let uzenetekTable = $('#uzenetekTable').DataTable({
         responsive: true,
         language: HU_DT_LANG,
@@ -1852,15 +1904,21 @@ $(document).ready(function() {
             if (msgNum && msgNum === todayNum) {
                 $(row).addClass('today-row');
             }
+            $(row).toggleClass('uzenet-olvasatlan', !data.olvasott);
         },
         columns: [
             { data: 'diak_nev', render: function (data, type) { return type === 'display' ? renderDiakAvatar(data) : data; } },
             { data: 'felado' },
             { 
                 data: 'targy',
-                render: function(data) {
+                render: function(data, type, row) {
+                    if (type === 'filter') {
+                        return (data || '') + ' ' + ((row && row.szoveg) || '');
+                    }
+                    if (type !== 'display') return data || '';
                     let safeText = (data || '').replace(/"/g, '&quot;');
-                    return `<span class="cell-truncate" title="${safeText}">${data || '-'}</span>`;
+                    let dot = row.olvasott ? '' : '<span class="uzenet-status-dot me-1" title="Olvasatlan"></span>';
+                    return `${dot}<span class="cell-truncate" title="${safeText}">${data || '-'}</span>`;
                 }
             },
             { 
@@ -1887,9 +1945,17 @@ $(document).ready(function() {
             { 
                 data: null,
                 render: function(data, type, row, meta) {
-                    return `<button class="btn btn-sm btn-info text-white py-0 px-2 btn-read-msg" data-index="${meta.row}">
-                        <i class="fa-solid fa-eye me-1"></i>Olvasás
-                    </button>`;
+                    let toggleIcon = row.olvasott ? 'fa-envelope' : 'fa-envelope-open';
+                    let toggleTitle = row.olvasott ? 'Megjelölés olvasatlanként' : 'Megjelölés olvasottként';
+                    let toggleCls = row.olvasott ? 'btn-outline-secondary' : 'btn-outline-primary';
+                    return `<div class="d-inline-flex gap-1 align-items-center">
+                        <button class="btn btn-sm btn-info text-white py-0 px-2 btn-read-msg" data-id="${row.id}" data-index="${meta.row}">
+                            <i class="fa-solid fa-eye me-1"></i>Olvasás
+                        </button>
+                        <button class="btn btn-sm ${toggleCls} py-0 px-1 btn-toggle-msg-read d-none d-sm-inline-block" data-id="${row.id}" title="${toggleTitle}">
+                            <i class="fa-solid ${toggleIcon}"></i>
+                        </button>
+                    </div>`;
                 }
             }
         ],
@@ -3151,10 +3217,10 @@ $(document).ready(function() {
         loadRewardsData();
     });
 
-    $('#btnExportKifizetesCsv').click(function(e) {
+    $('#btnExportKifizetesXlsx').click(function(e) {
         e.preventDefault();
         let diak = $('#rewardFilterDiak').val() || '';
-        window.location.href = '/api/kifizetesek/export.csv?diak=' + encodeURIComponent(diak);
+        window.location.href = '/api/kifizetesek/export.xlsx?diak=' + encodeURIComponent(diak) + tanevQueryParam();
     });
 
     // ── Tanév-választó (Kaneo #40, 5. fázis) ────────────────────────────────
@@ -3331,6 +3397,7 @@ $(document).ready(function() {
 
         $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(diak)}`, function(data) {
             rawUzenetek = data;
+            updateUzenetOlvasatlanBadge();
             uzenetekTable.clear().rows.add(data).draw();
         });
 
@@ -4023,9 +4090,73 @@ $(document).ready(function() {
         showMainTab($(this).hasClass('btn-back-dashboard') ? 'attekintes-tab' : 'esemenyek-tab');
     });
 
+    function updateModalOlvasottButton(olvasott) {
+        let $btn = $('#btnModalToggleOlvasott');
+        if (olvasott) {
+            $btn.html('<i class="fa-solid fa-envelope me-1"></i>Olvasatlannak jelölés');
+        } else {
+            $btn.html('<i class="fa-solid fa-envelope-open me-1"></i>Olvasottnak jelölés');
+        }
+    }
+
+    function setUzenetOlvasott(msgId, olvasott, doneCb) {
+        $.ajax({
+            url: `/api/uzenetek/${msgId}/olvasott`,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ olvasott: !!olvasott }),
+            success: function() {
+                (rawUzenetek || []).forEach(function(m) {
+                    if (m.id === msgId) m.olvasott = !!olvasott;
+                });
+                uzenetekTable.rows().every(function() {
+                    let d = this.data();
+                    if (d && d.id === msgId) {
+                        d.olvasott = !!olvasott;
+                        this.data(d);
+                        $(this.node()).toggleClass('uzenet-olvasatlan', !olvasott);
+                    }
+                });
+                uzenetekTable.draw(false);
+                updateUzenetOlvasatlanBadge();
+                if (uzenetAktualisId === msgId) {
+                    updateModalOlvasottButton(!!olvasott);
+                }
+                if (typeof doneCb === 'function') doneCb();
+            }
+        });
+    }
+
+    $('#uzenetOlvasottFilter').on('click', 'button[data-filter]', function() {
+        $('#uzenetOlvasottFilter button').removeClass('active');
+        $(this).addClass('active');
+        uzenetOlvasottMode = $(this).data('filter') || 'all';
+        uzenetekTable.draw();
+    });
+
+    $('#uzenetekTable').on('click', '.btn-toggle-msg-read', function(e) {
+        e.stopPropagation();
+        let id = Number($(this).data('id'));
+        let target = (rawUzenetek || []).find(function(m) { return m.id === id; });
+        if (!target) return;
+        setUzenetOlvasott(id, !target.olvasott);
+    });
+
+    $('#btnModalToggleOlvasott').on('click', function() {
+        if (!uzenetAktualisId) return;
+        let target = (rawUzenetek || []).find(function(m) { return m.id === uzenetAktualisId; });
+        if (!target) return;
+        setUzenetOlvasott(uzenetAktualisId, !target.olvasott);
+    });
+
     $('#uzenetekTable').on('click', '.btn-read-msg', function() {
         let idx = $(this).data('index');
         let msg = uzenetekTable.row(idx).data();
+        if (!msg) {
+            let id = Number($(this).data('id'));
+            msg = (rawUzenetek || []).find(function(m) { return m.id === id; });
+        }
+        if (!msg) return;
 
         $('#uzenetModalTitle').html(`<i class="fa-solid fa-envelope-open me-2"></i>${msg.targy}`);
         $('#modalFelado').text(msg.felado);
@@ -4054,8 +4185,12 @@ $(document).ready(function() {
         $('#uzenetKommentUj').val('');
         betoltUzenetKommentek();
 
-        // Naptárbejegyzés (Kaneo #47)
+        // Naptárbejegyzés (Kaneo #47) + olvasottság (Kaneo #11)
         uzenetAktualisId = msg.id;
+        updateModalOlvasottButton(true);
+        if (!msg.olvasott) {
+            setUzenetOlvasott(msg.id, true);
+        }
 
         let myModal = new bootstrap.Modal(document.getElementById('uzenetModal'));
         myModal.show();
