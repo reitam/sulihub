@@ -67,10 +67,16 @@ cur.execute(
 event_id = cur.lastrowid
 cur.execute(
     "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg,"
-    " csatolmany_nev, csatolmany_utvonal, tanev, tanev_forras)"
-    " VALUES (?,?,?,?,?,?,?,?,?,?)",
-    ("Teszt Elek", "U-1", "Iskola", "Teszt üzenet", BEJ + " 10:00", "Szöveg", "", "",
-     TANEV, "szamitott"))
+    " csatolmany_nev, csatolmany_utvonal, olvasott, tanev, tanev_forras)"
+    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    ("Teszt Elek", "U-1", "Iskola", "Teszt üzenet", BEJ + " 10:00",
+     "Szöveg egyedi_tartalom_kulcsszo_42", "", "", 0, TANEV, "szamitott"))
+cur.execute(
+    "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg,"
+    " csatolmany_nev, csatolmany_utvonal, olvasott, tanev, tanev_forras)"
+    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    ("Teszt Elek", "U-2", "Osztályfőnök", "Másik üzenet", BEJ + " 09:00",
+     "Másik szöveg, már olvasott", "", "", 1, TANEV, "szamitott"))
 conn.commit()
 conn.close()
 
@@ -217,8 +223,35 @@ try:
 
         page.click("#uzenetek-tab")
         page.wait_for_timeout(800)
+
+        # Kaneo #11: olvasatlan jelvény és olvasatlan sor jelölése megnyitás előtt
+        ok(page.inner_text("#uzenetekOlvasatlanBadge").strip() == "1",
+           "1 olvasatlan üzenet a fül jelvényén")
+        ok(page.locator("#uzenetekTable tbody tr.uzenet-olvasatlan").count() == 1,
+           "az olvasatlan üzenet sora vizuálisan kiemelt")
+
+        # Kaneo #11: keresés az üzenet szöveges tartalmában (nem tárgy/feladó)
+        search_inp = page.locator("#uzenetekTable_filter input")
+        search_inp.fill("egyedi_tartalom_kulcsszo_42")
+        page.wait_for_timeout(300)
+        ok(page.locator("#uzenetekTable tbody tr").count() == 1
+           and "Teszt üzenet" in page.inner_text("#uzenetekTable tbody"),
+           "a kereső megtalálja az üzenetet a törzsszöveg alapján")
+        search_inp.fill("")
+        page.wait_for_timeout(300)
+
+        # Kaneo #11: olvasottság szűrőgombok (Olvasatlan / Olvasott / Mind)
+        page.click('#uzenetOlvasottFilter button[data-filter="unread"]')
+        page.wait_for_timeout(200)
+        ok(page.locator("#uzenetekTable tbody tr").count() == 1,
+           "az Olvasatlan szűrő csak az olvasatlan üzenetet mutatja")
+        page.click('#uzenetOlvasottFilter button[data-filter="all"]')
+        page.wait_for_timeout(200)
+
         page.click(".btn-read-msg")
         page.wait_for_timeout(600)
+        ok(page.locator("#uzenetekTable tbody tr.uzenet-olvasatlan").count() == 0,
+           "megnyitás után az üzenet automatikusan olvasottá válik")
         ok(page.is_visible("#uzenetKommentLista"), "az üzenet-modálban van megjegyzés-blokk")
         page.fill("#uzenetKommentUj", "Üzenet-UI megjegyzés")
         page.click("#btnUzenetKommentMent")

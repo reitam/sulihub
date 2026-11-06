@@ -12,3 +12,6 @@ requests>=2.32,<3
 tzdata>=2024.1
 # AI-elemzéshez a PDF csatolmányok szövegének kinyerése (#61).
 pypdf>=5,<7
+# Zsebpénz valódi Excel (.xlsx) exporthoz (#11).
+openpyxl>=3.1,<4
+

@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Dokumentum verziója** | 1.1 |
-| **A rendszer verziója** | v1.6.5 (élesítésre vár; élesben v1.6.4) |
-| **Utolsó frissítés** | 2026-11-02 |
+| **A rendszer verziója** | v1.9.2 (éles, 2026-11-06) |
+| **Utolsó frissítés** | 2026-11-06 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
 
@@ -753,10 +753,17 @@ python tests/run_all.py --fast     # böngésző nélkül (32 csomag, 883 ell.)
 python tests/run_all.py --browser  # Playwrightos (5 csomag, 152 ell.)
 ```
 
-**CI (GitHub Actions, `.github/workflows/ci.yml`):** a **gyors** job (27 csomag) minden
+**CI (GitHub Actions, `.github/workflows/ci.yml`):** a **gyors** job (32 csomag) minden
 pushra/PR-ra lefut; a **böngészős** job (5 csomag) csak `main` pushra, éjszakánként és
 kézi indításra. A tesztek fixture-ökkel/fake klienssel dolgoznak, valódi KRÉTA-hívás nem
 történik; a böngészős job hibája esetén a képernyőképek artifactként feltöltődnek.
+
+**Determinisztikus időzítés (Kaneo #75):** a fix tesztdátumú, de a böngésző aktuális
+idejétől függő csempe-ellenőrzéseket tartalmazó tesztek (`test_dashboard`,
+`test_tanev_ui`) a Playwright `page.clock.install(time=…)`-ével a tesztdátumra rögzített
+óra mellett futnak — így a másnapi (scheduled) CI-futásban nem csúszik ki a 7/10 napos
+csempe-ablak. Új, dátumfüggő assertion-t tartalmazó böngészős teszt esetén ezt a mintát kell
+követni (a szerver oldali `KRETA_TODAY` mellé a kliens óráját is rögzíteni).
 
 Jelenleg **1051 automatikus ellenőrzés** harminchét csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**

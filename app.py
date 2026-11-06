@@ -29,6 +29,10 @@ from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from werkzeug.security import check_password_hash
+import openpyxl
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+
 
 app = Flask(__name__)
 
@@ -701,12 +705,15 @@ def init_db_extensions():
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_igazolasok_diak ON igazolasok(diak_nev, kezdete)")
 
-            # Üzenetek: a postalada-elem azonosítója (a teljes törzs lekéréséhez, Kaneo #74).
+            # Üzenetek: a postalada-elem azonosítója (#74) + helyi olvasott állapot (#11).
             cursor.execute("PRAGMA table_info(uzenetek)")
             uzenet_cols = [row["name"] for row in cursor.fetchall()]
             if uzenet_cols and "posta_id" not in uzenet_cols:
                 cursor.execute("ALTER TABLE uzenetek ADD COLUMN posta_id TEXT")
                 print("[Adatbázis séma frissítve]: 'posta_id' oszlop hozzáadva az 'uzenetek' táblához.")
+            if uzenet_cols and "olvasott" not in uzenet_cols:
+                cursor.execute("ALTER TABLE uzenetek ADD COLUMN olvasott INTEGER DEFAULT 0")
+                print("[Adatbázis séma frissítve]: 'olvasott' oszlop hozzáadva az 'uzenetek' táblához.")
 
             # Órarend tábla
             cursor.execute("""
@@ -2590,6 +2597,8 @@ def api_uzenetek():
         tisztitott_szoveg = re.sub(r'\n{3,}', '\n\n', nyers_szoveg) if nyers_szoveg else ""
         kulcs = komment_kulcs_uzenet(r)
 
+        olvasott = bool(r["olvasott"]) if "olvasott" in keys and r["olvasott"] else False
+
         uzenetek.append({
             "id": r["id"],
             "diak_nev": r["diak_nev"] if "diak_nev" in keys else "",
@@ -2599,12 +2608,40 @@ def api_uzenetek():
             "szoveg": tisztitott_szoveg,
             "csatolmany_nev": cs_nev or "",
             "csatolmany_utvonal": cs_ut or "",
+            "olvasott": olvasott,
             "komment_kulcs": kulcs,
             "komment_db": int(komment_db.get(kulcs, 0))
         })
 
     conn.close()
     return jsonify(uzenetek)
+
+
+@app.route("/api/uzenetek/<int:uzenet_id>/olvasott", methods=["POST"])
+def api_uzenet_olvasott(uzenet_id):
+    """Üzenet helyi olvasott/olvasatlan állapotának mentése (Kaneo #11).
+
+    A KRÉTA felé nem írunk vissza; az állapot kizárólag a helyi `uzenetek.olvasott`
+    oszlopban él, és a szinkron nem írja felül a már mentett sorokat.
+    """
+    if not os.path.exists(DB_FILE):
+        return jsonify({"status": "error", "message": "Nincs adatbázis."}), 404
+    data = request.get_json(silent=True) or {}
+    olvasott = 1 if data.get("olvasott", True) else 0
+    conn = get_db_connection()
+    try:
+        cur = conn.execute(
+            "UPDATE uzenetek SET olvasott = ? WHERE id = ?",
+            (olvasott, uzenet_id),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            return jsonify({"status": "error", "message": "Az üzenet nem található."}), 404
+    except sqlite3.Error as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
+    finally:
+        conn.close()
+    return jsonify({"status": "ok", "id": uzenet_id, "olvasott": bool(olvasott)})
 
 
 # ==============================================================================
@@ -3394,32 +3431,207 @@ def api_statisztika():
         "teteles_lista": teteles_lista
     })
 
-@app.route("/api/kifizetesek/export.csv")
-def api_kifizetesek_csv():
-    """Zsebpénz-elszámolások CSV exportja (Kaneo #11)."""
+def _load_kifizetesek_rows(diak="", tanev_szuro=None):
+    """A kifizetés-elszámolások sorai és a tételes zsebpénz-események (exportokhoz)."""
+    kif_rows = []
+    teteles_rows = []
     if not os.path.exists(DB_FILE):
-        return Response("\ufeffNincs adatbázis.\n", mimetype="text/csv; charset=utf-8")
-    diak = request.args.get("diak", "")
+        return kif_rows, teteles_rows
+
+    config = load_config()
+    rewards = config.get("REWARDS", {
+        "jegy_5": 500, "jegy_4": 200, "jegy_3": 0, "jegy_2": -200, "jegy_1": -500,
+        "dicseret": 500, "megrovas": -500, "lecke_hiany": -300, "felszereles_hiany": -300
+    })
+    keywords = config.get("KEYWORDS", {
+        "dicseret": ["dicséret", "dicséretben", "kiemelkedő"],
+        "megrovas": ["intő", "megrovás", "figyelmeztetés"],
+        "lecke_hiany": ["házi feladat hiány", "házi hiány", "lecke hiány", "nem készített házi"],
+        "felszereles_hiany": ["felszerelés hiány", "felszerelése hiányzott", "felszereléshiány"]
+    })
+    cat_names = {
+        "dicseret": "Dicséret",
+        "megrovas": "Intő / Megrovás",
+        "lecke_hiany": "Lecke hiány",
+        "felszereles_hiany": "Felszerelés hiány"
+    }
+
     conn = get_db_connection()
     try:
         query = ("SELECT diak_nev, kezdo_datum, zaro_datum, osszeg, kifizetve, updated_at"
-                 " FROM kifizetesek")
+                 " FROM kifizetesek WHERE 1=1")
         params = []
         if diak:
-            query += " WHERE diak_nev = ?"
+            query += " AND diak_nev = ?"
             params.append(diak)
+        if tanev_szuro:
+            query += " AND tanev = ?"
+            params.append(tanev_szuro)
         query += " ORDER BY kezdo_datum, diak_nev"
-        rows = conn.execute(query, params).fetchall()
+        kif_rows = conn.execute(query, params).fetchall()
+
+        # Tételes zsebpénz-tételek (jegyek + feljegyzések).
+        j_query = ("SELECT diak_nev, tantargy, ertek, szam_ertek, bej_datum, mod, tema"
+                   " FROM esemenyek WHERE esemeny_tipus = 'Értékelés'")
+        j_params = []
+        if diak:
+            j_query += " AND diak_nev = ?"
+            j_params.append(diak)
+        if tanev_szuro:
+            j_query += " AND tanev = ?"
+            j_params.append(tanev_szuro)
+        for r in conn.execute(j_query, j_params).fetchall():
+            val = r["szam_ertek"]
+            if val not in (1, 2, 3, 4, 5):
+                continue
+            jutalom = rewards.get(f"jegy_{val}", 0)
+            megj = f"{r['mod'] or ''} {r['tema'] or ''}".strip()
+            teteles_rows.append({
+                "datum": r["bej_datum"] or "",
+                "diak_nev": r["diak_nev"] or "",
+                "osszeg": jutalom,
+                "kategoria": f"{r['tantargy'] or 'Jegy'} – {r['ertek'] or val}",
+                "megjegyzes": megj,
+            })
+
+        f_query = ("SELECT diak_nev, bej_datum, cim, tartalom"
+                   " FROM esemenyek WHERE esemeny_tipus = 'Feljegyzés'")
+        f_params = []
+        if diak:
+            f_query += " AND diak_nev = ?"
+            f_params.append(diak)
+        if tanev_szuro:
+            f_query += " AND tanev = ?"
+            f_params.append(tanev_szuro)
+        for r in conn.execute(f_query, f_params).fetchall():
+            text = f"{r['cim'] or ''} {r['tartalom'] or ''}".lower()
+            for cat, kw_list in keywords.items():
+                if any(kw in text for kw in kw_list):
+                    teteles_rows.append({
+                        "datum": r["bej_datum"] or "",
+                        "diak_nev": r["diak_nev"] or "",
+                        "osszeg": rewards.get(cat, 0),
+                        "kategoria": cat_names.get(cat, "Feljegyzés"),
+                        "megjegyzes": f"{r['cim'] or ''} {r['tartalom'] or ''}".strip(),
+                    })
+        teteles_rows.sort(key=lambda x: (x["datum"], x["diak_nev"]), reverse=True)
     except sqlite3.Error:
-        rows = []
+        pass
     finally:
         conn.close()
+    return kif_rows, teteles_rows
+
+
+@app.route("/api/kifizetesek/export.xlsx")
+def api_kifizetesek_xlsx():
+    """Zsebpénz-elszámolások valódi Excel (.xlsx) exportja (Kaneo #11).
+
+    Két munkalapot ad:
+    1. **Kifizetések**: időszaki elszámolások (Dátum, Gyerek, Összeg, Kategória,
+       Megjegyzés, Kifizetve, Kezdő/Záró dátum, Frissítve).
+    2. **Tételes zsebpénz**: az egyes jegyek/feljegyzések tételes jutalmai
+       (Dátum, Gyerek, Összeg, Kategória, Megjegyzés).
+    """
+    diak = request.args.get("diak", "")
+    tanev_szuro = _tanev_from_request()
+    kif_rows, teteles_rows = _load_kifizetesek_rows(diak=diak, tanev_szuro=tanev_szuro)
+
+    wb = openpyxl.Workbook()
+    header_fill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    thin_border = Border(
+        left=Side(style="thin", color="D0D7DE"),
+        right=Side(style="thin", color="D0D7DE"),
+        top=Side(style="thin", color="D0D7DE"),
+        bottom=Side(style="thin", color="D0D7DE"),
+    )
+
+    def _style_sheet(ws, headers, widths):
+        ws.append(headers)
+        for col_idx, width in enumerate(widths, start=1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            ws.column_dimensions[get_column_letter(col_idx)].width = width
+        ws.freeze_panes = "A2"
+
+    # 1. munkalap: Kifizetések (időszaki elszámolások)
+    ws1 = wb.active
+    ws1.title = "Kifizetések"
+    _style_sheet(
+        ws1,
+        ["Dátum", "Gyerek", "Összeg (Ft)", "Kategória", "Megjegyzés",
+         "Kifizetve", "Kezdő dátum", "Záró dátum", "Frissítve"],
+        [14, 22, 14, 18, 28, 12, 14, 14, 20],
+    )
+    for r in kif_rows:
+        kezdo = r["kezdo_datum"] or ""
+        zaro = r["zaro_datum"] or ""
+        osszeg = int(r["osszeg"]) if r["osszeg"] is not None else 0
+        kifizetve_txt = "igen" if r["kifizetve"] else "nem"
+        ws1.append([
+            zaro or kezdo,
+            r["diak_nev"] or "",
+            osszeg,
+            "Zsebpénz elszámolás",
+            f"{kezdo} – {zaro} ({'kifizetve' if r['kifizetve'] else 'kifizetetlen'})",
+            kifizetve_txt,
+            kezdo,
+            zaro,
+            r["updated_at"] or "",
+        ])
+
+    # 2. munkalap: Tételes zsebpénz (jegyek + feljegyzések)
+    ws2 = wb.create_sheet(title="Tételes zsebpénz")
+    _style_sheet(
+        ws2,
+        ["Dátum", "Gyerek", "Összeg (Ft)", "Kategória", "Megjegyzés"],
+        [14, 22, 14, 28, 45],
+    )
+    for t in teteles_rows:
+        ws2.append([
+            t["datum"],
+            t["diak_nev"],
+            int(t["osszeg"]) if t["osszeg"] is not None else 0,
+            t["kategoria"],
+            t["megjegyzes"],
+        ])
+
+    for ws in (ws1, ws2):
+        for row in ws.iter_rows(min_row=2):
+            for cell in row:
+                cell.border = thin_border
+                if cell.column == 3:
+                    cell.number_format = "#,##0"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    suffix = re.sub(r"[^A-Za-z0-9._-]+", "_", diak)[:40] if diak else "osszes"
+    response = Response(
+        buf.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename=\"zsebpenz_{suffix}.xlsx\""
+    )
+    return response
+
+
+@app.route("/api/kifizetesek/export.csv")
+def api_kifizetesek_csv():
+    """Zsebpénz-elszámolások CSV exportja (visszafelé kompatibilis végpont, Kaneo #11)."""
+    if not os.path.exists(DB_FILE):
+        return Response("\ufeffNincs adatbázis.\n", mimetype="text/csv; charset=utf-8")
+    diak = request.args.get("diak", "")
+    kif_rows, _ = _load_kifizetesek_rows(diak=diak)
 
     out = io.StringIO()
     writer = csv.writer(out, delimiter=";")
     writer.writerow(["diak_nev", "kezdo_datum", "zaro_datum", "osszeg",
                      "kifizetve", "kategoria", "megjegyzes", "updated_at"])
-    for row in rows:
+    for row in kif_rows:
         writer.writerow([
             row["diak_nev"] or "",
             row["kezdo_datum"] or "",

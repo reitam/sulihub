@@ -146,7 +146,8 @@ def init_db():
             idopont TEXT,
             szoveg TEXT,
             csatolmany_nev TEXT,
-            csatolmany_utvonal TEXT
+            csatolmany_utvonal TEXT,
+            olvasott INTEGER DEFAULT 0
         )
     ''')
 
@@ -241,7 +242,8 @@ def init_db():
         "idopont": "TEXT",
         "szoveg": "TEXT",
         "csatolmany_nev": "TEXT",
-        "csatolmany_utvonal": "TEXT"
+        "csatolmany_utvonal": "TEXT",
+        "olvasott": "INTEGER DEFAULT 0"
     }
     
     for col_name, col_type in required_columns.items():
@@ -883,7 +885,8 @@ def api_provider_uzenetek(student, client_factory=None):
             # az útvonal üres marad — a felület így is látja, hogy volt csatolmány
             csatolmany_nev = expected_names[m["uzenet_id"]][0]
         save_uzenet_to_db(diak_nev, m["felado"], m["targy"], m["idopont"], m["szoveg"],
-                          csatolmany_nev, csatolmany_utvonal, m.get("posta_id") or "")
+                          csatolmany_nev, csatolmany_utvonal, m.get("posta_id") or "",
+                          olvasott=1 if m.get("olvasott") else 0)
         uj += 1
 
     NEW_MESSAGE_COUNTS[diak_nev] = uj
@@ -1207,7 +1210,7 @@ def update_uzenet_szoveg(row_id, szoveg):
         conn.close()
 
 def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="",
-                      csatolmany_utvonal="", posta_id=""):
+                      csatolmany_utvonal="", posta_id="", olvasott=0):
     """Menti a beolvasott új üzenetet az adatbázisba."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -1216,10 +1219,10 @@ def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="
         cursor.execute('''
             INSERT INTO uzenetek 
             (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal,
-             posta_id, tanev, tanev_forras)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             posta_id, olvasott, tanev, tanev_forras)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal,
-              posta_id, tanev, kreta_tanev.TANEV_FORRAS_SZAMITOTT))
+              posta_id, 1 if olvasott else 0, tanev, kreta_tanev.TANEV_FORRAS_SZAMITOTT))
         conn.commit()
     except Exception as ex:
         log(f"      [Hiba az üzenet mentésekor]: {ex}")
