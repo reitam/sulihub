@@ -251,6 +251,10 @@ def init_db():
             try:
                 cursor.execute(f"ALTER TABLE uzenetek ADD COLUMN {col_name} {col_type}")
                 log(f"  [Adatbázis séma frissítve]: '{col_name}' oszlop hozzáadva az 'uzenetek' táblához.")
+                if col_name == "olvasott":
+                    # A történeti üzenetek olvasottként indulnak (Kaneo #11).
+                    cursor.execute("UPDATE uzenetek SET olvasott = 1")
+                    log("  [Adatbázis séma frissítve]: a meglévő üzenetek olvasottként indulnak.")
             except Exception as ex:
                 log(f"  [Sémafrissítési figyelmeztetés ({col_name})]: {ex}")
 

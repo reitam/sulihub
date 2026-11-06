@@ -968,21 +968,49 @@
         <!-- 4. FÜL: BEÉRKEZETT ÜZENETEK -->
         <div class="tab-pane fade" id="uzenetek-pane" role="tabpanel">
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                <div class="btn-group btn-group-sm" role="group" aria-label="Olvasottság szűrő" id="uzenetOlvasottFilter">
-                    <button type="button" class="btn btn-outline-primary active" data-filter="all">Mind</button>
-                    <button type="button" class="btn btn-outline-primary" data-filter="unread">
-                        <i class="fa-solid fa-envelope me-1"></i>Olvasatlan
-                    </button>
-                    <button type="button" class="btn btn-outline-primary" data-filter="read">
-                        <i class="fa-solid fa-envelope-open me-1"></i>Olvasott
-                    </button>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Olvasottság szűrő" id="uzenetOlvasottFilter">
+                        <button type="button" class="btn btn-outline-primary active" data-filter="all">Mind</button>
+                        <button type="button" class="btn btn-outline-primary" data-filter="unread">
+                            <i class="fa-solid fa-envelope me-1"></i>Olvasatlan
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" data-filter="read">
+                            <i class="fa-solid fa-envelope-open me-1"></i>Olvasott
+                        </button>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Összes üzenet állapota">
+                        <button type="button" class="btn btn-outline-success" id="btnUzenetMindOlvasott"
+                                title="A listában szereplő összes üzenet olvasottnak jelölése">
+                            <i class="fa-solid fa-envelope-open me-1"></i>Mind olvasott
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="btnUzenetMindOlvasatlan"
+                                title="A listában szereplő összes üzenet olvasatlannak jelölése">
+                            <i class="fa-solid fa-envelope me-1"></i>Mind olvasatlan
+                        </button>
+                    </div>
                 </div>
                 <small class="text-muted"><i class="fa-solid fa-magnifying-glass me-1"></i>A kereső a tárgyban, a feladóban és az üzenet szövegében is keres.</small>
+            </div>
+            <div id="uzenetBulkBar" class="alert alert-light border d-none d-flex flex-wrap align-items-center gap-2 py-1 px-2 mb-2">
+                <span class="small"><b id="uzenetKijeloltDb">0</b> üzenet kijelölve</span>
+                <button type="button" class="btn btn-sm btn-success py-0 px-2" id="btnUzenetKijeloltOlvasott">
+                    <i class="fa-solid fa-envelope-open me-1"></i>Olvasott
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="btnUzenetKijeloltOlvasatlan">
+                    <i class="fa-solid fa-envelope me-1"></i>Olvasatlan
+                </button>
+                <button type="button" class="btn btn-sm btn-link py-0 px-1 text-decoration-none" id="btnUzenetKijelolesTorles">
+                    Kijelölés törlése
+                </button>
             </div>
             <div class="table-container overflow-auto">
                 <table id="uzenetekTable" class="table table-striped table-hover w-100">
                     <thead>
                         <tr>
+                            <th style="width: 34px;" class="text-center">
+                                <input type="checkbox" class="form-check-input m-0" id="uzenetSelectAll"
+                                       title="Az összes (szűrt) üzenet kijelölése">
+                            </th>
                             <th style="width: 130px;">Diák</th>
                             <th style="width: 180px;">Feladó</th>
                             <th>Tárgy</th>
@@ -1865,6 +1893,7 @@ $(document).ready(function() {
     });
 
     let uzenetOlvasottMode = 'all';
+    let uzenetKijelolt = new Set();
 
     function updateUzenetOlvasatlanBadge() {
         let cnt = 0;
@@ -1879,6 +1908,24 @@ $(document).ready(function() {
         }
     }
 
+    // Kijelölés (checkbox) állapotának frissítése a lista újrarajzolása után.
+    function updateUzenetKijeloles() {
+        let $bar = $('#uzenetBulkBar');
+        let n = uzenetKijelolt.size;
+        $('#uzenetKijeloltDb').text(n);
+        $bar.toggleClass('d-none', n === 0);
+        // A fejléc "mind" pipa állapota a látható (szűrt) sorok alapján.
+        let $all = $('#uzenetSelectAll');
+        let total = uzenetekTable.rows({ search: 'applied' }).count();
+        let selected = 0;
+        uzenetekTable.rows({ search: 'applied' }).every(function() {
+            let d = this.data();
+            if (d && uzenetKijelolt.has(d.id)) selected++;
+        });
+        $all.prop('checked', total > 0 && selected === total)
+            .prop('indeterminate', selected > 0 && selected < total);
+    }
+
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex, rowData) {
         if (!settings.nTable || settings.nTable.id !== 'uzenetekTable') return true;
         if (uzenetOlvasottMode === 'unread') return !rowData.olvasott;
@@ -1890,13 +1937,14 @@ $(document).ready(function() {
         responsive: true,
         language: HU_DT_LANG,
         columnDefs: [
-            { targets: 2, responsivePriority: 1 },   // Tárgy (a legfontosabb)
-            { targets: 0, responsivePriority: 2 },   // Diák
-            { targets: 1, responsivePriority: 3 },   // Feladó
-            { targets: 5, responsivePriority: 4 }    // Művelet
+            { targets: 0, responsivePriority: 0, orderable: false, searchable: false, className: 'text-center' }, // Kijelölés
+            { targets: 3, responsivePriority: 1 },   // Tárgy (a legfontosabb)
+            { targets: 1, responsivePriority: 2 },   // Diák
+            { targets: 2, responsivePriority: 3 },   // Feladó
+            { targets: 6, responsivePriority: 4 }    // Művelet
         ],
         pageLength: 25,
-        order: [[3, 'desc']],
+        order: [[4, 'desc']],
         autoWidth: false,
         createdRow: function(row, data, dataIndex) {
             let todayNum = getTodayNum();
@@ -1907,6 +1955,18 @@ $(document).ready(function() {
             $(row).toggleClass('uzenet-olvasatlan', !data.olvasott);
         },
         columns: [
+            {
+                data: null,
+                orderable: false,
+                searchable: false,
+                render: function(data, type, row) {
+                    if (type !== 'display') return '';
+                    let checked = uzenetKijelolt.has(row.id) ? 'checked' : '';
+                    return `<input type="checkbox" class="form-check-input m-0 uzenet-select"
+                                   data-id="${row.id}" ${checked}
+                                   title="Kijelölés tömeges állapotváltáshoz">`;
+                }
+            },
             { data: 'diak_nev', render: function (data, type) { return type === 'display' ? renderDiakAvatar(data) : data; } },
             { data: 'felado' },
             { 
@@ -1963,6 +2023,7 @@ $(document).ready(function() {
             enableResizableTable('uzenetekTable');
 
     setTimeout(function() {
+        try { updateUzenetKijeloles(); } catch (e) {}
         try { if (uzenetekTable.responsive) uzenetekTable.responsive.recalc(); } catch (e) {}
     }, 120);
         }
@@ -4106,26 +4167,113 @@ $(document).ready(function() {
             contentType: 'application/json',
             data: JSON.stringify({ olvasott: !!olvasott }),
             success: function() {
-                (rawUzenetek || []).forEach(function(m) {
-                    if (m.id === msgId) m.olvasott = !!olvasott;
-                });
-                uzenetekTable.rows().every(function() {
-                    let d = this.data();
-                    if (d && d.id === msgId) {
-                        d.olvasott = !!olvasott;
-                        this.data(d);
-                        $(this.node()).toggleClass('uzenet-olvasatlan', !olvasott);
-                    }
-                });
-                uzenetekTable.draw(false);
-                updateUzenetOlvasatlanBadge();
-                if (uzenetAktualisId === msgId) {
-                    updateModalOlvasottButton(!!olvasott);
-                }
+                applyUzenetOlvasottLocal([msgId], !!olvasott);
                 if (typeof doneCb === 'function') doneCb();
             }
         });
     }
+
+    // A helyi (memória + DataTable) állapot frissítése mentés után.
+    function applyUzenetOlvasottLocal(ids, olvasott) {
+        let idSet = new Set((ids || []).map(Number));
+        let mind = idSet.size === 0;
+        (rawUzenetek || []).forEach(function(m) {
+            if (mind || idSet.has(m.id)) m.olvasott = !!olvasott;
+        });
+        uzenetekTable.rows().every(function() {
+            let d = this.data();
+            if (d && (mind || idSet.has(d.id))) {
+                d.olvasott = !!olvasott;
+                this.data(d);
+                $(this.node()).toggleClass('uzenet-olvasatlan', !olvasott);
+            }
+        });
+        uzenetekTable.draw(false);
+        updateUzenetOlvasatlanBadge();
+        if (mind || idSet.has(uzenetAktualisId)) {
+            updateModalOlvasottButton(!!olvasott);
+        }
+    }
+
+    // Tömeges állapotváltás: kijelölt azonosítók, vagy (ids nélkül) a diák-szűrés
+    // szerinti összes üzenet (Kaneo #11).
+    function setUzenetOlvasottBulk(ids, olvasott, doneCb) {
+        let payload = { olvasott: !!olvasott };
+        if (Array.isArray(ids) && ids.length) {
+            payload.ids = ids;
+        } else {
+            payload.diak = $('#filterDiak').val() || '';
+        }
+        $.ajax({
+            url: '/api/uzenetek/olvasott',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function() {
+                applyUzenetOlvasottLocal(Array.isArray(ids) && ids.length ? ids : [], !!olvasott);
+                uzenetKijelolt.clear();
+                updateUzenetKijeloles();
+                if (typeof doneCb === 'function') doneCb();
+            },
+            error: function(xhr) {
+                alert((xhr.responseJSON && xhr.responseJSON.message) || 'Az állapot mentése nem sikerült.');
+            }
+        });
+    }
+
+    $('#uzenetekTable').on('change', '.uzenet-select', function(e) {
+        e.stopPropagation();
+        let id = Number($(this).data('id'));
+        if (!id) return;
+        if ($(this).is(':checked')) {
+            uzenetKijelolt.add(id);
+        } else {
+            uzenetKijelolt.delete(id);
+        }
+        updateUzenetKijeloles();
+    });
+
+    $('#uzenetSelectAll').on('click', function(e) {
+        e.stopPropagation();
+    }).on('change', function() {
+        let checked = $(this).is(':checked');
+        uzenetKijelolt.clear();
+        if (checked) {
+            uzenetekTable.rows({ search: 'applied' }).every(function() {
+                let d = this.data();
+                if (d && d.id) uzenetKijelolt.add(d.id);
+            });
+        }
+        uzenetekTable.draw(false);
+        updateUzenetKijeloles();
+    });
+
+    $('#btnUzenetKijeloltOlvasott').on('click', function() {
+        let ids = Array.from(uzenetKijelolt);
+        if (!ids.length) return;
+        setUzenetOlvasottBulk(ids, true);
+    });
+
+    $('#btnUzenetKijeloltOlvasatlan').on('click', function() {
+        let ids = Array.from(uzenetKijelolt);
+        if (!ids.length) return;
+        setUzenetOlvasottBulk(ids, false);
+    });
+
+    $('#btnUzenetKijelolesTorles').on('click', function() {
+        uzenetKijelolt.clear();
+        uzenetekTable.draw(false);
+        updateUzenetKijeloles();
+    });
+
+    $('#btnUzenetMindOlvasott').on('click', function() {
+        setUzenetOlvasottBulk([], true);
+    });
+
+    $('#btnUzenetMindOlvasatlan').on('click', function() {
+        if (!confirm('A lista összes üzenete olvasatlanná válik. Folytatod?')) return;
+        setUzenetOlvasottBulk([], false);
+    });
 
     $('#uzenetOlvasottFilter').on('click', 'button[data-filter]', function() {
         $('#uzenetOlvasottFilter button').removeClass('active');

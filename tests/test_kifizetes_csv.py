@@ -162,6 +162,64 @@ ok(post_unread.status_code == 200 and post_unread.get_json().get("olvasott") is 
 not_found = client.post("/api/uzenetek/999999/olvasott", json={"olvasott": True})
 ok(not_found.status_code == 404, f"nem létező üzenet 404 ({not_found.status_code})")
 
+print("\n3b) Tömeges olvasottság (kijelölés / mind)")
+ids = [u["id"] for u in (client.get("/api/uzenetek").get_json() or [])]
+ok(len(ids) == 2, f"2 üzenet azonosító ({ids})")
+
+r = client.post("/api/uzenetek/olvasott", json={"olvasott": True, "ids": [ids[0]]})
+ok(r.status_code == 200 and (r.get_json() or {}).get("updated") == 1,
+   f"kijelölt azonosítóra mentés: {r.get_json()}")
+allolv = {u["id"]: u["olvasott"] for u in (client.get("/api/uzenetek").get_json() or [])}
+ok(allolv[ids[0]] is True, "a kijelölt üzenet olvasott lett")
+
+r = client.post("/api/uzenetek/olvasott", json={"olvasott": False, "ids": ids})
+ok(r.status_code == 200 and (r.get_json() or {}).get("updated") == 2,
+   f"több kijelölt azonosító egyszerre: {r.get_json()}")
+allolv = {u["id"]: u["olvasott"] for u in (client.get("/api/uzenetek").get_json() or [])}
+ok(all(allolv.values()) is False or not any(allolv.values()), "mind olvasatlan lett")
+
+r = client.post("/api/uzenetek/olvasott", json={"olvasott": True, "diak": "Teszt Elek"})
+ok(r.status_code == 200 and (r.get_json() or {}).get("updated") == 2,
+   f"diák-szűrés szerinti összes: {r.get_json()}")
+allolv = {u["id"]: u["olvasott"] for u in (client.get("/api/uzenetek").get_json() or [])}
+ok(all(allolv.values()), "a diák összes üzenete olvasott lett")
+
+r = client.post("/api/uzenetek/olvasott", json={"olvasott": False})
+ok(r.status_code == 200 and (r.get_json() or {}).get("updated") == 2,
+   f"szűrő nélkül minden üzenet: {r.get_json()}")
+
+print("\n3c) Migráció: a meglévő (történeti) üzenetek olvasottként indulnak")
+# A scraper modul importja config.json-t vár (a valódi futásnál a data kötetről jön).
+with open(os.path.join(work, "config.json"), "w", encoding="utf-8") as _cfg:
+    _cfg.write('{"STUDENTS": [{"diak_nev": "Teszt", "felhasznalonev": "x", "jelszo": "y"}]}')
+import kreta_playwright  # noqa: E402
+
+old_db = os.path.join(work, "regi_uzenetek.db")
+c_old = sqlite3.connect(old_db)
+c_old.execute(
+    "CREATE TABLE uzenetek (id INTEGER PRIMARY KEY AUTOINCREMENT, diak_nev TEXT,"
+    " uzenet_id TEXT, posta_id TEXT, felado TEXT, targy TEXT, idopont TEXT, szoveg TEXT,"
+    " csatolmany_nev TEXT, csatolmany_utvonal TEXT, tanev TEXT, tanev_forras TEXT)")
+c_old.execute(
+    "INSERT INTO uzenetek (diak_nev, felado, targy, idopont, szoveg)"
+    " VALUES ('Régi Diák','Régi feladó','Régi üzenet','2026.09.01. 08:00','régi szöveg')")
+c_old.commit()
+c_old.close()
+
+eredeti_db = kreta_playwright.DB_FILE
+kreta_playwright.DB_FILE = old_db
+try:
+    kreta_playwright.init_db()
+finally:
+    kreta_playwright.DB_FILE = eredeti_db
+
+c_old = sqlite3.connect(old_db)
+old_cols = [r[1] for r in c_old.execute("PRAGMA table_info(uzenetek)")]
+old_val = c_old.execute("SELECT olvasott FROM uzenetek").fetchone()[0]
+c_old.close()
+ok("olvasott" in old_cols, f"a migráció létrehozza az oszlopot: {old_cols}")
+ok(old_val == 1, f"a migráció előtti üzenet olvasott (nem olvasatlan): {old_val}")
+
 print("\n4) UI-elemek a sablonban")
 html = client.get("/").get_data(as_text=True)
 ok('id="btnExportKifizetesXlsx"' in html and "/api/kifizetesek/export.xlsx" in html,
@@ -170,6 +228,11 @@ ok('id="uzenetOlvasottFilter"' in html and 'id="uzenetekOlvasatlanBadge"' in htm
    "az Üzenetek fülön az olvasottság-szűrő és a jelvény szerepel")
 ok('id="btnModalToggleOlvasott"' in html,
    "az üzenet modálban az olvasott/olvasatlan váltógomb szerepel")
+ok('id="uzenetSelectAll"' in html and 'id="uzenetBulkBar"' in html
+   and 'id="btnUzenetKijeloltOlvasott"' in html,
+   "az üzenetlistán van kijelölő checkbox és tömeges műveletsáv")
+ok('id="btnUzenetMindOlvasott"' in html and 'id="btnUzenetMindOlvasatlan"' in html,
+   "van 'Mind olvasott' / 'Mind olvasatlan' gomb")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

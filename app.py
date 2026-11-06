@@ -713,7 +713,11 @@ def init_db_extensions():
                 print("[Adatbázis séma frissítve]: 'posta_id' oszlop hozzáadva az 'uzenetek' táblához.")
             if uzenet_cols and "olvasott" not in uzenet_cols:
                 cursor.execute("ALTER TABLE uzenetek ADD COLUMN olvasott INTEGER DEFAULT 0")
-                print("[Adatbázis séma frissítve]: 'olvasott' oszlop hozzáadva az 'uzenetek' táblához.")
+                # A migráció előtt mentett (történeti) üzenetek ne jelenjenek meg
+                # olvasatlanként — a felhasználó ezeket már látta (Kaneo #11).
+                cursor.execute("UPDATE uzenetek SET olvasott = 1")
+                print("[Adatbázis séma frissítve]: 'olvasott' oszlop hozzáadva az 'uzenetek' táblához"
+                      " (a meglévő üzenetek olvasottként indulnak).")
 
             # Órarend tábla
             cursor.execute("""
@@ -2642,6 +2646,52 @@ def api_uzenet_olvasott(uzenet_id):
     finally:
         conn.close()
     return jsonify({"status": "ok", "id": uzenet_id, "olvasott": bool(olvasott)})
+
+
+@app.route("/api/uzenetek/olvasott", methods=["POST"])
+def api_uzenetek_olvasott_bulk():
+    """Több üzenet olvasott/olvasatlan állapotának egyidejű mentése (Kaneo #11).
+
+    Body: `{"olvasott": true|false, "ids": [1,2,...]}` — megadott azonosítókra;
+    `ids` nélkül (vagy üres listával) a `diak` szűrő szerinti összes üzenetre
+    (üres `diak` = minden üzenet). A KRÉTA felé nem írunk vissza.
+    """
+    if not os.path.exists(DB_FILE):
+        return jsonify({"status": "error", "message": "Nincs adatbázis."}), 404
+    data = request.get_json(silent=True) or {}
+    olvasott = 1 if data.get("olvasott", True) else 0
+    diak = (data.get("diak") or "").strip()
+    ids = data.get("ids")
+
+    id_list = []
+    if isinstance(ids, list):
+        for value in ids:
+            try:
+                id_list.append(int(value))
+            except (TypeError, ValueError):
+                continue
+
+    conn = get_db_connection()
+    try:
+        if id_list:
+            placeholders = ",".join("?" for _ in id_list)
+            cur = conn.execute(
+                f"UPDATE uzenetek SET olvasott = ? WHERE id IN ({placeholders})",
+                [olvasott, *id_list],
+            )
+        elif diak:
+            cur = conn.execute(
+                "UPDATE uzenetek SET olvasott = ? WHERE diak_nev = ?", (olvasott, diak)
+            )
+        else:
+            cur = conn.execute("UPDATE uzenetek SET olvasott = ?", (olvasott,))
+        conn.commit()
+        updated = cur.rowcount
+    except sqlite3.Error as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
+    finally:
+        conn.close()
+    return jsonify({"status": "ok", "updated": updated, "olvasott": bool(olvasott)})
 
 
 # ==============================================================================
