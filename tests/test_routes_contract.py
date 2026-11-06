@@ -4,11 +4,14 @@ Route-contract teszt (KRÉ-14 #92).
 
 A refaktor (app.py/index.html szétbontása) alatt ez a teszt a gépies bizonyíték
 arra, hogy **egyetlen URL sem változott meg**: a Flask `url_map`-jének teljes
-listáját (rule + metódusok + endpoint-név) egy fagyasztott konstanshoz méri.
+listáját (rule + metódusok) egy fagyasztott konstanshoz méri. Az endpoint-nevek
+belső azonosítók (blueprint-prefixet kaphatnak), ezért azokat csak egyediség
+szempontjából ellenőrzi — kívülről nem látszanak, és a kód nem használ `url_for`-t
+endpoint-névre.
 
 Ha ez a teszt piros lesz, a refaktor véletlenül megváltoztatta a nyilvános
-felületet (pl. blueprint-prefix, elgépelt rule, dupla regisztráció, eltűnt
-végpont) — nem szabad „tesztet igazítani", hanem a kódot kell visszaállítani.
+felületet (pl. blueprint-prefix az URL-ben, elgépelt rule, dupla regisztráció,
+eltűnt végpont) — nem szabad „tesztet igazítani", hanem a kódot kell visszaállítani.
 
 A lista az app.py 41 explicit route-ja + a Flask beépített `static` végpontja
 (összesen 42 rule). A HEAD/OPTIONS metódusokat a Flask automatikusan adja, ezért
@@ -24,48 +27,48 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # A refaktor kiinduló állapota (v1.9.2, 2026-11-06). Sorrend: rule szerint.
 EXPECTED_RULES = [
-    ("/", ["GET"], "index"),
-    ("/api/atlagok", ["GET"], "api_atlagok"),
-    ("/api/dashboard", ["GET"], "api_dashboard"),
-    ("/api/esemeny/statusz", ["POST"], "api_esemeny_statusz"),
-    ("/api/esemenyek", ["GET"], "api_esemenyek"),
-    ("/api/hianyzasok", ["GET"], "api_hianyzasok"),
-    ("/api/igazolasok", ["GET"], "api_igazolasok"),
-    ("/api/kifizetes", ["POST"], "api_kifizetes_save"),
-    ("/api/kifizetesek/export.csv", ["GET"], "api_kifizetesek_csv"),
-    ("/api/kifizetesek/export.xlsx", ["GET"], "api_kifizetesek_xlsx"),
-    ("/api/kommentek", ["GET"], "api_kommentek_list"),
-    ("/api/kommentek", ["POST"], "api_kommentek_add"),
-    ("/api/kommentek/<int:komment_id>", ["DELETE"], "api_kommentek_delete"),
-    ("/api/logs", ["GET"], "api_get_logs"),
-    ("/api/logs/clear", ["POST"], "api_clear_logs"),
-    ("/api/naptar/<kind>/<int:item_id>", ["GET"], "api_naptar_info"),
-    ("/api/naptar/<kind>/<int:item_id>.ics", ["GET"], "api_naptar_ics"),
-    ("/api/naptar/ai/ics", ["POST"], "api_naptar_ai_ics"),
-    ("/api/naptar_esemenyek", ["GET"], "api_naptar_esemenyek"),
-    ("/api/ntfy/test", ["POST"], "api_ntfy_test"),
-    ("/api/orarend", ["GET"], "api_orarend"),
-    ("/api/orarend/export_ics", ["GET"], "api_orarend_export_ics"),
-    ("/api/orarend/export_pdf", ["GET"], "export_orarend_pdf"),
-    ("/api/orarend_naptar", ["GET"], "api_orarend_naptar"),
-    ("/api/orarend_szinek", ["GET", "PUT"], "api_orarend_szinek"),
-    ("/api/sajat_orarend", ["GET", "POST"], "api_sajat_orarend"),
-    ("/api/sajat_orarend/<int:series_id>", ["DELETE", "PUT"], "api_sajat_orarend_torles"),
-    ("/api/sajat_orarend/<int:series_id>/kivetel", ["POST"], "api_sajat_orarend_kivetel"),
-    ("/api/scheduler/status", ["GET"], "api_scheduler_status"),
-    ("/api/statisztika", ["GET"], "api_statisztika"),
-    ("/api/sync/start", ["POST"], "api_sync_start"),
-    ("/api/sync/status", ["GET"], "api_sync_status"),
-    ("/api/sync/stop", ["POST"], "api_sync_stop"),
-    ("/api/sync_runs", ["GET"], "api_sync_runs"),
-    ("/api/tanevek", ["GET"], "api_tanevek"),
-    ("/api/uzenet/<int:uzenet_id>/ai", ["POST"], "api_uzenet_ai"),
-    ("/api/uzenetek", ["GET"], "api_uzenetek"),
-    ("/api/uzenetek/<int:uzenet_id>/olvasott", ["POST"], "api_uzenet_olvasott"),
-    ("/api/uzenetek/olvasott", ["POST"], "api_uzenetek_olvasott_bulk"),
-    ("/health", ["GET"], "health"),
-    ("/static/<path:filename>", ["GET"], "static"),
-    ("/static/csatolmanyok/<path:filename>", ["GET"], "download_csatolmany"),
+    ("/", ["GET"]),
+    ("/api/atlagok", ["GET"]),
+    ("/api/dashboard", ["GET"]),
+    ("/api/esemeny/statusz", ["POST"]),
+    ("/api/esemenyek", ["GET"]),
+    ("/api/hianyzasok", ["GET"]),
+    ("/api/igazolasok", ["GET"]),
+    ("/api/kifizetes", ["POST"]),
+    ("/api/kifizetesek/export.csv", ["GET"]),
+    ("/api/kifizetesek/export.xlsx", ["GET"]),
+    ("/api/kommentek", ["GET"]),
+    ("/api/kommentek", ["POST"]),
+    ("/api/kommentek/<int:komment_id>", ["DELETE"]),
+    ("/api/logs", ["GET"]),
+    ("/api/logs/clear", ["POST"]),
+    ("/api/naptar/<kind>/<int:item_id>", ["GET"]),
+    ("/api/naptar/<kind>/<int:item_id>.ics", ["GET"]),
+    ("/api/naptar/ai/ics", ["POST"]),
+    ("/api/naptar_esemenyek", ["GET"]),
+    ("/api/ntfy/test", ["POST"]),
+    ("/api/orarend", ["GET"]),
+    ("/api/orarend/export_ics", ["GET"]),
+    ("/api/orarend/export_pdf", ["GET"]),
+    ("/api/orarend_naptar", ["GET"]),
+    ("/api/orarend_szinek", ["GET", "PUT"]),
+    ("/api/sajat_orarend", ["GET", "POST"]),
+    ("/api/sajat_orarend/<int:series_id>", ["DELETE", "PUT"]),
+    ("/api/sajat_orarend/<int:series_id>/kivetel", ["POST"]),
+    ("/api/scheduler/status", ["GET"]),
+    ("/api/statisztika", ["GET"]),
+    ("/api/sync/start", ["POST"]),
+    ("/api/sync/status", ["GET"]),
+    ("/api/sync/stop", ["POST"]),
+    ("/api/sync_runs", ["GET"]),
+    ("/api/tanevek", ["GET"]),
+    ("/api/uzenet/<int:uzenet_id>/ai", ["POST"]),
+    ("/api/uzenetek", ["GET"]),
+    ("/api/uzenetek/<int:uzenet_id>/olvasott", ["POST"]),
+    ("/api/uzenetek/olvasott", ["POST"]),
+    ("/health", ["GET"]),
+    ("/static/<path:filename>", ["GET"]),
+    ("/static/csatolmanyok/<path:filename>", ["GET"]),
 ]
 
 _hibak = []
@@ -106,13 +109,13 @@ ok(len(actual) == len(EXPECTED_RULES),
 ok(len({(rule, endpoint) for rule, _m, endpoint in actual}) == len(actual),
    "minden rule+endpoint pontosan egyszer szerepel (nincs dupla regisztráció)")
 
-print("\n2) Rule + metódus + endpoint egyezés (a refaktor nem változtathat rajta)")
-expected_set = {(rule, tuple(methods), endpoint) for rule, methods, endpoint in EXPECTED_RULES}
-actual_set = set(actual)
+print("\n2) Rule + metódus egyezés (a refaktor nem változtathat rajta)")
+expected_set = {(rule, tuple(methods)) for rule, methods in EXPECTED_RULES}
+actual_set = {(rule, methods) for rule, methods, _e in actual}
 missing = sorted(expected_set - actual_set)
 extra = sorted(actual_set - expected_set)
-ok(not missing, f"nincs eltűnt/megváltozott route (hiányzó: {missing or 'nincs'})")
-ok(not extra, f"nincs új/váratlan route (többlet: {extra or 'nincs'})")
+ok(not missing, f"nincs eltűnt/megváltozott URL (hiányzó: {missing or 'nincs'})")
+ok(not extra, f"nincs új/váratlan URL (többlet: {extra or 'nincs'})")
 
 print("\n3) Endpoint-nevek egyedisége (blueprint-átállás tipikus hibája)")
 endpoint_names = [endpoint for _r, _m, endpoint in actual]
