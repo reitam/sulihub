@@ -8,6 +8,7 @@ az URL-ek változatlanok.
 import math
 import os
 import sqlite3
+from datetime import date, datetime, timedelta
 
 from flask import jsonify, request
 
@@ -311,12 +312,23 @@ def api_atlagok():
         mind.append(item)
 
     tantargyak = []
+    figyelmeztetesek = []
     for tantargy in sorted(per_tantargy):
         entry = per_tantargy[tantargy]
+        honap_atlagok = {h: summarize(v) for h, v in entry["honapok"].items()}
+        trend = _trend_szamitas(honap_atlagok)
+        if trend["irany"] == "romlik" and (trend["valtozas"] or 0) <= -0.5:
+            figyelmeztetesek.append({
+                "tantargy": tantargy,
+                "valtozas": trend["valtozas"],
+                "honapok": trend["honapok"][-2:],
+                "atlagok": [honap_atlagok[h]["atlag"] for h in trend["honapok"][-2:]],
+            })
         tantargyak.append({
             "tantargy": tantargy,
-            "honapok": {h: summarize(v) for h, v in entry["honapok"].items()},
+            "honapok": honap_atlagok,
             "osszes": summarize(entry["mind"]),
+            "trend": trend,
         })
 
     def summarize_light(items):
@@ -332,7 +344,162 @@ def api_atlagok():
         "osszes": summarize_light(mind),
         "tanev": tanev_szuro,
         "aktualis_tanev": kreta_tanev.current_tanev(),
+        "figyelmeztetesek": figyelmeztetesek,
     })
+
+
+def _trend_szamitas(honap_atlagok):
+    """A tantárgy trendje: az utolsó két (nem üres) hónap átlagának különbsége.
+
+    `honap_atlagok`: `{"2026-09": {"atlag": 4.5, "db": 2}, ...}`.
+    Visszaad: irány (`javul`/`romlik`/`stabil`/`nincs`), változás és a hónapok.
+    """
+    pontok = [(h, v.get("atlag")) for h, v in sorted(honap_atlagok.items())
+              if v.get("atlag") is not None]
+    if len(pontok) < 2:
+        return {"irany": "nincs", "valtozas": None, "honapok": [h for h, _v in pontok]}
+    valtozas = round(pontok[-1][1] - pontok[-2][1], 2)
+    if abs(valtozas) < 0.05:
+        irany = "stabil"
+    elif valtozas > 0:
+        irany = "javul"
+    else:
+        irany = "romlik"
+    return {"irany": irany, "valtozas": valtozas, "honapok": [h for h, _v in pontok]}
+
+
+# ==============================================================================
+# === „Ma” nézet (Kaneo #9) ===================================================
+# ==============================================================================
+@bp.route("/api/ma")
+def api_ma():
+    """Napi összefoglaló: mai órák, közeli határidők, friss jegyek, olvasatlan üzenetek."""
+    raw_datum = (request.args.get("datum") or "").strip() or date.today().isoformat()
+    try:
+        nap = datetime.strptime(raw_datum, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "A dátum formátuma ÉÉÉÉ-HH-NN legyen."}), 400
+    holnap = nap + timedelta(days=1)
+    datum = nap.isoformat()
+    diak = request.args.get("diak", "")
+
+    valasz = {
+        "datum": datum,
+        "diak": diak,
+        "orak": [],
+        "hataridok": [],
+        "uj_jegyek": [],
+        "olvasatlan_db": 0,
+        "uzenetek": [],
+    }
+    if not os.path.exists(DB_FILE):
+        return jsonify(valasz)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # 1) Mai órák (a szinkron két hetet is hozhat -> nap+tantárgy szerint dedupe)
+    try:
+        query = ("SELECT diak_nev, kezdo_idopont, zaro_idopont, tantargy, tanar, terem"
+                 " FROM orarend WHERE substr(kezdo_idopont, 1, 10) = ?")
+        params = [datum]
+        if diak:
+            query += " AND diak_nev = ?"
+            params.append(diak)
+        cursor.execute(query + " ORDER BY kezdo_idopont", params)
+        latott = set()
+        for row in cursor.fetchall():
+            kulcs = (str(row["kezdo_idopont"] or "")[11:16], row["tantargy"] or "")
+            if kulcs in latott:
+                continue
+            latott.add(kulcs)
+            valasz["orak"].append({
+                "kezdes": str(row["kezdo_idopont"] or "")[11:16],
+                "vege": str(row["zaro_idopont"] or "")[11:16],
+                "tantargy": row["tantargy"] or "",
+                "tanar": row["tanar"] or "",
+                "terem": row["terem"] or "",
+                "diak_nev": row["diak_nev"] or "",
+            })
+    except sqlite3.Error as exc:
+        print(f"[Ma] órák: {exc}")
+
+    # 2) Ma/holnap esedékes házik és számonkérések (a kész jelzővel)
+    try:
+        query = ("SELECT id, diak_nev, esemeny_tipus, tantargy, tema, cim, hatarido, kesz"
+                 " FROM esemenyek WHERE esemeny_tipus IN ('Házi feladat',"
+                 " 'Bejelentett számonkérés')")
+        params = []
+        if diak:
+            query += " AND diak_nev = ?"
+            params.append(diak)
+        cursor.execute(query + " ORDER BY hatarido", params)
+        for row in cursor.fetchall():
+            hat = normalize_date(row["hatarido"])
+            if hat not in (datum, holnap.isoformat()):
+                continue
+            valasz["hataridok"].append({
+                "id": row["id"],
+                "diak_nev": row["diak_nev"] or "",
+                "esemeny_tipus": row["esemeny_tipus"] or "",
+                "tantargy": row["tantargy"] or "-",
+                "megnevezes": row["tema"] or row["cim"] or row["esemeny_tipus"] or "",
+                "hatarido": hat,
+                "mikor": "ma" if hat == datum else "holnap",
+                "kesz": int(row["kesz"] or 0),
+            })
+    except sqlite3.Error as exc:
+        print(f"[Ma] határidők: {exc}")
+
+    # 3) Friss jegyek (az elmúlt 7 nap)
+    try:
+        query = ("SELECT id, diak_nev, tantargy, ertek, szam_ertek, bej_datum"
+                 " FROM esemenyek WHERE esemeny_tipus = 'Értékelés'")
+        params = []
+        if diak:
+            query += " AND diak_nev = ?"
+            params.append(diak)
+        cursor.execute(query + " ORDER BY id DESC LIMIT 40", params)
+        hatar = (nap - timedelta(days=6)).isoformat()
+        for row in cursor.fetchall():
+            bej = normalize_date(row["bej_datum"])
+            if not bej or not (hatar <= bej <= datum):
+                continue
+            valasz["uj_jegyek"].append({
+                "id": row["id"],
+                "diak_nev": row["diak_nev"] or "",
+                "tantargy": row["tantargy"] or "-",
+                "ertek": row["ertek"] or "-",
+                "szam_ertek": row["szam_ertek"] or 0,
+                "bej_datum": bej,
+            })
+            if len(valasz["uj_jegyek"]) >= 8:
+                break
+    except sqlite3.Error as exc:
+        print(f"[Ma] jegyek: {exc}")
+
+    # 4) Olvasatlan üzenetek
+    try:
+        query = "SELECT id, diak_nev, felado, targy FROM uzenetek WHERE COALESCE(olvasott, 0) = 0"
+        params = []
+        if diak:
+            query += " AND diak_nev = ?"
+            params.append(diak)
+        cursor.execute("SELECT COUNT(*) FROM (" + query + ")", params)
+        valasz["olvasatlan_db"] = int(cursor.fetchone()[0] or 0)
+        cursor.execute(query + " ORDER BY id DESC LIMIT 5", params)
+        for row in cursor.fetchall():
+            valasz["uzenetek"].append({
+                "id": row["id"],
+                "diak_nev": row["diak_nev"] or "",
+                "felado": row["felado"] or "",
+                "targy": row["targy"] or "",
+            })
+    except sqlite3.Error as exc:
+        print(f"[Ma] üzenetek: {exc}")
+
+    conn.close()
+    return jsonify(valasz)
 
 
 # ==============================================================================
