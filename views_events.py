@@ -11,7 +11,9 @@ from datetime import datetime
 
 from flask import jsonify, request
 
-from kreta_db import get_db_connection, komment_kulcs_esemeny, komment_szamok
+from kreta_db import (
+    get_db_connection, get_meta, komment_kulcs_esemeny, komment_szamok, set_meta,
+)
 from kreta_paths import DB_FILE
 from views_common import _tanev_from_request, make_bp, normalize_date
 
@@ -180,3 +182,69 @@ def api_esemeny_statusz():
     conn.close()
 
     return jsonify({"status": "ok", "kesz": kesz})
+
+
+# ==============================================================================
+# === KITŰZÖTT ESEMÉNYEK (Kaneo #86) ===========================================
+# ==============================================================================
+KEDVENC_META = "kedvencek"
+
+
+def _kedvencek_lista():
+    raw = get_meta(KEDVENC_META, "") or ""
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return [str(x) for x in data] if isinstance(data, list) else []
+
+
+def _kedvencek_valasz(kulcsok):
+    """A kitűzött kulcsokhoz tartozó események (a felülethez)."""
+    esemenyek = []
+    if kulcsok and os.path.exists(DB_FILE):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM esemenyek ORDER BY id DESC")
+        for row in cursor.fetchall():
+            kulcs = komment_kulcs_esemeny(row)
+            if kulcs not in kulcsok:
+                continue
+            keys = row.keys()
+            esemenyek.append({
+                "kulcs": kulcs,
+                "id": row["id"],
+                "diak_nev": row["diak_nev"] or "",
+                "esemeny_tipus": row["esemeny_tipus"] or "",
+                "tantargy": (row["tantargy"] if "tantargy" in keys else "") or "-",
+                "tema": (row["tema"] if "tema" in keys else "") or "",
+                "cim": (row["cim"] if "cim" in keys else "") or "",
+                "hatarido": (row["hatarido"] if "hatarido" in keys else "") or "",
+                "bej_datum": (row["bej_datum"] if "bej_datum" in keys else "") or "",
+            })
+        conn.close()
+    return {"kulcsok": kulcsok, "esemenyek": esemenyek}
+
+
+@bp.route("/api/kedvencek", methods=["GET", "POST"])
+def api_kedvencek():
+    """Dashboardra kitűzött események (Kaneo #86).
+
+    GET: `{kulcsok: [...], esemenyek: [...]}`.
+    POST: `{kulcs, akcio: "add"|"remove"|"toggle"}` — a válasz a friss lista.
+    A kulcs a stabil tartalom-kulcs (`komment_kulcs`), ezért a szinkron nem töri el.
+    """
+    kulcsok = _kedvencek_lista()
+    if request.method == "POST":
+        data = request.json or {}
+        kulcs = str(data.get("kulcs") or "").strip()
+        if not kulcs:
+            return jsonify({"status": "error", "message": "Hiányzó kulcs"}), 400
+        akcio = str(data.get("akcio") or "toggle").lower()
+        benne = kulcs in kulcsok
+        if akcio in ("add", "toggle") and not benne:
+            kulcsok.append(kulcs)
+        elif akcio in ("remove", "toggle") and benne:
+            kulcsok = [k for k in kulcsok if k != kulcs]
+        set_meta(KEDVENC_META, json.dumps(kulcsok, ensure_ascii=False))
+    return jsonify(_kedvencek_valasz(kulcsok))

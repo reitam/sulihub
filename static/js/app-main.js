@@ -3,6 +3,7 @@
 $(document).ready(function() {
     let rawData = [];
     let rawUzenetek = [];
+    let kedvencKulcsok = new Set();
     let syncInterval = null;
     let currentVegosszeg = 0;
     let calendar = null;
@@ -186,10 +187,18 @@ $(document).ready(function() {
                         <i class="fa-solid fa-comment-dots"></i>${data.komment_db ? ' ' + data.komment_db : ''}
                     </button>`;
 
+                    let kedvenc = kedvencKulcsok.has(data.komment_kulcs);
+                    let btnKedvencHtml = `<button class="btn btn-xs btn-outline-warning py-0 px-1 btn-kedvenc"
+                        data-kulcs="${data.komment_kulcs || ''}"
+                        title="${kedvenc ? 'Kitűzés levétele' : 'Kitűzés a dashboardra'}">
+                        <i class="${kedvenc ? 'fa-solid' : 'fa-regular'} fa-star"></i>
+                    </button>`;
+
                     return `<div class="d-flex align-items-center justify-content-between">
                         <span class="cell-truncate me-1" title="${safeTitle}">${fullText}</span>
                         <div class="d-flex align-items-center gap-1 ms-auto">
                             ${btnKeszHtml}
+                            ${btnKedvencHtml}
                             ${btnKommentHtml}
                             ${btnDetailsHtml}
                         </div>
@@ -2956,4 +2965,173 @@ $(document).ready(function() {
         const idx = Number($(this).data('idx'));
         if (keresesTalalatok[idx]) keresesTalalatMegnyit(keresesTalalatok[idx]);
     });
+
+    // ── Sötét mód (Kaneo #86) ─────────────────────────────────────────────
+    function applyTheme(theme) {
+        const dark = theme === 'dark';
+        document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+        try { localStorage.setItem('kretaTheme', dark ? 'dark' : 'light'); } catch (e) {}
+        $('#btnTheme i').toggleClass('fa-moon', !dark).toggleClass('fa-sun', dark);
+        $('#btnTheme').attr('title', dark ? 'Világos mód' : 'Sötét mód');
+    }
+
+    let mentettTema = 'light';
+    try { mentettTema = localStorage.getItem('kretaTheme') || 'light'; } catch (e) {}
+    applyTheme(mentettTema);
+    $('#btnTheme').on('click', function() {
+        const most = document.documentElement.getAttribute('data-bs-theme');
+        applyTheme(most === 'dark' ? 'light' : 'dark');
+    });
+
+    // ── Nyomtatásbarát heti órarend (Kaneo #86) ───────────────────────────
+    const PRINT_NAPOK = [
+        ['hétfő', 'Hétfő'], ['kedd', 'Kedd'], ['szerda', 'Szerda'],
+        ['csütörtök', 'Csütörtök'], ['péntek', 'Péntek'], ['szombat', 'Szombat'],
+        ['vasárnap', 'Vasárnap']
+    ];
+
+    function oraRendTabla(nev, rows) {
+        // nap + kezdés szerinti cellák; a szinkron két hetet is hozhat -> dedupe
+        const cellak = {};
+        rows.forEach(function(r) {
+            const nap = String(r.nap || '').toLowerCase();
+            const kezdes = String(r.kezdo_idopont || '').slice(11, 16);
+            if (!nap || !kezdes) return;
+            const kulcs = nap + '|' + kezdes;
+            if (!cellak[kulcs]) cellak[kulcs] = {};
+            const tantargy = r.tantargy || '';
+            if (!cellak[kulcs][tantargy]) {
+                cellak[kulcs][tantargy] = { terem: r.terem || '', tanar: r.tanar || '' };
+            }
+        });
+        const napok = PRINT_NAPOK.filter(function(p) {
+            return rows.some(function(r) { return String(r.nap || '').toLowerCase() === p[0]; });
+        });
+        const idopontok = Array.from(new Set(
+            Object.keys(cellak).map(function(k) { return k.split('|')[1]; }))).sort();
+
+        let html = `<h3>${escapeHtml(nev)}</h3><table><thead><tr><th>Időpont</th>`;
+        napok.forEach(function(p) { html += `<th>${escapeHtml(p[1])}</th>`; });
+        html += '</tr></thead><tbody>';
+        idopontok.forEach(function(ido) {
+            html += `<tr><td class="print-idopont">${escapeHtml(ido)}</td>`;
+            napok.forEach(function(p) {
+                html += '<td>';
+                const tantargyak = cellak[p[0] + '|' + ido] || {};
+                Object.keys(tantargyak).forEach(function(t) {
+                    const adat = tantargyak[t];
+                    html += `<div class="print-tantargy">${escapeHtml(t)}</div>`;
+                    if (adat.terem) html += `<div class="print-hely">${escapeHtml(adat.terem)}</div>`;
+                });
+                html += '</td>';
+            });
+            html += '</tr>';
+        });
+        return html + '</tbody></table>';
+    }
+
+    function nyomtatasiOrarend() {
+        const diak = $('#orarendFilterDiak').val() || $('#filterDiak').val() || '';
+        $.getJSON(`/api/orarend?diak=${encodeURIComponent(diak)}`, function(rows) {
+            const $c = $('#printOrarend').empty();
+            $c.append('<h2>Heti órarend</h2>');
+            if (!rows || !rows.length) {
+                $c.append('<p>Nincs megjeleníthető óra.</p>');
+            } else {
+                const diakok = {};
+                rows.forEach(function(r) {
+                    const nev = r.diak_nev || 'Ismeretlen';
+                    (diakok[nev] = diakok[nev] || []).push(r);
+                });
+                Object.keys(diakok).sort().forEach(function(nev) {
+                    $c.append(oraRendTabla(nev, diakok[nev]));
+                });
+            }
+            setTimeout(function() { window.print(); }, 60);
+        }).fail(function() {
+            alert('Az órarend nem tölthető be.');
+        });
+    }
+
+    $('#btnOrarendNyomtat').on('click', nyomtatasiOrarend);
+
+    // ── Kitűzött események (Kaneo #86) ────────────────────────────────────
+    function frissitKedvencIkonok() {
+        $('.btn-kedvenc').each(function() {
+            const kulcs = $(this).data('kulcs');
+            const benne = kulcs && kedvencKulcsok.has(kulcs);
+            $(this).find('i').toggleClass('fa-solid', !!benne).toggleClass('fa-regular', !benne);
+            $(this).attr('title', benne ? 'Kitűzés levétele' : 'Kitűzés a dashboardra');
+        });
+    }
+
+    function renderKedvencek(list) {
+        const $lista = $('#kedvencLista').empty();
+        if (!list || !list.length) {
+            $('#kedvencPanel').addClass('d-none');
+            return;
+        }
+        $('#kedvencPanel').removeClass('d-none');
+        list.forEach(function(e) {
+            const cim = [e.tantargy, e.tema || e.cim].filter(Boolean).join(' – ') || e.esemeny_tipus;
+            const datum = e.hatarido || e.bej_datum;
+            $lista.append(`<div class="list-group-item d-flex align-items-center justify-content-between py-1 px-2">
+                <button type="button" class="btn btn-link p-0 text-start text-decoration-none flex-grow-1 kedvenc-ugras"
+                        data-diak="${escapeHtml(e.diak_nev)}" data-tipus="${escapeHtml(e.esemeny_tipus)}"
+                        data-tantargy="${escapeHtml(e.tantargy)}">
+                    <span class="badge bg-warning text-dark me-1">${escapeHtml(e.esemeny_tipus)}</span>
+                    <span class="fw-semibold">${escapeHtml(cim)}</span>
+                    <span class="text-muted small ms-1">${escapeHtml(e.diak_nev)}</span>
+                    ${datum ? `<span class="text-muted small ms-2">${escapeHtml(datum)}</span>` : ''}
+                </button>
+                <button type="button" class="btn btn-sm btn-link text-warning p-0 ms-2 kedvenc-torol"
+                        data-kulcs="${escapeHtml(e.kulcs)}" title="Kitűzés levétele">
+                    <i class="fa-solid fa-star"></i>
+                </button>
+            </div>`);
+        });
+    }
+
+    function betoltKedvencek() {
+        $.getJSON('/api/kedvencek', function(res) {
+            kedvencKulcsok = new Set(res.kulcsok || []);
+            renderKedvencek(res.esemenyek || []);
+            frissitKedvencIkonok();
+        });
+    }
+
+    function kedvencValtas(kulcs) {
+        if (!kulcs) return;
+        const akcio = kedvencKulcsok.has(kulcs) ? 'remove' : 'add';
+        $.ajax({
+            url: '/api/kedvencek',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({kulcs: kulcs, akcio: akcio})
+        }).done(function(res) {
+            kedvencKulcsok = new Set(res.kulcsok || []);
+            renderKedvencek(res.esemenyek || []);
+            frissitKedvencIkonok();
+        });
+    }
+
+    $('#esemenyekTable').on('click', '.btn-kedvenc', function(e) {
+        e.stopPropagation();
+        kedvencValtas($(this).data('kulcs'));
+    });
+
+    $('#kedvencLista').on('click', '.kedvenc-ugras', function() {
+        goToEvents({
+            diak: $(this).data('diak') || '', tipus: $(this).data('tipus') || '',
+            tantargy: $(this).data('tantargy') || '',
+            status: '', kezdo: '', zaro: '', hatKezdo: '', hatZaro: ''
+        });
+    });
+
+    $('#kedvencLista').on('click', '.kedvenc-torol', function(e) {
+        e.stopPropagation();
+        kedvencValtas($(this).data('kulcs'));
+    });
+
+    betoltKedvencek();
 });

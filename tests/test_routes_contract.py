@@ -35,6 +35,7 @@ EXPECTED_RULES = [
     ("/api/hianyzasok", ["GET"]),
     ("/api/igazolasok", ["GET"]),
     ("/api/jegy_kalkulator", ["GET"]),
+    ("/api/kedvencek", ["GET", "POST"]),
     ("/api/kereses", ["GET"]),
     ("/api/kifizetes", ["POST"]),
     ("/api/kifizetesek/export.csv", ["GET"]),

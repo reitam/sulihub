@@ -67,6 +67,13 @@ for i in range(8):
         "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg) VALUES (?,?,?,?,?,?)",
         ("Teszt Elek", str(i), "Iskola", f"Tájékoztató üzenet {i}", "2026. 10. 20.", "Szöveg"),
     )
+for i, nap in enumerate(["hétfő", "kedd", "szerda", "csütörtök", "péntek"]):
+    conn.execute(
+        "INSERT INTO orarend (diak_nev, kezdo_idopont, zaro_idopont, nap, tantargy, tanar, terem)"
+        " VALUES (?,?,?,?,?,?,?)",
+        ("Teszt Elek", f"2026-10-{26 + i:02d}T08:00:00", f"2026-10-{26 + i:02d}T08:45:00",
+         nap, "Matematika", "Kovács Anna", "101"),
+    )
 conn.commit()
 conn.close()
 
@@ -356,6 +363,35 @@ try:
                f"a fül-sáv nem csúszik ki ({tabs_info['scroll']} <= {tabs_info['client']})")
             ok(tabs_info["lastRight"] <= 394, f"az utolsó fül is a képernyőn belül van (jobb szél: {tabs_info['lastRight']})")
             ok(tabs_info["rows"] >= 1, f"a fülek {tabs_info['rows']} sorba rendeződnek")
+
+            # 11) Sötét mód + nyomtatás (Kaneo #86)
+            await page.click('#btnTheme')
+            await page.wait_for_timeout(300)
+            tema = await page.evaluate("() => document.documentElement.getAttribute('data-bs-theme')")
+            ok(tema == 'dark', f"a gomb sötét módra vált ('{tema}')")
+            await page.reload()
+            await page.wait_for_timeout(1200)
+            tema2 = await page.evaluate("() => document.documentElement.getAttribute('data-bs-theme')")
+            ok(tema2 == 'dark', "a választás újratöltés után is megmarad (localStorage)")
+            await page.click('#btnTheme')
+            await page.wait_for_timeout(200)
+
+            # nyomtatási nézet: a gomb felépíti a táblát és meghívja a window.print-et
+            await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('orarend-tab')).show()")
+            await page.wait_for_timeout(600)
+            await page.evaluate("() => { window.__printed = false; window.print = () => { window.__printed = true; }; }")
+            await page.click('#btnOrarendNyomtat')
+            await page.wait_for_timeout(1200)
+            nyomtat = await page.evaluate("""() => ({
+                called: !!window.__printed,
+                tablak: document.querySelectorAll('#printOrarend table').length,
+                sorok: document.querySelectorAll('#printOrarend tbody tr').length,
+                diak: (document.querySelector('#printOrarend h3') || {}).innerText || ''
+            })""")
+            ok(nyomtat["called"], "a Nyomtatás gomb meghívja a böngésző nyomtatását")
+            ok(nyomtat["tablak"] >= 1 and nyomtat["sorok"] >= 1,
+               f"a nyomtatási nézet felépül ({nyomtat['tablak']} tábla, {nyomtat['sorok']} sor)")
+            ok("Reiner" in nyomtat["diak"], f"a nyomtatási nézetben ott a diák neve ('{nyomtat['diak']}')")
 
             await b.close()
 
