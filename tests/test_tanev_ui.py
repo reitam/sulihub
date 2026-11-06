@@ -17,7 +17,7 @@ import sys
 import tempfile
 import time
 import urllib.request
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -104,6 +104,9 @@ try:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1280, "height": 950})
+        # A dashboard csempe-görgető a BÖNGÉSZŐ idejét használja: a fix tesztdátumhoz
+        # rögzítjük az órát, mint a #75-nél a test_dashboard-ban.
+        page.clock.install(time=datetime(TODAY.year, TODAY.month, TODAY.day, 12, 0))
         page.goto(base, wait_until="networkidle")
         page.wait_for_timeout(1500)
 
@@ -140,6 +143,7 @@ try:
         # Késleltetett esemény-válasz: az üzenet-válasz előbb érkezik.
         ctx = browser.new_context(viewport={"width": 1280, "height": 950})
         p2 = ctx.new_page()
+        p2.clock.install(time=datetime(TODAY.year, TODAY.month, TODAY.day, 12, 0))
 
         def slow_events(route):
             time.sleep(0.9)
