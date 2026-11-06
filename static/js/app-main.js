@@ -1276,6 +1276,7 @@ $(document).ready(function() {
                     'Az átlagokhoz válassz tanévet a fejlécben.</td></tr>');
                 $('#atlagokMobil').empty();
                 lastAtlagok = null;
+                frissitKalkTantargy(null);
                 return;
             }
 
@@ -1333,6 +1334,7 @@ $(document).ready(function() {
             // Mobil: két bontás, kapcsolóval (a jegyek részletei nem kellenek).
             lastAtlagok = res;
             renderMobilAtlagok(res);
+            frissitKalkTantargy(res, diak, kezdo, zaro);
             $('#atlagokOsszes').text(res.osszes && res.osszes.db
                 ? `Összesített átlag: ${res.osszes.atlag} (${res.osszes.db} jegy)`
                 : '');
@@ -1402,6 +1404,65 @@ $(document).ready(function() {
         }).join('');
         $mob.append(`<div class="accordion">${honapokHtml}</div>`);
     }
+
+    let lastKalkKontekszt = null;
+
+    function frissitKalkTantargy(res, diak, kezdo, zaro) {
+        const $sel = $('#kalkTantargy');
+        const $eredmeny = $('#kalkEredmeny');
+        if (!res) {
+            $sel.empty();
+            lastKalkKontekszt = null;
+            $eredmeny.html('<span class="text-muted">Az átlagokhoz válassz tanévet a fejlécben.</span>');
+            return;
+        }
+        lastKalkKontekszt = {diak: diak || '', kezdo: kezdo || '', zaro: zaro || ''};
+        const tantargyak = (res.tantargyak || []).map(function(t) { return t.tantargy; });
+        const elozo = $sel.val();
+        $sel.empty();
+        $eredmeny.empty();
+        if (!tantargyak.length) {
+            $sel.append('<option value="">Nincs jegy</option>');
+            return;
+        }
+        tantargyak.forEach(function(t) {
+            $sel.append($('<option>').val(t).text(t));
+        });
+        if (elozo && tantargyak.indexOf(elozo) >= 0) $sel.val(elozo);
+    }
+
+    function szamolJegyKalkulator() {
+        if (!lastKalkKontekszt) return;
+        const tantargy = $('#kalkTantargy').val();
+        if (!tantargy) return;
+        let url = `/api/jegy_kalkulator?tantargy=${encodeURIComponent(tantargy)}` +
+                  `&diak=${encodeURIComponent(lastKalkKontekszt.diak)}` +
+                  `&kezdo_datum=${encodeURIComponent(lastKalkKontekszt.kezdo)}` +
+                  `&zaro_datum=${encodeURIComponent(lastKalkKontekszt.zaro)}` +
+                  `&cel=${encodeURIComponent($('#kalkCel').val() || '4.5')}` +
+                  `&suly=${encodeURIComponent($('#kalkSuly').val() || '100')}` +
+                  tanevQueryParam();
+        $('#kalkEredmeny').html('<span class="text-muted">Számolás…</span>');
+        $.getJSON(url).done(function(res) {
+            let html = `<span class="${res.elerheto ? 'text-success' : 'text-danger'} fw-bold">` +
+                       `${escapeHtml(res.uzenet || '')}</span>`;
+            if (res.aktualis_atlag !== null && res.aktualis_atlag !== undefined) {
+                html += ` <span class="text-muted">— jelenleg ${res.aktualis_atlag} (` +
+                        `${res.jegy_db} jegy`;
+                if (res.suly_db) html += `, ${res.suly_db} súlyozott`;
+                html += ')</span>';
+            }
+            $('#kalkEredmeny').html(html);
+        }).fail(function(xhr) {
+            const msg = (xhr.responseJSON && xhr.responseJSON.error) || 'Hiba a számításban.';
+            $('#kalkEredmeny').html('<span class="text-danger">' + escapeHtml(msg) + '</span>');
+        });
+    }
+
+    $('#btnKalkulal').on('click', szamolJegyKalkulator);
+    $('#kalkCel, #kalkSuly, #kalkTantargy').on('change', function() {
+        if ($('#kalkEredmeny').text().trim()) szamolJegyKalkulator();
+    });
 
     $('#atlagNezetKapcsolo').on('click', '.btn', function() {
         atlagNezet = $(this).data('nezet') || 'havi';
