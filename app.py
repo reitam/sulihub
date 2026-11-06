@@ -88,6 +88,15 @@ from kreta_db import (  # noqa: E402
     migrate_state_file, record_run_finish, record_run_start, scheduler_state, set_meta,
 )
 
+# Beállítások (KRÉ-14 #94) — config, verzió, órarend-színek.
+from kreta_settings import _HEX_SZIN, _orarend_szinek, get_app_version, load_config  # noqa: E402
+
+# Közös nézet-segédek (KRÉ-14 #94) — a blueprintek és a még itt maradó route-ok közösen.
+from views_common import (  # noqa: E402
+    _date_range_from_request, _has_tanev_column, _is_keses, _month_bounds,
+    _tanev_from_request, hianyzas_osszesito, normalize_date,
+)
+
 # A scraper ezzel a jelölővel küldi a gép-olvasható összegzést a kimenetén:
 # ##KRETA_RESULT##{"total":3,"ok":2,"failed":["Név"]}
 RESULT_MARKER = "##KRETA_RESULT##"
@@ -149,30 +158,6 @@ def update_tanev_state_from_api(log_fn=None):
     return changes
 
 
-
-
-
-def get_app_version():
-    """A deploy által a data kötetre írt verzió (version.txt), pl. 'v1.1.1'."""
-    try:
-        with open(VERSION_FILE, "r", encoding="utf-8-sig") as f:
-            version = f.read().strip()
-        return version or "dev"
-    except OSError:
-        return "dev"
-
-
-def load_config():
-    if os.path.exists(CONFIG_FILE):
-        # utf-8-sig: a Windows Notepad/PowerShell által írt BOM-ot is kezeli,
-        # különben egy BOM-os config.json-tól nem indulna el az alkalmazás.
-        try:
-            with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
-                return json.load(f)
-        except ValueError as e:
-            print(f"[Konfiguráció hiba] A {CONFIG_FILE} nem érvényes JSON: {e}")
-            return {}
-    return {}
 
 # ==============================================================================
 # === ÜTEMEZETT SZINKRONIZÁCIÓ (config.json → SCHEDULER blokk) ==================
@@ -1174,29 +1159,6 @@ def api_orarend_export_ics():
     return response
 
 
-# ── Órarend-színek (Kaneo #56) ────────────────────────────────────────────
-_HEX_SZIN = re.compile(r"^#[0-9a-fA-F]{6}$")
-
-
-def _orarend_szinek() -> dict:
-    """A diák→szín térkép: config alap, app_meta felülírással; csak érvényes hex."""
-    colors = {}
-    cfg = (load_config() or {}).get("ORAREND_SZINEK") or {}
-    if isinstance(cfg, dict):
-        for name, value in cfg.items():
-            if isinstance(value, str) and _HEX_SZIN.match(value.strip()):
-                colors[str(name)] = value.strip()
-    raw = get_meta("orarend_szinek", "")
-    if raw:
-        try:
-            db_colors = json.loads(raw)
-            if isinstance(db_colors, dict):
-                for name, value in db_colors.items():
-                    if isinstance(value, str) and _HEX_SZIN.match(value.strip()):
-                        colors[str(name)] = value.strip()
-        except (TypeError, ValueError):
-            pass
-    return colors
 
 
 @app.route("/api/orarend_szinek", methods=["GET", "PUT"])
@@ -2142,85 +2104,6 @@ def api_kommentek_delete(komment_id):
 # ==============================================================================
 # === HIÁNYZÁSOK / KÉSÉSEK ÉS IGAZOLÁSOK API ===================================
 # ==============================================================================
-def _month_bounds(honap):
-    """'ÉÉÉÉ-HH' -> (hónap első napja, utolsó napja) ISO alakban."""
-    m = re.fullmatch(r"\s*(\d{4})-(\d{1,2})\s*", honap or "")
-    if not m:
-        return None, None
-    year, month = int(m.group(1)), int(m.group(2))
-    if not 1 <= month <= 12:
-        return None, None
-    first = f"{year:04d}-{month:02d}-01"
-    next_month = f"{year + 1:04d}-01-01" if month == 12 else f"{year:04d}-{month + 1:02d}-01"
-    last = (datetime.strptime(next_month, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
-    return first, last
-
-
-def _is_keses(row):
-    """Késés: van Perc érték, vagy a típus neve tartalmazza, hogy 'késés'."""
-    if row.get("perc") is not None:
-        return True
-    return "késés" in str(row.get("mulasztas_tipus") or "").lower()
-
-
-def hianyzas_osszesito(rows):
-    """Havi/összesített mutatók a hiányzás-sorokból.
-
-    A KRÉTA egy sora egy tanórát jelent (az 'Óra' oszlop a napon belüli
-    órasorszám), ezért az órákat soronként 1-ként számoljuk. A tanórai célú
-    jelzőt tároljuk, de a statisztikában nem különböztetjük meg.
-    """
-    o = {
-        "hianyzas_db": 0,
-        "igazolt_ora": 0,
-        "igazolatlan_ora": 0,
-        "keses_db": 0,
-        "keses_perc": 0,
-        "keses_igazolatlan_db": 0,
-    }
-    for r in rows:
-        if _is_keses(r):
-            o["keses_db"] += 1
-            o["keses_perc"] += int(r.get("perc") or 0)
-            if not int(r.get("igazolt") or 0):
-                o["keses_igazolatlan_db"] += 1
-            continue
-        o["hianyzas_db"] += 1
-        if int(r.get("igazolt") or 0):
-            o["igazolt_ora"] += 1
-        else:
-            o["igazolatlan_ora"] += 1
-    return o
-
-
-def _date_range_from_request():
-    """kezdo/zaro paraméter, vagy a honap=ÉÉÉÉ-HH paraméterből számolva."""
-    kezdo = request.args.get("kezdo", "").strip()
-    zaro = request.args.get("zaro", "").strip()
-    if not kezdo and not zaro:
-        kezdo, zaro = _month_bounds(request.args.get("honap", ""))
-    return kezdo or None, zaro or None
-
-
-def _tanev_from_request() -> str:
-    """A `tanev` query param (Kaneo #40).
-
-    Üres / ``all`` = **összes tanév** (visszafelé kompatibilis alap), ``current`` =
-    a naptár szerinti aktuális tanév, egyébként a megadott érték (pl. ``2026/2027``).
-    """
-    raw = (request.args.get("tanev") or "").strip()
-    if raw.lower() in ("", "all", "osszes", "összes"):
-        return ""
-    if raw.lower() == "current":
-        return kreta_tanev.current_tanev()
-    return raw
-
-
-def _has_tanev_column(cursor, table: str) -> bool:
-    try:
-        return any(row[1] == "tanev" for row in cursor.execute(f"PRAGMA table_info({table})"))
-    except sqlite3.Error:
-        return False
 
 
 @app.route("/api/tanevek")
@@ -2491,17 +2374,6 @@ def api_igazolasok():
         return jsonify([])
     return jsonify(rows)
 
-def normalize_date(d_str):
-    if not d_str or d_str == "-":
-        return None
-    clean = d_str.replace(". ", "-").replace(".", "-").strip()
-    parts = [p for p in clean.split("-") if p]
-    if len(parts) >= 3:
-        try:
-            return f"{int(parts[0]):04d}-{int(parts[1]):02d}-{int(parts[2]):02d}"
-        except ValueError:
-            return None
-    return None
 
 @app.route("/api/atlagok")
 def api_atlagok():
