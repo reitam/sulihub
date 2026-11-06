@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Dokumentum verziója** | 1.2 (a dokumentumok a `docs/` mappába rendezve) |
-| **A rendszer verziója** | v1.9.2 (éles, 2026-11-06) |
+| **Dokumentum verziója** | 1.3 (KRÉ-14 refaktor: moduláris szerkezet) |
+| **A rendszer verziója** | v2.0.0 (refaktor, kiadásra kész — élesítésre vár) |
 | **Utolsó frissítés** | 2026-11-06 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
@@ -321,6 +321,21 @@ Az API-first szinkron bevezetésével a scraper mellett megjelent a **böngész�
 is: `kreta_api.py` (mobil v3 / eAdmin végpontok + normalizálás a meglévő DB-sémákra) és
 `kreta_sync.py` (forrásmód és adatkör-szintű fallback). A `SYNC_MODE` dönti el, melyik út
 fut — lásd 3.2.1.
+
+**Moduláris szerkezet (KRÉ-14, v2.0.0).** A korábbi ~4 100 soros `app.py` és az egyfájlos
+frontend szétbontva; a viselkedés (URL-ek, válaszok, DB-séma) változatlan:
+
+| Réteg | Modulok |
+|---|---|
+| belépő + futásidejű mag | `app.py` (~1 100 sor): Flask app, auth, szinkron/ütemező/ntfy/napló, re-export a tesztekhez |
+| útvonalak (prefix nélküli blueprint-ek) | `views_pages`, `views_events`, `views_orarend`, `views_messages`, `views_absences`, `views_stats`, `views_rewards`, `kreta_exports` |
+| közös rétegek | `kreta_paths` (útvonalak), `kreta_db` (séma, meta, futásnapló), `kreta_settings` (config, verzió, színek), `views_common` (request-segédek) |
+| frontend | `templates/index.html` (váz + modálok), `static/js/core.js` (globális segédek), `static/js/app-main.js` (a `$(document).ready` blokk) |
+| futásidejű adatok | `data/` (DB, config.json, napló, tokenek, böngészőprofil, csatolmányok) — lásd 9.2 |
+
+A `tests/test_routes_contract.py` a 42 Flask-rule (41 route + beépített `static`)
+rule+metódus listáját rögzíti, a `tools/api_snapshot.py` pedig a válaszok szerkezetét
+ellenőrzi a refaktor lépései alatt — így a bontás nem változtathatta meg a nyilvános API-t.
 
 **API munkamenet (token-tár).** A KRÉTA minden **új** belépésről e-mailt küld („Új
 bejelentkezésről értesítés") — a Playwright-os útnál ezt a perzisztens böngészőprofil
@@ -726,7 +741,19 @@ A felület a fejléc választójában **mindig explicit** értéket küld. A `/a
 
 ```
 Kreta/
-├── app.py                 # Flask: API, felület, ütemező, futásnapló, PDF
+├── app.py                 # Flask belépő: app, auth, szinkron/ütemező/ntfy/napló + re-export
+├── views_pages.py         # / (dashboard)
+├── views_events.py        # események, kész-jelölés, naptár-események
+├── views_orarend.py       # órarend, saját órák, színek, ICS, naptár-nézet
+├── views_messages.py      # üzenetek, olvasottság, saját megjegyzések
+├── views_absences.py      # hiányzások / igazolások
+├── views_stats.py         # tanévek, dashboard, tantárgyi átlagok
+├── views_rewards.py       # zsebpénz-statisztika, kifizetés, naptár/ICS, üzenet-AI
+├── kreta_exports.py       # PDF órarend, XLSX/CSV export, zsebpénz-számítási mag
+├── kreta_paths.py         # útvonalak (KRETA_* env, data/ alapértelmezés)
+├── kreta_db.py            # DB-kapcsolat, séma/migrációk, app_meta, futásnapló
+├── kreta_settings.py      # config.json, verzió, órarend-színek
+├── views_common.py        # blueprint-építő + közös request-segédek
 ├── kreta_playwright.py    # scraper
 ├── kreta_api.py           # mobil KRÉTA API kliens (böngésző nélkül)
 ├── kreta_api_sync.py      # API adatkör-lekérők, ablakok
@@ -736,27 +763,36 @@ Kreta/
 ├── kreta_sajat_orarend.py # kézi órarendi sorozatok + kivételek (Kaneo #55)
 ├── kreta_naptar.py        # Google Naptár-link + .ics generálás (Kaneo #47)
 ├── kreta_ai.py            # üzenet-AI kliens + JSON-validáció (Kaneo #61)
-├── templates/index.html   # egyfájlos dashboard
+├── templates/index.html   # dashboard váza (modálok, fülek) — inline JS nélkül
+├── static/js/core.js      # globális frontend-segédek (avatar, státuszsáv, formázás)
+├── static/js/app-main.js  # a felület fő JS-e ($(document).ready blokk)
 ├── static/vendor/         # vendorolt frontend-függőségek (offline)
 ├── backup/kreta_backup.sh # napi mentés
 ├── tests/                 # automatikus tesztek + futtató
-├── config.json            # üzleti beállítások (NEM verziózott)
-├── kreta_adatok.db        # adatbázis (NEM verziózott)
+├── tools/                 # kaneo_ticket, api_snapshot, migrate_local_data, mobile_shot
+├── data/                  # futásidejű adatok (NEM verziózott): DB, config.json, sync.log,
+│                          #   api_tokens.json, scheduler_state.json, version.txt,
+│                          #   browser_user_data/, csatolmanyok/
 ├── Dockerfile, docker-compose.yml, entrypoint.sh
 ├── deploy.ps1             # élesítő script
 ├── docs/                  # dokumentáció (DOKUMENTACIO, rendszerterv, AI-terv, összefoglalók)
 └── README.md
 ```
 
+A `data/` a v2.0.0-tól az alapértelmezett hely; a korábbi (projektgyökér) elrendezés
+egy kiadásig még működik, figyelmeztetéssel. Átköltöztetés (az app álljon le):
+`python tools/migrate_local_data.py --dry-run`, majd `python tools/migrate_local_data.py`
+(visszaállítás: `--rollback`).
+
 ### 9.3. Tesztek
 
 ```bash
-python tests/run_all.py            # mind (1051 ellenőrzés, 37 csomag)
-python tests/run_all.py --fast     # böngésző nélkül (32 csomag, 883 ell.)
+python tests/run_all.py            # mind (1158 ellenőrzés, 39 csomag)
+python tests/run_all.py --fast     # böngésző nélkül (34 csomag, 1006 ell.)
 python tests/run_all.py --browser  # Playwrightos (5 csomag, 152 ell.)
 ```
 
-**CI (GitHub Actions, `.github/workflows/ci.yml`):** a **gyors** job (32 csomag) minden
+**CI (GitHub Actions, `.github/workflows/ci.yml`):** a **gyors** job (34 csomag) minden
 pushra/PR-ra lefut; a **böngészős** job (5 csomag) csak `main` pushra, éjszakánként és
 kézi indításra. A tesztek fixture-ökkel/fake klienssel dolgoznak, valódi KRÉTA-hívás nem
 történik; a böngészős job hibája esetén a képernyőképek artifactként feltöltődnek.
@@ -768,7 +804,7 @@ idejétől függő csempe-ellenőrzéseket tartalmazó tesztek (`test_dashboard`
 csempe-ablak. Új, dátumfüggő assertion-t tartalmazó böngészős teszt esetén ezt a mintát kell
 követni (a szerver oldali `KRETA_TODAY` mellé a kliens óráját is rögzíteni).
 
-Jelenleg **1051 automatikus ellenőrzés** harminchét csomagban: ütemező, részleges hiba/ntfy/napló,
+Jelenleg **1158 automatikus ellenőrzés** harminckilenc csomagban: ütemező, részleges hiba/ntfy/napló,
 PDF-betűk, útvonalak, új események kimutatása, migráció, **hiányzások/igazolások**
 (mentés, összesítő, API, push), **API-kliens** (fake HTTP, 48+ ellenőrzés),
 **API-szinkron** (mind a 8 adatkör, órarend-join, táboros téma és `kesz` megőrzése,
@@ -911,6 +947,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.9.0** *(2026-11-05, éles)* | **2026-11-04** | **Saját órák (Kaneo #55):** `sajat_orarend` + `sajat_orarend_kivetel` táblák; a „Saját óra” gombbal gyermekenként rögzíthető szakkör/pluszfoglalkozás (nap, időpont, terem, megjegyzés), **teljes tanév / aktuális hét / egyedi időszak** érvényességgel; heti ismétlődés a naptárban, **egy alkalom** (kivétel) vagy a **teljes sorozat** törlése; a KRÉTA szinkron nem érinti. **Naptárbejegyzés (Kaneo #47/#60):** házi feladat / számonkérés és üzenet részleteinél **„Naptárba küldés”** — előre kitöltött Google Naptár esemény, egy kattintásos mentés, import/letöltés nélkül (az `.ics` végpont programozottan továbbra is elérhető); `CALENDAR` config (időzóna, emlékeztető, üzenet hossza), a timed események UTC-re konvertálva. Új tesztek: `test_sajat_orarend`, `test_naptar`; a mobil teszt a saját óra mentését és a naptárgombokat is ellenőrzi. **Futástörténet (Kaneo #10):** `/api/sync_runs` + a Rendszernapló fülön 20 futás táblázata és futásidő-sparkline. **Órarend-színek (Kaneo #56):** gyermekenkénti szín a configból vagy a „Színek” felületről (app_meta). **SuliHub arculat (Kaneo #62):** logó + favicon + név. **Egysoros fejléc (Kaneo #63):** kompakt navbar, egy státuszsor, tanévválasztó + Frissítés gomb egy sorban. **Finomítás (2026-11-04):** letisztított logó (gradiens + könyvjelző), gradiens hátterű fejléc; **brand bal sarokban (1,5× logó/név), tanév + státusz + Frissítés a jobb oldali sávban**; a saját óra színe az ablakban választható (a gyermek alap színétől eltérő) és a sorozat **módosítható**; a naptárgomb közvetlen **„Naptárba küldés”** (előre kitöltött Google esemény), ICS nélkül; a közvetlen Google API-s írás külön subtask (#70). **Üzenet-AI (Kaneo #61):** `kreta_ai.py` OpenAI-kompatibilis kliens (helyi Ollama), szigorú JSON-validáció, magánhálózati őr, csatolmány-szöveg (txt/pdf), API-végpontok (`/api/uzenet/<id>/ai`, `/api/naptar/ai/ics` — több VEVENT-es `.ics`); fake HTTP-szerveres teszt. **A felületi „AI elemzés” gombot a felhasználó kérésére kivettük, a háttér API-ként megmaradt.** **Backlog-kör (2026-11-04):** opcionális **basic auth** (#16), **DB-indexek + sémaverzió + migráció előtti másolat** (#15), **zsebpénz CSV export** (#11 része), **órarend ICS export** hét/hónap/félév/tanév időszakra (#73), a sárga zsebpénz-összeg sötétebb árnyalata (#72). **Üzenet-előnézet javítás (Kaneo #74):** a teljes szöveg a `postaladaelemek/<posta_id>` részletes válaszából jön, a bekezdések megmaradnak; `uzenetek.posta_id` oszlop + utólagos backfill (futásonként max. 20). **1045 ellenőrzés / 37 csomag** |
 | **v1.9.1** *(nem élesedett önállóan — a v1.9.2 tartalmazza)* | **2026-11-05** | **Dashboard-visszatöltés (Kaneo #76):** az Áttekintés saját, szűrés nélküli adatforrást használ (`loadDashboardData`/`dashRaw`), és fülre visszatéréskor azonnal újraszámol — az eseménylistás szűrés után nem maradhat üres csempe/feed (F5 nélkül teljes kép). **CI-determinizmus (Kaneo #75):** a `test_dashboard` a böngésző óráját is rögzíti (`page.clock.install`), így a fix tesztdátum nem csúszik el a másnapi (scheduled) futásban — ez buktatta az éjszakai CI-t. Erősített tesztek (visszatéréskor csempe + feed tele). (A `v1.9.1` tag a `9826e2c` commiton maradt; a felhasználó a **v1.9.2**-vel élesített.) |
 | **v1.9.2** *(2026-11-06, éles)* | **2026-11-06** | **ICS-duplikáció javítás (Kaneo #73, a felhasználó visszadobta):** az órarend-exportban minden esemény kétszer szerepelt — a szinkron az aktuális **és** a következő hetet is leéri, a generator pedig soronként csinált heti `RRULE` eseményt. Most az azonos heti minta (diák + tantárgy + nap + kezdés + időtartam) **egyetlen weekly VEVENT**, a legrégebbi előfordulás kezdetével; éles adaton ellenőrizve: 67 sor → 31 esemény. **Éles ellenőrzés (2026-11-06):** `/health` = `v1.9.2`; a tanév ICS exportban 109 egyedi heti minta, **0 duplikáció**. Tartalmazza a v1.9.1-re tervezett #76 dashboard- és #75 CI-fixet is. **1051 ellenőrzés / 37 csomag** |
+| **v2.0.0** *(refaktor, kiadásra kész)* | **2026-11-06** | **KRÉ-14 monolit-bontás, viselkedésváltozás nélkül.** `app.py` 4 107 → ~1 180 sor: a DB-réteg (`kreta_db`), az útvonalak (`kreta_paths`), a beállítások (`kreta_settings`) és a közös nézet-segédek (`views_common`) kiemelve; a HTTP-réteg **8 prefix nélküli blueprintbe** (`views_pages/events/orarend/messages/absences/stats/rewards`, `kreta_exports`), a stateful mag (sync/ütemező/ntfy/napló) szándékosan az `app.py`-ban maradt (a tesztek monkeypatch-elik). A frontend inline scriptje `static/js/core.js` + `static/js/app-main.js` alá került (`?v=` cache-busttal). **Futásidejű adatok `data/` alá** (DB, config, napló, tokenek, böngészőprofil, csatolmányok) legacy-fallbackkel és `tools/migrate_local_data.py` migráló/rollback szkripttel. **Új őrök:** `tests/test_routes_contract.py` (42 rule rule+metódus rögzítése), `tools/api_snapshot.py` (17 végpont válasz-diff), `tests/test_data_dir.py` (útvonal-feloldás + migráció). **1158 ellenőrzés / 39 csomag** (fast 34/1006, browser 5/152) |
 
 ---
 
@@ -921,7 +958,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | `README.md` | Rövid üzemeltetői útmutató, telepítés, konfiguráció |
 | `docs/rendszerterv.md` | Eredeti követelményjegyzék és rendszerterv (történeti) |
 | `docs/AI-ELEMZES-TERV.md` | Üzenet-AI (LLM) integráció terve |
-| `docs/osszefoglalo/` | Munkamenet-összefoglalók (dátumozott) |
+| `docs/osszefoglalo/` | Munkamenet-összefoglalók (dátumozott) — pl. a KRÉ-14 refaktoré |
 | `tests/README.md` | A tesztek leírása és futtatása |
 | `docs/DOKUMENTACIO.md` | **Ez a dokumentum** — teljes rendszerleírás |
 

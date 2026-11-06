@@ -44,7 +44,8 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_auth.py` | Opcionális basic auth (#16): kikapcsolva nyitott, bekapcsolva 401/200, `/health` kivétel, statikus védelem, hash és sima jelszó |
 | `test_db_indexes.py` | DB-indexek (#15): a gyorsító indexek léteznek, `schema_version`, ismételt init, migráció előtti `.bak` másolat |
 | `test_kifizetes_csv.py` | Kaneo #11/#77 (B6): az egyenleg tételeinek Excel exportja — *Elszámolás* összegzés (ebből rendezve, fennálló egyenleg), *Tételes zsebpénz* a kiválasztott **időszakra / teljes tanévre / teljes előzményre**, tételes **rendezettség-jelöléssel** (kifizetett időszak fedi-e a tételt); az egyenleg egyezik a felület `/api/statisztika` értékével; CSV export; üzenetek helyi `olvasott` állapota (`POST /api/uzenetek/<id>/olvasott` és a tömeges `POST /api/uzenetek/olvasott`), a migráció előtti üzenetek olvasottként indulnak, tartalmi kereshetőség |
-| `test_routes_contract.py` | **KRÉ-14 refaktor-őr:** a Flask `url_map` teljes listája (42 rule = 41 route + beépített `static`) rule + metódus + endpoint szerint egy fagyasztott konstanshoz mérve; nincs dupla regisztráció, minden endpoint-név egyedi. Ha ez piros, a refaktor megváltoztatta a nyilvános API-t — a kódot kell visszaállítani, nem a tesztet |
+| `test_routes_contract.py` | **KRÉ-14 refaktor-őr:** a Flask `url_map` teljes listája (42 rule = 41 route + beépített `static`) rule + metódus szerint egy fagyasztott konstanshoz mérve; nincs dupla regisztráció, minden endpoint-név egyedi. Ha ez piros, a refaktor megváltoztatta a nyilvános API-t — a kódot kell visszaállítani, nem a tesztet |
+| `test_data_dir.py` | **KRÉ-14 #98:** az útvonal-feloldás alapértéke `data/` (DB, csatolmányok), a legacy (gyökér) elrendezés felismerése és a `data/`-elsőbbség; a `tools/migrate_local_data.py` dry-run → migráció → rollback köre (DB-integrity ellenőrzéssel) |
 
 ## Függőségek
 
@@ -75,8 +76,8 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (38 csomag, 1057 ell.)
-python tests/run_all.py --fast     # böngésző nélkül (33 csomag, 905 ell.)
+python tests/run_all.py            # minden teszt (39 csomag, 1158 ell.)
+python tests/run_all.py --fast     # böngésző nélkül (34 csomag, 1006 ell.)
 python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
 ```
 

@@ -331,15 +331,22 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 ## 📁 Mappa szerkezet
 
 ```text
-├── app.py                  # Flask: API, felület, ütemező, futásnapló, PDF export
+├── app.py                  # Flask belépő + szinkron/ütemező/ntfy/napló mag
+├── views_*.py              # HTTP-réteg blueprintekben (pages, events, orarend, messages,
+│                           #   absences, stats, rewards) + kreta_exports (PDF/XLSX/CSV)
+├── kreta_paths.py          # útvonalak (KRETA_* env; alap: data/)
+├── kreta_db.py             # DB-séma, migrációk, app_meta, futásnapló
+├── kreta_settings.py       # config.json, verzió, órarend-színek
+├── views_common.py         # blueprint-építő + közös request-segédek
 ├── kreta_playwright.py     # Playwright scraper
-├── templates/index.html    # Dashboard (Bootstrap + DataTables + FullCalendar)
-├── static/                 # favicon, csatolmányok (lokálisan)
+├── templates/index.html    # Dashboard váza (Bootstrap + DataTables + FullCalendar)
+├── static/js/              # core.js + app-main.js (a felület JS-e)
+├── static/vendor/          # vendorolt függőségek (offline)
 ├── backup/kreta_backup.sh  # napi mentés (szerver)
 ├── tests/                  # automatikus tesztek + run_all.py
-├── tools/mobile_shot.py    # mobil képernyőkép/túlcsordulás ellenőrző segédeszköz
-├── config.json             # üzleti beállítások (NEM verziózott)
-├── kreta_adatok.db         # SQLite adatbázis (NEM verziózott)
+├── tools/                  # kaneo_ticket, api_snapshot, migrate_local_data, mobile_shot
+├── data/                   # futásidejű adatok (NEM verziózott): DB, config.json,
+│                           #   sync.log, api_tokens.json, böngészőprofil, csatolmányok
 ├── Dockerfile, docker-compose.yml, entrypoint.sh
 ├── deploy.ps1              # élesítő script (Samba + SSH)
 ├── docs/
@@ -358,12 +365,13 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**21 csomag, 625 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**39 csomag, 1158 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
 **adatvédelem** (üres válasz nem töröl), **DB-séma őr** (zárolt DB),
-**deploy-konzisztencia** (Dockerfile COPY + requirements), **mobil elrendezés**.
+**deploy-konzisztencia** (Dockerfile COPY + requirements), **mobil elrendezés**,
+**route-contract** (a 42 Flask-rule rögzítve) és **data/-migráció**.
 Részletek: [`tests/README.md`](tests/README.md).
 
 ---
@@ -422,6 +430,7 @@ telepíti a mentő-cront.
 
 | Verzió | Tartalom |
 |---|---|
+| v2.0.x | **KRÉ-14 refaktor:** `app.py` és a frontend szétbontása (8 blueprint + közös rétegek, `static/js/`), **futásidejű adatok a `data/` alatt** migráló szkripttel; a viselkedés (URL-ek, válaszok, DB-séma) változatlan |
 | v1.9.x | **Saját órák** (kézi szakkör/pluszfoglalkozás tanévre/hétre/egyedi időszakra, saját színnel, **módosítható**, egy alkalom vagy sorozat törlése), **naptárba küldés** házihoz/számonkéréshez/üzenethez (előre kitöltött Google esemény), **órarend ICS export** (hét/hónap/félév/tanév), **futástörténet**, **órarend-színek**, **SuliHub arculat** (logó/név), **modern egysoros fejléc**, opcionális **basic auth**, **DB-indexek/sémaverzió**, **zsebpénz CSV**, **teljes üzenettörzs** (a lista csak előnézet volt — #74), **dashboard szűrőfüggetlen újratöltése** (#76); az AI-elemzés csak API-ként elérhető |
 | v1.8.x | **Offline-képes frontend:** minden CDN-függőség vendorolva a `static/vendor/` alá (Bootstrap, DataTables, FontAwesome, FullCalendar, jQuery), nincs külső hivatkozás; apróságok (#17: `SyntaxWarning`, érvényes `config.json.example`, halott `autoSyncAlert` törlése) |
 | v1.7.x | **Tanév-kezelés** (tanév a rekord dátumából, tanév-választó, tanév-tudatos mentés, állapotgép), **dashboard-újratervezés** (6 csempe, tanulmányi átlag kártyák, 2 hasábos feed), **mobil fejléc** (kompakt egysoros szinkron-státusz, részletek koppintásra) + GitHub Actions CI |
