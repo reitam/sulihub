@@ -441,9 +441,42 @@
                 text-overflow: clip !important;
             }
         }
+        /* ── Sötét mód (Kaneo #86) — Bootstrap 5.3 data-bs-theme + saját felületek ── */
+        [data-bs-theme="dark"] body { background-color: #121517; }
+        [data-bs-theme="dark"] .bg-white,
+        [data-bs-theme="dark"] .card-stat,
+        [data-bs-theme="dark"] .navbar,
+        [data-bs-theme="dark"] .modal-content { background-color: var(--bs-body-bg) !important; }
+        [data-bs-theme="dark"] .bg-light { background-color: #1c2126 !important; }
+        [data-bs-theme="dark"] .table-light { --bs-table-bg: #1c2126; --bs-table-color: var(--bs-body-color); }
+        [data-bs-theme="dark"] .text-secondary { color: #adb5bd !important; }
+        [data-bs-theme="dark"] .balance-card-positive { filter: saturate(.85) brightness(.9); }
+        [data-bs-theme="dark"] .cell-truncate { color: var(--bs-body-color); }
+
+        /* ── Nyomtatásbarát heti órarend (Kaneo #86) ── */
+        #printOrarend { display: none; }
+        @media print {
+            @page { size: A4 landscape; margin: 10mm; }
+            body { background: #fff !important; }
+            body > *:not(#printOrarend) { display: none !important; }
+            #printOrarend { display: block !important; color: #000; font-size: 11pt; }
+            #printOrarend h2 { font-size: 15pt; margin: 0 0 2mm 0; }
+            #printOrarend h3 { font-size: 13pt; margin: 4mm 0 2mm 0; }
+            #printOrarend table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; }
+            #printOrarend th, #printOrarend td {
+                border: 1px solid #666; padding: 1.2mm; vertical-align: top;
+                font-size: 9.5pt; white-space: normal;
+            }
+            #printOrarend th { background: #eee; }
+            #printOrarend .print-idopont { font-weight: bold; white-space: nowrap; }
+            #printOrarend .print-tantargy { font-weight: bold; }
+            #printOrarend .print-hely { font-size: 8.5pt; color: #333; }
+        }
     </style>
 </head>
 <body>
+<!-- Nyomtatási nézet (Kaneo #86): csak nyomtatáskor látszik, A4 fekvő -->
+<div id="printOrarend" aria-hidden="true"></div>
 
 <div class="container-fluid py-3 px-4">
 
@@ -491,6 +524,11 @@
                           title="A legutóbbi szinkron (kézi vagy automatikus) és a legutóbbi automatikus futás időpontja és eredménye"></span>
                 </div>
             </div>
+
+            <button id="btnTheme" class="btn btn-outline-secondary app-sync-btn me-1"
+                    title="Sötét mód" aria-label="Téma váltása">
+                <i class="fa-solid fa-moon"></i>
+            </button>
 
             <button id="btnKereses" class="btn btn-outline-secondary app-sync-btn me-1"
                     title="Keresés (Ctrl+K)" aria-label="Keresés">
@@ -765,6 +803,13 @@
             </div>
             <div class="row g-2 row-cols-1 row-cols-md-2 row-cols-xl-3" id="dashboardDiakCards"></div>
 
+            <div class="card dash-panel bg-white mt-2 d-none" id="kedvencPanel">
+                <div class="card-header bg-white py-1 px-2 fw-bold small">
+                    <i class="fa-solid fa-star text-warning me-1"></i>Kitűzött események
+                </div>
+                <div class="list-group list-group-flush" id="kedvencLista"></div>
+            </div>
+
             <div class="row g-2 mt-2">
                 <div class="col-12 col-lg-6">
                     <div class="card dash-panel bg-white h-100">
@@ -917,6 +962,9 @@
                         </select>
                         <button id="btnExportOrarendPdf" class="btn btn-sm btn-danger fw-bold ms-2">
                             <i class="fa-solid fa-file-pdf me-1"></i>Órarend letöltése PDF-ben
+                        </button>
+                        <button id="btnOrarendNyomtat" class="btn btn-sm btn-outline-dark fw-bold">
+                            <i class="fa-solid fa-print me-1"></i>Nyomtatás
                         </button>
                         <button id="btnSajatOra" class="btn btn-sm btn-outline-primary fw-bold">
                             <i class="fa-solid fa-plus me-1"></i>Saját óra
