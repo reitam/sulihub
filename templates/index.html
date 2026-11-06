@@ -492,6 +492,11 @@
                 </div>
             </div>
 
+            <button id="btnKereses" class="btn btn-outline-secondary app-sync-btn me-1"
+                    title="Keresés (Ctrl+K)" aria-label="Keresés">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+
             <button id="btnSync" class="btn btn-success app-sync-btn text-nowrap">
                 <i class="fa-solid fa-rotate me-1"></i>Frissítés
             </button>
@@ -1577,6 +1582,29 @@
 </div>
 
 <!-- JS könyvtárak -->
+    <!-- GLOBÁLIS KERESŐ (Kaneo #85) -->
+    <div class="modal fade" id="keresesModal" tabindex="-1" aria-labelledby="keresesModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title" id="keresesModalTitle">
+                        <i class="fa-solid fa-magnifying-glass me-2"></i>Keresés
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Bezárás"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="search" id="keresesInput" class="form-control"
+                           placeholder="Jegy, feljegyzés, házi, üzenet, hiányzás…"
+                           autocomplete="off" aria-label="Keresett szöveg">
+                    <div id="keresesEredmeny" class="list-group list-group-flush mt-2"></div>
+                    <small class="text-muted d-block mt-2">
+                        Legalább 2 karakter. <kbd>Ctrl</kbd>+<kbd>K</kbd> (mobilon a nagyító gomb).
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <script src="{{ url_for('static', filename='vendor/jquery/3.7.0/jquery-3.7.0.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/bootstrap/5.3.0/bootstrap.bundle.min.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/datatables/1.13.6/jquery.dataTables.min.js') }}"></script>
