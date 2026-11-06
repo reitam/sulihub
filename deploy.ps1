@@ -277,7 +277,7 @@ $robocopyArgs = @(
     # (a relativ ut a robocopy /XD-ben nem a forraskonyvtarhoz igazodik).
     "/XD", ".git", "__pycache__", "browser_user_data", "$SourceDir\static\csatolmanyok", ".claude",
     "tests", ".opencode", "poc", "tools", "Tools", ".venv", "venv", ".idea", ".vscode",
-    ".pytest_cache", "node_modules",
+    ".pytest_cache", "node_modules", "docs",
     # Titkok / adatok / dokumentacio: SOHA nem kerulnek a szerver munkakonyvtaraba.
     "/XF", ".env", "deploy.ps1", "config.json", "*.db", "sync.log", "KretaApp_Start.bat",
     "api_tokens.json", "api_tokens.json.tmp",
@@ -299,7 +299,7 @@ Write-Host "  robocopy $SourceDir -> $SambaShare"
 $obsoleteNames = @("README.md", "rendszerterv.md", "config.json.example",
                    ".env.example", ".gitignore", ".gitattributes", "scheduler_state.json",
                    "api_tokens.json", "api_tokens.json.tmp")
-$obsoleteDirs = @(".opencode", "poc", "tools", "Tools", ".venv", ".pytest_cache")
+$obsoleteDirs = @(".opencode", "poc", "tools", "Tools", ".venv", ".pytest_cache", "docs")
 if (-not $WhatIf) {
     foreach ($name in $obsoleteNames) {
         $stale = Join-Path $SambaShare $name
@@ -439,6 +439,8 @@ rm -f REMOTE_DIR_PLACEHOLDER/README.md \
       REMOTE_DIR_PLACEHOLDER/api_tokens.json \
       REMOTE_DIR_PLACEHOLDER/api_tokens.json.tmp
 rm -f REMOTE_DIR_PLACEHOLDER/OSSZEFOGLALO-*.md
+# A dokumentacio a docs/ mappaban van (README.md kivetelevel) — a szerverre nem kell.
+rm -rf REMOTE_DIR_PLACEHOLDER/docs
 # Fejlesztoi mappak (az agent/tooling es a POC nem fut a szerveren).
 rm -rf REMOTE_DIR_PLACEHOLDER/.opencode REMOTE_DIR_PLACEHOLDER/poc \
        REMOTE_DIR_PLACEHOLDER/tools REMOTE_DIR_PLACEHOLDER/Tools \
