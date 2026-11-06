@@ -111,15 +111,26 @@ ok(ossz.get("Tételek száma") == 2, f"tételek száma: {ossz.get('Tételek szá
 
 ws2 = wb["Tételes zsebpénz"]
 headers2 = [c.value for c in ws2[1]]
-ok(headers2 == ["Dátum", "Gyerek", "Típus", "Megnevezés", "Részletek", "Összeg (Ft)"],
+ok(headers2 == ["Dátum", "Gyerek", "Típus", "Megnevezés", "Részletek", "Összeg (Ft)",
+                "Rendezve", "Rendezés időszaka", "Rendezés dátuma"],
    f"Tételes fejléc: {headers2}")
 rows2 = list(ws2.iter_rows(min_row=2, values_only=True))
-ok(len(rows2) == 3, f"2 tétel + Összesen sor: {len(rows2)}")
-ok(rows2[-1][4] == "Összesen" and rows2[-1][5] == 1000,
-   f"a tételes lista végén az összesen: {rows2[-1]}")
-kategoriak = {r[3] for r in rows2[:-1]}
+tetelek2 = [r for r in rows2 if r[4] not in ("Összesen", "Ebből rendezve", "Fennálló egyenleg")]
+ok(len(tetelek2) == 2, f"2 tétel: {len(tetelek2)}")
+ossz_sor = next(r for r in rows2 if r[4] == "Összesen")
+ok(ossz_sor[5] == 1000, f"a tételes lista végén az összesen: {ossz_sor}")
+kategoriak = {r[3] for r in tetelek2}
 ok("Dicséret" in kategoriak and any("Matematika" in k for k in kategoriak),
    f"tételes kategóriák: {kategoriak}")
+# Rendezettseg: a Teszt Elek oktobari idoszaka ki van fizetve -> a ket tetel rendezve
+ok(all(r[6] == "igen" for r in tetelek2),
+   f"az októberi tételek rendezve vannak: {[r[6] for r in tetelek2]}")
+ok(all(r[7] == "2026-10-01 – 2026-10-31" for r in tetelek2),
+   f"a rendezés időszaka látszik: {[r[7] for r in tetelek2]}")
+ok(ossz.get("Ebből rendezve (Ft)") == 1000,
+   f"ebből rendezve: {ossz.get('Ebből rendezve (Ft)')}")
+ok(ossz.get("Fennálló egyenleg (Ft)") == 0,
+   f"fennálló egyenleg: {ossz.get('Fennálló egyenleg (Ft)')}")
 
 ws1 = wb["Kifizetések"]
 headers1 = [c.value for c in ws1[1]]
@@ -157,7 +168,8 @@ ok("20261001" in (res_p.headers.get("Content-Disposition") or ""),
 wb_p = openpyxl.load_workbook(io.BytesIO(res_p.data))
 ossz_p = {r[0]: r[1] for r in wb_p["Elszámolás"].iter_rows(min_row=2, values_only=True)}
 rows_p = list(wb_p["Tételes zsebpénz"].iter_rows(min_row=2, values_only=True))
-ok(len(rows_p) == 3, f"októberben 2 tétel + összesen: {len(rows_p)}")
+tetelek_p = [r for r in rows_p if r[4] not in ("Összesen", "Ebből rendezve", "Fennálló egyenleg")]
+ok(len(tetelek_p) == 2, f"októberben 2 tétel: {len(tetelek_p)}")
 ok(all(r[0] != "2026.09.10." for r in rows_p),
    "a szeptemberi jegy kimarad az októberi exportból")
 ok(ossz_p.get("Egyenleg (Ft)") == 1000, f"októberi egyenleg: {ossz_p.get('Egyenleg (Ft)')}")
@@ -173,10 +185,35 @@ ok(len(stat.get("teteles_lista") or []) == 2,
 ok(stat.get("jegy_total_count") == 1,
    "a szeptemberi jegy nem számít bele az októberi statisztikába")
 
+# Teljes előzmény: a szeptemberi jegy is benne van, és az NINCS rendezve.
 res_all = client.get("/api/kifizetesek/export.xlsx?diak=Teszt%20Elek")
 wb_all = openpyxl.load_workbook(io.BytesIO(res_all.data))
+ossz_all = {r[0]: r[1] for r in wb_all["Elszámolás"].iter_rows(min_row=2, values_only=True)}
 rows_all = list(wb_all["Tételes zsebpénz"].iter_rows(min_row=2, values_only=True))
-ok(len(rows_all) == 4, f"időszak nélkül mind a 3 tétel (+ összesen): {len(rows_all)}")
+tetelek_all = [r for r in rows_all if r[4] not in ("Összesen", "Ebből rendezve", "Fennálló egyenleg")]
+ok(len(tetelek_all) == 3, f"időszak nélkül mind a 3 tétel: {len(tetelek_all)}")
+szept = next(r for r in tetelek_all if r[0] == "2026.09.10.")
+ok(szept[6] == "nem" and not szept[7],
+   f"a szeptemberi (nem fizetett időszaki) tétel nincs rendezve: {szept[6:]}")
+ok(ossz_all.get("Egyenleg (Ft)") == 1200,
+   f"teljes egyenleg: {ossz_all.get('Egyenleg (Ft)')}")
+ok(ossz_all.get("Ebből rendezve (Ft)") == 1000,
+   f"ebből rendezve: {ossz_all.get('Ebből rendezve (Ft)')}")
+ok(ossz_all.get("Fennálló egyenleg (Ft)") == 200,
+   f"fennálló egyenleg: {ossz_all.get('Fennálló egyenleg (Ft)')}")
+ok(ossz_all.get("Rögzített kifizetések összege (Ft)") == 500,
+   f"a rögzített kifizetés összege: {ossz_all.get('Rögzített kifizetések összege (Ft)')}")
+
+# Teljes tanév (dátumok nélkül): ugyanaz a lista, tanév-felirattal.
+res_t = client.get("/api/kifizetesek/export.xlsx?diak=Teszt%20Elek&tanev=2026%2F2027")
+wb_t = openpyxl.load_workbook(io.BytesIO(res_t.data))
+ossz_t = {r[0]: r[1] for r in wb_t["Elszámolás"].iter_rows(min_row=2, values_only=True)}
+ok(ossz_t.get("Tanév") == "2026/2027", f"tanév a fejlécben: {ossz_t.get('Tanév')}")
+ok("teljes időszak" in str(ossz_t.get("Időszak")),
+   f"teljes tanév felirata: {ossz_t.get('Időszak')}")
+rows_t = list(wb_t["Tételes zsebpénz"].iter_rows(min_row=2, values_only=True))
+tetelek_t = [r for r in rows_t if r[4] not in ("Összesen", "Ebből rendezve", "Fennálló egyenleg")]
+ok(len(tetelek_t) == 3, f"a teljes tanév 3 tételt ad: {len(tetelek_t)}")
 
 print("\n3) Üzenetek helyi olvasott/olvasatlan állapota és tartalom (Kaneo #11)")
 uz_res = client.get("/api/uzenetek")
@@ -273,6 +310,8 @@ print("\n4) UI-elemek a sablonban")
 html = client.get("/").get_data(as_text=True)
 ok('id="btnExportKifizetesXlsx"' in html and "/api/kifizetesek/export.xlsx" in html,
    "a Zsebpénz fülön az Excel (.xlsx) export gomb szerepel")
+ok('data-export="period"' in html and 'data-export="tanev"' in html and 'data-export="all"' in html,
+   "az exportnak van időszak / teljes tanév / teljes előzmény választója")
 ok('id="uzenetOlvasottFilter"' in html and 'id="uzenetekOlvasatlanBadge"' in html,
    "az Üzenetek fülön az olvasottság-szűrő és a jelvény szerepel")
 ok('id="btnModalToggleOlvasott"' in html,
