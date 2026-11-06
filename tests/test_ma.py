@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-„Ma” nézet (Kaneo #9): /api/ma + felületi kötés.
+„Ma” API (Kaneo #9): /api/ma — a dashboard-kártyát a felhasználó elutasította,
+ezért a felületi rész csak azt ellenőrzi, hogy az Áttekintés visszaállt.
 
 - mai órák (a két hét duplikátumai nélkül),
 - ma/holnap esedékes házik és számonkérések a kész jelzővel,
@@ -147,13 +148,15 @@ ok(ures.get("orak") == [] and ures.get("hataridok") == [] and ures.get("uj_jegye
 r = client.get("/api/ma?datum=2026-13-99")
 ok(r.status_code == 400, f"hibás dátum -> 400 ({r.status_code})")
 
-print("\n6) Felületi kötés")
+print("\n6) A dashboard eredeti állapota (a Ma kártya eltávolítva) és az API megmarad")
 html = client.get("/").get_data(as_text=True)
 js = client.get("/static/js/app-main.js").get_data(as_text=True)
-ok('id="maCard"' in html and 'id="maOrak"' in html and 'id="maHataridok"' in html
-   and 'id="maJegyek"' in html and 'id="maUzenetek"' in html, "a Ma kártya a sablonban")
-ok("loadMa" in js and "/api/ma" in js and "ma-kesz" in js and "ma-uzenet" in js,
-   "a JS betölti és a gyors műveletek bekötve")
+ok('id="maCard"' not in html and 'id="maOrak"' not in html and 'id="maHataridok"' not in html,
+   "az Áttekintésen nincs Ma kártya (a felhasználó kérésére visszaállítva)")
+ok("loadMa" not in js and "/api/ma" not in js,
+   "a frontend már nem hívja a /api/ma végpontot")
+ok(client.get("/api/ma?datum=2026-11-06").status_code == 200,
+   "a /api/ma végpont megmarad (későbbi külön nézethez)")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

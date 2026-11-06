@@ -121,14 +121,13 @@ a saját szerveren maradnak.
 - **„Milyen jegy kell?” kalkulátor:** tantárgy + célátlag + a következő jegy súlya →
   hányas/os hány ötös kell; elérhetetlen cél jelzése.
 
-### 🔎 Keresés, „Ma” nézet és UX
+### 🔎 Keresés és UX
 - **Globális kereső (Ctrl+K):** jegyek, feljegyzések, házik, üzenetek (teljes törzs) és
   hiányzások; a találat a megfelelő nézetet nyitja.
-- **„Ma” kártya** az Áttekintés tetején: mai órák, ma/holnapi határidők pipával, friss
-  jegyek, olvasatlan üzenetek.
 - **Sötét mód**, **nyomtatásbarát heti órarend** (A4 fekvő), **kitűzött események** a
   dashboardon.
-- **Hiányzás-mintázat:** nap / órasorszám / tantárgy bontás a Hiányzások fülön.
+- **Hiányzás-mintázat:** nap / órasorszám / tantárgy bontás a Hiányzások fülön (a táblázatok
+  alatt, alapból csukva).
 
 ### 📱 Mobilra optimalizált UI
 - Redmi 12/13/14 méreten (393 CSS px) ellenőrizve: nincs vízszintes túlcsordulás.
@@ -378,7 +377,7 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**44 csomag, 1269 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**44 csomag, 1272 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
@@ -443,7 +442,7 @@ telepíti a mentő-cront.
 
 | Verzió | Tartalom |
 |---|---|
-| v2.1.x | **Ma nézet**, **globális kereső (Ctrl+K)**, **jegy-kalkulátor**, **sötét mód + nyomtatás + kedvencek**, **tantárgyi trend + hiányzás-mintázat** |
+| v2.1.x | **Globális kereső (Ctrl+K)**, **jegy-kalkulátor**, **sötét mód + nyomtatás + kedvencek**, **tantárgyi trend + hiányzás-mintázat** |
 | v2.0.x | **KRÉ-14 refaktor:** `app.py` és a frontend szétbontása (8 blueprint + közös rétegek, `static/js/`), **futásidejű adatok a `data/` alatt** migráló szkripttel; a viselkedés (URL-ek, válaszok, DB-séma) változatlan |
 | v1.9.x | **Saját órák** (kézi szakkör/pluszfoglalkozás tanévre/hétre/egyedi időszakra, saját színnel, **módosítható**, egy alkalom vagy sorozat törlése), **naptárba küldés** házihoz/számonkéréshez/üzenethez (előre kitöltött Google esemény), **órarend ICS export** (hét/hónap/félév/tanév), **futástörténet**, **órarend-színek**, **SuliHub arculat** (logó/név), **modern egysoros fejléc**, opcionális **basic auth**, **DB-indexek/sémaverzió**, **zsebpénz CSV**, **teljes üzenettörzs** (a lista csak előnézet volt — #74), **dashboard szűrőfüggetlen újratöltése** (#76); az AI-elemzés csak API-ként elérhető |
 | v1.8.x | **Offline-képes frontend:** minden CDN-függőség vendorolva a `static/vendor/` alá (Bootstrap, DataTables, FontAwesome, FullCalendar, jQuery), nincs külső hivatkozás; apróságok (#17: `SyntaxWarning`, érvényes `config.json.example`, halott `autoSyncAlert` törlése) |

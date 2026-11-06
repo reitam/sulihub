@@ -49,7 +49,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_jegy_kalkulator.py` | **#78:** „Milyen jegy kell?” — súlyozott átlag, egy jegy/több ötös, elérhetetlen cél, 0%-os súly, hiányzó jegy, tanév-szűrés, érvénytelen bemenet; a felületi kártya és a JS |
 | `test_kereses.py` | **#85:** globális kereső — több adatforrás, üzenet teljes törzs, rendezés/limit, rövid keresés, LIKE-escape, modal és Ctrl+K, navigáció |
 | `test_kedvencek.py` | **#86:** `/api/kedvencek` add/remove/toggle, perzisztencia (`app_meta`), érvénytelen kérés; a dashboard-panel és a csillag gomb |
-| `test_ma.py` | **#9:** `/api/ma` — mai órák duplikátum nélkül, ma/holnapi határidők, friss jegyek, olvasatlan üzenetek, diák-szűrés, üres/hibás dátum |
+| `test_ma.py` | **#9:** `/api/ma` — mai órák duplikátum nélkül, ma/holnapi határidők, friss jegyek, olvasatlan üzenetek, diák-szűrés, üres/hibás dátum; **a dashboard-kártya elutasítva**, ezért a teszt azt is őrzi, hogy az Áttekintés nem tartalmaz Ma kártyát |
 | `test_trend.py` | **#80:** tantárgyi trend (utolsó két hónap), romlás-figyelmeztetés, hiányzás-mintázat nap/óra/tantárgy/hónap bontásban, tanév-szűrés; a felületi kötés |
 
 ## Függőségek
@@ -81,8 +81,8 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (44 csomag, 1269 ell.)
-python tests/run_all.py --fast     # böngésző nélkül (39 csomag, 1117 ell.)
+python tests/run_all.py            # minden teszt (44 csomag, 1272 ell.)
+python tests/run_all.py --fast     # böngésző nélkül (39 csomag, 1120 ell.)
 python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
 ```
 
