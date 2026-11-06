@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v1.9.1` (élesítésre vár; élesben `v1.9.0`)
+**Jelenlegi verzió:** `v1.9.2` (éles, 2026-11-06)
 
 ---
 
