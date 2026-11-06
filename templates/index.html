@@ -1054,11 +1054,32 @@
                     <div class="col-md-3 text-end d-flex align-items-center justify-content-end">
                         <button id="btnQuickThisMonth" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1" style="font-size: 0.75rem;">Aktuális hónap</button>
                         <button id="btnQuickLastMonth" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;">Előző hónap</button>
-                        <a id="btnExportKifizetesXlsx" class="btn btn-sm btn-outline-success py-0 px-2 ms-1"
-                           style="font-size: 0.75rem;" href="/api/kifizetesek/export.xlsx"
-                           title="Az egyenleg tételeinek Excel (.xlsx) exportja a kiválasztott időszakra">
-                            <i class="fa-solid fa-file-excel me-1"></i>Excel
-                        </a>
+                        <div class="btn-group btn-group-sm ms-1" role="group">
+                            <button type="button" id="btnExportKifizetesXlsx"
+                                    class="btn btn-sm btn-outline-success py-0 px-2"
+                                    style="font-size: 0.75rem;"
+                                    title="Az egyenleg tételeinek Excel (.xlsx) exportja a kiválasztott időszakra, a pénzügyi rendezettség jelölésével">
+                                <i class="fa-solid fa-file-excel me-1"></i>Excel
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-success dropdown-toggle dropdown-toggle-split py-0 px-1"
+                                    data-bs-toggle="dropdown" aria-expanded="false"
+                                    title="További exportálási lehetőségek">
+                                <span class="visually-hidden">További exportálási lehetőségek</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" style="font-size: .85rem;">
+                                <li><h6 class="dropdown-header">Egyenleg tételei</h6></li>
+                                <li><button type="button" class="dropdown-item" data-export="period">
+                                    <i class="fa-solid fa-calendar-day me-2"></i>Kiválasztott időszak
+                                </button></li>
+                                <li><button type="button" class="dropdown-item" data-export="tanev">
+                                    <i class="fa-solid fa-calendar-days me-2"></i>Teljes tanév
+                                </button></li>
+                                <li><button type="button" class="dropdown-item" data-export="all">
+                                    <i class="fa-solid fa-calendar me-2"></i>Teljes előzmény
+                                </button></li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3278,15 +3299,33 @@ $(document).ready(function() {
         loadRewardsData();
     });
 
+    // Excel export: az egyenleg tételei (a pénzügyi rendezettség jelölésével).
+    // period = a felső időszakválasztó; tanev = a fejlécben kiválasztott teljes
+    // tanév; all = minden tanév (teljes előzmény).
+    function kifizetesXlsxUrl(mode) {
+        let diak = $('#rewardFilterDiak').val() || '';
+        let url = '/api/kifizetesek/export.xlsx?diak=' + encodeURIComponent(diak);
+        let tanev = kivalasztottTanev();
+        if (mode === 'period') {
+            url += '&kezdo_datum=' + encodeURIComponent($('#rewardKezdoDatum').val() || '')
+                 + '&zaro_datum=' + encodeURIComponent($('#rewardZaroDatum').val() || '');
+            if (tanev) url += '&tanev=' + encodeURIComponent(tanev);
+        } else if (mode === 'tanev') {
+            url += '&tanev=' + encodeURIComponent(tanev || 'all');
+        } else {
+            url += '&tanev=all';
+        }
+        return url;
+    }
+
     $('#btnExportKifizetesXlsx').click(function(e) {
         e.preventDefault();
-        let diak = $('#rewardFilterDiak').val() || '';
-        let kezdo = $('#rewardKezdoDatum').val() || '';
-        let zaro = $('#rewardZaroDatum').val() || '';
-        window.location.href = '/api/kifizetesek/export.xlsx?diak=' + encodeURIComponent(diak)
-            + '&kezdo_datum=' + encodeURIComponent(kezdo)
-            + '&zaro_datum=' + encodeURIComponent(zaro)
-            + tanevQueryParam();
+        window.location.href = kifizetesXlsxUrl('period');
+    });
+
+    $('.dropdown-menu [data-export]').click(function(e) {
+        e.preventDefault();
+        window.location.href = kifizetesXlsxUrl($(this).data('export'));
     });
 
     // ── Tanév-választó (Kaneo #40, 5. fázis) ────────────────────────────────
