@@ -43,7 +43,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_ai_uzenet.py` | Üzenet-AI (#61): config + magánhálózati őr, JSON-fence/dedup/validáció, fake OpenAI-szerver, API 200/502/503/404, több VEVENT-es `.ics` |
 | `test_auth.py` | Opcionális basic auth (#16): kikapcsolva nyitott, bekapcsolva 401/200, `/health` kivétel, statikus védelem, hash és sima jelszó |
 | `test_db_indexes.py` | DB-indexek (#15): a gyorsító indexek léteznek, `schema_version`, ismételt init, migráció előtti `.bak` másolat |
-| `test_kifizetes_csv.py` | Kaneo #11 (B6): valódi Excel (`.xlsx`) export két munkalappal (*Kifizetések* + *Tételes zsebpénz*) + CSV export; üzenetek helyi `olvasott` állapota (`POST /api/uzenetek/<id>/olvasott` és a tömeges `POST /api/uzenetek/olvasott`), a migráció előtti üzenetek olvasottként indulnak, tartalmi kereshetőség |
+| `test_kifizetes_csv.py` | Kaneo #11/#77 (B6): Excel (`.xlsx`) export — *Elszámolás* összegzés, *Tételes zsebpénz* a kiválasztott **időszakra** (Összesen sorral), *Kifizetések*; az egyenleg egyezik a felület `/api/statisztika` értékével; CSV export; üzenetek helyi `olvasott` állapota (`POST /api/uzenetek/<id>/olvasott` és a tömeges `POST /api/uzenetek/olvasott`), a migráció előtti üzenetek olvasottként indulnak, tartalmi kereshetőség |
 
 ## Függőségek
 

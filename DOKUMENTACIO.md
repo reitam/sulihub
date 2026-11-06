@@ -72,7 +72,7 @@ továbbítanak.
 | **Heti órarend** | Idősávos heti nézet, gyermekszínekkel; **A4 PDF export**; **kézi „Saját óra”** tételek (szakkör, plusz foglalkozás) tanévre / hétre / egyedi időszakra, egy alkalom vagy a teljes sorozat törlésével (Kaneo #55); **ICS export** hét / hónap / félév / tanév időszakra (Kaneo #73) |
 | **Feladatok naptár nézet** | Házik és számonkérések határidő szerint, színkódolva; a részletek ablakból **közvetlen „Naptárba küldés”** (előre kitöltött Google Naptár esemény, egy kattintásos mentés) (Kaneo #47) |
 | **Beérkezett üzenetek** | Üzenetek olvasása (a **teljes törzs** a részletes API-válaszból, a sortörések megőrzésével — Kaneo #74), **szöveges keresés a tárgyban, a feladóban és az üzenet tartalmában**, **helyi olvasott/olvasatlan állapot** (olvasatlan számláló a fülön, félkövér + kék pötty a listában, Mind/Olvasatlan/Olvasott gyorsszűrő, megnyitáskor automatikus olvasottnak jelölés + kézi oda-vissza váltás; **checkboxos kijelölés** soronként és „mind” a fejlécben, a kijelölteken vagy a teljes listán **egylépéses olvasott/olvasatlan** váltás; a KRÉTA felé nem ír vissza — Kaneo #11), csatolmányok letöltése; az üzenethez is fűzhető **saját megjegyzés** (Kaneo #46), valamint **„Naptárba küldés”** Google Naptárba (Kaneo #47/#60) |
-| **Statisztika & Zsebpénz** | Havi jegyeloszlás, átlag, dicséret/hiány mutatók, elszámolás, **valódi Excel (`.xlsx`) export** két munkalappal (*Kifizetések* + *Tételes zsebpénz*) (Kaneo #11) |
+| **Statisztika & Zsebpénz** | Havi jegyeloszlás, átlag, dicséret/hiány mutatók, elszámolás; **az egyenleg tételeinek Excel (`.xlsx`) exportja** a kiválasztott gyermekre és időszakra, három munkalappal: *Elszámolás* (összegzés + egyenleg), *Tételes zsebpénz* (a tételek + Összesen), *Kifizetések* (Kaneo #11/#77) |
 | **Rendszernapló** | A szinkronizációk naplója, hibák, előzmények; **legutóbbi 20 futás** táblázata (indult, futásidő, státusz, új esemény, hibás diák, tanév) és **futásidő-sparkline** (Kaneo #10) |
 
 **Szűrőfüggetlen dashboard (Kaneo #76):** az Áttekintés a saját, szűrés nélküli
@@ -662,7 +662,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 | `/api/dashboard` | Áttekintés fül összesítői (diákonkénti átlag, kifizetetlen egyenleg, igazolatlan óra) |
 | `/api/kommentek` | saját megjegyzések: `GET ?cel_tipus=&cel_kulcs=`, `POST {cel_tipus, cel_kulcs, szoveg}`, `DELETE /api/kommentek/<id>` |
 | `/api/uzenetek` | üzenetlista (a teljes törzzsel és a helyi `olvasott` állapottal); olvasottság: `POST /api/uzenetek/<id>/olvasott {olvasott}`, tömegesen `POST /api/uzenetek/olvasott {olvasott, ids[]}` vagy `ids` nélkül `{olvasott, diak}` (üres `diak` = minden) |
-| `/api/kifizetesek/export.xlsx` | zsebpénz **Excel** export: *Kifizetések* + *Tételes zsebpénz* munkalap, `?diak=&tanev=` szűrővel (a `.csv` végpont visszafelé kompatibilisen megmaradt) |
+| `/api/kifizetesek/export.xlsx` | zsebpénz **Excel** export az egyenleg összetételéről: *Elszámolás* (időszak, jegyek/feljegyzések összege, **egyenleg**, kifizetettség, átlag, darabszámok) + *Tételes zsebpénz* (a tételek dátum/típus/megnevezés/részletek/összeg, „Összesen” sorral) + *Kifizetések*; `?diak=&kezdo_datum=&zaro_datum=&tanev=` — a tételes lista **ugyanaz**, mint a felület `/api/statisztika` válasza (a `.csv` végpont visszafelé kompatibilisen megmaradt) |
 | Rendszernapló fül / `sync.log` | részletes futási napló (rotált, max. 1 MB/példány) |
 | `sync_runs` tábla | strukturált futástörténet (a futás tanévével) |
 | `deploy.log` / `version.txt` | telepített verzió |
@@ -840,7 +840,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | B3 | **Napi/heti digest** összefoglaló | egy üzenetben a nap lényege | 1–2 nap |
 | B4 | **Mobilos „Ma" nézet** — kompakt napi kártya | *(a reszponzív mobil elrendezés már elkészült a v1.4.0-ban; ez egy külön napi összefoglaló nézet)* | 1–2 nap |
 | B5 | **Futástörténet a felületen** (a `sync_runs` már tárolja) | átlátható előzmények | 0,5–1 nap |
-| B6 | **Üzenet-keresés (tartalomban is), helyi olvasott/olvasatlan (checkboxes tömeges váltással), zsebpénz Excel (`.xlsx`) export** | **KÉSZ (Kaneo #11):** `uzenetek.olvasott` + `POST /api/uzenetek/<id>/olvasott` és `POST /api/uzenetek/olvasott` (kijelöltekre vagy a teljes listára), olvasatlan számláló/szűrő, keresés az üzenet szövegében is; a migráció előtti üzenetek olvasottként indulnak; `GET /api/kifizetesek/export.xlsx` két munkalappal (*Kifizetések* + *Tételes zsebpénz*). *(A melléklet-dedupe a felhasználó döntése alapján elhagyva)* | – |
+| B6 | **Üzenet-keresés (tartalomban is), helyi olvasott/olvasatlan (checkboxes tömeges váltással), zsebpénz Excel (`.xlsx`) export** | **KÉSZ (Kaneo #11 / #77):** `uzenetek.olvasott` + `POST /api/uzenetek/<id>/olvasott` és `POST /api/uzenetek/olvasott` (kijelöltekre vagy a teljes listára), olvasatlan számláló/szűrő, keresés az üzenet szövegében is; a migráció előtti üzenetek olvasottként indulnak; `GET /api/kifizetesek/export.xlsx` — **az egyenleg tételei a kiválasztott időszakra**: *Elszámolás* + *Tételes zsebpénz* (Összesen sorral) + *Kifizetések*, a felület `/api/statisztika` számával egyezően. *(A melléklet-dedupe a felhasználó döntése alapján elhagyva)* | – |
 
 ### C) Karbantarthatóság / kockázatok
 

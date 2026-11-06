@@ -3265,20 +3265,19 @@ def api_atlagok():
     })
 
 
-@app.route("/api/statisztika")
-def api_statisztika():
+def compute_zsebpenz_statisztika(diak="", kezdo_datum="", zaro_datum="", tanev_szuro=None):
+    """A zsebpénz/statisztika közös számítása (a `/api/statisztika` és az Excel export).
+
+    Visszaadja a teljes statisztika-diktet (jegyeloszlás, súlyozott átlag,
+    tételes lista, összegek, kifizetettség), hiányzó DB esetén `None`.
+    """
     config = load_config()
     global_enable = config.get("ENABLE_REWARDS", True)
 
     # A statisztika akkor is működik, ha a zsebpénz modul ki van kapcsolva:
     # ilyenkor csak a pénz-összegek maradnak 0-n, és a felület jelzi a tényt.
     if not os.path.exists(DB_FILE):
-        return jsonify({"enabled": False})
-
-    diak = request.args.get("diak", "")
-    kezdo_datum = request.args.get("kezdo_datum", "")
-    zaro_datum = request.args.get("zaro_datum", "")
-    tanev_szuro = _tanev_from_request()
+        return None
 
     student_enable = True
     students = config.get("STUDENTS", [])
@@ -3305,7 +3304,7 @@ def api_statisztika():
     cursor = conn.cursor()
 
     # JEGYEK LEKÉRDEZÉSE ÉS TÉTELES LISTÁJA
-    jegy_query = "SELECT id, tantargy, ertek, szam_ertek, bej_datum, mod, tema FROM esemenyek WHERE esemeny_tipus = 'Értékelés'"
+    jegy_query = "SELECT id, diak_nev, tantargy, ertek, szam_ertek, bej_datum, mod, tema FROM esemenyek WHERE esemeny_tipus = 'Értékelés'"
     params = []
     if diak:
         jegy_query += " AND diak_nev = ?"
@@ -3365,6 +3364,7 @@ def api_statisztika():
                 reszletek = f"{reszletek} ({suly}%)".strip()
             teteles_lista.append({
                 "datum": r["bej_datum"],
+                "diak_nev": r["diak_nev"] or "",
                 "tipus": "Értékelés",
                 "megnevezes": f"{r['tantargy']} - {r['ertek']}",
                 "reszletek": reszletek,
@@ -3380,7 +3380,7 @@ def api_statisztika():
     atlag = atlag_sulyozott if atlag_sulyozott is not None else atlag_egyszeru
 
     # FELJEGYZÉSEK LEKÉRDEZÉSE ÉS TÉTELES LISTÁJA
-    felj_query = "SELECT id, bej_datum, tipus, cim, tartalom FROM esemenyek WHERE esemeny_tipus = 'Feljegyzés'"
+    felj_query = "SELECT id, diak_nev, bej_datum, tipus, cim, tartalom FROM esemenyek WHERE esemeny_tipus = 'Feljegyzés'"
     f_params = []
     if diak:
         felj_query += " AND diak_nev = ?"
@@ -3422,6 +3422,7 @@ def api_statisztika():
                 jutalom = rewards.get(cat, 0) if rewards_enabled else 0
                 teteles_lista.append({
                     "datum": r["bej_datum"],
+                    "diak_nev": r["diak_nev"] or "",
                     "tipus": "Feljegyzés",
                     "megnevezes": cat_names.get(cat, "Feljegyzés"),
                     "reszletek": f"{r['cim'] or ''} {r['tartalom'] or ''}".strip(),
@@ -3463,7 +3464,7 @@ def api_statisztika():
 
     vegosszeg = jegy_osszeg + feljegyzes_osszeg
 
-    return jsonify({
+    return {
         "enabled": True,
         "rewards_enabled": rewards_enabled,
         "jegy_counts": jegy_counts,
@@ -3479,7 +3480,20 @@ def api_statisztika():
         "vegosszeg": vegosszeg,
         "kifizetve": kifizetve,
         "teteles_lista": teteles_lista
-    })
+    }
+
+
+@app.route("/api/statisztika")
+def api_statisztika():
+    data = compute_zsebpenz_statisztika(
+        diak=request.args.get("diak", ""),
+        kezdo_datum=request.args.get("kezdo_datum", ""),
+        zaro_datum=request.args.get("zaro_datum", ""),
+        tanev_szuro=_tanev_from_request(),
+    )
+    if data is None:
+        return jsonify({"enabled": False})
+    return jsonify(data)
 
 def _load_kifizetesek_rows(diak="", tanev_szuro=None):
     """A kifizetés-elszámolások sorai és a tételes zsebpénz-események (exportokhoz)."""
@@ -3574,21 +3588,40 @@ def _load_kifizetesek_rows(diak="", tanev_szuro=None):
 
 @app.route("/api/kifizetesek/export.xlsx")
 def api_kifizetesek_xlsx():
-    """Zsebpénz-elszámolások valódi Excel (.xlsx) exportja (Kaneo #11).
+    """Zsebpénz-elszámolás Excel (.xlsx) exportja (Kaneo #11 / #77).
 
-    Két munkalapot ad:
-    1. **Kifizetések**: időszaki elszámolások (Dátum, Gyerek, Összeg, Kategória,
-       Megjegyzés, Kifizetve, Kezdő/Záró dátum, Frissítve).
-    2. **Tételes zsebpénz**: az egyes jegyek/feljegyzések tételes jutalmai
-       (Dátum, Gyerek, Összeg, Kategória, Megjegyzés).
+    Az **egyenleg összetétele** a kiválasztott gyermekre és időszakra, három
+    munkalapon:
+
+    1. **Elszámolás** — összegzés: időszak, jegyek/feljegyzések összege,
+       **egyenleg**, kifizetettség, átlag, darabszámok.
+    2. **Tételes zsebpénz** — az egyenleg tételei (dátum, gyerek, típus,
+       megnevezés, részletek, összeg) + „Összesen” sor. Pontosan ugyanaz a lista,
+       mint a felületen (`/api/statisztika`), ezért az Excel a képernyőn látott
+       számokat adja.
+    3. **Kifizetések** — az időszaki elszámolások (kifizetve állapot, összeg).
+
+    Paraméterek: `diak`, `kezdo_datum`, `zaro_datum`, `tanev`.
     """
     diak = request.args.get("diak", "")
+    kezdo_datum = (request.args.get("kezdo_datum") or "").strip()
+    zaro_datum = (request.args.get("zaro_datum") or "").strip()
     tanev_szuro = _tanev_from_request()
-    kif_rows, teteles_rows = _load_kifizetesek_rows(diak=diak, tanev_szuro=tanev_szuro)
+
+    stat = compute_zsebpenz_statisztika(
+        diak=diak,
+        kezdo_datum=kezdo_datum,
+        zaro_datum=zaro_datum,
+        tanev_szuro=tanev_szuro,
+    ) or {}
+    teteles_lista = stat.get("teteles_lista", [])
+    kif_rows, _ = _load_kifizetesek_rows(diak=diak, tanev_szuro=tanev_szuro)
 
     wb = openpyxl.Workbook()
     header_fill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
     header_font = Font(bold=True, color="FFFFFF")
+    label_font = Font(bold=True)
+    total_fill = PatternFill(start_color="EEF3FB", end_color="EEF3FB", fill_type="solid")
     thin_border = Border(
         left=Side(style="thin", color="D0D7DE"),
         right=Side(style="thin", color="D0D7DE"),
@@ -3606,11 +3639,77 @@ def api_kifizetesek_xlsx():
             ws.column_dimensions[get_column_letter(col_idx)].width = width
         ws.freeze_panes = "A2"
 
-    # 1. munkalap: Kifizetések (időszaki elszámolások)
-    ws1 = wb.active
-    ws1.title = "Kifizetések"
+    # 1. munkalap: Elszámolás (az egyenleg összetétele)
+    ws0 = wb.active
+    ws0.title = "Elszámolás"
+    ws0.append(["Megnevezés", "Érték"])
+    for col_idx, width in enumerate([34, 30], start=1):
+        cell = ws0.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws0.column_dimensions[get_column_letter(col_idx)].width = width
+    ws0.freeze_panes = "A2"
+
+    idoszak = f"{kezdo_datum or 'kezdet'} – {zaro_datum or 'mai nap'}"
+    stat_sorok = [
+        ("Diák", diak or "Összes gyerek"),
+        ("Időszak", idoszak),
+        ("Tanév", tanev_szuro or "Összes tanév"),
+        ("Jegyek összege (Ft)", int(stat.get("jegy_osszeg", 0) or 0)),
+        ("Feljegyzések összege (Ft)", int(stat.get("feljegyzes_osszeg", 0) or 0)),
+        ("Egyenleg (Ft)", int(stat.get("vegosszeg", 0) or 0)),
+        ("Kifizetve", "igen" if stat.get("kifizetve") else "nem"),
+        ("Tanulmányi átlag", stat.get("atlag") if stat.get("atlag") is not None else "-"),
+        ("Jegyek száma", stat.get("jegy_total_count", 0) or 0),
+        ("Tételek száma", len(teteles_lista)),
+        ("Zsebpénz modul", "be" if stat.get("rewards_enabled") else "kikapcsolva"),
+    ]
+    for cimke, ertek in stat_sorok:
+        ws0.append([cimke, ertek])
+    egyenleg_sor = None
+    for row in ws0.iter_rows(min_row=2):
+        row[0].font = label_font
+        for cell in row:
+            cell.border = thin_border
+        if row[0].value == "Egyenleg (Ft)":
+            egyenleg_sor = row[0].row
+        if isinstance(row[1].value, int) and str(row[0].value).endswith("(Ft)"):
+            row[1].number_format = "#,##0"
+    if egyenleg_sor:
+        for cell in ws0[egyenleg_sor]:
+            cell.font = Font(bold=True, size=12)
+            cell.fill = total_fill
+
+    # 2. munkalap: Tételes zsebpénz (az egyenleg tételei az időszakra)
+    ws1 = wb.create_sheet(title="Tételes zsebpénz")
     _style_sheet(
         ws1,
+        ["Dátum", "Gyerek", "Típus", "Megnevezés", "Részletek", "Összeg (Ft)"],
+        [14, 20, 14, 30, 45, 14],
+    )
+    ossz = 0
+    for t in teteles_lista:
+        ertek = int(t.get("osszeg") or 0)
+        ossz += ertek
+        ws1.append([
+            t.get("datum") or "",
+            t.get("diak_nev") or "",
+            t.get("tipus") or "",
+            t.get("megnevezes") or "",
+            t.get("reszletek") or "",
+            ertek,
+        ])
+    if teteles_lista:
+        ws1.append(["", "", "", "", "Összesen", ossz])
+        for cell in ws1[ws1.max_row]:
+            cell.font = label_font
+            cell.fill = total_fill
+
+    # 3. munkalap: Kifizetések (időszaki elszámolások)
+    ws2 = wb.create_sheet(title="Kifizetések")
+    _style_sheet(
+        ws2,
         ["Dátum", "Gyerek", "Összeg (Ft)", "Kategória", "Megjegyzés",
          "Kifizetve", "Kezdő dátum", "Záró dátum", "Frissítve"],
         [14, 22, 14, 18, 28, 12, 14, 14, 20],
@@ -3619,46 +3718,32 @@ def api_kifizetesek_xlsx():
         kezdo = r["kezdo_datum"] or ""
         zaro = r["zaro_datum"] or ""
         osszeg = int(r["osszeg"]) if r["osszeg"] is not None else 0
-        kifizetve_txt = "igen" if r["kifizetve"] else "nem"
-        ws1.append([
+        ws2.append([
             zaro or kezdo,
             r["diak_nev"] or "",
             osszeg,
             "Zsebpénz elszámolás",
             f"{kezdo} – {zaro} ({'kifizetve' if r['kifizetve'] else 'kifizetetlen'})",
-            kifizetve_txt,
+            "igen" if r["kifizetve"] else "nem",
             kezdo,
             zaro,
             r["updated_at"] or "",
         ])
 
-    # 2. munkalap: Tételes zsebpénz (jegyek + feljegyzések)
-    ws2 = wb.create_sheet(title="Tételes zsebpénz")
-    _style_sheet(
-        ws2,
-        ["Dátum", "Gyerek", "Összeg (Ft)", "Kategória", "Megjegyzés"],
-        [14, 22, 14, 28, 45],
-    )
-    for t in teteles_rows:
-        ws2.append([
-            t["datum"],
-            t["diak_nev"],
-            int(t["osszeg"]) if t["osszeg"] is not None else 0,
-            t["kategoria"],
-            t["megjegyzes"],
-        ])
-
-    for ws in (ws1, ws2):
+    for ws, penz_col in ((ws1, 6), (ws2, 3)):
         for row in ws.iter_rows(min_row=2):
             for cell in row:
                 cell.border = thin_border
-                if cell.column == 3:
+                if cell.column == penz_col and isinstance(cell.value, int):
                     cell.number_format = "#,##0"
 
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
     suffix = re.sub(r"[^A-Za-z0-9._-]+", "_", diak)[:40] if diak else "osszes"
+    if kezdo_datum or zaro_datum:
+        suffix += "_" + re.sub(r"[^0-9]", "", kezdo_datum or "")
+        suffix += "_" + re.sub(r"[^0-9]", "", zaro_datum or "")
     response = Response(
         buf.getvalue(),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

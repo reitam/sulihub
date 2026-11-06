@@ -1056,7 +1056,7 @@
                         <button id="btnQuickLastMonth" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;">Előző hónap</button>
                         <a id="btnExportKifizetesXlsx" class="btn btn-sm btn-outline-success py-0 px-2 ms-1"
                            style="font-size: 0.75rem;" href="/api/kifizetesek/export.xlsx"
-                           title="Zsebpénz-elszámolások Excel (.xlsx) exportja">
+                           title="Az egyenleg tételeinek Excel (.xlsx) exportja a kiválasztott időszakra">
                             <i class="fa-solid fa-file-excel me-1"></i>Excel
                         </a>
                     </div>
@@ -3281,7 +3281,12 @@ $(document).ready(function() {
     $('#btnExportKifizetesXlsx').click(function(e) {
         e.preventDefault();
         let diak = $('#rewardFilterDiak').val() || '';
-        window.location.href = '/api/kifizetesek/export.xlsx?diak=' + encodeURIComponent(diak) + tanevQueryParam();
+        let kezdo = $('#rewardKezdoDatum').val() || '';
+        let zaro = $('#rewardZaroDatum').val() || '';
+        window.location.href = '/api/kifizetesek/export.xlsx?diak=' + encodeURIComponent(diak)
+            + '&kezdo_datum=' + encodeURIComponent(kezdo)
+            + '&zaro_datum=' + encodeURIComponent(zaro)
+            + tanevQueryParam();
     });
 
     // ── Tanév-választó (Kaneo #40, 5. fázis) ────────────────────────────────
