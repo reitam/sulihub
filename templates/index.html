@@ -710,42 +710,6 @@
         <!-- 0. FÜL: ÁTTEKINTÉS (DASHBOARD, Kaneo #38) -->
         <div class="tab-pane fade show active" id="attekintes-pane" role="tabpanel">
             <div id="trendFigyelmeztetes" class="alert alert-warning py-1 px-2 small d-none mb-2"></div>
-            <div class="card dash-panel bg-white mb-2" id="maCard">
-                <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center flex-wrap gap-1">
-                    <span class="fw-bold small">
-                        <i class="fa-solid fa-sun text-warning me-1"></i>Ma · <span id="maDatum"></span>
-                    </span>
-                    <span class="small text-muted" id="maOsszefoglalo"></span>
-                </div>
-                <div class="card-body p-2">
-                    <div class="row g-2">
-                        <div class="col-12 col-md-4">
-                            <div class="small fw-bold text-secondary mb-1">
-                                <i class="fa-solid fa-clock me-1"></i>Mai órák
-                            </div>
-                            <div id="maOrak" class="small"></div>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <div class="small fw-bold text-secondary mb-1">
-                                <i class="fa-solid fa-list-check me-1"></i>Ma / holnap esedékes
-                            </div>
-                            <div id="maHataridok" class="small"></div>
-                        </div>
-                        <div class="col-6 col-md-2">
-                            <div class="small fw-bold text-secondary mb-1">
-                                <i class="fa-solid fa-star me-1"></i>Új jegyek
-                            </div>
-                            <div id="maJegyek" class="small"></div>
-                        </div>
-                        <div class="col-6 col-md-2">
-                            <div class="small fw-bold text-secondary mb-1">
-                                <i class="fa-solid fa-envelope me-1"></i>Olvasatlan
-                            </div>
-                            <div id="maUzenetek" class="small"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap" id="dashboardDiakChips">
                     <span class="text-muted small fw-bold"><i class="fa-solid fa-users me-1"></i>Gyermek:</span>
@@ -947,29 +911,6 @@
                 </div>
             </div>
 
-            <div class="card card-stat bg-white p-2 mb-3" id="mintazatCard">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
-                    <h6 class="fw-bold text-secondary m-0">
-                        <i class="fa-solid fa-chart-column me-2"></i>Hiányzás-mintázat
-                    </h6>
-                    <small class="text-muted" id="mintazatOsszes"></small>
-                </div>
-                <div class="row g-3">
-                    <div class="col-12 col-md-5">
-                        <div class="small fw-bold mb-1">Napok szerint</div>
-                        <div id="mintazatNapok" class="small"></div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="small fw-bold mb-1">Órasorszám</div>
-                        <div id="mintazatOrak" class="small"></div>
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <div class="small fw-bold mb-1">Tantárgyak</div>
-                        <div id="mintazatTantargyak" class="small"></div>
-                    </div>
-                </div>
-            </div>
-
             <div class="table-container overflow-auto mb-3">
                 <h6 class="fw-bold text-danger mb-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>Hiányzások és késések</h6>
                 <div id="hianyzasEmptyHint" class="alert alert-info py-2 px-3 d-none mb-2 small"></div>
@@ -1005,6 +946,38 @@
                     </thead>
                     <tbody></tbody>
                 </table>
+            </div>
+
+            <div class="card card-stat bg-white mt-3 mb-0" id="mintazatCard">
+                <div class="card-header bg-white p-0 border-0">
+                    <button class="btn btn-link text-decoration-none w-100 text-start py-2 px-3 collapsed"
+                            type="button" data-bs-toggle="collapse" data-bs-target="#mintazatCollapse"
+                            aria-expanded="false" aria-controls="mintazatCollapse">
+                        <span class="fw-bold text-secondary">
+                            <i class="fa-solid fa-chart-column me-2"></i>Hiányzás-mintázat
+                        </span>
+                        <span class="text-muted small ms-2" id="mintazatOsszes"></span>
+                        <i class="fa-solid fa-chevron-down float-end text-muted"></i>
+                    </button>
+                </div>
+                <div class="collapse" id="mintazatCollapse">
+                    <div class="p-3 pt-1">
+                        <div class="row g-3">
+                            <div class="col-12 col-md-5">
+                                <div class="small fw-bold mb-1">Napok szerint</div>
+                                <div id="mintazatNapok" class="small"></div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="small fw-bold mb-1">Órasorszám</div>
+                                <div id="mintazatOrak" class="small"></div>
+                            </div>
+                            <div class="col-6 col-md-4">
+                                <div class="small fw-bold mb-1">Tantárgyak</div>
+                                <div id="mintazatTantargyak" class="small"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

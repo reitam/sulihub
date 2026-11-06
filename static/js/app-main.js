@@ -1885,7 +1885,6 @@ $(document).ready(function() {
         // A dashboard a saját, szűrő nélküli adatát kéri (Kaneo #76) — így az
         // eseménylista filtrációja nem tudja kiüríteni a csempéket/feedet.
         loadDashboardData();
-        loadMa();
         loadTrendFigyelmeztetes();
 
         if ($('#rewards-tab').length > 0) {
@@ -3035,94 +3034,6 @@ $(document).ready(function() {
         });
     }
 
-    // ── „Ma” nézet (Kaneo #9) ─────────────────────────────────────────────
-    function loadMa() {
-        const diak = $('#filterDiak').val() || '';
-        $.getJSON(`/api/ma?diak=${encodeURIComponent(diak)}`, function(res) {
-            $('#maDatum').text(fmtIsoToHu(res.datum) || res.datum || '');
-            const orak = res.orak || [];
-            let $o = $('#maOrak').empty();
-            if (!orak.length) {
-                $o.append('<span class="text-muted">Ma nincs óra.</span>');
-            } else {
-                orak.slice(0, 8).forEach(function(o) {
-                    $o.append(`<div class="text-truncate"><span class="badge bg-light text-dark me-1">${escapeHtml(o.kezdes)}</span>` +
-                        `${escapeHtml(o.tantargy)}${o.terem ? ' <span class="text-muted">(' + escapeHtml(o.terem) + ')</span>' : ''}` +
-                        (diak ? '' : ` <span class="text-muted small">${escapeHtml(o.diak_nev)}</span>`) + '</div>');
-                });
-                if (orak.length > 8) $o.append(`<div class="text-muted">+${orak.length - 8} további</div>`);
-            }
-            const hat = res.hataridok || [];
-            let $h = $('#maHataridok').empty();
-            if (!hat.length) {
-                $h.append('<span class="text-muted">Nincs ma/holnapi határidő.</span>');
-            } else {
-                hat.slice(0, 8).forEach(function(e) {
-                    const kesz = !!e.kesz;
-                    $h.append(`<div class="d-flex align-items-start gap-1 ${kesz ? 'text-decoration-line-through text-muted' : ''}">
-                        <button type="button" class="btn btn-sm btn-link p-0 ma-kesz" data-id="${e.id}" data-kesz="${kesz ? 1 : 0}"
-                                title="${kesz ? 'Kész visszavonása' : 'Házi kész'}">
-                            <i class="fa-${kesz ? 'solid fa-circle-check text-success' : 'regular fa-circle'}"></i>
-                        </button>
-                        <span class="text-truncate"><span class="badge ${e.mikor === 'ma' ? 'bg-danger' : 'bg-secondary'} me-1">${e.mikor}</span>
-                        ${escapeHtml(e.tantargy)} – ${escapeHtml(e.megnevezes)}</span></div>`);
-                });
-            }
-            const jegyek = res.uj_jegyek || [];
-            let $j = $('#maJegyek').empty();
-            if (!jegyek.length) {
-                $j.append('<span class="text-muted">Nincs új jegy.</span>');
-            }
-            jegyek.slice(0, 6).forEach(function(j) {
-                $j.append(`<div class="text-truncate"><span class="badge bg-primary me-1">${j.szam_ertek || ''}</span>` +
-                    `${escapeHtml(j.tantargy)}</div>`);
-            });
-            const db = res.olvasatlan_db || 0;
-            let $u = $('#maUzenetek').empty();
-            if (!db) {
-                $u.append('<span class="text-muted">Nincs olvasatlan.</span>');
-            } else {
-                $u.append(`<div class="fw-bold">${db} olvasatlan</div>`);
-                (res.uzenetek || []).slice(0, 3).forEach(function(m) {
-                    $u.append(`<div class="text-truncate"><button type="button" class="btn btn-link p-0 text-start small ma-uzenet"` +
-                        ` data-id="${m.id}" data-diak="${escapeHtml(m.diak_nev)}">${escapeHtml(m.targy)}</button></div>`);
-                });
-            }
-            $('#maOsszefoglalo').text(`${orak.length} óra · ` +
-                `${hat.filter(function(e) { return !e.kesz; }).length} határidő · ${db} olvasatlan`);
-        }).fail(function() {
-            $('#maOsszefoglalo').text('');
-        });
-    }
-
-    $('#maHataridok').on('click', '.ma-kesz', function(e) {
-        e.stopPropagation();
-        const id = Number($(this).data('id'));
-        const kesz = Number($(this).data('kesz')) ? 0 : 1;
-        $.ajax({
-            url: '/api/esemeny/statusz',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({id: id, kesz: kesz})
-        }).done(function() {
-            loadData();
-        });
-    });
-
-    $('#maUzenetek').on('click', '.ma-uzenet', function() {
-        const id = Number($(this).data('id'));
-        const diak = $(this).data('diak') || '';
-        showMainTab('uzenetek-tab');
-        let msg = (rawUzenetek || []).find(function(m) { return m.id === id; });
-        if (msg) {
-            openUzenetModal(msg);
-        } else {
-            $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(diak)}`, function(list) {
-                const found = (list || []).find(function(m) { return m.id === id; });
-                if (found) openUzenetModal(found);
-            });
-        }
-    });
 
     $('#btnKereses').on('click', keresesModalNyitas);
     $(document).on('keydown', function(e) {
