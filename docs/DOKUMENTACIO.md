@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Dokumentum verziója** | 1.1 |
+| **Dokumentum verziója** | 1.2 (a dokumentumok a `docs/` mappába rendezve) |
 | **A rendszer verziója** | v1.9.2 (éles, 2026-11-06) |
 | **Utolsó frissítés** | 2026-11-06 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
@@ -589,8 +589,8 @@ következők kerülnek: `app.py`, `kreta_*.py`, `requirements.txt`, `Dockerfile`
 (a csatolmányok nélkül) és `backup/kreta_backup.sh` (a `-InstallBackup` kapcsolóhoz).
 **Soha nem kerül fel:** `config.json`, `*.db`, `api_tokens.json`, `.env`, `sync.log`,
 `browser_user_data/`, `static/csatolmanyok/`, `tests/`, `.opencode/`, `poc/`,
-`tools/`, `OSSZEFOGLALO-*.md`, `README.md`, `DOKUMENTACIO.md`, `rendszerterv.md`,
-`deploy.ps1`, `KretaApp_Start.bat`. A `.dockerignore` ugyanezt kizárja a képből is.
+`tools/`, `docs/` (a dokumentáció), `deploy.ps1`, `KretaApp_Start.bat`. A `.dockerignore`
+ugyanezt kizárja a képből is.
 A deploy a korábbi futásokból ott maradt fejlesztői fájlokat/mappákat a
 szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
@@ -744,7 +744,8 @@ Kreta/
 ├── kreta_adatok.db        # adatbázis (NEM verziózott)
 ├── Dockerfile, docker-compose.yml, entrypoint.sh
 ├── deploy.ps1             # élesítő script
-└── README.md, DOKUMENTACIO.md, rendszerterv.md
+├── docs/                  # dokumentáció (DOKUMENTACIO, rendszerterv, AI-terv, összefoglalók)
+└── README.md
 ```
 
 ### 9.3. Tesztek
@@ -918,9 +919,11 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | Fájl | Tartalom |
 |---|---|
 | `README.md` | Rövid üzemeltetői útmutató, telepítés, konfiguráció |
-| `rendszerterv.md` | Eredeti követelményjegyzék és rendszerterv |
+| `docs/rendszerterv.md` | Eredeti követelményjegyzék és rendszerterv (történeti) |
+| `docs/AI-ELEMZES-TERV.md` | Üzenet-AI (LLM) integráció terve |
+| `docs/osszefoglalo/` | Munkamenet-összefoglalók (dátumozott) |
 | `tests/README.md` | A tesztek leírása és futtatása |
-| `DOKUMENTACIO.md` | **Ez a dokumentum** — teljes rendszerleírás |
+| `docs/DOKUMENTACIO.md` | **Ez a dokumentum** — teljes rendszerleírás |
 
 ---
 
@@ -940,6 +943,7 @@ Frissítendő részek:
 | Biztonsági döntés | 8. pont |
 | Tesztek száma / eszközök | 9.3. pont |
 | Új kiadás | 13. pont (verziótörténet) + a fejléc „A rendszer verziója" |
+| Mappa szerkezet / dokumentum-fájlok helye | README „Mappa szerkezet", 9.1. és 14. pont |
 | Megszűnő korlát vagy új ismert korlát | 10. pont |
 
 A frissítés a fejlesztő (illetve a fejlesztést végző asszisztens) felelőssége; a

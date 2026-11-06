@@ -12,10 +12,9 @@ static/csatolmanyok/
 deploy.ps1
 KretaApp_Start.bat
 backup/
-rendszerterv.md
+docs/
 README.md
 tests/
-DOKUMENTACIO.md
 scheduler_state.json.migrated
 
 # Fejlesztői / agent-eszközök és POC — nem futásidejűek

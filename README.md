@@ -1,6 +1,6 @@
 # 🎓 KRÉTA Adatbázis Áttekintő & Zsebpénz Menedzser
 
-> **Teljes rendszerdokumentáció:** [`DOKUMENTACIO.md`](DOKUMENTACIO.md) — üzleti áttekintés,
+> **Teljes rendszerdokumentáció:** [`docs/DOKUMENTACIO.md`](docs/DOKUMENTACIO.md) — üzleti áttekintés,
 > architektúra, adatmodell, üzemeltetés, hibaelhárítás, verziótörténet.
 
 Egy központi, **Flask + Playwright** alapú webes alkalmazás, amely automatikusan lekéri és
@@ -253,7 +253,7 @@ hosszú, véletlen nevet. Ellenőrzés a futó appnál: `POST /api/ntfy/test` (t
 és megmondja, van-e beállított topic).
 
 A forrás és a fallback oka a `sync.log`-ban és a futásnapló `sources` mezőjében látszik
-(`DOKUMENTACIO.md` 3.2.1). Amelyik adatkörhöz még nincs API-implementáció, azt a
+(`docs/DOKUMENTACIO.md` 3.2.1). Amelyik adatkörhöz még nincs API-implementáció, azt a
 Playwright fedi le.
 
 ### Környezeti változók
@@ -342,7 +342,11 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 ├── kreta_adatok.db         # SQLite adatbázis (NEM verziózott)
 ├── Dockerfile, docker-compose.yml, entrypoint.sh
 ├── deploy.ps1              # élesítő script (Samba + SSH)
-├── DOKUMENTACIO.md         # teljes rendszerdokumentáció
+├── docs/
+│   ├── DOKUMENTACIO.md     # teljes rendszerdokumentáció
+│   ├── rendszerterv.md     # eredeti követelményjegyzék (történeti)
+│   ├── AI-ELEMZES-TERV.md  # üzenet-AI integráció terve
+│   └── osszefoglalo/       # munkamenet-összefoglalók
 └── README.md
 ```
 
@@ -429,7 +433,7 @@ telepíti a mentő-cront.
 | v1.1.x | Automatikus ütemező, PDF ő/ű javítás, verzió a fejlécben |
 | v1.0.x | Docker-élesítés, mentés, alapfunkciók |
 
-A teljes lista: [`DOKUMENTACIO.md` 13. fejezet](DOKUMENTACIO.md).
+A teljes lista: [`DOKUMENTACIO.md` 13. fejezet](docs/DOKUMENTACIO.md).
 
 ---
 
@@ -437,6 +441,8 @@ A teljes lista: [`DOKUMENTACIO.md` 13. fejezet](DOKUMENTACIO.md).
 
 | Fájl | Tartalom |
 |---|---|
-| [`DOKUMENTACIO.md`](DOKUMENTACIO.md) | Teljes rendszerdokumentáció (üzleti + technikai) |
-| [`rendszerterv.md`](rendszerterv.md) | Eredeti követelményjegyzék |
+| [`docs/DOKUMENTACIO.md`](docs/DOKUMENTACIO.md) | Teljes rendszerdokumentáció (üzleti + technikai) |
+| [`docs/rendszerterv.md`](docs/rendszerterv.md) | Eredeti követelményjegyzék (történeti) |
+| [`docs/AI-ELEMZES-TERV.md`](docs/AI-ELEMZES-TERV.md) | Üzenet-AI (LLM) integráció terve |
+| [`docs/osszefoglalo/`](docs/osszefoglalo/) | Munkamenet-összefoglalók (naptárazott) |
 | [`tests/README.md`](tests/README.md) | A tesztek leírása |
