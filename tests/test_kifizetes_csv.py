@@ -90,7 +90,7 @@ res = client.get("/api/kifizetesek/export.csv?diak=Teszt%20Elek")
 text = res.get_data(as_text=True)
 ok("Teszt Elek" in text and "Másik Diák" not in text, "a diák-szűrő működik")
 
-print("\n2) Valódi Excel (.xlsx) export (Kaneo #11)")
+print("\n2) Valódi Excel (.xlsx) export — az egyenleg összetétele (Kaneo #11 / #77)")
 res_x = client.get("/api/kifizetesek/export.xlsx")
 ok(res_x.status_code == 200, f"az XLSX végpont 200 ({res_x.status_code})")
 ok("spreadsheetml.sheet" in (res_x.headers.get("Content-Type") or ""),
@@ -99,8 +99,27 @@ ok(".xlsx" in (res_x.headers.get("Content-Disposition") or ""),
    f".xlsx fájlnév ({res_x.headers.get('Content-Disposition')})")
 
 wb = openpyxl.load_workbook(io.BytesIO(res_x.data))
-ok(wb.sheetnames == ["Kifizetések", "Tételes zsebpénz"],
-   f"két munkalap: {wb.sheetnames}")
+ok(wb.sheetnames == ["Elszámolás", "Tételes zsebpénz", "Kifizetések"],
+   f"három munkalap: {wb.sheetnames}")
+
+ws_ossz = wb["Elszámolás"]
+ossz = {r[0]: r[1] for r in ws_ossz.iter_rows(min_row=2, values_only=True)}
+ok(ossz.get("Jegyek összege (Ft)") == 500 and ossz.get("Feljegyzések összege (Ft)") == 500,
+   f"összegzés összegei: {ossz}")
+ok(ossz.get("Egyenleg (Ft)") == 1000, f"egyenleg a tételes listából: {ossz.get('Egyenleg (Ft)')}")
+ok(ossz.get("Tételek száma") == 2, f"tételek száma: {ossz.get('Tételek száma')}")
+
+ws2 = wb["Tételes zsebpénz"]
+headers2 = [c.value for c in ws2[1]]
+ok(headers2 == ["Dátum", "Gyerek", "Típus", "Megnevezés", "Részletek", "Összeg (Ft)"],
+   f"Tételes fejléc: {headers2}")
+rows2 = list(ws2.iter_rows(min_row=2, values_only=True))
+ok(len(rows2) == 3, f"2 tétel + Összesen sor: {len(rows2)}")
+ok(rows2[-1][4] == "Összesen" and rows2[-1][5] == 1000,
+   f"a tételes lista végén az összesen: {rows2[-1]}")
+kategoriak = {r[3] for r in rows2[:-1]}
+ok("Dicséret" in kategoriak and any("Matematika" in k for k in kategoriak),
+   f"tételes kategóriák: {kategoriak}")
 
 ws1 = wb["Kifizetések"]
 headers1 = [c.value for c in ws1[1]]
@@ -113,21 +132,51 @@ ok(rows1[0][1] == "Másik Diák" and rows1[0][2] == 300 and rows1[0][5] == "nem"
 ok(rows1[1][1] == "Teszt Elek" and rows1[1][2] == 500 and rows1[1][5] == "igen",
    f"második sor: {rows1[1][:6]}")
 
-ws2 = wb["Tételes zsebpénz"]
-headers2 = [c.value for c in ws2[1]]
-ok(headers2 == ["Dátum", "Gyerek", "Összeg (Ft)", "Kategória", "Megjegyzés"],
-   f"Tételes fejléc: {headers2}")
-rows2 = list(ws2.iter_rows(min_row=2, values_only=True))
-ok(len(rows2) == 2, f"2 tételes sor (jegy + dicséret): {len(rows2)}")
-kategoriak = {r[3] for r in rows2}
-ok("Dicséret" in kategoriak and any("Matematika" in k for k in kategoriak),
-   f"tételes kategóriák: {kategoriak}")
-
 res_x_diak = client.get("/api/kifizetesek/export.xlsx?diak=Teszt%20Elek")
 wb_d = openpyxl.load_workbook(io.BytesIO(res_x_diak.data))
 rows_d = list(wb_d["Kifizetések"].iter_rows(min_row=2, values_only=True))
 ok(len(rows_d) == 1 and rows_d[0][1] == "Teszt Elek",
    f"XLSX diák-szűrő működik ({len(rows_d)} sor)")
+
+print("\n2b) Az export az időszakra szűr, és a felület számával egyezik (Kaneo #77)")
+# Egy régebbi (szeptemberi) jegy: nem lehet benne az októberi exportban.
+conn = sqlite3.connect(db)
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, bej_datum, mod, tema, tanev)"
+    " VALUES (?,?,?,?,?,?,?,?,?)",
+    ("Teszt Elek", "Értékelés", "Fizika", "Jó (4)", 4, "2026.09.10.", "Dolgozat", "Erők", "2026/2027"),
+)
+conn.commit()
+conn.close()
+
+params = "diak=Teszt%20Elek&kezdo_datum=2026-10-01&zaro_datum=2026-10-31"
+res_p = client.get("/api/kifizetesek/export.xlsx?" + params)
+ok(res_p.status_code == 200, f"időszakos export 200 ({res_p.status_code})")
+ok("20261001" in (res_p.headers.get("Content-Disposition") or ""),
+   f"a fájlnév tartalmazza az időszakot ({res_p.headers.get('Content-Disposition')})")
+wb_p = openpyxl.load_workbook(io.BytesIO(res_p.data))
+ossz_p = {r[0]: r[1] for r in wb_p["Elszámolás"].iter_rows(min_row=2, values_only=True)}
+rows_p = list(wb_p["Tételes zsebpénz"].iter_rows(min_row=2, values_only=True))
+ok(len(rows_p) == 3, f"októberben 2 tétel + összesen: {len(rows_p)}")
+ok(all(r[0] != "2026.09.10." for r in rows_p),
+   "a szeptemberi jegy kimarad az októberi exportból")
+ok(ossz_p.get("Egyenleg (Ft)") == 1000, f"októberi egyenleg: {ossz_p.get('Egyenleg (Ft)')}")
+ok(ossz_p.get("Időszak") == "2026-10-01 – 2026-10-31",
+   f"az időszak felirata: {ossz_p.get('Időszak')}")
+
+# Ugyanaz a szám, mint a felület (/api/statisztika) által mutatott érték.
+stat = client.get("/api/statisztika?" + params).get_json() or {}
+ok(stat.get("vegosszeg") == ossz_p.get("Egyenleg (Ft)"),
+   f"az Excel egyenlege = a felület egyenlege ({stat.get('vegosszeg')})")
+ok(len(stat.get("teteles_lista") or []) == 2,
+   f"a felület tételes listája is 2 elem ({len(stat.get('teteles_lista') or [])})")
+ok(stat.get("jegy_total_count") == 1,
+   "a szeptemberi jegy nem számít bele az októberi statisztikába")
+
+res_all = client.get("/api/kifizetesek/export.xlsx?diak=Teszt%20Elek")
+wb_all = openpyxl.load_workbook(io.BytesIO(res_all.data))
+rows_all = list(wb_all["Tételes zsebpénz"].iter_rows(min_row=2, values_only=True))
+ok(len(rows_all) == 4, f"időszak nélkül mind a 3 tétel (+ összesen): {len(rows_all)}")
 
 print("\n3) Üzenetek helyi olvasott/olvasatlan állapota és tartalom (Kaneo #11)")
 uz_res = client.get("/api/uzenetek")
