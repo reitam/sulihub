@@ -5,6 +5,7 @@ Statisztika (KRÉ-14 #96): tanévek, dashboard, tantárgyi átlagok.
 Az `app.py`-ból kiemelve, viselkedésváltozás nélkül. Prefix nélküli blueprint —
 az URL-ek változatlanok.
 """
+import math
 import os
 import sqlite3
 
@@ -15,7 +16,8 @@ from kreta_db import get_db_connection
 from kreta_paths import DB_FILE
 from kreta_settings import load_config
 from views_common import (
-    _has_tanev_column, _tanev_from_request, hianyzas_osszesito, make_bp, normalize_date,
+    _date_range_from_request, _has_tanev_column, _tanev_from_request,
+    hianyzas_osszesito, make_bp, normalize_date,
 )
 
 bp = make_bp("stats")
@@ -331,3 +333,199 @@ def api_atlagok():
         "tanev": tanev_szuro,
         "aktualis_tanev": kreta_tanev.current_tanev(),
     })
+
+
+# ==============================================================================
+# === „Milyen jegy kell?” kalkulátor (Kaneo #78) ==============================
+# ==============================================================================
+def szukseges_jegy(jegyek, cel, uj_suly=100, max_darab=20):
+    """Mennyi/osztályzat kell a célátlaghoz a KRÉTA súlyozásával.
+
+    `jegyek`: `(érdemjegy, súlyszázalék)` párok. A 0%-os súlyú jegy nem számít
+    bele (mint a KRÉTA és a mi átlagaink); ha egy jegynek sincs súlya, egyszerű
+    átlaggal számolunk (régi adat).
+
+    A `cel` eléréséhez vagy **egy** új jegy kell (1–5), vagy több **ötös**;
+    ha még az sem elég, a cél nem érhető el.
+    """
+    def _alap(**kwargs):
+        out = {
+            "elerheto": False,
+            "cel": round(float(cel), 2),
+            "uj_suly": uj_suly,
+            "aktualis_atlag": None,
+            "jegy_db": 0,
+            "suly_db": 0,
+            "szukseges_jegy": None,
+            "szukseges_darab": None,
+            "varhato_atlag": None,
+            "mod": "sulyozott",
+            "uzenet": "",
+        }
+        out.update(kwargs)
+        return out
+
+    parok = []
+    for ertek, suly in jegyek:
+        try:
+            ertek = int(ertek)
+            suly = int(suly or 0)
+        except (TypeError, ValueError):
+            continue
+        if ertek in (1, 2, 3, 4, 5):
+            parok.append((ertek, suly))
+    if not parok:
+        return _alap(uzenet="Ehhez a tantárgyhoz még nincs jegy.")
+
+    cel = float(cel)
+    sulyos = [(e, s) for e, s in parok if s > 0]
+    if sulyos:
+        ossz_suly = sum(s for _e, s in sulyos)
+        ossz_pont = sum(e * s for e, s in sulyos)
+        aktualis = ossz_pont / ossz_suly
+        mod = "sulyozott"
+    else:
+        ossz_suly = 0
+        ossz_pont = sum(e for e, _s in parok)
+        aktualis = ossz_pont / len(parok)
+        mod = "egyszeru"
+
+    kozos = {
+        "aktualis_atlag": round(aktualis, 2),
+        "jegy_db": len(parok),
+        "suly_db": len(sulyos),
+        "mod": mod,
+    }
+
+    if cel <= aktualis + 1e-9:
+        return _alap(elerheto=True, varhato_atlag=round(aktualis, 2),
+                     uzenet=f"Már megvan: {aktualis:.2f} (cél {cel:.2f}).", **kozos)
+
+    if mod == "sulyozott":
+        if cel >= 5 - 1e-9:
+            return _alap(uzenet="Ötös célátlag csak akkor lehet, ha már minden jegy ötös.",
+                         **kozos)
+        kell = (cel * (ossz_suly + uj_suly) - ossz_pont) / uj_suly
+        if kell <= 5 + 1e-9:
+            jegy = max(1, min(5, math.ceil(kell - 1e-9)))
+            varhato = (ossz_pont + jegy * uj_suly) / (ossz_suly + uj_suly)
+            return _alap(
+                elerheto=True, szukseges_jegy=jegy, szukseges_darab=1,
+                varhato_atlag=round(varhato, 2),
+                uzenet=(f"1 db {jegy}-es jegy kell ({aktualis:.2f} → {varhato:.2f})."
+                        if jegy != 5 else
+                        f"1 db 5-ös jegy kell ({aktualis:.2f} → {varhato:.2f})."),
+                **kozos)
+        darab = math.ceil((cel * ossz_suly - ossz_pont) / (uj_suly * (5 - cel)) - 1e-9)
+        if darab < 1:
+            darab = 1
+        if darab > max_darab:
+            return _alap(uzenet=f"Ebben az időszakban már nem érhető el ({darab} db 5-ös "
+                                f"kellene, a cél {cel:.2f}).", **kozos)
+        varhato = (ossz_pont + 5 * uj_suly * darab) / (ossz_suly + uj_suly * darab)
+        return _alap(
+            elerheto=True, szukseges_jegy=5, szukseges_darab=darab,
+            varhato_atlag=round(varhato, 2),
+            uzenet=f"{darab} db 5-ös jegy kell ({aktualis:.2f} → {varhato:.2f}).",
+            **kozos)
+
+    # Súlyadat nélküli (régi) adat: egyszerű átlag.
+    if cel >= 5 - 1e-9:
+        return _alap(uzenet="Ötös célátlag csak akkor lehet, ha már minden jegy ötös.",
+                     **kozos)
+    kell = cel * (len(parok) + 1) - ossz_pont
+    if kell <= 5 + 1e-9:
+        jegy = max(1, min(5, math.ceil(kell - 1e-9)))
+        varhato = (ossz_pont + jegy) / (len(parok) + 1)
+        return _alap(
+            elerheto=True, szukseges_jegy=jegy, szukseges_darab=1,
+            varhato_atlag=round(varhato, 2),
+            uzenet=f"1 db {jegy}-es jegy kell ({aktualis:.2f} → {varhato:.2f}).",
+            **kozos)
+    darab = math.ceil((cel * len(parok) - ossz_pont) / (5 - cel) - 1e-9)
+    if darab < 1:
+        darab = 1
+    if darab > max_darab:
+        return _alap(uzenet=f"Ebben az időszakban már nem érhető el ({darab} db 5-ös "
+                            f"kellene, a cél {cel:.2f}).", **kozos)
+    varhato = (ossz_pont + 5 * darab) / (len(parok) + darab)
+    return _alap(
+        elerheto=True, szukseges_jegy=5, szukseges_darab=darab,
+        varhato_atlag=round(varhato, 2),
+        uzenet=f"{darab} db 5-ös jegy kell ({aktualis:.2f} → {varhato:.2f}).",
+        **kozos)
+
+
+@bp.route("/api/jegy_kalkulator")
+def api_jegy_kalkulator():
+    """„Milyen jegy kell?” — tantárgy + célátlag + a következő jegy súlya (Kaneo #78)."""
+    tantargy = (request.args.get("tantargy") or "").strip()
+    if not tantargy:
+        return jsonify({"error": "Válassz tantárgyat."}), 400
+    try:
+        cel = float((request.args.get("cel") or "4.5").replace(",", "."))
+    except ValueError:
+        return jsonify({"error": "A célátlag nem szám."}), 400
+    if not 1 <= cel <= 5:
+        return jsonify({"error": "A célátlag 1 és 5 között lehet."}), 400
+    try:
+        uj_suly = int(request.args.get("suly") or 100)
+    except ValueError:
+        return jsonify({"error": "A súly nem szám."}), 400
+    if uj_suly <= 0:
+        return jsonify({"error": "A súly nagyobb kell legyen 0-nál."}), 400
+
+    diak = request.args.get("diak", "")
+    kezdo, zaro = _date_range_from_request()
+    tanev_szuro = _tanev_from_request()
+
+    jegyek = []
+    if os.path.exists(DB_FILE):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            query = ("SELECT szam_ertek, suly_szazalek, bej_datum FROM esemenyek"
+                     " WHERE esemeny_tipus = 'Értékelés' AND tantargy = ?")
+            params = [tantargy]
+            if diak:
+                query += " AND diak_nev = ?"
+                params.append(diak)
+            if tanev_szuro:
+                query += " AND tanev = ?"
+                params.append(tanev_szuro)
+            has_suly = True
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+        except sqlite3.Error:
+            # Régi DB: nincs suly_szazalek oszlop.
+            has_suly = False
+            query = ("SELECT szam_ertek, bej_datum FROM esemenyek"
+                     " WHERE esemeny_tipus = 'Értékelés' AND tantargy = ?")
+            params = [tantargy]
+            if diak:
+                query += " AND diak_nev = ?"
+                params.append(diak)
+            if tanev_szuro:
+                query += " AND tanev = ?"
+                params.append(tanev_szuro)
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+        for row in rows:
+            dat = normalize_date(row["bej_datum"])
+            if dat:
+                if kezdo and dat < kezdo:
+                    continue
+                if zaro and dat > zaro:
+                    continue
+            jegyek.append((row["szam_ertek"], row["suly_szazalek"] if has_suly else 0))
+        conn.close()
+
+    eredmeny = szukseges_jegy(jegyek, cel, uj_suly=uj_suly)
+    eredmeny.update({
+        "tantargy": tantargy,
+        "diak": diak,
+        "tanev": tanev_szuro,
+        "kezdo_datum": kezdo or "",
+        "zaro_datum": zaro or "",
+    })
+    return jsonify(eredmeny)
