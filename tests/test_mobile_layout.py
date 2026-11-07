@@ -8,6 +8,7 @@ koppintható célok nem túl kicsik.
 """
 import json
 import os
+import re
 import socket
 import sqlite3
 import subprocess
@@ -387,6 +388,18 @@ try:
             await page.wait_for_timeout(1200)
             tema2 = await page.evaluate("() => document.documentElement.getAttribute('data-bs-theme')")
             ok(tema2 == 'dark', "a választás újratöltés után is megmarad (localStorage)")
+            chip = await page.evaluate("""() => {
+                const e = [...document.querySelectorAll('#dashboardDiakChips .chip-diak')]
+                    .find(x => !x.classList.contains('active'));
+                if (!e) return null;
+                const s = getComputedStyle(e);
+                return {color: s.color, border: s.borderColor};
+            }""")
+            def _vilagossag(c):
+                p = [int(x) for x in re.findall(r"\d+", c or "")[:3]]
+                return sum(p) if len(p) == 3 else 0
+            ok(chip is not None and _vilagossag(chip["color"]) > 300,
+               f"sötét módban a szűrő-címkék olvashatók ({chip})")
             await page.click('#btnTheme')
             await page.wait_for_timeout(200)
 
@@ -406,6 +419,12 @@ try:
             ok(nyomtat["tablak"] >= 1 and nyomtat["sorok"] >= 1,
                f"a nyomtatási nézet felépül ({nyomtat['tablak']} tábla, {nyomtat['sorok']} sor)")
             ok("Reiner" in nyomtat["diak"], f"a nyomtatási nézetben ott a diák neve ('{nyomtat['diak']}')")
+            cim = await page.evaluate("() => document.title")
+            ok(cim.startswith("SuliHub - Órarend -") and cim.count(" - ") >= 3,
+               f"a nyomtatási fejléc a dokumentum címe: gyerek + időszak ('{cim}')")
+            meta = await page.evaluate(
+                "() => (document.querySelector('#printOrarend .print-meta') || {}).innerText || ''")
+            ok(meta.strip() != "", f"a nyomtatási tartalom fejlécében is ott a gyerek és az időszak ('{meta}')")
 
             await b.close()
 

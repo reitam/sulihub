@@ -450,6 +450,18 @@
         [data-bs-theme="dark"] .bg-light { background-color: #1c2126 !important; }
         [data-bs-theme="dark"] .table-light { --bs-table-bg: #1c2126; --bs-table-color: var(--bs-body-color); }
         [data-bs-theme="dark"] .text-secondary { color: #adb5bd !important; }
+/* Sötét módban a körvonalas gombok (gyermek-chipek, nyomtatás) olvashatók legyenek
+   — a Bootstrap outline-dark alapból sötét szöveget/szegélyt hagy (Kaneo #112). */
+[data-bs-theme="dark"] .btn-outline-dark:not(.active) {
+    color: #ced4da !important;
+    border-color: #6c757d !important;
+}
+[data-bs-theme="dark"] .btn-outline-dark:not(.active):hover,
+[data-bs-theme="dark"] .btn-outline-dark:not(.active):focus {
+    color: #fff !important;
+    background-color: #495057 !important;
+    border-color: #6c757d !important;
+}
         [data-bs-theme="dark"] .balance-card-positive { filter: saturate(.85) brightness(.9); }
         [data-bs-theme="dark"] .cell-truncate { color: var(--bs-body-color); }
 
@@ -462,6 +474,7 @@
             #printOrarend { display: block !important; color: #000; font-size: 11pt; }
             #printOrarend h2 { font-size: 15pt; margin: 0 0 2mm 0; }
             #printOrarend h3 { font-size: 13pt; margin: 4mm 0 2mm 0; }
+#printOrarend .print-meta { font-size: 10pt; margin: 0 0 3mm 0; }
             #printOrarend table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; }
             #printOrarend th, #printOrarend td {
                 border: 1px solid #666; padding: 1.2mm; vertical-align: top;
@@ -847,9 +860,6 @@
                     <button class="btn btn-sm btn-outline-dark py-0 px-2 chip-diak" data-diak="{{ d }}" style="font-size: 0.78rem;">{{ d }}</button>
                     {% endfor %}
                 </div>
-                <button id="btnMaFrissit" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.8rem;">
-                    <i class="fa-solid fa-rotate me-1"></i>Frissítés
-                </button>
             </div>
             <h6 class="fw-bold text-secondary mb-2" id="maDatumCim">
                 <i class="fa-solid fa-sun me-2 text-warning"></i>Ma
@@ -1362,9 +1372,10 @@
                             </div>
                         </div>
                         <div id="kalkEredmeny" class="mt-2 small" aria-live="polite"></div>
+                        <div id="kalkJegyek" class="mt-2"></div>
                         <small class="text-muted d-block mt-1">
                             A számítás a KRÉTA súlyozását használja (a 0%-os súlyú jegy kimarad);
-                            az „Összes” a kiválasztott időszakra vonatkozik.
+                            a kalkulátor a kiválasztott tanév <b>teljes</b> jegyállományát veszi figyelembe.
                         </small>
                     </div>
                 </div>

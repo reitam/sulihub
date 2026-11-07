@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Dokumentum verziója** | 1.5 (Kaneo #9, #78, #80, #110, #111) |
+| **Dokumentum verziója** | 1.6 (Kaneo #9, #78, #80, #85, #110–#114) |
 | **A rendszer verziója** | v2.1.0 (kiadásra kész — élesítésre vár) |
 | **Utolsó frissítés** | 2026-11-06 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
@@ -291,9 +291,10 @@ kerülne az exportba (Kaneo #73).
 
 **Ctrl+K** (mobilon a nagyító gomb) → kereső ablak. Egyszerre keres a **jegyekben,
 feljegyzésekben, házikban/számonkérésekben, üzenetekben (a teljes törzsben) és
-hiányzásokban**. Legfeljebb 20 találat, dátum szerint csökkenő sorrendben; a találat
-a megfelelő fület/modalit nyitja (esemény → szűrt lista, üzenet → üzenet-ablak,
-hiányzás → havi nézet). A keresés a `/api/kereses` végponton fut (LIKE, escape-elt
+hiányzásokban**. Legfeljebb 20 találat, dátum szerint csökkenő sorrendben. A találat
+sorára kattintva **az adott sor részletei nyílnak meg** (esemény → részletek modál,
+üzenet → üzenet-ablak, hiányzás → hiányzás részletei); ha az adat időközben elfogyott,
+a megfelelő szűrt nézet nyílik. A keresés a `/api/kereses` végponton fut (LIKE, escape-elt
 speciális karakterekkel), tipikusan <10 ms.
 
 ### 2.11. „Milyen jegy kell?” kalkulátor (Kaneo #78)
@@ -301,16 +302,19 @@ speciális karakterekkel), tipikusan <10 ms.
 A Statisztika fülön tantárgy + **célátlag** + a következő jegy **várható súlya** alapján
 megmondja, **milyen jegy(ek) kellenek**: egy jegy (1–5) vagy több ötös, illetve hogy a cél
 már nem érhető el. A számítás a KRÉTA súlyozását használja (a 0%-os súlyú jegy kimarad;
-súlyadat nélkül egyszerű átlag). A kiválasztott tantárgy **meglévő jegyeit** (dátummal és
-súlyszázalékkal) a kártya kilistázza. A kalkulátor **mindig a teljes tanév jegyállományát**
-veszi figyelembe — az eseménylista időszak-szűrője nem befolyásolja. A tételes válasz a
+súlyadat nélkül egyszerű átlag). A kiválasztott tantárgy **meglévő jegyeit** a kártya
+külön táblázatban listázza (dátum, jegy, súly), a számolás a kártya megnyitásakor
+automatikusan lefut. A kalkulátor **mindig a teljes tanév jegyállományát** veszi figyelembe —
+az eseménylista időszak-szűrője nem befolyásolja. A tételes válasz a
 `/api/jegy_kalkulator` végponton is elérhető (`jegyek` lista).
 
 ### 2.12. UX csomag: sötét mód, nyomtatás, kedvencek (Kaneo #86)
 
 - **Sötét mód:** fejléc-gomb, Bootstrap 5.3 `data-bs-theme`; a választás `localStorage`-ban marad.
+  A körvonalas vezérlők (gyermek-chipek, Nyomtatás) sötét módban is olvasható színt kapnak.
 - **Nyomtatásbarát heti órarend:** a Heti órarend fülön **„Nyomtatás”** — A4 fekvő, nagy
-  betűs, színes táblázat (diákonként, nap × időpont), böngésző-nyomtatással.
+  betűs, színes táblázat (diákonként, nap × időpont), böngésző-nyomtatással. A nyomtatási
+  fejléc (a dokumentum címe) **„SuliHub – Órarend – gyermek – hétfő–vasárnap”** formátumú.
 - **Kitűzött események:** az eseménysorban a **csillag** gomb az Áttekintésre tűzi a tételt
   (stabil tartalom-kulccsal, `app_meta`); a dashboardon megjelenő panelről egy kattintással
   a szűrt listára lehet ugrani vagy le lehet venni.
@@ -332,7 +336,8 @@ kártya (a táblázatok **alatt, alapból csukva**) bontja a hiányzásokat **na
 Az **Áttekintés utáni „Ma” fül** (a dashboard-kártyát a felhasználó elutasította) napi
 összefoglalót ad: **mai órák** (időpont, terem, tanár), **ma és holnap esedékes** házik és
 számonkérések pipával (kattintás → kész jelölés), **friss jegyek** (7 nap) és **olvasatlan
-üzenetek** (kattintás → üzenet-ablak). Saját gyermek-chipek és Frissítés gomb; a fejléc
+üzenetek** (kattintás → üzenet-ablak). Saját gyermek-chipek; a fül megnyitásakor és
+gyermekváltáskor automatikusan frissül (nincs külön Frissítés gomb), a fejléc
 diák-szűrőjét követi. Adatforrás: `/api/ma?diak=&datum=`.
 
 ---
@@ -996,7 +1001,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v1.9.1** *(nem élesedett önállóan — a v1.9.2 tartalmazza)* | **2026-11-05** | **Dashboard-visszatöltés (Kaneo #76):** az Áttekintés saját, szűrés nélküli adatforrást használ (`loadDashboardData`/`dashRaw`), és fülre visszatéréskor azonnal újraszámol — az eseménylistás szűrés után nem maradhat üres csempe/feed (F5 nélkül teljes kép). **CI-determinizmus (Kaneo #75):** a `test_dashboard` a böngésző óráját is rögzíti (`page.clock.install`), így a fix tesztdátum nem csúszik el a másnapi (scheduled) futásban — ez buktatta az éjszakai CI-t. Erősített tesztek (visszatéréskor csempe + feed tele). (A `v1.9.1` tag a `9826e2c` commiton maradt; a felhasználó a **v1.9.2**-vel élesített.) |
 | **v1.9.2** *(2026-11-06, éles)* | **2026-11-06** | **ICS-duplikáció javítás (Kaneo #73, a felhasználó visszadobta):** az órarend-exportban minden esemény kétszer szerepelt — a szinkron az aktuális **és** a következő hetet is leéri, a generator pedig soronként csinált heti `RRULE` eseményt. Most az azonos heti minta (diák + tantárgy + nap + kezdés + időtartam) **egyetlen weekly VEVENT**, a legrégebbi előfordulás kezdetével; éles adaton ellenőrizve: 67 sor → 31 esemény. **Éles ellenőrzés (2026-11-06):** `/health` = `v1.9.2`; a tanév ICS exportban 109 egyedi heti minta, **0 duplikáció**. Tartalmazza a v1.9.1-re tervezett #76 dashboard- és #75 CI-fixet is. **1051 ellenőrzés / 37 csomag** |
 | **v2.0.0** *(refaktor, kiadásra kész)* | **2026-11-06** | **KRÉ-14 monolit-bontás, viselkedésváltozás nélkül.** `app.py` 4 107 → ~1 180 sor: a DB-réteg (`kreta_db`), az útvonalak (`kreta_paths`), a beállítások (`kreta_settings`) és a közös nézet-segédek (`views_common`) kiemelve; a HTTP-réteg **8 prefix nélküli blueprintbe** (`views_pages/events/orarend/messages/absences/stats/rewards`, `kreta_exports`), a stateful mag (sync/ütemező/ntfy/napló) szándékosan az `app.py`-ban maradt (a tesztek monkeypatch-elik). A frontend inline scriptje `static/js/core.js` + `static/js/app-main.js` alá került (`?v=` cache-busttal). **Futásidejű adatok `data/` alá** (DB, config, napló, tokenek, böngészőprofil, csatolmányok) legacy-fallbackkel és `tools/migrate_local_data.py` migráló/rollback szkripttel. **Az audit után javítva:** a tanév-szűrős súlyozott átlag (F1), a `data/` auto-létrehozás (F2), a Docker-füstteszt teljes modulgráfja (F3). **Új őrök:** `tests/test_routes_contract.py` (42 rule rule+metódus rögzítése), `tools/api_snapshot.py` (17 végpont válasz-diff), `tests/test_data_dir.py` (útvonal-feloldás + migráció). **1177 ellenőrzés / 39 csomag** (fast 34/1025, browser 5/152) |
-| **v2.1.0** *(kiadásra kész)* | **2026-11-06** | **Öt új funkció (Kaneo #78, #80, #85, #86):** **globális kereső** (Ctrl+K, `/api/kereses` — jegy, feljegyzés, házi, üzenet teljes törzs, hiányzás; találat a megfelelő nézetet nyitja), **„Milyen jegy kell?” kalkulátor** (`/api/jegy_kalkulator`, célátlag + a következő jegy súlya; egy jegy vagy több ötös, elérhetetlen cél), **UX csomag** (sötét mód `data-bs-theme`-tel + localStorage, nyomtatásbarát A4 fekvő heti órarend, kitűzött események a dashboardon `app_meta`-ban), **tantárgyi trend + hiányzás-mintázat** (`/api/atlagok` trend + romlás-figyelmeztetés, sparkline a táblázatban; `/api/hianyzas-mintazat` nap/óra/tantárgy bontás, a táblázatok alatt csukva). **Follow-upok (2026-11-07, Kaneo #9, #78, #110, #111):** **önálló „Ma” fül** (a dashboard-kártya helyett: mai órák, ma/holnapi házik pipával, friss jegyek, olvasatlan üzenetek), a kalkulátor **kilistázza a tantárgy meglévő jegyeit**, és **mindig a teljes tanév** jegyállományát használja; a **romló tantárgy sáv gyermeknevet és időszakot** is mutat, alatta **javuló tantárgyak** zöld sávja; mobilon az **értékeléseknél a jegy oszlop alapból látszik**. Új tesztek: `test_jegy_kalkulator`, `test_kereses`, `test_kedvencek`, `test_trend`, `test_ma`; a `test_mobile_layout` a sötét módot, a nyomtatást, a látható jegy-oszlopot és a Ma fület is ellenőrzi. **1290 ellenőrzés / 44 csomag** (fast 39/1111, browser 5/179) |
+| **v2.1.0** *(kiadásra kész)* | **2026-11-06** | **Öt új funkció (Kaneo #78, #80, #85, #86):** **globális kereső** (Ctrl+K, `/api/kereses` — jegy, feljegyzés, házi, üzenet teljes törzs, hiányzás; találat a megfelelő nézetet nyitja), **„Milyen jegy kell?” kalkulátor** (`/api/jegy_kalkulator`, célátlag + a következő jegy súlya; egy jegy vagy több ötös, elérhetetlen cél), **UX csomag** (sötét mód `data-bs-theme`-tel + localStorage, nyomtatásbarát A4 fekvő heti órarend, kitűzött események a dashboardon `app_meta`-ban), **tantárgyi trend + hiányzás-mintázat** (`/api/atlagok` trend + romlás-figyelmeztetés, sparkline a táblázatban; `/api/hianyzas-mintazat` nap/óra/tantárgy bontás, a táblázatok alatt csukva). **Follow-upok (2026-11-07, Kaneo #9, #78, #85, #110–#114):** **önálló „Ma” fül** (a dashboard-kártya helyett: mai órák, ma/holnapi házik pipával, friss jegyek, olvasatlan üzenetek), a kalkulátor **táblázatban kilistázza a tantárgy meglévő jegyeit** és **mindig a teljes tanév** jegyállományát használja (nyitáskor automatikusan számol); a **kereső találatára kattintva az adott sor részletei** nyílnak meg; a **romló tantárgy sáv gyermeknevet és időszakot** is mutat, alatta **javuló tantárgyak** zöld sávja; mobilon az **értékeléseknél a jegy oszlop alapból látszik**; **sötét módban a szűrő-címkék olvashatók**; a **Ma fülről a felesleges szürke Frissítés gomb kikerült**; a **nyomtatott órarend fejléce** „SuliHub – Órarend – gyermek – hét”. Új tesztek: `test_jegy_kalkulator`, `test_kereses`, `test_kedvencek`, `test_trend`, `test_ma`; a `test_mobile_layout` a sötét módot, a látható jegy-oszlopot, a Ma fület, a sötét módú címkéket és a nyomtatási fejlécet is ellenőrzi. **1301 ellenőrzés / 44 csomag** (fast 39/1116, browser 5/185) |
 
 ---
 
