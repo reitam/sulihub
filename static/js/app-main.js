@@ -344,7 +344,7 @@ $(document).ready(function() {
                     let toggleTitle = row.olvasott ? 'Megjelölés olvasatlanként' : 'Megjelölés olvasottként';
                     let toggleCls = row.olvasott ? 'btn-outline-secondary' : 'btn-outline-primary';
                     return `<div class="d-inline-flex gap-1 align-items-center">
-                        <button class="btn btn-sm btn-info text-white py-0 px-2 btn-read-msg" data-id="${row.id}" data-index="${meta.row}">
+                        <button class="btn btn-sm btn-info text-dark py-0 px-2 btn-read-msg" data-id="${row.id}" data-index="${meta.row}">
                             <i class="fa-solid fa-eye me-1"></i>Olvasás
                         </button>
                         <button class="btn btn-sm ${toggleCls} py-0 px-1 btn-toggle-msg-read d-none d-sm-inline-block" data-id="${row.id}" title="${toggleTitle}">
@@ -3009,8 +3009,17 @@ $(document).ready(function() {
     function keresesModalNyitas() {
         const el = document.getElementById('keresesModal');
         if (!el) return;
+        const input = document.getElementById('keresesInput');
+        const fokusz = function() {
+            if (!input) return;
+            input.focus({preventScroll: true});
+            try { input.select(); } catch (e) { /* nem kritikus */ }
+        };
+        // A Bootstrap a megjelenítés végén a modálra teszi a fókuszt, ezért a
+        // „shown” esemény után kell a keresőmezőre állítani (Kaneo #117).
+        el.addEventListener('shown.bs.modal', fokusz, {once: true});
         bootstrap.Modal.getOrCreateInstance(el).show();
-        setTimeout(function() { $('#keresesInput').trigger('focus'); }, 200);
+        setTimeout(fokusz, 350);   // tartalék, ha a shown nem fut le
     }
 
     function keresesBadge(t) {
@@ -3250,7 +3259,7 @@ $(document).ready(function() {
                     <span class="${kesz ? 'text-decoration-line-through text-muted' : ''}">
                         <b>${escapeHtml(h.tantargy)}</b> — ${escapeHtml(h.megnevezes)}
                     </span>
-                    <span class="badge bg-light text-dark border">${rovid}</span>${nev}
+                    <span class="badge bg-light text-body border">${rovid}</span>${nev}
                 </div>`;
             }).join('') : maUres('Ma és holnap nincs esedékes házi vagy számonkérés.'));
 
@@ -3258,7 +3267,7 @@ $(document).ready(function() {
             $('#maJegyek').html(jegyek.length ? jegyek.map(function(j) {
                 const kor = (j.szam_ertek >= 1 && j.szam_ertek <= 5)
                     ? `<span class="jegy-kor jegy-${j.szam_ertek}" title="${escapeHtml(j.ertek)}">${j.szam_ertek}</span>`
-                    : `<span class="badge bg-light text-dark border">${escapeHtml(j.ertek)}</span>`;
+                    : `<span class="badge bg-light text-body border">${escapeHtml(j.ertek)}</span>`;
                 const nev = (minden && j.diak_nev)
                     ? `<span class="text-muted">${escapeHtml(j.diak_nev)}</span>` : '';
                 return `<div class="list-group-item py-1 px-2 d-flex align-items-center gap-2">

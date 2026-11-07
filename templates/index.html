@@ -99,7 +99,7 @@
         .avatar-cell { white-space: nowrap; }
         .table-container { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .badge-ertekeles { background-color: #198754 !important; }
-        .badge-feljegyzes { background-color: #fd7e14 !important; }
+        .badge-feljegyzes { background-color: #fd7e14 !important; color: #212529 !important; }
         .badge-hazi { background-color: #0d6efd !important; }
         .badge-szamonkeres { background-color: #dc3545 !important; }
         /* A jegy súlyszázaléka (mobil API) - visszafogott, másodlagos jelzés. */
@@ -450,6 +450,81 @@
         [data-bs-theme="dark"] .bg-light { background-color: #1c2126 !important; }
         [data-bs-theme="dark"] .table-light { --bs-table-bg: #1c2126; --bs-table-color: var(--bs-body-color); }
         [data-bs-theme="dark"] .text-secondary { color: #adb5bd !important; }
+        [data-bs-theme="dark"] .text-success { color: #75b798 !important; }
+        /* A badge-eken a cell-truncate ne írja felül a fehér szöveget. */
+        [data-bs-theme="dark"] .badge.cell-truncate { color: #fff !important; }
+        /* A táblázatok konténere ne maradjon fehér (Kaneo #118). */
+        [data-bs-theme="dark"] .table-container {
+            background: #1c2126;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        /* A sötét szövegosztályok (kártyacímek, összesítő értékek, feliratok)
+           sötét módban világosak legyenek — a gombok/badge-ek saját színét ne bántsuk. */
+        [data-bs-theme="dark"] .text-dark:not(.btn):not(.badge) {
+            color: var(--bs-body-color) !important;
+        }
+        [data-bs-theme="dark"] .dash-tile .kpi-title { color: var(--bs-body-color); }
+        /* A ciánkék modálfejlécen maradjon sötét a szöveg (a text-dark felülírást kivéve). */
+        [data-bs-theme="dark"] .modal-header.bg-info.text-dark,
+        [data-bs-theme="dark"] .modal-header.bg-info.text-dark .modal-title {
+            color: #212529 !important;
+        }
+        /* Fejléc: a karcsú státuszsáv és a verzió-jelvény ne maradjon világos. */
+        [data-bs-theme="dark"] #schedulerCompact {
+            background: #1c2126;
+            border-color: #343a40;
+        }
+        [data-bs-theme="dark"] #schedulerCompact:hover,
+        [data-bs-theme="dark"] #schedulerCompact:focus {
+            background: #23282d;
+            border-color: #495057;
+        }
+        [data-bs-theme="dark"] .app-version {
+            color: #adb5bd;
+            background: #1c2126;
+            border-color: #343a40;
+        }
+        /* Kinyitott accordion-fejlécek (a Bootstrap világos kékje helyett). */
+        [data-bs-theme="dark"] .accordion-button:not(.collapsed) {
+            background-color: #1f3a5f;
+            color: #9ec5fe;
+        }
+        /* Kiemelt sorok: ma / elkészült házi / olvasatlan üzenet. */
+        [data-bs-theme="dark"] table.dataTable tbody tr.today-row td,
+        [data-bs-theme="dark"] table.dataTable.table-striped tbody tr.today-row td {
+            background-color: #3a3520 !important;
+        }
+        [data-bs-theme="dark"] table.dataTable tbody tr.today-row:hover td,
+        [data-bs-theme="dark"] table.dataTable.table-striped tbody tr.today-row:hover td {
+            background-color: #4a4326 !important;
+        }
+        [data-bs-theme="dark"] table.dataTable tbody tr.completed-hazi-row td,
+        [data-bs-theme="dark"] table.dataTable.table-striped tbody tr.completed-hazi-row td {
+            color: #75b798 !important;
+            background-color: #16301f !important;
+        }
+        [data-bs-theme="dark"] table.dataTable tbody tr.completed-hazi-row:hover td,
+        [data-bs-theme="dark"] table.dataTable.table-striped tbody tr.completed-hazi-row:hover td {
+            background-color: #1c3d27 !important;
+        }
+        [data-bs-theme="dark"] #uzenetekTable tbody tr.uzenet-olvasatlan td {
+            background-color: #1c2a3d;
+        }
+        /* FullCalendar: a naptár háttere, rácsa és címe is sötét legyen. */
+        [data-bs-theme="dark"] .fc {
+            --fc-page-bg-color: #1c2126;
+            --fc-neutral-bg-color: #23282d;
+            --fc-border-color: #343a40;
+            --fc-today-bg-color: rgba(13, 110, 253, .16);
+            --fc-list-event-hover-bg-color: #23282d;
+            --fc-event-bg-color: #0d6efd;
+            --fc-event-border-color: #0d6efd;
+            --fc-event-text-color: #fff;
+            --fc-now-indicator-color: #ffc107;
+        }
+        [data-bs-theme="dark"] .fc .fc-toolbar-title { color: var(--bs-body-color); }
+        [data-bs-theme="dark"] .fc-theme-standard td,
+        [data-bs-theme="dark"] .fc-theme-standard th { border-color: #343a40; }
 /* Sötét módban a körvonalas gombok (gyermek-chipek, nyomtatás) olvashatók legyenek
    — a Bootstrap outline-dark alapból sötét szöveget/szegélyt hagy (Kaneo #112). */
 [data-bs-theme="dark"] .btn-outline-dark:not(.active) {
@@ -1532,7 +1607,7 @@
 <div class="modal fade" id="uzenetModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-fullscreen-sm-down">
     <div class="modal-content">
-      <div class="modal-header bg-info text-white p-2 px-3">
+      <div class="modal-header bg-info text-dark p-2 px-3">
         <h6 class="modal-title m-0" id="uzenetModalTitle"><i class="fa-solid fa-envelope-open me-2"></i>Üzenet részletei</h6>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>

@@ -19,7 +19,7 @@ import kreta_tanev
 from kreta_db import get_db_connection, set_meta
 from kreta_paths import DB_FILE
 from kreta_settings import _HEX_SZIN, _orarend_szinek, load_config
-from views_common import make_bp
+from views_common import contrast_text, make_bp
 
 bp = make_bp("orarend")
 
@@ -293,6 +293,7 @@ def api_orarend_naptar():
             "allDay": is_all_day,
             "backgroundColor": bg_color,
             "borderColor": border_color,
+            "textColor": contrast_text(bg_color),
             "extendedProps": {
                 "diak": d_nev,
                 "tantargy": tantargy,
@@ -309,14 +310,16 @@ def api_orarend_naptar():
         title = f"[{d_nev}] {cim}" if multi_student else cim
         if alkalom["terem"]:
             title += f" ({alkalom['terem']})"
+        szin = alkalom.get("szin") or "#6f42c1"
         events.append({
             "id": f"sajat-{alkalom['sajat_id']}-{alkalom['datum']}",
             "title": title,
             "start": f"{alkalom['datum']}T{alkalom['kezdes']}:00",
             "end": f"{alkalom['datum']}T{alkalom['vege']}:00",
             "allDay": False,
-            "backgroundColor": alkalom.get("szin") or "#6f42c1",
-            "borderColor": alkalom.get("szin") or "#6f42c1",
+            "backgroundColor": szin,
+            "borderColor": szin,
+            "textColor": contrast_text(szin),
             "extendedProps": {
                 "sajat": True,
                 "sajat_id": alkalom["sajat_id"],
