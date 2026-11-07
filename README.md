@@ -84,7 +84,8 @@ a saját szerveren maradnak.
 
 ### 📊 Iskolai események
 - DataTables táblázat: szűrés gyermek, típus, tantárgy, aktív/lejárt, dátumtartomány szerint;
-  gyorsszűrők (mai, tárgyhavi, előző havi, aktív), szabad szöveges keresés.
+  gyorsszűrők (mai, tárgyhavi, előző havi, aktív), szabad szöveges keresés. A **szűrőpanel
+  alapból zárva** van, a fejlécére kattintva nyílik ki.
 - A mai bejegyzések kiemelése; részletek modal ablakban.
 - A jegyeknél a **súlyszázalék** is látszik (pl. `5 (Írásbeli) 100%`), a mobil API
   `SulySzazalekErteke` mezőjéből (Playwright-módban a webes hónap-cella tooltipjének
@@ -392,7 +393,7 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**44 csomag, 1339 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**44 csomag, 1340 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
@@ -457,7 +458,7 @@ telepíti a mentő-cront.
 
 | Verzió | Tartalom |
 |---|---|
-| v2.1.x | **Globális kereső (Ctrl+K)** (azonnal aktív mező; a találat sorára kattintva a részletek nyílnak, egységes típus-címkék), **jegy-kalkulátor** (üres alap-választó, meglévő jegyek táblázata, **több várható jegy eltérő súllyal**, **félévi céljegy**, **mentett célátlag**, teljes tanév), **sötét mód + nyomtatás + kedvencek** (átfogó sötét mód, a naptár-események olvasható szövegszíne, nyomtatási fejléc gyerekkel és héttel), **tantárgyi trend + hiányzás-mintázat** (gyermekenkénti romló **és javuló** figyelmeztetés időszakkal), **önálló „Ma” fül**; mobilon a **jegy oszlop alapból látszik** |
+| v2.1.x | **Globális kereső (Ctrl+K)** (azonnal aktív mező; a találat sorára kattintva a részletek nyílnak, egységes típus-címkék), **jegy-kalkulátor** (üres alap-választó, meglévő jegyek táblázata, **több várható jegy eltérő súllyal**, **félévi céljegy**, **mentett célátlag**, teljes tanév), **sötét mód + nyomtatás + kedvencek** (átfogó sötét mód, a naptár-események olvasható szövegszíne, nyomtatási fejléc gyerekkel és héttel), **tantárgyi trend + hiányzás-mintázat** (gyermekenkénti romló **és javuló** figyelmeztetés időszakkal), **önálló „Ma” fül**, **alapból zárt szűrőpanel** az eseménylistán; mobilon a **jegy oszlop alapból látszik** |
 | v2.0.x | **KRÉ-14 refaktor:** `app.py` és a frontend szétbontása (8 blueprint + közös rétegek, `static/js/`), **futásidejű adatok a `data/` alatt** migráló szkripttel; a viselkedés (URL-ek, válaszok, DB-séma) változatlan |
 | v1.9.x | **Saját órák** (kézi szakkör/pluszfoglalkozás tanévre/hétre/egyedi időszakra, saját színnel, **módosítható**, egy alkalom vagy sorozat törlése), **naptárba küldés** házihoz/számonkéréshez/üzenethez (előre kitöltött Google esemény), **órarend ICS export** (hét/hónap/félév/tanév), **futástörténet**, **órarend-színek**, **SuliHub arculat** (logó/név), **modern egysoros fejléc**, opcionális **basic auth**, **DB-indexek/sémaverzió**, **zsebpénz CSV**, **teljes üzenettörzs** (a lista csak előnézet volt — #74), **dashboard szűrőfüggetlen újratöltése** (#76); az AI-elemzés csak API-ként elérhető |
 | v1.8.x | **Offline-képes frontend:** minden CDN-függőség vendorolva a `static/vendor/` alá (Bootstrap, DataTables, FontAwesome, FullCalendar, jQuery), nincs külső hivatkozás; apróságok (#17: `SyntaxWarning`, érvényes `config.json.example`, halott `autoSyncAlert` törlése) |

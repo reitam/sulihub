@@ -242,7 +242,11 @@ try:
         page.click("#tileUjJegyek")
         page.wait_for_timeout(1200)
         ok(page.is_visible("#esemenyek-pane"), "az Események fül megnyílt")
-        ok(page.is_visible("#accordionFilterBlock"), "a szűrőpanel itt látszik")
+        ok(page.is_visible("#accordionFilterBlock") and not page.is_visible("#collapseFilter"),
+           "a szűrőpanel alapból zárva van (csak a fejléc látszik)")
+        page.click('#accordionFilterBlock .accordion-button')
+        page.wait_for_timeout(600)
+        ok(page.is_visible("#collapseFilter"), "kattintásra lenyílik a szűrőpanel")
         ok(page.input_value("#filterTipus") == "Értékelés", "típus = Értékelés")
         rows = page.eval_on_selector_all("#esemenyekTable tbody tr",
                                          "rows => rows.filter(r => r.querySelectorAll('td').length > 1).length")
