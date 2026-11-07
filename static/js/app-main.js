@@ -2485,8 +2485,8 @@ $(document).ready(function() {
         let collapseFilterInstance = bootstrap.Collapse.getInstance(collapseFilterEl) || new bootstrap.Collapse(collapseFilterEl, { toggle: false });
 
         if (e.target.id === 'esemenyek-tab') {
+            // A szűrőpanel alapból zárva van; a felhasználó nyitja ki (Kaneo #120).
             $('#accordionFilterBlock').removeClass('d-none');
-            collapseFilterInstance.show();
         } else {
             $('#accordionFilterBlock').addClass('d-none');
             collapseFilterInstance.hide();
