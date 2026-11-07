@@ -52,12 +52,15 @@ $(document).ready(function() {
     let dataTable = $('#esemenyekTable').DataTable({
         responsive: true,
         language: HU_DT_LANG,
-        // Mobilon ezek az oszlopok maradnak legtovább láthatók (1 = legfontosabb)
+        // Mobilon ezek az oszlopok maradnak legtovább láthatók (1 = legfontosabb).
+        // Az „Érték / Mód” (a jegy) fontosabb, mint a típus-badge: így az
+        // értékeléseknél mobilon is alapból látszik maga a jegy (Kaneo #110).
         columnDefs: [
             { targets: 0, responsivePriority: 1 },   // Diák (avatar)
-            { targets: 1, responsivePriority: 2 },   // Típus
-            { targets: 2, responsivePriority: 3 },   // Tantárgy
-            { targets: 4, responsivePriority: 4 }    // Bejegyzés dátuma
+            { targets: 2, responsivePriority: 2 },   // Tantárgy
+            { targets: 3, responsivePriority: 3 },   // Érték / Mód (a jegy!)
+            { targets: 4, responsivePriority: 4 },   // Bejegyzés dátuma
+            { targets: 1, responsivePriority: 5 }    // Típus (mobilon a legkevésbé fontos)
         ],
         pageLength: 25,
         order: [[4, 'desc']],
@@ -1448,10 +1451,10 @@ $(document).ready(function() {
         if (!lastKalkKontekszt) return;
         const tantargy = $('#kalkTantargy').val();
         if (!tantargy) return;
+        // A kalkulátor mindig a teljes (tanévre szűrt) jegyállományt veszi
+        // figyelembe, nem az eseménylista időszak-szűrését (Kaneo #78).
         let url = `/api/jegy_kalkulator?tantargy=${encodeURIComponent(tantargy)}` +
                   `&diak=${encodeURIComponent(lastKalkKontekszt.diak)}` +
-                  `&kezdo_datum=${encodeURIComponent(lastKalkKontekszt.kezdo)}` +
-                  `&zaro_datum=${encodeURIComponent(lastKalkKontekszt.zaro)}` +
                   `&cel=${encodeURIComponent($('#kalkCel').val() || '4.5')}` +
                   `&suly=${encodeURIComponent($('#kalkSuly').val() || '100')}` +
                   tanevQueryParam();
@@ -1464,6 +1467,16 @@ $(document).ready(function() {
                         `${res.jegy_db} jegy`;
                 if (res.suly_db) html += `, ${res.suly_db} súlyozott`;
                 html += ')</span>';
+            }
+            const jegyek = res.jegyek || [];
+            if (jegyek.length) {
+                html += '<div class="mt-2 small"><span class="text-muted me-1">Meglévő jegyek:</span>' +
+                    jegyek.map(function(j) {
+                        const suly = j.suly
+                            ? ` <span class="text-muted">(${j.suly}%)</span>` : '';
+                        return `<span class="badge text-bg-light border me-1 mb-1" ` +
+                               `title="${escapeHtml(j.datum || '')}">${escapeHtml(j.ertek)}${suly}</span>`;
+                    }).join('') + '</div>';
             }
             $('#kalkEredmeny').html(html);
         }).fail(function(xhr) {
@@ -1886,6 +1899,7 @@ $(document).ready(function() {
         // eseménylista filtrációja nem tudja kiüríteni a csempéket/feedet.
         loadDashboardData();
         loadTrendFigyelmeztetes();
+        loadMaNezet();
 
         if ($('#rewards-tab').length > 0) {
             loadRewardsData();
@@ -2355,6 +2369,10 @@ $(document).ready(function() {
             loadDashboardSummary();
         }
 
+        if (e.target.id === 'ma-tab') {
+            loadMaNezet();
+        }
+
         if (e.target.id === 'logs-tab') {
             loadSyncRuns();
         }
@@ -2507,7 +2525,7 @@ $(document).ready(function() {
     });
 
     // ── Dashboard: csempék, gyermek-chipek, visszalépés ────────────────────
-    $('#filterDiakChips, #dashboardDiakChips').on('click', '.chip-diak', function() {
+    $('#filterDiakChips, #dashboardDiakChips, #maDiakChips').on('click', '.chip-diak', function() {
         setDiakFilter($(this).data('diak') || '');
     });
 
@@ -2941,6 +2959,118 @@ $(document).ready(function() {
         }
     }
 
+    // ── „Ma” önálló nézet (Kaneo #9) ────────────────────────────────────────
+    // A felhasználó a dashboardon elutasította a Ma kártyát; itt külön fülként él.
+    const MA_NAPOK = ['vasárnap', 'hétfő', 'kedd', 'szerda', 'csütörtök', 'péntek', 'szombat'];
+
+    function maDatumFelirat(datum) {
+        const d = new Date(String(datum) + 'T00:00:00');
+        if (isNaN(d.getTime())) return 'Ma';
+        return 'Ma, ' + honapNev(String(datum).slice(0, 7)) + ' ' + d.getDate() +
+               '. (' + MA_NAPOK[d.getDay()] + ')';
+    }
+
+    function maUres(text) {
+        return `<div class="list-group-item text-muted">${escapeHtml(text)}</div>`;
+    }
+
+    function loadMaNezet() {
+        const diak = $('#filterDiak').val() || '';
+        $.getJSON(`/api/ma?diak=${encodeURIComponent(diak)}`, function(res) {
+            const minden = !diak;
+            $('#maDatumCim').html('<i class="fa-solid fa-sun me-2 text-warning"></i>' +
+                                  escapeHtml(maDatumFelirat(res.datum)));
+
+            const orak = res.orak || [];
+            $('#maOraDb').text(orak.length ? `(${orak.length} óra)` : '');
+            $('#maOrak').html(orak.length ? orak.map(function(o) {
+                const nev = (minden && o.diak_nev)
+                    ? ` <span class="text-muted">${escapeHtml(o.diak_nev)}</span>` : '';
+                const hely = [o.terem, o.tanar].filter(Boolean).join(' · ');
+                return `<div class="list-group-item py-1 px-2">
+                    <span class="fw-bold me-2">${escapeHtml(o.kezdes)}–${escapeHtml(o.vege)}</span>
+                    <span>${escapeHtml(o.tantargy)}</span>${nev}
+                    ${hely ? '<span class="text-muted ms-2">' + escapeHtml(hely) + '</span>' : ''}
+                </div>`;
+            }).join('') : maUres('Ma nincs óra.'));
+
+            const hat = res.hataridok || [];
+            $('#maHataridok').html(hat.length ? hat.map(function(h) {
+                const kesz = Number(h.kesz) === 1;
+                const rovid = h.esemeny_tipus === 'Házi feladat' ? 'Házi' : 'Számonkérés';
+                const nev = (minden && h.diak_nev)
+                    ? `<span class="text-muted ms-auto">${escapeHtml(h.diak_nev)}</span>` : '';
+                return `<div class="list-group-item py-1 px-2 d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-link p-0 btn-ma-kesz" data-id="${h.id}"
+                            data-kesz="${kesz ? 0 : 1}"
+                            title="${kesz ? 'Kész jelölés visszavonása' : 'Megjelölés elkészültként'}">
+                        <i class="fa-${kesz ? 'solid fa-square-check text-success' : 'regular fa-square'}"></i>
+                    </button>
+                    <span class="badge bg-${h.mikor === 'ma' ? 'danger' : 'secondary'}">${h.mikor}</span>
+                    <span class="${kesz ? 'text-decoration-line-through text-muted' : ''}">
+                        <b>${escapeHtml(h.tantargy)}</b> — ${escapeHtml(h.megnevezes)}
+                    </span>
+                    <span class="badge bg-light text-dark border">${rovid}</span>${nev}
+                </div>`;
+            }).join('') : maUres('Ma és holnap nincs esedékes házi vagy számonkérés.'));
+
+            const jegyek = res.uj_jegyek || [];
+            $('#maJegyek').html(jegyek.length ? jegyek.map(function(j) {
+                const kor = (j.szam_ertek >= 1 && j.szam_ertek <= 5)
+                    ? `<span class="jegy-kor jegy-${j.szam_ertek}" title="${escapeHtml(j.ertek)}">${j.szam_ertek}</span>`
+                    : `<span class="badge bg-light text-dark border">${escapeHtml(j.ertek)}</span>`;
+                const nev = (minden && j.diak_nev)
+                    ? `<span class="text-muted">${escapeHtml(j.diak_nev)}</span>` : '';
+                return `<div class="list-group-item py-1 px-2 d-flex align-items-center gap-2">
+                    ${kor}<span>${escapeHtml(j.tantargy)}</span>${nev}
+                    <span class="text-muted small ms-auto">${escapeHtml(j.bej_datum)}</span>
+                </div>`;
+            }).join('') : maUres('Az elmúlt 7 napban nincs új jegy.'));
+
+            const db = Number(res.olvasatlan_db) || 0;
+            $('#maOlvasatlanDb').text(db).toggleClass('d-none', db === 0);
+            const uzenetek = res.uzenetek || [];
+            $('#maUzenetek').html(uzenetek.length ? uzenetek.map(function(u) {
+                const nev = (minden && u.diak_nev)
+                    ? `<span class="text-muted"> — ${escapeHtml(u.diak_nev)}</span>` : '';
+                return `<a href="#" class="list-group-item list-group-item-action py-1 px-2 ma-uzenet"
+                           data-id="${u.id}" data-diak="${escapeHtml(u.diak_nev || '')}">
+                    <b>${escapeHtml(u.felado)}</b>${nev}<br>
+                    <span>${escapeHtml(u.targy)}</span>
+                </a>`;
+            }).join('') : maUres('Nincs olvasatlan üzenet.'));
+        });
+    }
+
+    $('#btnMaFrissit').on('click', loadMaNezet);
+
+    $('#ma-pane').on('click', '.btn-ma-kesz', function(e) {
+        e.preventDefault();
+        const $btn = $(this);
+        $.ajax({
+            url: '/api/esemeny/statusz',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({id: Number($btn.data('id')), kesz: Number($btn.data('kesz'))}),
+            success: function(res) {
+                if (res.status === 'ok') {
+                    loadMaNezet();
+                    loadDashboardData();
+                }
+            }
+        });
+    });
+
+    $('#ma-pane').on('click', '.ma-uzenet', function(e) {
+        e.preventDefault();
+        const id = Number($(this).data('id'));
+        const diak = $(this).data('diak') || '';
+        $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(diak)}`, function(list) {
+            const found = (list || []).find(function(m) { return Number(m.id) === id; });
+            if (found) openUzenetModal(found);
+        });
+    });
+
     // ── Tantárgyi trend + hiányzás-mintázat (Kaneo #80) ──────────────────
     function sparklineSvg(honapok) {
         const vals = Object.keys(honapok || {}).sort().map(function(h) {
@@ -2978,16 +3108,37 @@ $(document).ready(function() {
         const diak = $('#filterDiak').val() || '';
         $.getJSON(`/api/atlagok?diak=${encodeURIComponent(diak)}${tanevQueryParam()}`, function(res) {
             const figy = res.figyelmeztetesek || [];
+            const jav = res.javulasok || [];
+            const mindenDiak = !diak;   // „Mind” nézetben a gyermek nevét is kiírjuk
+
+            function trendLista(lista) {
+                return lista.map(function(f) {
+                    const nev = (mindenDiak && f.diak) ? `${escapeHtml(f.diak)} – ` : '';
+                    const idoszak = (f.honapok || []).map(honapNev).join(' → ');
+                    const jel = Number(f.valtozas) > 0 ? '+' : '';
+                    return `${nev}<b>${escapeHtml(f.tantargy)}</b> ` +
+                           `<span class="text-nowrap">(${idoszak}${idoszak ? ', ' : ''}` +
+                           `${jel}${f.valtozas})</span>`;
+                }).join(', ');
+            }
+
             const $box = $('#trendFigyelmeztetes');
             if (!figy.length) {
                 $box.addClass('d-none').empty();
-                return;
+            } else {
+                $box.removeClass('d-none').html(
+                    '<i class="fa-solid fa-arrow-trend-down me-1"></i><b>Romló tantárgy:</b> ' +
+                    trendLista(figy));
             }
-            const lista = figy.map(function(f) {
-                return `${escapeHtml(f.tantargy)} (${f.valtozas})`;
-            }).join(', ');
-            $box.removeClass('d-none').html(
-                '<i class="fa-solid fa-arrow-trend-down me-1"></i><b>Romló tantárgy:</b> ' + lista);
+
+            const $jav = $('#trendJavulas');
+            if (!jav.length) {
+                $jav.addClass('d-none').empty();
+            } else {
+                $jav.removeClass('d-none').html(
+                    '<i class="fa-solid fa-arrow-trend-up me-1"></i><b>Javuló tantárgy:</b> ' +
+                    trendLista(jav));
+            }
         });
     }
 

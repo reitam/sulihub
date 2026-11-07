@@ -228,7 +228,7 @@ def api_atlagok():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    query = ("SELECT tantargy, ertek, szam_ertek, bej_datum, suly_szazalek,"
+    query = ("SELECT diak_nev, tantargy, ertek, szam_ertek, bej_datum, suly_szazalek,"
              " ertekelo, tema, mod FROM esemenyek WHERE esemeny_tipus = 'Értékelés'")
     params = []
     if diak:
@@ -277,6 +277,9 @@ def api_atlagok():
         return {"atlag": atlag, "db": len(items), "jegyek": jegyek}
 
     per_tantargy = {}
+    # A romlás-/javulás-figyelmeztetéshez gyermekenként külön bontunk (Kaneo #111):
+    # „Mind” nézetben a tantárgyak gyerekenként külön trendet kapnak.
+    per_diak_tantargy = {}
     per_honap = {}
     honapok = set()
     mind = []
@@ -308,28 +311,57 @@ def api_atlagok():
         entry = per_tantargy.setdefault(tantargy, {"honapok": {}, "mind": []})
         entry["honapok"].setdefault(honap, []).append(item)
         entry["mind"].append(item)
+        d_nev = (r["diak_nev"] or "").strip()
+        dentry = per_diak_tantargy.setdefault(d_nev, {}).setdefault(
+            tantargy, {"honapok": {}, "mind": []})
+        dentry["honapok"].setdefault(honap, []).append(item)
+        dentry["mind"].append(item)
         per_honap.setdefault(honap, []).append(item)
         mind.append(item)
 
     tantargyak = []
-    figyelmeztetesek = []
     for tantargy in sorted(per_tantargy):
         entry = per_tantargy[tantargy]
         honap_atlagok = {h: summarize(v) for h, v in entry["honapok"].items()}
         trend = _trend_szamitas(honap_atlagok)
-        if trend["irany"] == "romlik" and (trend["valtozas"] or 0) <= -0.5:
-            figyelmeztetesek.append({
-                "tantargy": tantargy,
-                "valtozas": trend["valtozas"],
-                "honapok": trend["honapok"][-2:],
-                "atlagok": [honap_atlagok[h]["atlag"] for h in trend["honapok"][-2:]],
-            })
         tantargyak.append({
             "tantargy": tantargy,
             "honapok": honap_atlagok,
             "osszes": summarize(entry["mind"]),
             "trend": trend,
         })
+
+    # Romló (<= -0.5) és javuló (>= +0.5) tantárgyak gyermekenként, az utolsó
+    # két jegyes hónap összevetésével. A figyelmeztetés így megmondja, kinél
+    # és melyik időszakban történt a változás (Kaneo #111).
+    figyelmeztetesek = []
+    javulasok = []
+    for d_nev in sorted(per_diak_tantargy):
+        for tantargy in sorted(per_diak_tantargy[d_nev]):
+            honap_atlagok = {h: summarize(v)
+                             for h, v in per_diak_tantargy[d_nev][tantargy]["honapok"].items()}
+            trend = _trend_szamitas(honap_atlagok)
+            valtozas = trend.get("valtozas")
+            if valtozas is None:
+                continue
+            if trend["irany"] == "romlik" and valtozas <= -0.5:
+                figyelmeztetesek.append({
+                    "diak": d_nev,
+                    "tantargy": tantargy,
+                    "valtozas": valtozas,
+                    "honapok": trend["honapok"][-2:],
+                    "atlagok": [honap_atlagok[h]["atlag"] for h in trend["honapok"][-2:]],
+                })
+            elif trend["irany"] == "javul" and valtozas >= 0.5:
+                javulasok.append({
+                    "diak": d_nev,
+                    "tantargy": tantargy,
+                    "valtozas": valtozas,
+                    "honapok": trend["honapok"][-2:],
+                    "atlagok": [honap_atlagok[h]["atlag"] for h in trend["honapok"][-2:]],
+                })
+    figyelmeztetesek.sort(key=lambda f: (f["valtozas"], f["diak"], f["tantargy"]))
+    javulasok.sort(key=lambda f: (-f["valtozas"], f["diak"], f["tantargy"]))
 
     def summarize_light(items):
         """Csak az átlag + darabszám (a havi teljes átlagokhoz, jegyek nélkül)."""
@@ -345,6 +377,7 @@ def api_atlagok():
         "tanev": tanev_szuro,
         "aktualis_tanev": kreta_tanev.current_tanev(),
         "figyelmeztetesek": figyelmeztetesek,
+        "javulasok": javulasok,
     })
 
 
@@ -647,11 +680,12 @@ def api_jegy_kalkulator():
     tanev_szuro = _tanev_from_request()
 
     jegyek = []
+    jegy_lista = []
     if os.path.exists(DB_FILE):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            query = ("SELECT szam_ertek, suly_szazalek, bej_datum FROM esemenyek"
+            query = ("SELECT ertek, szam_ertek, suly_szazalek, bej_datum FROM esemenyek"
                      " WHERE esemeny_tipus = 'Értékelés' AND tantargy = ?")
             params = [tantargy]
             if diak:
@@ -666,7 +700,7 @@ def api_jegy_kalkulator():
         except sqlite3.Error:
             # Régi DB: nincs suly_szazalek oszlop.
             has_suly = False
-            query = ("SELECT szam_ertek, bej_datum FROM esemenyek"
+            query = ("SELECT ertek, szam_ertek, bej_datum FROM esemenyek"
                      " WHERE esemeny_tipus = 'Értékelés' AND tantargy = ?")
             params = [tantargy]
             if diak:
@@ -684,8 +718,20 @@ def api_jegy_kalkulator():
                     continue
                 if zaro and dat > zaro:
                     continue
-            jegyek.append((row["szam_ertek"], row["suly_szazalek"] if has_suly else 0))
+            suly = row["suly_szazalek"] if has_suly else 0
+            jegyek.append((row["szam_ertek"], suly))
+            if row["szam_ertek"] in (1, 2, 3, 4, 5):
+                jegy_lista.append({
+                    "datum": dat or "",
+                    "ertek": row["ertek"] or "",
+                    "szam": row["szam_ertek"],
+                    "suly": suly or 0,
+                })
         conn.close()
+
+    # A felületen a tantárgy meglévő jegyeit is kilistázzuk (Kaneo #78) —
+    # legfrissebb elöl, ugyanazokkal a súlyokkal, amikkel a számítás megy.
+    jegy_lista.sort(key=lambda j: j["datum"], reverse=True)
 
     eredmeny = szukseges_jegy(jegyek, cel, uj_suly=uj_suly)
     eredmeny.update({
@@ -694,5 +740,6 @@ def api_jegy_kalkulator():
         "tanev": tanev_szuro,
         "kezdo_datum": kezdo or "",
         "zaro_datum": zaro or "",
+        "jegyek": jegy_lista,
     })
     return jsonify(eredmeny)

@@ -97,10 +97,25 @@ egy = by_t.get("EgyHonap", {}).get("trend") or {}
 ok(egy.get("irany") == "nincs" and egy.get("valtozas") is None,
    f"egy hónap -> nincs trend ({egy})")
 
-print("\n2) Romlás-figyelmeztetés (<= -0.5)")
+print("\n2) Romlás-figyelmeztetés (<= -0.5) és javulás (>= +0.5)")
 figy = d.get("figyelmeztetesek") or []
 ok(len(figy) == 1 and figy[0]["tantargy"] == "Romlo" and figy[0]["valtozas"] == -1.0,
    f"csak a Romlo figyelmeztet: {figy}")
+ok(figy and figy[0].get("diak") == "TrendDiak", f"a figyelmeztetésben benne a gyerek: {figy}")
+ok(figy and figy[0].get("honapok") == ["2026-10", "2026-11"],
+   f"a figyelmeztetésben benne az időszak: {figy and figy[0].get('honapok')}")
+jav = d.get("javulasok") or []
+ok(len(jav) == 1 and jav[0]["tantargy"] == "Javulo" and jav[0]["valtozas"] == 1.0
+   and jav[0].get("diak") == "TrendDiak", f"a Javulo javulásként szerepel: {jav}")
+
+print("\n2b) „Mind” nézet: gyermekenkénti figyelmeztetés")
+d_mind = client.get("/api/atlagok").get_json()
+figy_mind = d_mind.get("figyelmeztetesek") or []
+jav_mind = d_mind.get("javulasok") or []
+ok(len(figy_mind) == 1 and figy_mind[0].get("diak") == "TrendDiak"
+   and figy_mind[0]["tantargy"] == "Romlo", f"gyerek nélkül is megvan a romló: {figy_mind}")
+ok(len(jav_mind) == 1 and jav_mind[0].get("diak") == "TrendDiak"
+   and jav_mind[0]["tantargy"] == "Javulo", f"gyerek nélkül is megvan a javuló: {jav_mind}")
 
 print("\n3) Hiányzás-mintázat")
 m = client.get("/api/hianyzas-mintazat?diak=TrendDiak").get_json()
@@ -123,14 +138,16 @@ ok(ures.get("tantargyak") == [] and ures.get("figyelmeztetesek") == [],
 print("\n5) Felületi kötés")
 html = client.get("/").get_data(as_text=True)
 js = client.get("/static/js/app-main.js").get_data(as_text=True)
-ok('id="trendFigyelmeztetes"' in html and 'id="mintazatCard"' in html
-   and 'id="mintazatNapok"' in html, "a figyelmeztető sáv és a mintázat-kártya a sablonban")
+ok('id="trendFigyelmeztetes"' in html and 'id="trendJavulas"' in html
+   and 'id="mintazatCard"' in html
+   and 'id="mintazatNapok"' in html, "a figyelmeztető/javuló sáv és a mintázat-kártya a sablonban")
 ok('id="mintazatCollapse"' in html and 'collapse' in html.split('id="mintazatCollapse"')[0][-80:],
    "a mintázat alapból csukott (nem kezdésként jelenik meg)")
 ok(html.index('id="mintazatCard"') > html.index('id="hianyzasokTable"'),
    "a mintázat-kártya a hiányzás-táblázat UTÁN van")
-ok("sparklineSvg" in js and "trendCella" in js and "figyelmeztetesek" in js,
-   "a trend-sparkline és a figyelmeztetés a JS-ben")
+ok("sparklineSvg" in js and "trendCella" in js and "figyelmeztetesek" in js
+   and "javulasok" in js and "Javuló tantárgy" in js,
+   "a trend-sparkline és a figyelmeztetés/javulás a JS-ben")
 ok("loadHianyzasMintazat" in js and "/api/hianyzas-mintazat" in js,
    "a mintázat betöltése a JS-ben")
 
