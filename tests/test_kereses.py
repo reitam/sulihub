@@ -143,6 +143,10 @@ ok("keresesModalNyitas" in js and "ctrlKey" in js and "e.key" in js,
    "Ctrl+K / ⌘K gyorsgomb bekötve")
 ok("keresesTalalatMegnyit" in js and "goToEvents" in js and "openUzenetModal" in js
    and "hianyzasok-tab" in js, "a találat a megfelelő nézetet nyitja")
+kb = js.split("function keresesBadge")[1].split("function ")[0]
+ok("badge-ertekeles" in kb and "badge-feljegyzes" in kb and "badge-hazi" in kb
+   and "badge-szamonkeres" in kb and "Bejelentett számonkérés" in kb
+   and "Házi feladat" in kb, "a kereső típus-címkéi egyeznek az Események füllel")
 ok("reszletekModal" in js and "esemenyReszletekSzoveg" in js
    and "hianyzasReszletekSzoveg" in js and "hidden.bs.modal" in js,
    "a találat sorára kattintva az adott sor részletei nyílnak meg (Kaneo #85)")

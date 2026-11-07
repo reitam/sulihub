@@ -1439,17 +1439,22 @@ $(document).ready(function() {
         $sel.empty();
         $eredmeny.empty();
         $('#kalkJegyek').empty();
+        // Alapból ne legyen kiválasztva tantárgy (Kaneo #78): a jegyek listája
+        // csak kiválasztás után töltődik be; üres elem is választható.
+        $sel.append('<option value="">— Válassz tantárgyat —</option>');
         if (!tantargyak.length) {
-            $sel.append('<option value="">Nincs jegy</option>');
+            $sel.append('<option value="" disabled>Nincs jegy</option>');
             return;
         }
         tantargyak.forEach(function(t) {
             $sel.append($('<option>').val(t).text(t));
         });
-        if (elozo && tantargyak.indexOf(elozo) >= 0) $sel.val(elozo);
-        // A kártya nyitáskor is mutassa a jegyeket és az eredményt (ne kelljen
-        // külön a „Számolj” gombra kattintani).
-        if ($sel.val()) szamolJegyKalkulator();
+        if (elozo && tantargyak.indexOf(elozo) >= 0) {
+            $sel.val(elozo);
+            kalkCelBetolt(elozo);
+        } else {
+            $sel.val('');
+        }
     }
 
     function renderKalkJegyek(jegyek) {
@@ -1461,7 +1466,8 @@ $(document).ready(function() {
         let html = `<div class="small fw-bold text-secondary mb-1">Meglévő jegyek (${jegyek.length})</div>` +
             '<div class="table-responsive"><table class="table table-sm table-striped mb-0" ' +
             'style="font-size: 0.8rem;"><thead class="table-light"><tr>' +
-            '<th>Dátum</th><th>Jegy</th><th>Súly</th></tr></thead><tbody>';
+            '<th style="width: 42%;">Dátum</th><th style="width: 33%;">Jegy</th>' +
+            '<th style="width: 25%;">Súly</th></tr></thead><tbody>';
         jegyek.forEach(function(j) {
             const nap = j.datum ? fmtIsoToHu(j.datum) : '—';
             const ertek = j.ertek || (j.szam !== undefined ? j.szam : '—');
@@ -1473,16 +1479,86 @@ $(document).ready(function() {
         $c.html(html);
     }
 
+    function kalkVarhatoAdatok() {
+        const sulyok = [];
+        const varhato = [];
+        $('#kalkVarhatoLista .kalk-varhato-sor').each(function() {
+            sulyok.push(Number($(this).find('.kalk-suly').val()) || 100);
+            const v = $(this).find('.kalk-jegy').val();
+            varhato.push(v === '' || v === undefined ? '' : Number(v));
+        });
+        return {sulyok: sulyok, varhato: varhato};
+    }
+
+    function kalkTobbSor() {
+        const sulyOpciok = [50, 100, 200].map(function(v) {
+            return `<option value="${v}"${v === 100 ? ' selected' : ''}>${v}%</option>`;
+        }).join('');
+        const jegyOpciok = ['', 1, 2, 3, 4, 5].map(function(v) {
+            return `<option value="${v}">${v === '' ? '–' : v}</option>`;
+        }).join('');
+        return `<div class="d-flex gap-1 mb-1 kalk-varhato-sor">
+            <select class="form-select form-select-sm kalk-suly" title="A jegy súlya">${sulyOpciok}</select>
+            <select class="form-select form-select-sm kalk-jegy" title="Várható jegy (ha már tudod)">${jegyOpciok}</select>
+            <button type="button" class="btn btn-sm btn-outline-danger btn-kalk-sor-torles" title="Sor törlése">×</button>
+        </div>`;
+    }
+
+    function kalkSorTorlesGombok() {
+        const $sorok = $('#kalkVarhatoLista .kalk-varhato-sor');
+        $sorok.find('.btn-kalk-sor-torles').toggleClass('d-none', $sorok.length <= 1);
+    }
+
+    function kalkCelBetolt(tantargy) {
+        if (!lastKalkKontekszt || !tantargy) return;
+        $.getJSON(`/api/kalkulator_cel?diak=${encodeURIComponent(lastKalkKontekszt.diak)}` +
+                  `&tantargy=${encodeURIComponent(tantargy)}`)
+            .done(function(res) {
+                if (res && res.cel !== null && res.cel !== undefined) {
+                    $('#kalkCel').val(res.cel);
+                }
+                $('#kalkFelevi').val(res && res.felevi ? String(res.felevi) : '');
+                szamolJegyKalkulator();
+            })
+            .fail(szamolJegyKalkulator);
+    }
+
+    function kalkCelMent() {
+        const tantargy = $('#kalkTantargy').val();
+        if (!tantargy || !lastKalkKontekszt) return;
+        $.ajax({
+            url: '/api/kalkulator_cel',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                diak: lastKalkKontekszt.diak,
+                tantargy: tantargy,
+                cel: $('#kalkCel').val(),
+                felevi: $('#kalkFelevi').val()
+            })
+        });
+    }
+
     function szamolJegyKalkulator() {
         if (!lastKalkKontekszt) return;
         const tantargy = $('#kalkTantargy').val();
-        if (!tantargy) return;
+        if (!tantargy) {
+            // Üres kiválasztásnál nincs jegy-lista és nincs eredmény (Kaneo #78).
+            $('#kalkEredmeny').empty();
+            $('#kalkJegyek').empty();
+            return;
+        }
         // A kalkulátor mindig a teljes (tanévre szűrt) jegyállományt veszi
         // figyelembe, nem az eseménylista időszak-szűrését (Kaneo #78).
+        const adat = kalkVarhatoAdatok();
+        const felevi = $('#kalkFelevi').val() || '';
         let url = `/api/jegy_kalkulator?tantargy=${encodeURIComponent(tantargy)}` +
                   `&diak=${encodeURIComponent(lastKalkKontekszt.diak)}` +
                   `&cel=${encodeURIComponent($('#kalkCel').val() || '4.5')}` +
-                  `&suly=${encodeURIComponent($('#kalkSuly').val() || '100')}` +
+                  `&suly=${encodeURIComponent(adat.sulyok[0] || 100)}` +
+                  `&sulyok=${encodeURIComponent(adat.sulyok.join(','))}` +
+                  `&varhato=${encodeURIComponent(adat.varhato.join(','))}` +
+                  (felevi ? `&felevi=${encodeURIComponent(felevi)}` : '') +
                   tanevQueryParam();
         $('#kalkEredmeny').html('<span class="text-muted">Számolás…</span>');
         $.getJSON(url).done(function(res) {
@@ -1494,6 +1570,19 @@ $(document).ready(function() {
                 if (res.suly_db) html += `, ${res.suly_db} súlyozott`;
                 html += ')</span>';
             }
+            if (res.szimulalt_atlag !== null && res.szimulalt_atlag !== undefined) {
+                html += `<div class="mt-1">A megadott jegyekkel a várható átlag: ` +
+                        `<b>${res.szimulalt_atlag}</b>` +
+                        (res.cel_teljesul === false
+                            ? ' <span class="text-danger">(a cél nem teljesül)</span>' : '') +
+                        '</div>';
+            }
+            if (res.felevi_uzenet) {
+                const osztaly = res.felevi_elerheto ? 'text-success' : 'text-danger';
+                html += `<div class="mt-1 ${osztaly}">` +
+                        `<i class="fa-solid fa-flag-checkered me-1"></i>` +
+                        `${escapeHtml(res.felevi_uzenet)}</div>`;
+            }
             $('#kalkEredmeny').html(html);
             renderKalkJegyek(res.jegyek || []);
         }).fail(function(xhr) {
@@ -1503,9 +1592,34 @@ $(document).ready(function() {
         });
     }
 
-    $('#btnKalkulal').on('click', szamolJegyKalkulator);
-    $('#kalkCel, #kalkSuly, #kalkTantargy').on('change', function() {
-        if ($('#kalkEredmeny').text().trim()) szamolJegyKalkulator();
+    $('#btnKalkulal').on('click', function() {
+        kalkCelMent();
+        szamolJegyKalkulator();
+    });
+    $('#kalkTantargy').on('change', function() {
+        if ($(this).val()) {
+            kalkCelBetolt($(this).val());
+        } else {
+            $('#kalkEredmeny').empty();
+            $('#kalkJegyek').empty();
+        }
+    });
+    $('#kalkCel, #kalkFelevi').on('change', function() {
+        if (!$('#kalkTantargy').val()) return;
+        kalkCelMent();
+        szamolJegyKalkulator();
+    });
+    $('#kalkVarhatoLista').on('change', '.kalk-suly, .kalk-jegy', function() {
+        if ($('#kalkTantargy').val()) szamolJegyKalkulator();
+    });
+    $('#btnKalkVarhatoAdd').on('click', function() {
+        $('#kalkVarhatoLista').append(kalkTobbSor());
+        kalkSorTorlesGombok();
+    });
+    $('#kalkVarhatoLista').on('click', '.btn-kalk-sor-torles', function() {
+        $(this).closest('.kalk-varhato-sor').remove();
+        kalkSorTorlesGombok();
+        if ($('#kalkTantargy').val()) szamolJegyKalkulator();
     });
 
     $('#atlagNezetKapcsolo').on('click', '.btn', function() {
@@ -2900,13 +3014,14 @@ $(document).ready(function() {
     }
 
     function keresesBadge(t) {
+        // Ugyanazok a feliratok és színek, mint az Események fülön (Kaneo #85).
         if (t.tipus === 'uzenet') return { cls: 'bg-info text-dark', text: 'Üzenet' };
         if (t.tipus === 'hianyzas') return { cls: 'bg-danger', text: 'Hiányzás' };
-        if (t.esemeny_tipus === 'Értékelés') return { cls: 'bg-primary', text: 'Jegy' };
-        if (t.esemeny_tipus === 'Feljegyzés') return { cls: 'bg-warning text-dark', text: 'Feljegyzés' };
-        if (t.esemeny_tipus === 'Házi feladat') return { cls: 'bg-success', text: 'Házi' };
+        if (t.esemeny_tipus === 'Értékelés') return { cls: 'badge-ertekeles', text: 'Értékelés' };
+        if (t.esemeny_tipus === 'Feljegyzés') return { cls: 'badge-feljegyzes', text: 'Feljegyzés' };
+        if (t.esemeny_tipus === 'Házi feladat') return { cls: 'badge-hazi', text: 'Házi feladat' };
         if (t.esemeny_tipus === 'Bejelentett számonkérés') {
-            return { cls: 'bg-secondary', text: 'Számonkérés' };
+            return { cls: 'badge-szamonkeres', text: 'Bejelentett számonkérés' };
         }
         return { cls: 'bg-secondary', text: t.esemeny_tipus || 'Esemény' };
     }

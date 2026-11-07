@@ -125,14 +125,16 @@ a saját szerveren maradnak.
 - **Trend oszlop** (sparkline + utolsó két hónap különbsége) és **romlás-figyelmeztetés**
   az Áttekintésen (≤ -0,5), **gyermeknévvel és az érintett időszakkal**; alatta zöld sáv a
   **javuló** tantárgyakról (≥ +0,5).
-- **„Milyen jegy kell?” kalkulátor:** tantárgy + célátlag + a következő jegy súlya →
-  hányas/os hány ötös kell; elérhetetlen cél jelzése. A kártya táblázatban **kilistázza a
-  tantárgy meglévő jegyeit** (dátum, jegy, súly), nyitáskor automatikusan számol, és mindig
-  a **teljes tanév** jegyállományával dolgozik.
+- **„Milyen jegy kell?” kalkulátor:** tantárgy (alapból üres) + célátlag + **várható
+  jegyek** (súly + opcionális jegy, akár több, eltérő súllyal) → hányas/os hány ötös kell,
+  illetve mennyi a várható átlag; **félévi céljegy** esetén a küszöbhöz szükséges átlag.
+  A célátlag/félévi cél **tantárgyanként mentődik**, a kártya a tantárgy **meglévő jegyeit**
+  táblázatban listázza, és mindig a **teljes tanév** jegyállományával dolgozik.
 
 ### 🔎 Keresés és UX
 - **Globális kereső (Ctrl+K):** jegyek, feljegyzések, házik, üzenetek (teljes törzs) és
-  hiányzások; a **találat sorára kattintva az adott sor részletei** nyílnak meg.
+  hiányzások; a **találat sorára kattintva az adott sor részletei** nyílnak meg, a
+  típus-címkék felirata/színe **egyezik az Események füllel**.
 - **Sötét mód** (a szűrő-címkék is olvashatók), **nyomtatásbarát heti órarend** (A4 fekvő,
   a fejlécben „SuliHub – Órarend – gyermek – hét”), **kitűzött események** a dashboardon.
 - **Hiányzás-mintázat:** nap / órasorszám / tantárgy bontás a Hiányzások fülön (a táblázatok
@@ -387,13 +389,13 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**44 csomag, 1301 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**44 csomag, 1327 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
 **adatvédelem** (üres válasz nem töröl), **DB-séma őr** (zárolt DB),
 **deploy-konzisztencia** (Dockerfile COPY + requirements), **mobil elrendezés**,
-**route-contract** (a 42 Flask-rule rögzítve) és **data/-migráció**.
+**route-contract** (a 43 Flask-rule rögzítve) és **data/-migráció**.
 Részletek: [`tests/README.md`](tests/README.md).
 
 ---
@@ -452,7 +454,7 @@ telepíti a mentő-cront.
 
 | Verzió | Tartalom |
 |---|---|
-| v2.1.x | **Globális kereső (Ctrl+K)** (a találat sorára kattintva a részletek nyílnak), **jegy-kalkulátor** (meglévő jegyek táblázata, teljes tanév, auto-számolás), **sötét mód + nyomtatás + kedvencek** (sötét módban olvasható címkék, nyomtatási fejléc gyerekkel és héttel), **tantárgyi trend + hiányzás-mintázat** (gyermekenkénti romló **és javuló** figyelmeztetés időszakkal), **önálló „Ma” fül**; mobilon a **jegy oszlop alapból látszik** |
+| v2.1.x | **Globális kereső (Ctrl+K)** (a találat sorára kattintva a részletek nyílnak, egységes típus-címkék), **jegy-kalkulátor** (üres alap-választó, meglévő jegyek táblázata, **több várható jegy eltérő súllyal**, **félévi céljegy**, **mentett célátlag**, teljes tanév), **sötét mód + nyomtatás + kedvencek** (sötét módban olvasható címkék, nyomtatási fejléc gyerekkel és héttel), **tantárgyi trend + hiányzás-mintázat** (gyermekenkénti romló **és javuló** figyelmeztetés időszakkal), **önálló „Ma” fül**; mobilon a **jegy oszlop alapból látszik** |
 | v2.0.x | **KRÉ-14 refaktor:** `app.py` és a frontend szétbontása (8 blueprint + közös rétegek, `static/js/`), **futásidejű adatok a `data/` alatt** migráló szkripttel; a viselkedés (URL-ek, válaszok, DB-séma) változatlan |
 | v1.9.x | **Saját órák** (kézi szakkör/pluszfoglalkozás tanévre/hétre/egyedi időszakra, saját színnel, **módosítható**, egy alkalom vagy sorozat törlése), **naptárba küldés** házihoz/számonkéréshez/üzenethez (előre kitöltött Google esemény), **órarend ICS export** (hét/hónap/félév/tanév), **futástörténet**, **órarend-színek**, **SuliHub arculat** (logó/név), **modern egysoros fejléc**, opcionális **basic auth**, **DB-indexek/sémaverzió**, **zsebpénz CSV**, **teljes üzenettörzs** (a lista csak előnézet volt — #74), **dashboard szűrőfüggetlen újratöltése** (#76); az AI-elemzés csak API-ként elérhető |
 | v1.8.x | **Offline-képes frontend:** minden CDN-függőség vendorolva a `static/vendor/` alá (Bootstrap, DataTables, FontAwesome, FullCalendar, jQuery), nincs külső hivatkozás; apróságok (#17: `SyntaxWarning`, érvényes `config.json.example`, halott `autoSyncAlert` törlése) |

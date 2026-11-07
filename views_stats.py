@@ -5,6 +5,7 @@ Statisztika (KRÉ-14 #96): tanévek, dashboard, tantárgyi átlagok.
 Az `app.py`-ból kiemelve, viselkedésváltozás nélkül. Prefix nélküli blueprint —
 az URL-ek változatlanok.
 """
+import json
 import math
 import os
 import sqlite3
@@ -13,7 +14,7 @@ from datetime import date, datetime, timedelta
 from flask import jsonify, request
 
 import kreta_tanev
-from kreta_db import get_db_connection
+from kreta_db import get_db_connection, get_meta, set_meta
 from kreta_paths import DB_FILE
 from kreta_settings import load_config
 from views_common import (
@@ -656,6 +657,214 @@ def szukseges_jegy(jegyek, cel, uj_suly=100, max_darab=20):
         **kozos)
 
 
+def _kalk_parok(jegyek):
+    """(jegy, súly) párok szűrése 1–5 közé; súly nélküli adatnál 100%-os becslés."""
+    parok = []
+    for ertek, suly in jegyek:
+        try:
+            ertek = int(ertek)
+            suly = int(suly or 0)
+        except (TypeError, ValueError):
+            continue
+        if ertek in (1, 2, 3, 4, 5):
+            parok.append((ertek, suly))
+    return parok
+
+
+def _kalk_aktualis(parok):
+    """A jelenlegi súlyozott átlag (0%-os súly kimarad); súly nélkül 100%-os becslés."""
+    sulyos = [(e, s) for e, s in parok if s > 0]
+    becsult = False
+    if not sulyos:
+        sulyos = [(e, 100) for e, _s in parok]
+        becsult = True
+    ossz_suly = sum(s for _e, s in sulyos)
+    ossz_pont = sum(e * s for e, s in sulyos)
+    return ossz_suly, ossz_pont, ossz_pont / ossz_suly, len(sulyos), becsult
+
+
+def tobb_jegy_szamitas(jegyek, cel, sulyok, varhato=None):
+    """Több várható jegy (eltérő súlyokkal): szükséges átlag + szimuláció (Kaneo #101).
+
+    `sulyok`: a jövőbeli jegyek súlyszázalékai (pl. [100, 100, 50]).
+    `varhato`: opcionális, a jövőbeli jegyek várható érdemjegyei (0/None = ismeretlen).
+    A szükséges átlag a hátralévő jegyekre vonatkozik; ha mind ismert, a várható
+    félévi/tanév végi átlagot is kiszámoljuk.
+    """
+    cel = float(cel)
+    parok = _kalk_parok(jegyek)
+    sulyok = [int(s) for s in (sulyok or []) if int(s or 0) > 0]
+    out = {
+        "tobb": True,
+        "cel": round(cel, 2),
+        "elerheto": False,
+        "aktualis_atlag": None,
+        "jegy_db": len(parok),
+        "suly_db": 0,
+        "mod": "sulyozott",
+        "sulyok": sulyok,
+        "suly_osszeg": sum(sulyok),
+        "jegyek_szama": len(sulyok),
+        "szukseges_atlag": None,
+        "szimulalt_atlag": None,
+        "cel_teljesul": None,
+        "uzenet": "",
+    }
+    if not parok:
+        out["uzenet"] = "Ehhez a tantárgyhoz még nincs jegy."
+        return out
+    if not sulyok:
+        out["uzenet"] = "Adj meg legalább egy várható jegyet (súlyt)."
+        return out
+
+    ossz_suly, ossz_pont, aktualis, suly_db, becsult = _kalk_aktualis(parok)
+    out.update({
+        "aktualis_atlag": round(aktualis, 2),
+        "suly_db": suly_db,
+        "mod": "becsult" if becsult else "sulyozott",
+    })
+
+    if cel <= aktualis + 1e-9:
+        out["elerheto"] = True
+        out["uzenet"] = f"Már megvan: {aktualis:.2f} (cél {cel:.2f})."
+    else:
+        uj_suly = sum(sulyok)
+        kell_pont = cel * (ossz_suly + uj_suly) - ossz_pont
+        kell_atlag = kell_pont / uj_suly
+        if kell_atlag > 5 + 1e-9:
+            out["uzenet"] = (f"A hátralévő {len(sulyok)} jeggyel már nem érhető el "
+                             f"({kell_atlag:.2f}-es átlag kellene, a cél {cel:.2f}).")
+        else:
+            out["elerheto"] = True
+            out["szukseges_atlag"] = round(max(1.0, kell_atlag), 2)
+            out["uzenet"] = (f"A {len(sulyok)} várható jegyen összesen "
+                             f"{kell_atlag:.2f}-es átlag kell "
+                             f"({aktualis:.2f} → {cel:.2f}).")
+
+    # Szimuláció: ha minden jövőbeli jegy ismert, mennyi lesz az átlag?
+    v = list(varhato or [])
+    if len(v) == len(sulyok) and all(x in (1, 2, 3, 4, 5) for x in v):
+        uj_suly = sum(sulyok)
+        sim = (ossz_pont + sum(int(x) * s for x, s in zip(v, sulyok))) / (ossz_suly + uj_suly)
+        out["szimulalt_atlag"] = round(sim, 2)
+        out["cel_teljesul"] = bool(sim >= cel - 1e-9)
+        out["uzenet"] += f" A megadott jegyekkel a várható átlag {sim:.2f}."
+    return out
+
+
+def felevi_szamitas(jegyek, felevi, sulyok):
+    """Mi kell a félévi jegyhez (Kaneo #101).
+
+    A félévi jegy a súlyozott átlag kerekítése; a küszöb `félévi jegy - 0,5`
+    (pl. 4-eshez 3,50). A hátralévő jegyekre szükséges átlagot is kiszámoljuk.
+    """
+    felevi = int(felevi)
+    kuszob = max(1.0, felevi - 0.5)
+    out = {
+        "felevi_cel": felevi,
+        "felevi_kuszob": round(kuszob, 2),
+        "felevi_elerheto": False,
+        "felevi_szukseges_atlag": None,
+        "felevi_uzenet": "",
+    }
+    parok = _kalk_parok(jegyek)
+    if not parok:
+        out["felevi_uzenet"] = "Ehhez a tantárgyhoz még nincs jegy."
+        return out
+    ossz_suly, ossz_pont, aktualis, _suly_db, _becsult = _kalk_aktualis(parok)
+    if aktualis >= kuszob - 1e-9:
+        out["felevi_elerheto"] = True
+        out["felevi_uzenet"] = (f"A félévi {felevi}-eshez {kuszob:.2f}-es átlag kell; "
+                                f"jelenleg {aktualis:.2f} — megvan.")
+        return out
+    sulyok = [int(s) for s in (sulyok or []) if int(s or 0) > 0]
+    if not sulyok:
+        out["felevi_uzenet"] = (f"A félévi {felevi}-eshez {kuszob:.2f}-es átlag kell; "
+                                f"jelenleg {aktualis:.2f} — adj meg várható jegyet.")
+        return out
+    uj_suly = sum(sulyok)
+    kell_atlag = (kuszob * (ossz_suly + uj_suly) - ossz_pont) / uj_suly
+    if kell_atlag > 5 + 1e-9:
+        out["felevi_uzenet"] = (f"A félévi {felevi}-eshez már nem elég a hátralévő "
+                                f"{len(sulyok)} jegy ({kell_atlag:.2f}-es átlag kellene).")
+    else:
+        out["felevi_elerheto"] = True
+        out["felevi_szukseges_atlag"] = round(max(1.0, kell_atlag), 2)
+        out["felevi_uzenet"] = (f"A félévi {felevi}-eshez a hátralévő {len(sulyok)} jegyen "
+                                f"{max(1.0, kell_atlag):.2f}-es átlag kell "
+                                f"(küszöb {kuszob:.2f}, jelenleg {aktualis:.2f}).")
+    return out
+
+
+def _int_lista(raw, max_items=10):
+    """Vesszős egész lista (pl. `100,50,`); üres/rossz elem -> 0."""
+    if not raw:
+        return []
+    out = []
+    for part in str(raw).split(",")[:max_items]:
+        part = part.strip()
+        try:
+            out.append(int(part))
+        except ValueError:
+            out.append(0)
+    return out
+
+
+KALK_CEL_PREFIX = "kalk_cel:"
+
+
+def _kalk_cel_kulcs(diak, tantargy):
+    return f"{KALK_CEL_PREFIX}{diak or '(mind)'}|{tantargy}"
+
+
+@bp.route("/api/kalkulator_cel", methods=["GET", "POST"])
+def api_kalkulator_cel():
+    """A kalkulátor mentett célátlaga/félévi célja diákonként és tantárgyanként (Kaneo #101)."""
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        tantargy = (body.get("tantargy") or "").strip()
+        if not tantargy:
+            return jsonify({"error": "Válassz tantárgyat."}), 400
+        diak = (body.get("diak") or "").strip()
+        adat = {}
+        cel = body.get("cel")
+        if cel not in (None, ""):
+            try:
+                cel = float(str(cel).replace(",", "."))
+            except ValueError:
+                return jsonify({"error": "A célátlag nem szám."}), 400
+            if not 1 <= cel <= 5:
+                return jsonify({"error": "A célátlag 1 és 5 között lehet."}), 400
+            adat["cel"] = round(cel, 2)
+        felevi = body.get("felevi")
+        if felevi not in (None, ""):
+            try:
+                felevi = int(felevi)
+            except (TypeError, ValueError):
+                return jsonify({"error": "A félévi céljegy 1 és 5 között lehet."}), 400
+            if not 1 <= felevi <= 5:
+                return jsonify({"error": "A félévi céljegy 1 és 5 között lehet."}), 400
+            adat["felevi"] = felevi
+        set_meta(_kalk_cel_kulcs(diak, tantargy),
+                 json.dumps(adat, ensure_ascii=False) if adat else "")
+        return jsonify({"status": "ok", "diak": diak, "tantargy": tantargy,
+                        "cel": adat.get("cel"), "felevi": adat.get("felevi")})
+
+    tantargy = (request.args.get("tantargy") or "").strip()
+    if not tantargy:
+        return jsonify({"error": "Válassz tantárgyat."}), 400
+    diak = (request.args.get("diak") or "").strip()
+    raw = get_meta(_kalk_cel_kulcs(diak, tantargy), "")
+    adat = {}
+    if raw:
+        try:
+            adat = json.loads(raw)
+        except ValueError:
+            adat = {}
+    return jsonify({"diak": diak, "tantargy": tantargy,
+                    "cel": adat.get("cel"), "felevi": adat.get("felevi")})
+
+
 @bp.route("/api/jegy_kalkulator")
 def api_jegy_kalkulator():
     """„Milyen jegy kell?” — tantárgy + célátlag + a következő jegy súlya (Kaneo #78)."""
@@ -674,6 +883,24 @@ def api_jegy_kalkulator():
         return jsonify({"error": "A súly nem szám."}), 400
     if uj_suly <= 0:
         return jsonify({"error": "A súly nagyobb kell legyen 0-nál."}), 400
+
+    # Több várható jegy (Kaneo #101): súlyok vesszős listája és opcionális jegyek.
+    sulyok_raw = _int_lista(request.args.get("sulyok"))
+    varhato_raw = _int_lista(request.args.get("varhato"))
+    sulyok, varhato = [], []
+    for i, s in enumerate(sulyok_raw):
+        if s > 0:
+            sulyok.append(s)
+            varhato.append(varhato_raw[i] if i < len(varhato_raw) else 0)
+    felevi_raw = (request.args.get("felevi") or "").strip()
+    felevi = None
+    if felevi_raw:
+        try:
+            felevi = int(felevi_raw)
+        except ValueError:
+            return jsonify({"error": "A félévi céljegy 1 és 5 között lehet."}), 400
+        if not 1 <= felevi <= 5:
+            return jsonify({"error": "A félévi céljegy 1 és 5 között lehet."}), 400
 
     diak = request.args.get("diak", "")
     kezdo, zaro = _date_range_from_request()
@@ -733,7 +960,25 @@ def api_jegy_kalkulator():
     # legfrissebb elöl, ugyanazokkal a súlyokkal, amikkel a számítás megy.
     jegy_lista.sort(key=lambda j: j["datum"], reverse=True)
 
-    eredmeny = szukseges_jegy(jegyek, cel, uj_suly=uj_suly)
+    if len(sulyok) > 1:
+        eredmeny = tobb_jegy_szamitas(jegyek, cel, sulyok, varhato=varhato)
+    else:
+        egy_suly = sulyok[0] if sulyok else uj_suly
+        eredmeny = szukseges_jegy(jegyek, cel, uj_suly=egy_suly)
+        eredmeny.update({"tobb": False, "sulyok": [egy_suly], "varhato": [],
+                         "szukseges_atlag": None, "szimulalt_atlag": None,
+                         "cel_teljesul": None})
+        # Egyetlen várható jegy is megadható: mennyi lesz így az átlag?
+        if varhato and varhato[0] in (1, 2, 3, 4, 5):
+            parok = _kalk_parok(jegyek)
+            if parok:
+                ossz_suly, ossz_pont, _akt, _db, _b = _kalk_aktualis(parok)
+                sim = (ossz_pont + varhato[0] * egy_suly) / (ossz_suly + egy_suly)
+                eredmeny["szimulalt_atlag"] = round(sim, 2)
+                eredmeny["cel_teljesul"] = bool(sim >= cel - 1e-9)
+    if felevi is not None:
+        eredmeny.update(felevi_szamitas(
+            jegyek, felevi, sulyok or [uj_suly]))
     eredmeny.update({
         "tantargy": tantargy,
         "diak": diak,
