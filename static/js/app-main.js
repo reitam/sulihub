@@ -1430,6 +1430,7 @@ $(document).ready(function() {
             $sel.empty();
             lastKalkKontekszt = null;
             $eredmeny.html('<span class="text-muted">Az átlagokhoz válassz tanévet a fejlécben.</span>');
+            $('#kalkJegyek').empty();
             return;
         }
         lastKalkKontekszt = {diak: diak || '', kezdo: kezdo || '', zaro: zaro || ''};
@@ -1437,6 +1438,7 @@ $(document).ready(function() {
         const elozo = $sel.val();
         $sel.empty();
         $eredmeny.empty();
+        $('#kalkJegyek').empty();
         if (!tantargyak.length) {
             $sel.append('<option value="">Nincs jegy</option>');
             return;
@@ -1445,6 +1447,30 @@ $(document).ready(function() {
             $sel.append($('<option>').val(t).text(t));
         });
         if (elozo && tantargyak.indexOf(elozo) >= 0) $sel.val(elozo);
+        // A kártya nyitáskor is mutassa a jegyeket és az eredményt (ne kelljen
+        // külön a „Számolj” gombra kattintani).
+        if ($sel.val()) szamolJegyKalkulator();
+    }
+
+    function renderKalkJegyek(jegyek) {
+        const $c = $('#kalkJegyek').empty();
+        if (!jegyek || !jegyek.length) {
+            $c.html('<div class="text-muted small">Ehhez a tantárgyhoz még nincs jegy.</div>');
+            return;
+        }
+        let html = `<div class="small fw-bold text-secondary mb-1">Meglévő jegyek (${jegyek.length})</div>` +
+            '<div class="table-responsive"><table class="table table-sm table-striped mb-0" ' +
+            'style="font-size: 0.8rem;"><thead class="table-light"><tr>' +
+            '<th>Dátum</th><th>Jegy</th><th>Súly</th></tr></thead><tbody>';
+        jegyek.forEach(function(j) {
+            const nap = j.datum ? fmtIsoToHu(j.datum) : '—';
+            const ertek = j.ertek || (j.szam !== undefined ? j.szam : '—');
+            html += `<tr><td class="text-nowrap">${escapeHtml(nap)}</td>` +
+                    `<td><span class="fw-bold">${escapeHtml(ertek)}</span></td>` +
+                    `<td>${j.suly ? j.suly + '%' : '<span class="text-muted">–</span>'}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        $c.html(html);
     }
 
     function szamolJegyKalkulator() {
@@ -1468,20 +1494,12 @@ $(document).ready(function() {
                 if (res.suly_db) html += `, ${res.suly_db} súlyozott`;
                 html += ')</span>';
             }
-            const jegyek = res.jegyek || [];
-            if (jegyek.length) {
-                html += '<div class="mt-2 small"><span class="text-muted me-1">Meglévő jegyek:</span>' +
-                    jegyek.map(function(j) {
-                        const suly = j.suly
-                            ? ` <span class="text-muted">(${j.suly}%)</span>` : '';
-                        return `<span class="badge text-bg-light border me-1 mb-1" ` +
-                               `title="${escapeHtml(j.datum || '')}">${escapeHtml(j.ertek)}${suly}</span>`;
-                    }).join('') + '</div>';
-            }
             $('#kalkEredmeny').html(html);
+            renderKalkJegyek(res.jegyek || []);
         }).fail(function(xhr) {
             const msg = (xhr.responseJSON && xhr.responseJSON.error) || 'Hiba a számításban.';
             $('#kalkEredmeny').html('<span class="text-danger">' + escapeHtml(msg) + '</span>');
+            $('#kalkJegyek').empty();
         });
     }
 
@@ -2928,34 +2946,141 @@ $(document).ready(function() {
             });
     }
 
+    function esemenyReszletekSzoveg(e) {
+        const sorok = [];
+        function sor(cimke, ertek) {
+            if (ertek === undefined || ertek === null) return;
+            const t = String(ertek).trim();
+            if (!t || t === '-') return;
+            sorok.push(cimke + ': ' + t);
+        }
+        sor('Diák', e.diak_nev);
+        sor('Típus', e.esemeny_tipus);
+        sor('Tantárgy', e.tantargy);
+        let ertek = e.ertek;
+        if (e.mod && e.mod !== '-') ertek = (ertek || '') + ' (' + e.mod + ')';
+        if (Number(e.suly_szazalek) > 0) ertek = (ertek || '') + ' — súly: ' + e.suly_szazalek + '%';
+        sor('Érték', ertek);
+        sor('Bejegyzés dátuma', e.bej_datum);
+        sor('Határidő', e.hatarido);
+        sor('Értékelő / tanár', e.ertekelo);
+        sor('Téma', e.tema);
+        sor('Cím', e.cim);
+        sor('Leírás', e.tartalom);
+        if (e.esemeny_tipus === 'Házi feladat') {
+            sor('Állapot', Number(e.kesz) === 1 ? 'Elkészítve' : 'Aktív');
+        }
+        return sorok.join('\n');
+    }
+
+    function hianyzasReszletekSzoveg(h) {
+        const sorok = [];
+        function sor(cimke, ertek) {
+            if (ertek === undefined || ertek === null) return;
+            const t = String(ertek).trim();
+            if (!t || t === '-') return;
+            sorok.push(cimke + ': ' + t);
+        }
+        sor('Diák', h.diak_nev);
+        sor('Dátum', fmtIsoToHu(h.mulasztas_datum));
+        sor('Óra', h.ora_sorszam ? h.ora_sorszam + '.' : '');
+        sor('Tantárgy', h.tantargy);
+        sor('Téma', h.tema);
+        sor('Tanár', h.tanar);
+        sor('Típus', h.mulasztas_tipus);
+        sor('Igazolt', Number(h.igazolt) === 1 ? 'Igen' : 'Nem');
+        sor('Igazolás típusa', h.igazolas_tipus);
+        sor('Tanórai cél', h.tanorai_celu);
+        sor('Rögzítés dátuma', h.rogzites_datum);
+        if (h.perc) sor('Késés', h.perc + ' perc');
+        return sorok.join('\n');
+    }
+
+    function reszletekModal(cim, szoveg) {
+        $('#detailsModalTitle').html('<i class="fa-solid fa-circle-info me-2"></i>' +
+                                     escapeHtml(cim));
+        $('#detailsModalBody').text(szoveg || 'Nincs megjeleníthető részlet.');
+        $('#modalActionContainer').addClass('d-none');
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('detailsModal')).show();
+    }
+
     function keresesTalalatMegnyit(t) {
         const el = document.getElementById('keresesModal');
         const inst = el ? bootstrap.Modal.getInstance(el) : null;
-        if (inst) inst.hide();
+
+        // A kereső ablak bezárása után nyissuk a részleteket (ne csússzon egymásra
+        // a két modál, és a bezárási animáció is fusson le) — Kaneo #85.
+        function bezarEs(cb) {
+            if (!inst || !el || !el.classList.contains('show')) {
+                cb();
+                return;
+            }
+            el.addEventListener('hidden.bs.modal', function () { cb(); }, {once: true});
+            inst.hide();
+        }
 
         if (t.tipus === 'esemeny') {
-            goToEvents({
-                diak: t.diak || '', tipus: t.esemeny_tipus || '', tantargy: t.tantargy || '',
-                status: '', kezdo: '', zaro: '', hatKezdo: '', hatZaro: ''
+            bezarEs(function() {
+                $.getJSON(`/api/esemenyek?diak=${encodeURIComponent(t.diak || '')}`)
+                    .done(function(list) {
+                        const e = (list || []).find(function(x) {
+                            return Number(x.id) === Number(t.id);
+                        });
+                        if (e) {
+                            reszletekModal(e.esemeny_tipus || 'Esemény részletei',
+                                           esemenyReszletekSzoveg(e));
+                        } else {
+                            // Ha időközben elfogyott az adat, marad a szűrt lista.
+                            goToEvents({
+                                diak: t.diak || '', tipus: t.esemeny_tipus || '',
+                                tantargy: t.tantargy || '', status: '',
+                                kezdo: '', zaro: '', hatKezdo: '', hatZaro: ''
+                            });
+                        }
+                    })
+                    .fail(function() {
+                        goToEvents({
+                            diak: t.diak || '', tipus: t.esemeny_tipus || '',
+                            tantargy: t.tantargy || '', status: '',
+                            kezdo: '', zaro: '', hatKezdo: '', hatZaro: ''
+                        });
+                    });
             });
         } else if (t.tipus === 'uzenet') {
-            showMainTab('uzenetek-tab');
-            let msg = (rawUzenetek || []).find(function(m) { return m.id === t.id; });
-            if (msg) {
-                openUzenetModal(msg);
-            } else {
-                // A keresett üzenet más diákhoz tartozhat: töltsük be arra a diákra.
-                $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(t.diak || '')}`, function(list) {
-                    const found = (list || []).find(function(m) { return m.id === t.id; });
-                    if (found) openUzenetModal(found);
-                });
-            }
+            bezarEs(function() {
+                showMainTab('uzenetek-tab');
+                let msg = (rawUzenetek || []).find(function(m) { return m.id === t.id; });
+                if (msg) {
+                    openUzenetModal(msg);
+                } else {
+                    // A keresett üzenet más diákhoz tartozhat: töltsük be arra a diákra.
+                    $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(t.diak || '')}`, function(list) {
+                        const found = (list || []).find(function(m) { return m.id === t.id; });
+                        if (found) openUzenetModal(found);
+                    });
+                }
+            });
         } else if (t.tipus === 'hianyzas') {
-            showMainTab('hianyzasok-tab');
-            if (t.diak) $('#hianyzasFilterDiak').val(t.diak);
-            $('#hianyzasHonap').val(t.datum ? String(t.datum).slice(0, 7) : '');
-            $('#hianyzasFilterDiak').trigger('change');
-            $('#hianyzasHonap').trigger('change');
+            bezarEs(function() {
+                $.getJSON(`/api/hianyzasok?diak=${encodeURIComponent(t.diak || '')}`)
+                    .done(function(res) {
+                        const h = ((res && res.rows) || []).find(function(x) {
+                            return Number(x.id) === Number(t.id);
+                        });
+                        if (h) {
+                            reszletekModal('Hiányzás részletei', hianyzasReszletekSzoveg(h));
+                        } else {
+                            showMainTab('hianyzasok-tab');
+                            if (t.diak) $('#hianyzasFilterDiak').val(t.diak);
+                            $('#hianyzasHonap').val(t.datum ? String(t.datum).slice(0, 7) : '');
+                            $('#hianyzasFilterDiak').trigger('change');
+                            $('#hianyzasHonap').trigger('change');
+                        }
+                    })
+                    .fail(function() {
+                        showMainTab('hianyzasok-tab');
+                    });
+            });
         }
     }
 
@@ -3041,8 +3166,6 @@ $(document).ready(function() {
             }).join('') : maUres('Nincs olvasatlan üzenet.'));
         });
     }
-
-    $('#btnMaFrissit').on('click', loadMaNezet);
 
     $('#ma-pane').on('click', '.btn-ma-kesz', function(e) {
         e.preventDefault();
@@ -3280,24 +3403,53 @@ $(document).ready(function() {
         return html + '</tbody></table>';
     }
 
+    function nyomtatasiIdoszak() {
+        // A nyomtatott táblázat mindig teljes hetet mutat, ezért a naptárban
+        // éppen látszó nap/óra HETÉT vesszük (hétfő–vasárnap); naptár nélkül
+        // az aktuális hetet.
+        function hetKezdo(d) {
+            const off = (d.getDay() + 6) % 7;   // hétfő = 0
+            return new Date(d.getFullYear(), d.getMonth(), d.getDate() - off);
+        }
+        const alap = (orarendCalendar && orarendCalendar.view && orarendCalendar.view.currentStart)
+            ? new Date(orarendCalendar.view.currentStart) : new Date();
+        const kezdo = hetKezdo(alap);
+        const zaro = new Date(kezdo);
+        zaro.setDate(zaro.getDate() + 6);
+        return {kezdo: fmtIsoToHu(fmtDate(kezdo)), zaro: fmtIsoToHu(fmtDate(zaro))};
+    }
+
     function nyomtatasiOrarend() {
         const diak = $('#orarendFilterDiak').val() || $('#filterDiak').val() || '';
+        const nev = diak || 'Minden gyermek';
+        const idoszak = nyomtatasiIdoszak();
+        const eredetiCim = document.title;
         $.getJSON(`/api/orarend?diak=${encodeURIComponent(diak)}`, function(rows) {
             const $c = $('#printOrarend').empty();
-            $c.append('<h2>Heti órarend</h2>');
+            $c.append('<h2>SuliHub – Órarend</h2>');
+            $c.append(`<div class="print-meta">${escapeHtml(nev)} · ` +
+                      `${escapeHtml(idoszak.kezdo)} – ${escapeHtml(idoszak.zaro)}</div>`);
             if (!rows || !rows.length) {
                 $c.append('<p>Nincs megjeleníthető óra.</p>');
             } else {
                 const diakok = {};
                 rows.forEach(function(r) {
-                    const nev = r.diak_nev || 'Ismeretlen';
-                    (diakok[nev] = diakok[nev] || []).push(r);
+                    const dnev = r.diak_nev || 'Ismeretlen';
+                    (diakok[dnev] = diakok[dnev] || []).push(r);
                 });
-                Object.keys(diakok).sort().forEach(function(nev) {
-                    $c.append(oraRendTabla(nev, diakok[nev]));
+                Object.keys(diakok).sort().forEach(function(dnev) {
+                    $c.append(oraRendTabla(dnev, diakok[dnev]));
                 });
             }
+            // A böngésző fejléce a document.title-t nyomtatja (Kaneo #114).
+            document.title = `SuliHub - Órarend - ${nev} - ${idoszak.kezdo} - ${idoszak.zaro}`;
+            const visszaallit = function() {
+                document.title = eredetiCim;
+                window.removeEventListener('afterprint', visszaallit);
+            };
+            window.addEventListener('afterprint', visszaallit);
             setTimeout(function() { window.print(); }, 60);
+            setTimeout(visszaallit, 5000);   // biztonsági visszaállítás
         }).fail(function() {
             alert('Az órarend nem tölthető be.');
         });

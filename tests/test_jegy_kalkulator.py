@@ -149,10 +149,14 @@ ok('id="jegyKalkulatorCard"' in html and 'id="kalkTantargy"' in html
    and 'id="kalkCel"' in html and 'id="kalkSuly"' in html and 'id="btnKalkulal"' in html,
    "a kártya és a vezérlők a sablonban")
 ok('id="kalkEredmeny"' in html and "Milyen jegy kell?" in html, "van eredmény-hely és cím")
+ok('id="kalkJegyek"' in html, "van külön hely a meglévő jegyek listájának")
 ok("szamolJegyKalkulator" in js and "/api/jegy_kalkulator" in js, "a JS hívja az API-t")
 ok("kezdo_datum" not in js.split("function szamolJegyKalkulator")[1].split("function ")[0],
    "a kalkulátor nem küld időszak-szűrést (a teljes tanév jegyállományát használja)")
-ok("Meglévő jegyek" in js and "res.jegyek" in js, "a JS kilistázza a meglévő jegyeket")
+ok("renderKalkJegyek" in js and "Meglévő jegyek" in js and "res.jegyek" in js,
+   "a JS táblázatban kilistázza a meglévő jegyeket")
+ok("if ($sel.val()) szamolJegyKalkulator();" in js,
+   "a kártya nyitáskor automatikusan számol (nem kell a gombra kattintani)")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

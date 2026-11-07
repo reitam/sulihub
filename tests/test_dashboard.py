@@ -294,6 +294,18 @@ try:
         ok(any(s.startswith("Hónapok átlaga") for s in testek), "van havi teljes átlag lábléc")
         ok(any("4.67" in s for s in testek), f"a láblécben a teljes időszak átlaga: {testek[-1] if testek else ''}")
 
+        print("\n5b) Kalkulátor: meglévő jegyek táblázata (#78)")
+        page.select_option("#kalkTantargy", "Matematika")
+        page.wait_for_timeout(900)
+        kalk_sorok = page.eval_on_selector_all("#kalkJegyek tbody tr", "els => els.length")
+        ok(kalk_sorok == 2, f"a kalkulátor kilistázza a Matematika jegyeit ({kalk_sorok} sor)")
+        kalk_szoveg = " ".join(page.inner_text("#kalkJegyek").split())
+        ok("Meglévő jegyek" in kalk_szoveg and "Jeles(5)" in kalk_szoveg,
+           f"a jegyek fejléce és értéke is látszik: {kalk_szoveg[:120]}")
+        kalk_suly = page.eval_on_selector_all("#kalkJegyek tbody tr",
+                                             "rows => rows.map(r => r.innerText.replace(/\\s+/g, ' ').trim())")
+        ok(any("100%" in s for s in kalk_suly), f"a súly is megjelenik: {kalk_suly}")
+
         print("\n6) Mobil nézet: két bontás kapcsolóval (#39)")
         mctx = browser.new_context(viewport={"width": 393, "height": 873})
         mp = mctx.new_page()

@@ -143,7 +143,13 @@ ok("keresesModalNyitas" in js and "ctrlKey" in js and "e.key" in js,
    "Ctrl+K / ⌘K gyorsgomb bekötve")
 ok("keresesTalalatMegnyit" in js and "goToEvents" in js and "openUzenetModal" in js
    and "hianyzasok-tab" in js, "a találat a megfelelő nézetet nyitja")
+ok("reszletekModal" in js and "esemenyReszletekSzoveg" in js
+   and "hianyzasReszletekSzoveg" in js and "hidden.bs.modal" in js,
+   "a találat sorára kattintva az adott sor részletei nyílnak meg (Kaneo #85)")
 ok("250" in js, "a gépelésre debounce (250 ms) van")
+ev = client.get("/api/esemenyek?diak=Kereso").get_json()
+ok(any(e.get("tema") == "Elektromosság" and e.get("tartalom") for e in ev),
+   "a részletek modálhoz a teljes esemény lekérhető (/api/esemenyek)")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

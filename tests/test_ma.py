@@ -160,8 +160,10 @@ ok('id="ma-tab"' in html and 'id="ma-pane"' in html and 'id="maOrak"' in html
 ok(html.index('id="ma-tab"') > html.index('id="attekintes-tab"')
    and html.index('id="ma-tab"') < html.index('id="esemenyek-tab"'),
    "a Ma fül az Áttekintés után, az Események előtt van")
-ok("loadMaNezet" in js and "/api/ma" in js and "btnMaFrissit" in js,
-   "a frontend a saját fülhöz hívja a /api/ma végpontot")
+ok("loadMaNezet" in js and "/api/ma" in js,
+   "a frontend a saját fülhöz hívja a /api/ma végpontot (a felesleges Frissítés gomb nélkül)")
+ok("btnMaFrissit" not in html and "btnMaFrissit" not in js,
+   "nincs külön szürke Frissítés gomb a Ma fülön (Kaneo #113)")
 ok(client.get("/api/ma?datum=2026-11-06").status_code == 200,
    "a /api/ma végpont él")
 
