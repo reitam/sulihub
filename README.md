@@ -76,6 +76,12 @@ a saját szerveren maradnak.
   tanév adata pótolhatatlan, ezért a szinkron soha nem törli). A fejlécben és a
   választóban látszik a tanév állapota (nyitott/lezárt).
 
+### ☀️ „Ma” nézet
+- Önálló fül az Áttekintés után: **mai órák** (időpont, terem, tanár), **ma és holnap
+  esedékes** házik és számonkérések pipával (kattintásra készre jelölhető), **friss jegyek**
+  (7 nap), **olvasatlan üzenetek** (kattintásra megnyílnak). Saját gyermek-chipek és
+  Frissítés gomb; a fejléc diák-szűrőjét követi.
+
 ### 📊 Iskolai események
 - DataTables táblázat: szűrés gyermek, típus, tantárgy, aktív/lejárt, dátumtartomány szerint;
   gyorsszűrők (mai, tárgyhavi, előző havi, aktív), szabad szöveges keresés.
@@ -117,9 +123,11 @@ a saját szerveren maradnak.
   mobilon **kapcsoló**: „Havi bontás" (hónap → tantárgy) vagy „Tantárgy szerint"
   (teljes időszak), mindkettő tetején a **teljes átlag**.
 - **Trend oszlop** (sparkline + utolsó két hónap különbsége) és **romlás-figyelmeztetés**
-  az Áttekintésen (≥0,5 csökkenés).
+  az Áttekintésen (≤ -0,5), **gyermeknévvel és az érintett időszakkal**; alatta zöld sáv a
+  **javuló** tantárgyakról (≥ +0,5).
 - **„Milyen jegy kell?” kalkulátor:** tantárgy + célátlag + a következő jegy súlya →
-  hányas/os hány ötös kell; elérhetetlen cél jelzése.
+  hányas/os hány ötös kell; elérhetetlen cél jelzése. A kártya a tantárgy **meglévő jegyeit**
+  is kilistázza, és mindig a **teljes tanév** jegyállományával számol.
 
 ### 🔎 Keresés és UX
 - **Globális kereső (Ctrl+K):** jegyek, feljegyzések, házik, üzenetek (teljes törzs) és
@@ -132,7 +140,8 @@ a saját szerveren maradnak.
 ### 📱 Mobilra optimalizált UI
 - Redmi 12/13/14 méreten (393 CSS px) ellenőrizve: nincs vízszintes túlcsordulás.
 - Összecsukható táblázatok, **monogram-avatar** a diák oszlopban, 2 sorba tördelődő
-  fülek, teljes képernyős modálok, teljes szélességű vezérlők.
+  fülek, teljes képernyős modálok, teljes szélességű vezérlők. Az értékeléseknél mobilon is
+  **alapból látszik a jegy** (az „Érték” oszlop megelőzi a típus-badge-et).
 - A fejlécben: ütemező állapota, időablak, következő és utolsó futás, **telepített verzió**.
 
 ### 🛠️ Üzemeltetés
@@ -377,7 +386,7 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**44 csomag, 1272 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**44 csomag, 1290 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
@@ -442,7 +451,7 @@ telepíti a mentő-cront.
 
 | Verzió | Tartalom |
 |---|---|
-| v2.1.x | **Globális kereső (Ctrl+K)**, **jegy-kalkulátor**, **sötét mód + nyomtatás + kedvencek**, **tantárgyi trend + hiányzás-mintázat** |
+| v2.1.x | **Globális kereső (Ctrl+K)**, **jegy-kalkulátor** (meglévő jegyek listájával, teljes tanévre), **sötét mód + nyomtatás + kedvencek**, **tantárgyi trend + hiányzás-mintázat** (gyermekenkénti romló **és javuló** figyelmeztetés időszakkal), **önálló „Ma” fül**; mobilon a **jegy oszlop alapból látszik** |
 | v2.0.x | **KRÉ-14 refaktor:** `app.py` és a frontend szétbontása (8 blueprint + közös rétegek, `static/js/`), **futásidejű adatok a `data/` alatt** migráló szkripttel; a viselkedés (URL-ek, válaszok, DB-séma) változatlan |
 | v1.9.x | **Saját órák** (kézi szakkör/pluszfoglalkozás tanévre/hétre/egyedi időszakra, saját színnel, **módosítható**, egy alkalom vagy sorozat törlése), **naptárba küldés** házihoz/számonkéréshez/üzenethez (előre kitöltött Google esemény), **órarend ICS export** (hét/hónap/félév/tanév), **futástörténet**, **órarend-színek**, **SuliHub arculat** (logó/név), **modern egysoros fejléc**, opcionális **basic auth**, **DB-indexek/sémaverzió**, **zsebpénz CSV**, **teljes üzenettörzs** (a lista csak előnézet volt — #74), **dashboard szűrőfüggetlen újratöltése** (#76); az AI-elemzés csak API-ként elérhető |
 | v1.8.x | **Offline-képes frontend:** minden CDN-függőség vendorolva a `static/vendor/` alá (Bootstrap, DataTables, FontAwesome, FullCalendar, jQuery), nincs külső hivatkozás; apróságok (#17: `SyntaxWarning`, érvényes `config.json.example`, halott `autoSyncAlert` törlése) |

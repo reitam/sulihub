@@ -126,6 +126,16 @@ d = r.get_json()
 ok(d.get("jegy_db") == 2 and d.get("aktualis_atlag") == 4.5,
    f"csak a 2026/2027 jegyek: {d.get('jegy_db')} db, {d.get('aktualis_atlag')}")
 
+print("\n7b) A meglévő jegyek listája (Kaneo #78)")
+jegyek = d.get("jegyek") or []
+ok(len(jegyek) == 2, f"2 meglévő jegy a válaszban: {jegyek}")
+ok([j.get("szam") for j in jegyek] == [4, 5], f"legfrissebb elöl: {[j.get('szam') for j in jegyek]}")
+ok(jegyek and jegyek[0].get("datum") == "2026-10-10" and jegyek[0].get("suly") == 100,
+   f"dátum és súly is megvan: {jegyek and jegyek[0]}")
+ok(all(j.get("szam") != 1 for j in jegyek), "a korábbi tanév jegyét nem listázza")
+r = get("/api/jegy_kalkulator?diak=KalkDiak&tantargy=Ures&cel=4&suly=100&tanev=2026%2F2027")
+ok(r.get_json().get("jegyek") == [], "nincs jegy -> üres lista")
+
 print("\n8) Érvénytelen bemenetek")
 ok(get("/api/jegy_kalkulator?tantargy=Matek&cel=6").status_code == 400, "cel=6 -> 400")
 ok(get("/api/jegy_kalkulator?tantargy=Matek&cel=abc").status_code == 400, "cel=abc -> 400")
@@ -140,6 +150,9 @@ ok('id="jegyKalkulatorCard"' in html and 'id="kalkTantargy"' in html
    "a kártya és a vezérlők a sablonban")
 ok('id="kalkEredmeny"' in html and "Milyen jegy kell?" in html, "van eredmény-hely és cím")
 ok("szamolJegyKalkulator" in js and "/api/jegy_kalkulator" in js, "a JS hívja az API-t")
+ok("kezdo_datum" not in js.split("function szamolJegyKalkulator")[1].split("function ")[0],
+   "a kalkulátor nem küld időszak-szűrést (a teljes tanév jegyállományát használja)")
+ok("Meglévő jegyek" in js and "res.jegyek" in js, "a JS kilistázza a meglévő jegyeket")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

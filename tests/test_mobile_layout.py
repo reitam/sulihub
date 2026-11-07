@@ -153,12 +153,22 @@ try:
                f"a vendorolt FontAwesome CSS betöltődött (font-family: '{libs['fa']}')")
 
             # 1) nincs vízszintes túlcsordulás
-            for tab in ("esemenyek", "hianyzasok", "orarend", "naptar", "uzenetek", "rewards", "logs"):
+            for tab in ("ma", "esemenyek", "hianyzasok", "orarend", "naptar", "uzenetek", "rewards", "logs"):
                 await page.evaluate(
                     "(id) => bootstrap.Tab.getOrCreateInstance(document.getElementById(id)).show()", tab + "-tab")
                 await page.wait_for_timeout(900)
                 sw = await page.evaluate("document.documentElement.scrollWidth")
                 ok(sw <= 393, f"'{tab}' fül: nincs vízszintes túlcsordulás ({sw} px)")
+
+            # 1b) a Ma fül tartalma betöltődik (Kaneo #9)
+            await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('ma-tab')).show()")
+            await page.wait_for_timeout(700)
+            ma = await page.evaluate("""() => { const q = s => document.querySelectorAll(s).length;
+                return {title: (document.querySelector('#maDatumCim') || {}).innerText || '',
+                        db: q('#maOrak .list-group-item') + q('#maHataridok .list-group-item')
+                            + q('#maJegyek .list-group-item') + q('#maUzenetek .list-group-item')}; }""")
+            ok(ma["title"].startswith("Ma,"), f"a Ma fül dátumfejléce betöltődött ('{ma['title']}')")
+            ok(ma["db"] > 0, f"a Ma fül kártyái feltöltődtek ({ma['db']} sor)")
 
             # 2) a fő elemek láthatók és elférnek
             await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('esemenyek-tab')).show()")
@@ -187,14 +197,18 @@ try:
                 const avatars = [...t.querySelectorAll('tbody .avatar')];
                 const ths = [...t.querySelectorAll('thead th')];
                 const dateIdx = ths.findIndex(th => /dátuma/i.test(th.textContent));
+                const ertekIdx = ths.findIndex(th => /Érték/i.test(th.textContent));
                 return {n: avatars.length,
                         text: avatars.length ? avatars[0].textContent.trim() : '',
                         bg: avatars.length ? getComputedStyle(avatars[0]).backgroundColor : '',
-                        dateVisible: dateIdx >= 0 && ths[dateIdx].getBoundingClientRect().width > 0};
+                        dateVisible: dateIdx >= 0 && ths[dateIdx].getBoundingClientRect().width > 0,
+                        ertekVisible: ertekIdx >= 0 && ths[ertekIdx].getBoundingClientRect().width > 0,
+                        ertekText: ertekIdx >= 0 ? (t.querySelector('tbody tr td:nth-child(' + (ertekIdx + 1) + ')') || {}).textContent || '' : ''};
             }""")
             ok(av["n"] > 0, f"a diák oszlopban avatar van ({av['n']} db, pl. '{av['text']}')")
             ok(len(av["text"]) in (2, 3), f"a monogram 2-3 betűs ('{av['text']}')")
             ok(av["dateVisible"], "a bejegyzés dátuma oszlop látszik mobilon")
+            ok(av["ertekVisible"], "a jegy (Érték oszlop) alapból látszik mobilon")
             # 7) mobil: egyetlen karcsú státuszsáv, a technikai részletek koppintásra
             compact = await page.evaluate("""() => {
                 const e = document.querySelector('#schedulerCompact');
