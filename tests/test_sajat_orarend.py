@@ -222,5 +222,13 @@ ok(client.put(f"/api/sajat_orarend/{szines_id}", json={
     "diak_nev": "Teszt Elek", "cim": "", "nap": 1, "kezdes": "16:00",
     "vege": "17:00"}).status_code == 400, "érvénytelen módosítás → 400")
 
+print("\n9) Naptár-esemény olvasható szövegszíne (Kaneo #118)")
+from views_common import contrast_text
+ok(contrast_text("#0d6efd") == "#ffffff", "sötétkék háttéren fehér szöveg")
+ok(contrast_text("#8bb9fe") == "#212529", "pasztell háttéren sötét szöveg")
+ok(contrast_text("#ffffff") == "#212529", "fehér háttéren sötét szöveg")
+ok(contrast_text("nem-szin") == "#ffffff", "érvénytelen színnél fehér a szöveg")
+ok(all(e.get("textColor") for e in events), "minden naptár-esemény kap textColor-t")
+
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

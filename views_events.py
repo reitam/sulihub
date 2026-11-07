@@ -15,7 +15,7 @@ from kreta_db import (
     get_db_connection, get_meta, komment_kulcs_esemeny, komment_szamok, set_meta,
 )
 from kreta_paths import DB_FILE
-from views_common import _tanev_from_request, make_bp, normalize_date
+from views_common import _tanev_from_request, contrast_text, make_bp, normalize_date
 
 bp = make_bp("events")
 
@@ -152,6 +152,7 @@ def api_naptar_esemenyek():
             "title": title,
             "start": norm_date,
             "color": color,
+            "textColor": contrast_text(color),
             "extendedProps": {
                 "diak": teljes_nev,
                 "tipus": es_tipus,

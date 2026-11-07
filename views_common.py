@@ -112,3 +112,25 @@ def normalize_date(d_str):
         except ValueError:
             return None
     return None
+
+
+def contrast_text(hex_color):
+    """Olvasható szövegszín egy háttérszínhez (naptár-események, Kaneo #118).
+
+    Világos (pasztell) háttérhez sötét, sötéthez fehér szöveget ad.
+    """
+    h = str(hex_color or "").strip().lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    if len(h) != 6:
+        return "#ffffff"
+    try:
+        r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    except ValueError:
+        return "#ffffff"
+
+    def lin(v):
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+    lum = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    return "#212529" if lum > 0.3 else "#ffffff"

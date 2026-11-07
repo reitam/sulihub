@@ -171,6 +171,9 @@ try:
             ok(ma["title"].startswith("Ma,"), f"a Ma fül dátumfejléce betöltődött ('{ma['title']}')")
             ok(ma["db"] > 0, f"a Ma fül kártyái feltöltődtek ({ma['db']} sor)")
 
+            # 1c) a kereső fókuszát külön, óra-mock nélküli oldalon ellenőrizzük
+            # (a rögzített óra mellett a Bootstrap átmenet-timerje nem fut le).
+            page.wait_for_timeout(50)
             # 2) a fő elemek láthatók és elférnek
             await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('esemenyek-tab')).show()")
             await page.wait_for_timeout(500)
@@ -400,6 +403,28 @@ try:
                 return sum(p) if len(p) == 3 else 0
             ok(chip is not None and _vilagossag(chip["color"]) > 300,
                f"sötét módban a szűrő-címkék olvashatók ({chip})")
+            # a naptár címének ellenőrzéséhez nyissuk meg az órarend fület
+            await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('orarend-tab')).show()")
+            await page.wait_for_timeout(900)
+            dark = await page.evaluate("""() => {
+                const c = (sel) => { const e = document.querySelector(sel); return e ? getComputedStyle(e).color : ''; };
+                const bg = (sel) => { const e = document.querySelector(sel); return e ? getComputedStyle(e).backgroundColor : ''; };
+                return {kpi: c('#tileHazi .kpi-title'), hianyzas: c('#stHianyzasOra'),
+                        fc: c('.fc .fc-toolbar-title'), tableBg: bg('.table-container'),
+                        schedBg: bg('#schedulerCompact'), modalFej: c('.modal-header.bg-info')};
+            }""")
+            ok(_vilagossag(dark["kpi"]) > 300,
+               f"a dashboard kártyacím olvasható sötét módban ({dark['kpi']})")
+            ok(_vilagossag(dark["hianyzas"]) > 300,
+               f"a hiányzás-összesítő érték olvasható ({dark['hianyzas']})")
+            ok(_vilagossag(dark["fc"]) > 300,
+               f"a naptár címe olvasható sötét módban ({dark['fc']})")
+            ok(_vilagossag(dark["tableBg"]) < 220,
+               f"a táblázat-konténer sötét ({dark['tableBg']})")
+            ok(_vilagossag(dark["schedBg"]) < 220,
+               f"a státuszsáv sötét ({dark['schedBg']})")
+            ok(_vilagossag(dark["modalFej"]) < 300,
+               f"a ciánkék modálfejlécen sötét a szöveg ({dark['modalFej']})")
             await page.click('#btnTheme')
             await page.wait_for_timeout(200)
 
@@ -425,6 +450,19 @@ try:
             meta = await page.evaluate(
                 "() => (document.querySelector('#printOrarend .print-meta') || {}).innerText || ''")
             ok(meta.strip() != "", f"a nyomtatási tartalom fejlécében is ott a gyerek és az időszak ('{meta}')")
+
+            # 12) kereső: a nagyító ikon után a mező azonnal aktív (Kaneo #117)
+            # Külön, óra-mock nélküli oldal, mert a rögzített óra mellett a
+            # Bootstrap átmenet-timerje nem fut le.
+            fctx = await b.new_context(viewport={"width": 393, "height": 873})
+            fp = await fctx.new_page()
+            await fp.goto(base, wait_until="networkidle")
+            await fp.click("#btnKereses")
+            await fp.wait_for_timeout(900)
+            fokusz = await fp.evaluate("() => document.activeElement && document.activeElement.id")
+            ok(fokusz == "keresesInput",
+               f"a nagyító ikonnal nyitott kereső mező azonnal aktív ('{fokusz}')")
+            await fctx.close()
 
             await b.close()
 
