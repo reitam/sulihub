@@ -59,7 +59,8 @@ res = client.get("/")
 ok(res.status_code == 401, f"bejelentkezés nélkül 401 ({res.status_code})")
 ok("Basic" in res.headers.get("WWW-Authenticate", ""), "van WWW-Authenticate fejléc")
 ok(client.get("/health").status_code == 200, "a /health auth nélkül is elérhető")
-ok(client.get("/static/favicon.svg").status_code == 401, "a statikus fájl is védett")
+ok(client.get("/static/img/sulihub-favicon.png").status_code == 401,
+   "a statikus fájl is védett")
 ok(client.get("/", headers=auth_header()).status_code == 200, "helyes jelszóval 200")
 ok(client.get("/", headers=auth_header(password="rossz")).status_code == 401,
    "rossz jelszóval 401")

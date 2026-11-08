@@ -96,10 +96,14 @@ ok("autoSyncAlert" not in tpl and "autoAlert" not in tpl,
    "a frontendben nincs autoSyncAlert / autoAlert hivatkozás")
 
 print("\n7) #62/#63: SuliHub brand és egysoros fejléc")
-ok("SuliHub" in tpl and "sulihub.svg" in tpl, "a felület a SuliHub nevet és logót használja")
-logo = ROOT / "static" / "sulihub.svg"
-ok(logo.is_file() and logo.stat().st_size > 100, "a Sulihub logó létezik")
-ok((ROOT / "static" / "favicon.svg").is_file(), "a favicon megvan")
+ok("SuliHub" in tpl and "sulihub-ikon.png" in tpl,
+   "a felület a SuliHub nevet és az új logót használja")
+logo = ROOT / "static" / "img" / "sulihub-logo.png"
+ok(logo.is_file() and logo.stat().st_size > 1000, "a SuliHub logó (PNG) létezik")
+ok((ROOT / "static" / "img" / "sulihub-favicon.png").is_file(), "a favicon megvan")
+ok((ROOT / "static" / "img" / "sulihub-ikon.png").is_file()
+   and (ROOT / "static" / "img" / "sulihub-ikon-180.png").is_file(),
+   "a fejléc-ikon és az apple-touch ikon is megvan")
 ok('class="app-brand' in tpl and 'app-left' in tpl,
    "a fejléc brand + bal oldali tanév + controls szerkezetű")
 ok('id="schedulerDetails" class="d-none"' in tpl,

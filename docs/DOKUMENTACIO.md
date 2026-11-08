@@ -72,7 +72,7 @@ továbbítanak.
 | **Heti órarend** | Idősávos heti nézet, gyermekszínekkel; **A4 PDF export**; **kézi „Saját óra”** tételek (szakkör, plusz foglalkozás) tanévre / hétre / egyedi időszakra, egy alkalom vagy a teljes sorozat törlésével (Kaneo #55); **ICS export** hét / hónap / félév / tanév időszakra (Kaneo #73) |
 | **Feladatok naptár nézet** | Házik és számonkérések határidő szerint, színkódolva; a részletek ablakból **közvetlen „Naptárba küldés”** (előre kitöltött Google Naptár esemény, egy kattintásos mentés) (Kaneo #47) |
 | **Beérkezett üzenetek** | Üzenetek olvasása (a **teljes törzs** a részletes API-válaszból, a sortörések megőrzésével — Kaneo #74), **szöveges keresés a tárgyban, a feladóban és az üzenet tartalmában**, **helyi olvasott/olvasatlan állapot** (olvasatlan számláló a fülön, félkövér + kék pötty a listában, Mind/Olvasatlan/Olvasott gyorsszűrő, megnyitáskor automatikus olvasottnak jelölés + kézi oda-vissza váltás; **checkboxos kijelölés** soronként és „mind” a fejlécben, a kijelölteken vagy a teljes listán **egylépéses olvasott/olvasatlan** váltás; a KRÉTA felé nem ír vissza — Kaneo #11), csatolmányok letöltése; az üzenethez is fűzhető **saját megjegyzés** (Kaneo #46), valamint **„Naptárba küldés”** Google Naptárba (Kaneo #47/#60) |
-| **Statisztika & Zsebpénz** | Havi jegyeloszlás, átlag, dicséret/hiány mutatók, elszámolás; **az egyenleg tételeinek Excel (`.xlsx`) exportja** — *kiválasztott időszakra*, *teljes tanévre* vagy *teljes előzményre*, tételes **pénzügyi rendezettség-jelöléssel** (Kaneo #11/#77); **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve és visszakereshetően (Kaneo #82) |
+| **Statisztika & Zsebpénz** | Havi jegyeloszlás, átlag, dicséret/hiány mutatók, elszámolás; **az egyenleg tételeinek Excel (`.xlsx`) exportja** — *kiválasztott időszakra*, *teljes tanévre* vagy *teljes előzményre*, tételes **pénzügyi rendezettség-jelöléssel** (Kaneo #11/#77); **aktuális bizonyítvány PDF** félévi/tanévi bontásban, mentés nélkül (Kaneo #82) |
 | **Rendszernapló** | A szinkronizációk naplója, hibák, előzmények; **legutóbbi 20 futás** táblázata (indult, futásidő, státusz, új esemény, hibás diák, tanév) és **futásidő-sparkline** (Kaneo #10) |
 
 **Szűrőfüggetlen dashboard (Kaneo #76):** az Áttekintés a saját, szűrés nélküli
@@ -81,8 +81,9 @@ ezért az eseménylistán beállított típus/tantárgy szűrő **nem tud kiüre
 és a feedekben; fülre visszatéréskor a panelek azonnal újraszámolódnak, majd frissülnek —
 F5 nem szükséges.
 
-**Fejléc (Kaneo #62/#63/#71):** bal sarokban a **SuliHub logó + név + verzióbadge**
-(66 px logó, 2,1 rem név); a jobb oldali sávban a **tanévválasztó**, a **szinkron
+**Fejléc (Kaneo #62/#63/#71):** bal sarokban az **új SuliHub logó + név + verzióbadge**
+(112×52 px embléma, 2,1 rem név, a logó a fejléc hátterével összeolvadva); a jobb oldali
+sávban a **tanévválasztó**, a **szinkron
 státuszsáv** („Frissítve: tegnap 21:16 (kézi)”) és a **Frissítés** gomb. A technikai
 részletek (ütemező, időablak, következő futás, utolsó automatikus futás) koppintásra
 nyíló ablakban vannak. Asztalon a fejléc 87 px magas, gradiens háttérrel és finom
@@ -371,19 +372,21 @@ színe az eseményekhez igazodik (óra = kék, határidő = borostyán, vegyes =
 számú kártyánál az utolsó a két oszlophoz képest **középre** kerül. A havi nézet a
 felhasználó döntése alapján **nincs**. Adatforrás: `/api/ma?diak=&datum=`.
 
-### 2.15. Riportkártya PDF (Kaneo #82)
+### 2.15. Aktuális bizonyítvány PDF (Kaneo #82)
 
 A Statisztika fülön **gyermek + időszak** (félév / teljes tanév) választással **A4-es PDF
-riportkártya** generálható **közvetlenül, mentés nélkül** (`GET /api/riportkartya/export_pdf`);
-a böngésző nyitja meg, onnan nyomtatható/menthető. A cím a tanévet és az időszakot is
-mutatja (pl. „SuliHub - Teszt Elek - 2026/2027 1. félév”). A PDF **dísz-bizonyítvány**
-kivitelű: arany duplakeret, sarokdíszek, talpas (serif) címek, pecsét, egységes arany–
-tengerészkék színvilág. Tartalma: összegzés (tanulmányi átlag, jegyszám, hiányzás/
-igazolatlan, késés, zsebpénz-egyenleg), **tantárgyi táblázat** (tantárgy, jegyek,
-súlyozott átlag) és – ha van ilyen – **magatartás/szorgalom** értékelés. A „Jegyek”
-oszlop **jegyenként összesít**, dátum nélkül (pl. „Jeles(5) - 3 db ; Jó(4) - 2 db”), a
-korábbi **Db oszlop nincs**. **Feljegyzés-szekció nincs**, és nincs mentett riport-előzmény
-(a felhasználó döntése: mindig újragenerálható).
+bizonyítvány** generálható **közvetlenül, mentés nélkül** (`GET /api/riportkartya/export_pdf`);
+a böngésző nyitja meg, onnan nyomtatható/menthető. A felületi kártya és a PDF fejléce is
+**„Aktuális bizonyítvány”**; a fő cím a tanévet és az időszakot is mutatja (pl. „SuliHub -
+Teszt Elek - 2026/2027 1. félév”). A PDF **dísz-bizonyítvány** kivitelű: arany duplakeret,
+sarokdíszek, talpas (serif) címek, pecsét, egységes arany–tengerészkék színvilág. Tartalma:
+összegzés (tanulmányi átlag, jegyszám, hiányzás/igazolatlan, késés), **tantárgyi táblázat**
+(tantárgy, jegyek, súlyozott átlag) és – ha van ilyen – **magatartás/szorgalom** értékelés.
+A **zsebpénz-egyenleg csak akkor szerepel**, ha a diákra engedélyezett a zsebpénz modul
+(`enable_rewards`); kikapcsolva a sor kimarad. A „Jegyek” oszlop **jegyenként összesít**,
+dátum nélkül (pl. „Jeles(5) - 3 db ; Jó(4) - 2 db”), a korábbi **Db oszlop nincs**.
+**Feljegyzés-szekció nincs**, és nincs mentett bizonyítvány-előzmény (a felhasználó döntése:
+mindig újragenerálható).
 
 A **hivatalos félévi/év végi osztályzat** a KRÉTA API-ból nem érhető el (félévkor sem
 kérdezhető le), ezért a riport a jegyekből számolt, KRÉTA-súlyozású átlagot mutatja, és
@@ -1136,7 +1139,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v2.1.1** *(éles 2026-11-08)* | **2026-11-07** | **#117** a globális kereső (nagyító/Ctrl+K) megnyitásakor a **mező azonnal aktív** (`shown.bs.modal` + tartalék; a régi timer a megjelenés előtt futott). **#118** **átfogó sötét mód**: dashboard kártyacímek, táblázat-konténer, `.text-dark` szövegek, accordion-fejlécek, kiemelt sorok (ma/elkészült/olvasatlan), státuszsáv + verzió-jelvény, **FullCalendar** háttér/rács/cím, modálfejléc, csatolmány-badge/„Olvasás” gomb, Feljegyzés-badge; a **naptár-események szövegszíne** a háttér fényességéhez igazodik (`views_common.contrast_text` → `textColor`), így világos módban is jobb. Számított kontraszt-audit: 50 → **0 valódi** alacsony kontrasztú szöveg (9 fül + 6 modál + űrlapok). **1339 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/196) |
 | **v2.1.2** *(kiadásra kész)* | **2026-11-08** | **#120** az Iskolai események **szűrőpanelje alapból zárva** van, a fejlécére kattintva nyílik (a dashboard-csempéről érkezve is zárva marad; a szűrő továbbra is érvényesül). **#115** (Tailscale/WireGuard távoli elérés) és **#119** (SQLite vs MySQL/PostgreSQL) **elemzés** a jegyekben, kódváltozás nélkül. **1340 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/197) |
 | **v2.1.3** *(kiadásra kész)* | **2026-11-08** | **#121** a szűrőpanel a felső menüsor **alá** került (a menüsor nem ugrál a fülek között). **#82** A4-es **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve (`riportkartyak` tábla + data kötet), visszamenőleges lista/letöltés; a hivatalos félévi jegy hiányát jelzi. **#83** **Excel exportok**: események (Jegyek/Feljegyzések/Házi feladatok) és hiányzások (Hiányzások/Igazolások) a felület szűrőivel. **#90** üzemeltetési ellenőrzések: havi **restore-teszt** (`tools/backup_restore_check.py`, manifest-tel) + éjszakai **élő füstteszt** (`tools/live_smoke.py`, CI job, secret nélkül kimarad). **1411 ellenőrzés / 47 csomag** (fast 42/1212, browser 5/199) |
-| **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** a riportkártya **mentés/előzmény nélkül**, mindig közvetlenül generálódik (`GET /api/riportkartya/export_pdf`); a címe a tanévet és az időszakot mutatja („SuliHub - \<gyerek\> - 2026/2027 1. félév”), **dísz-bizonyítvány** kivitelben (arany keret, pecsét, serif címek), a tantárgyi táblában nincs Db oszlop, a jegyek jegyenként összesítve („Jeles(5) - 3 db ; Jó(4) - 2 db”), a magatartás/szorgalom értékelés benne van, a **Feljegyzések** szekció nincs. A félévi/év végi hivatalos jegy beépítése külön backlog (#123/#124). **#125** kódszemle-javítások: riport hiányzás-óraszám, FTS ékezet/kis-nagybetű, adatminőség-typo, csatolmány-rekurzió, órarend arányőr, silent JSON, dupla `.bak`, `/api/esemenyek` limit/offset. **#104** **Ma/Hét** nézet a Ma fülön: a heti nézet **kétoszlopos, középre igazított napkártyák** (az események szerinti színekkel, páratlan darabszámnál középre tett utolsó kártyával), a **havi nézet elhagyva**. **1479 ellenőrzés / 50 csomag** (fast 45/1277, browser 5/202) |
+| **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** az **aktuális bizonyítvány** (a felületi kártya és a PDF fejléce is ezt a nevet viseli) **mentés/előzmény nélkül**, mindig közvetlenül generálódik (`GET /api/riportkartya/export_pdf`); a fő címe a tanévet és az időszakot mutatja („SuliHub - \<gyerek\> - 2026/2027 1. félév”), **dísz-bizonyítvány** kivitelben (arany keret, pecsét, serif címek), a tantárgyi táblában nincs Db oszlop, a jegyek jegyenként összesítve („Jeles(5) - 3 db ; Jó(4) - 2 db”), a magatartás/szorgalom értékelés benne van, a zsebpénz-egyenleg csak engedélyezett modulnál, a **Feljegyzések** szekció nincs. A félévi/év végi hivatalos jegy beépítése külön backlog (#123/#124). **#125** kódszemle-javítások: riport hiányzás-óraszám, FTS ékezet/kis-nagybetű, adatminőség-typo, csatolmány-rekurzió, órarend arányőr, silent JSON, dupla `.bak`, `/api/esemenyek` limit/offset. **#104** **Ma/Hét** nézet a Ma fülön: a heti nézet **kétoszlopos, középre igazított napkártyák** (az események szerinti színekkel, páratlan darabszámnál középre tett utolsó kártyával), a **havi nézet elhagyva**. **Új SuliHub logó mindenhol:** fejléc (embléma + név), favicon/apple-touch ikon, valamint a PDF-bizonyítvány fejléce (a teljes logó a cím fölött). **1488 ellenőrzés / 50 csomag** (fast 45/1286, browser 5/202) |
 
 ---
 

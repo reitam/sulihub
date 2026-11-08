@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SuliHub – KRÉTA Adatbázis Áttekintő</title>
     
-    <!-- FAVICON -->
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='sulihub.svg') }}">
+    <!-- FAVICON (SuliHub új logó) -->
+    <link rel="icon" type="image/png" sizes="64x64" href="{{ url_for('static', filename='img/sulihub-favicon.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/sulihub-ikon-180.png') }}">
 
     <!-- Bootstrap 5 CSS (vendorolva, internet nélkül is működik) -->
     <link href="{{ url_for('static', filename='vendor/bootstrap/5.3.0/bootstrap.min.css') }}" rel="stylesheet">
@@ -40,11 +40,11 @@
             box-shadow: 0 6px 18px rgba(13, 110, 253, .07);
         }
         .app-brand { display: flex; align-items: center; gap: .8rem; min-width: 0; flex: 0 0 auto; }
-        .app-logo { width: 66px; height: 66px; border-radius: 18px; flex: 0 0 auto;
-                    box-shadow: 0 6px 16px rgba(13, 110, 253, .28); }
+        .app-logo { width: 112px; height: 52px; object-fit: contain; flex: 0 0 auto;
+                    mix-blend-mode: multiply; }
         .app-title {
             font-size: 2.1rem; letter-spacing: -.03em; line-height: 1;
-            background: linear-gradient(90deg, #0d6efd, #6f42c1);
+            background: linear-gradient(90deg, #0b2a6b, #1e88e5, #0b2a6b);
             -webkit-background-clip: text; background-clip: text; color: transparent;
         }
         .app-version {
@@ -374,7 +374,7 @@
                 min-height: 0; padding: .75rem !important;
             }
             .app-header .app-title { font-size: 1.8rem; line-height: 1.2; }
-            .app-logo { width: 51px; height: 51px; border-radius: 14px; }
+            .app-logo { width: 88px; height: 41px; }
             .app-version { font-size: .78rem; }
             .app-brand { flex: 1 1 100%; order: 1; justify-content: flex-start; }
             .app-right { flex: 1 1 100%; order: 2; margin-left: 0; flex-wrap: wrap; gap: .5rem; }
@@ -650,7 +650,7 @@
     <!-- FEJLÉC ÉS SZINKRONIZÁLÓ GOMB (Kaneo #62/#63: egysoros, kompakt navbar) -->
     <div class="app-header mb-3">
         <div class="app-brand">
-            <img src="{{ url_for('static', filename='sulihub.svg') }}" alt="SuliHub" width="66" height="66" class="app-logo">
+            <img src="{{ url_for('static', filename='img/sulihub-ikon.png') }}" alt="SuliHub" width="112" height="52" class="app-logo">
             <span class="app-title fw-bold">SuliHub</span>
             <span class="app-version" title="Telepített verzió">{{ app_version }}</span>
         </div>
@@ -1579,7 +1579,7 @@
                     <div class="p-3">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                             <h6 class="fw-bold text-secondary mb-0">
-                                <i class="fa-solid fa-file-pdf me-2"></i>Riportkártya
+                                <i class="fa-solid fa-file-pdf me-2"></i>Aktuális bizonyítvány
                             </h6>
                             <span class="badge bg-light text-secondary border">A4 · PDF · nyomtatható</span>
                         </div>
@@ -1608,7 +1608,7 @@
                         <small class="text-muted d-block mt-2">
                             A PDF azonnal megnyílik; mentés/nyomtatás a böngészőből.
                             A hivatalos félévi/év végi osztályzat a KRÉTA API-ból nem érhető el;
-                            a riport a jegyekből számolt súlyozott átlagot mutatja.
+                            a bizonyítvány a jegyekből számolt súlyozott átlagot mutatja.
                         </small>
                     </div>
                 </div>
