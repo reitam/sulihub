@@ -1242,18 +1242,26 @@ def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="
 # === ÓRAREND KINYERÉSI BLOKK (AKTUÁLIS ÉS KÖVETKEZŐ HÉT) ===
 # ==============================================================================
 def save_orarend_to_db(diak_nev, orarend_lista):
-    """Elmenti a diák órarendi adatait az SQLite adatbázisba törlés után.
+    """Elmenti a diák órarendi adatait; a **múltbeli** sorokat nem törli (Kaneo #122).
 
+    A frissítés csak a most lekért időablakra érvényes: a lista legkorábbi
+    dátumától kezdődő sorok cserélődnek, a korábbi (múltbeli) órarend megmarad.
     **Adatvédelem:** ha üres lista érkezik, de a diákhoz már van órarend, a
     törlést kihagyjuk (egy elhalt API/web-lista ne ürítse ki a naptárt).
-    Részleges csökkenés megengedett: a 2 hetes ablakban (szünet, év vége)
-    természetes, hogy kevesebb óra van.
 
     Visszaad: `{"saved": int, "blocked": {"orarend": {"old", "new"}}}`.
     """
     result = {"saved": 0, "blocked": {}}
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+
+    def to_str(val):
+        if val is None:
+            return ""
+        if isinstance(val, dict):
+            return str(val.get('_i') or val.get('d') or str(val))
+        return str(val).strip()
+
     old_count = cursor.execute(
         "SELECT COUNT(*) FROM orarend WHERE diak_nev = ?", (diak_nev,)
     ).fetchone()[0]
@@ -1264,14 +1272,20 @@ def save_orarend_to_db(diak_nev, orarend_lista):
         conn.close()
         return result
 
-    cursor.execute("DELETE FROM orarend WHERE diak_nev = ?", (diak_nev,))
-
-    def to_str(val):
-        if val is None:
-            return ""
-        if isinstance(val, dict):
-            return str(val.get('_i') or val.get('d') or str(val))
-        return str(val).strip()
+    # Csak az új ablak kezdetétől törlünk; a korábbi hetek megmaradnak.
+    kezdo_datumok = []
+    for ora in orarend_lista:
+        kezdo = to_str(ora.get('start') or ora.get('Kezdet'))
+        if len(kezdo) >= 10:
+            kezdo_datumok.append(kezdo[:10])
+    if kezdo_datumok:
+        ablak_kezdo = min(kezdo_datumok)
+        cursor.execute(
+            "DELETE FROM orarend WHERE diak_nev = ? AND substr(kezdo_idopont, 1, 10) >= ?",
+            (diak_nev, ablak_kezdo))
+    else:
+        # Nincs értelmezhető dátum — a biztonság kedvéért nem törlünk.
+        pass
 
     for ora in orarend_lista:
         kezdo = to_str(ora.get('start') or ora.get('Kezdet'))
@@ -1319,7 +1333,7 @@ def save_orarend_to_db(diak_nev, orarend_lista):
     return result
 
 async def scrape_orarend(page, diak_nev, institute_code):
-    """Lekéri az aktuális ÉS a következő hét órarendjét a bal felső nyilakkal történő elnavigálással."""
+    """Lekéri az aktuális és a következő 3 hét órarendjét (4 hét, Kaneo #122)."""
     log("\n[ÓRAREND] Navigáció az Órarend oldalra és adatlekérés...")
     try:
         await page.goto(f"https://{institute_code}.e-kreta.hu/Orarend/InformaciokOrarend")
@@ -1354,32 +1368,32 @@ async def scrape_orarend(page, diak_nev, institute_code):
                 }
             }'''
 
-        log("  -> 1/2. Aktuális hét órarendjének beolvasása...")
-        aktuális_heti_orák = await page.evaluate(parse_events_js())
-        log(f"     Siker! Aktuális hétről beolvasva {len(aktuális_heti_orák)} db elem.")
+        heti_orak = []
+        WEEKS = 4   # aktuális hét + 3 hét (Kaneo #122)
+        for i in range(WEEKS):
+            if i:
+                log(f"  -> Navigáció a(z) {i + 1}. hétre (következő nyíl gomb)...")
+                next_btn = await page.query_selector('.fc-next-button, #Calendar .fc-button-next, button:has(.fc-icon-right-single-arrow), .fc-header-left .fc-button:has-text(">")')
+                if not next_btn:
+                    await page.evaluate('''() => {
+                        let calEl = $('#Calendar');
+                        if (calEl.length && calEl.fullCalendar) {
+                            calEl.fullCalendar('next');
+                        } else {
+                            $('.fc-next-button').click();
+                        }
+                    }''')
+                else:
+                    await next_btn.click()
+                await page.wait_for_load_state("networkidle")
+                await asyncio.sleep(2)
+            else:
+                log("  -> 1/4. Aktuális hét órarendjének beolvasása...")
+            heti = await page.evaluate(parse_events_js())
+            log(f"     Siker! A(z) {i + 1}. hétről beolvasva {len(heti)} db elem.")
+            heti_orak.extend(heti)
 
-        log("  -> 2/2. Navigáció a következő hétre (következő nyíl gomb)...")
-        next_btn = await page.query_selector('.fc-next-button, #Calendar .fc-button-next, button:has(.fc-icon-right-single-arrow), .fc-header-left .fc-button:has-text(">")')
-        
-        if not next_btn:
-            await page.evaluate('''() => {
-                let calEl = $('#Calendar');
-                if (calEl.length && calEl.fullCalendar) {
-                    calEl.fullCalendar('next');
-                } else {
-                    $('.fc-next-button').click();
-                }
-            }''')
-        else:
-            await next_btn.click()
-
-        await page.wait_for_load_state("networkidle")
-        await asyncio.sleep(2)
-
-        következő_heti_orák = await page.evaluate(parse_events_js())
-        log(f"     Siker! Következő hétről beolvasva {len(következő_heti_orák)} db elem.")
-
-        osszes_ora = aktuális_heti_orák + következő_heti_orák
+        osszes_ora = heti_orak
         
         if len(osszes_ora) > 0:
             save_orarend_to_db(diak_nev, osszes_ora)

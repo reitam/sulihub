@@ -1245,6 +1245,23 @@ $(document).ready(function() {
         });
 
         dataTable.clear().rows.add(filteredData).draw();
+        kiemelKeresesTalalat();
+    }
+
+    // A kereső találatának rövid kiemelése az eseménylistában (Kaneo #102).
+    function kiemelKeresesTalalat() {
+        if (keresesKiemelId === null) return;
+        const id = Number(keresesKiemelId);
+        keresesKiemelId = null;
+        setTimeout(function() {
+            dataTable.rows().every(function() {
+                const d = this.data();
+                if (!d || Number(d.id) !== id) return;
+                const node = this.node();
+                $(node).addClass('kereses-kiemel');
+                setTimeout(function() { $(node).removeClass('kereses-kiemel'); }, 3200);
+            });
+        }, 200);
     }
 
     function updateHataridoFilterInfo(kezdoNum, zaroNum) {
@@ -2643,23 +2660,26 @@ $(document).ready(function() {
     }
 
     $('#btnEsemenyExportXlsx').on('click', function() {
+        // A jelenlegi szűrt eredmény exportja (ugyanazok a szűrők, mint a listán).
         let url = `/api/esemenyek/export.xlsx?diak=${encodeURIComponent($('#filterDiak').val() || '')}`;
+        const tipus = $('#filterTipus').val() || '';
+        const tantargy = $('#filterTantargy').val() || '';
+        const status = $('#filterStatus').val() || '';
+        if (tipus) url += `&tipus=${encodeURIComponent(tipus)}`;
+        if (tantargy) url += `&tantargy=${encodeURIComponent(tantargy)}`;
+        if (status) url += `&status=${encodeURIComponent(status)}`;
         url += exportIdoszakParams($('#filterBejKezdoDatum').val(), $('#filterBejZaroDatum').val());
+        const hk = $('#filterHatKezdoDatum').val();
+        const hz = $('#filterHatZaroDatum').val();
+        if (hk) url += `&hatarido_kezdo=${encodeURIComponent(hk)}`;
+        if (hz) url += `&hatarido_zaro=${encodeURIComponent(hz)}`;
         url += tanevQueryParam();
         window.location.href = url;
     });
 
     $('#btnHianyzasExportXlsx').on('click', function() {
+        // A hiányzások/igazolások mindig a teljes tanévre mennek (Excelben szűrhető).
         let url = `/api/hianyzasok/export.xlsx?diak=${encodeURIComponent($('#hianyzasFilterDiak').val() || '')}`;
-        const honap = $('#hianyzasHonap').val() || '';
-        if (honap) {
-            const p = honap.split('-');
-            const utolso = new Date(Number(p[0]), Number(p[1]), 0).getDate();
-            url += exportIdoszakParams(
-                `${p[0]}-${p[1]}-01`,
-                `${p[0]}-${p[1]}-${String(utolso).padStart(2, '0')}`
-            );
-        }
         url += tanevQueryParam();
         window.location.href = url;
     });
@@ -3094,6 +3114,41 @@ $(document).ready(function() {
     // ── Globális kereső (Kaneo #85) ────────────────────────────────────────
     let keresesTimer = null;
     let keresesTalalatok = [];
+    let keresesAktualis = -1;
+    let keresesKiemelId = null;
+    const KERESES_ELOZMENY_KULCS = 'kreta_kereses_elozmeny';
+
+    function keresesElozmenyLista() {
+        try {
+            const lista = JSON.parse(localStorage.getItem(KERESES_ELOZMENY_KULCS) || '[]');
+            return Array.isArray(lista) ? lista.filter(function(x) { return typeof x === 'string'; }) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function keresesElozmenyMent(q) {
+        q = String(q || '').trim();
+        if (q.length < 2) return;
+        const lista = [q].concat(keresesElozmenyLista().filter(function(x) { return x !== q; })).slice(0, 5);
+        try { localStorage.setItem(KERESES_ELOZMENY_KULCS, JSON.stringify(lista)); } catch (e) {}
+        renderKeresesElozmeny();
+    }
+
+    function renderKeresesElozmeny() {
+        const $box = $('#keresesElozmeny');
+        const lista = keresesElozmenyLista();
+        if (!lista.length) {
+            $box.addClass('d-none').empty();
+            return;
+        }
+        $box.removeClass('d-none').html(
+            '<span class="text-muted me-1">Legutóbbi keresések:</span>' +
+            lista.map(function(q) {
+                return `<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1 mb-1 kereses-elozmeny"
+                        data-q="${escapeHtml(q)}">${escapeHtml(q)}</button>`;
+            }).join(''));
+    }
 
     function keresesModalNyitas() {
         const el = document.getElementById('keresesModal');
@@ -3109,6 +3164,7 @@ $(document).ready(function() {
         el.addEventListener('shown.bs.modal', fokusz, {once: true});
         bootstrap.Modal.getOrCreateInstance(el).show();
         setTimeout(fokusz, 350);   // tartalék, ha a shown nem fut le
+        renderKeresesElozmeny();
     }
 
     function keresesBadge(t) {
@@ -3126,6 +3182,7 @@ $(document).ready(function() {
 
     function renderKereses(res) {
         keresesTalalatok = res.talalatok || [];
+        keresesAktualis = -1;
         let $box = $('#keresesEredmeny').empty();
         if (!keresesTalalatok.length) {
             $box.append('<div class="text-muted small p-2">Nincs találat.</div>');
@@ -3234,6 +3291,12 @@ $(document).ready(function() {
 
         if (t.tipus === 'esemeny') {
             bezarEs(function() {
+                keresesKiemelId = t.id;
+                goToEvents({
+                    diak: t.diak || '', tipus: t.esemeny_tipus || '',
+                    tantargy: t.tantargy || '', status: '',
+                    kezdo: '', zaro: '', hatKezdo: '', hatZaro: ''
+                });
                 $.getJSON(`/api/esemenyek?diak=${encodeURIComponent(t.diak || '')}`)
                     .done(function(list) {
                         const e = (list || []).find(function(x) {
@@ -3242,21 +3305,7 @@ $(document).ready(function() {
                         if (e) {
                             reszletekModal(e.esemeny_tipus || 'Esemény részletei',
                                            esemenyReszletekSzoveg(e));
-                        } else {
-                            // Ha időközben elfogyott az adat, marad a szűrt lista.
-                            goToEvents({
-                                diak: t.diak || '', tipus: t.esemeny_tipus || '',
-                                tantargy: t.tantargy || '', status: '',
-                                kezdo: '', zaro: '', hatKezdo: '', hatZaro: ''
-                            });
                         }
-                    })
-                    .fail(function() {
-                        goToEvents({
-                            diak: t.diak || '', tipus: t.esemeny_tipus || '',
-                            tantargy: t.tantargy || '', status: '',
-                            kezdo: '', zaro: '', hatKezdo: '', hatZaro: ''
-                        });
                     });
             });
         } else if (t.tipus === 'uzenet') {
@@ -3533,23 +3582,54 @@ $(document).ready(function() {
     $('#keresesInput').on('input', function() {
         const q = $(this).val().trim();
         clearTimeout(keresesTimer);
+        $('#keresesElozmeny').toggleClass('d-none', q.length > 0);
         if (q.length < 2) {
             keresesTalalatok = [];
+            keresesAktualis = -1;
             $('#keresesEredmeny').empty();
+            if (!q) renderKeresesElozmeny();
             return;
         }
         keresesTimer = setTimeout(function() { keresesFuttat(q); }, 250);
     });
     $('#keresesInput').on('keydown', function(e) {
-        if (e.key === 'Enter') {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            if (!keresesTalalatok.length) return;
+            e.preventDefault();
+            const delta = e.key === 'ArrowDown' ? 1 : -1;
+            keresesAktualis = (keresesAktualis + delta + keresesTalalatok.length)
+                % keresesTalalatok.length;
+            const $sorok = $('#keresesEredmeny .kereses-talalat');
+            $sorok.removeClass('kereses-aktualis');
+            const $sor = $sorok.filter('[data-idx="' + keresesAktualis + '"]')
+                .addClass('kereses-aktualis');
+            if ($sor.length && $sor[0].scrollIntoView) {
+                $sor[0].scrollIntoView({block: 'nearest'});
+            }
+        } else if (e.key === 'Enter') {
             e.preventDefault();
             clearTimeout(keresesTimer);
-            keresesFuttat($(this).val().trim());
+            if (keresesAktualis >= 0 && keresesTalalatok[keresesAktualis]) {
+                keresesElozmenyMent($(this).val());
+                keresesTalalatMegnyit(keresesTalalatok[keresesAktualis]);
+            } else {
+                const q = $(this).val().trim();
+                keresesFuttat(q);
+                if (q.length >= 2) keresesElozmenyMent(q);
+            }
         }
     });
     $('#keresesEredmeny').on('click', '.kereses-talalat', function() {
         const idx = Number($(this).data('idx'));
+        $(this).addClass('kereses-villanas');
+        keresesElozmenyMent($('#keresesInput').val());
         if (keresesTalalatok[idx]) keresesTalalatMegnyit(keresesTalalatok[idx]);
+    });
+    $('#keresesElozmeny').on('click', '.kereses-elozmeny', function() {
+        const q = $(this).data('q') || '';
+        $('#keresesInput').val(q);
+        $('#keresesElozmeny').addClass('d-none');
+        keresesFuttat(q);
     });
 
     // ── Sötét mód (Kaneo #86) ─────────────────────────────────────────────
@@ -3690,7 +3770,12 @@ $(document).ready(function() {
         list.forEach(function(e) {
             const cim = [e.tantargy, e.tema || e.cim].filter(Boolean).join(' – ') || e.esemeny_tipus;
             const datum = e.hatarido || e.bej_datum;
-            $lista.append(`<div class="list-group-item d-flex align-items-center justify-content-between py-1 px-2">
+            const jegyzet = e.megjegyzes
+                ? `<span class="kedvenc-jegyzet small text-muted ms-2">${escapeHtml(e.megjegyzes)}</span>`
+                : '';
+            $lista.append(`<div class="list-group-item d-flex align-items-center justify-content-between py-1 px-2 kedvenc-sor"
+                    draggable="true" data-kulcs="${escapeHtml(e.kulcs)}">
+                <span class="kedvenc-fogantyú me-2" title="Húzd a sorrendezéshez">☰</span>
                 <button type="button" class="btn btn-link p-0 text-start text-decoration-none flex-grow-1 kedvenc-ugras"
                         data-diak="${escapeHtml(e.diak_nev)}" data-tipus="${escapeHtml(e.esemeny_tipus)}"
                         data-tantargy="${escapeHtml(e.tantargy)}">
@@ -3698,6 +3783,12 @@ $(document).ready(function() {
                     <span class="fw-semibold">${escapeHtml(cim)}</span>
                     <span class="text-muted small ms-1">${escapeHtml(e.diak_nev)}</span>
                     ${datum ? `<span class="text-muted small ms-2">${escapeHtml(datum)}</span>` : ''}
+                </button>
+                ${jegyzet}
+                <button type="button" class="btn btn-sm btn-link text-secondary p-0 ms-2 kedvenc-jegyzet-szerk"
+                        data-kulcs="${escapeHtml(e.kulcs)}" data-jegyzet="${escapeHtml(e.megjegyzes || '')}"
+                        title="Megjegyzés szerkesztése">
+                    <i class="fa-regular fa-pen-to-square"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-link text-warning p-0 ms-2 kedvenc-torol"
                         data-kulcs="${escapeHtml(e.kulcs)}" title="Kitűzés levétele">
@@ -3746,6 +3837,57 @@ $(document).ready(function() {
     $('#kedvencLista').on('click', '.kedvenc-torol', function(e) {
         e.stopPropagation();
         kedvencValtas($(this).data('kulcs'));
+    });
+
+    // Megjegyzés a kitűzött tételhez (Kaneo #108).
+    $('#kedvencLista').on('click', '.kedvenc-jegyzet-szerk', function(e) {
+        e.stopPropagation();
+        const kulcs = $(this).data('kulcs');
+        const jelenlegi = $(this).data('jegyzet') || '';
+        const uj = window.prompt('Megjegyzés a kitűzött tételhez (max. 200 karakter):', jelenlegi);
+        if (uj === null) return;
+        $.ajax({
+            url: '/api/kedvencek',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({akcio: 'note', kulcs: kulcs, megjegyzes: uj})
+        }).done(function(res) {
+            renderKedvencek(res.esemenyek || []);
+        });
+    });
+
+    // Húzásos sorrendezés (Kaneo #108) — a sorrend app_meta-ba mentve.
+    $('#kedvencLista').on('dragstart', '.kedvenc-sor', function(e) {
+        $(this).addClass('kedvenc-drag');
+        try {
+            e.originalEvent.dataTransfer.effectAllowed = 'move';
+            e.originalEvent.dataTransfer.setData('text/plain', $(this).data('kulcs') || '');
+        } catch (err) { /* régi böngésző */ }
+    });
+    $('#kedvencLista').on('dragover', '.kedvenc-sor', function(e) {
+        e.preventDefault();
+        const $sor = $(this);
+        const $drag = $('.kedvenc-sor.kedvenc-drag');
+        if (!$drag.length || $drag[0] === $sor[0]) return;
+        const y = e.originalEvent.clientY - $sor[0].getBoundingClientRect().top;
+        if (y > $sor.outerHeight() / 2) $drag.insertAfter($sor);
+        else $drag.insertBefore($sor);
+    });
+    $('#kedvencLista').on('drop', '.kedvenc-sor', function(e) { e.preventDefault(); });
+    $('#kedvencLista').on('dragend', '.kedvenc-sor', function() {
+        $(this).removeClass('kedvenc-drag');
+        const kulcsok = $('#kedvencLista .kedvenc-sor').map(function() {
+            return $(this).data('kulcs');
+        }).get();
+        $.ajax({
+            url: '/api/kedvencek',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({akcio: 'order', kulcsok: kulcsok})
+        }).done(function(res) {
+            kedvencKulcsok = new Set(res.kulcsok || []);
+            renderKedvencek(res.esemenyek || []);
+        });
     });
 
     betoltKedvencek();

@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Dokumentum verziója** | 1.9 (Kaneo #9, #78, #80, #82, #83, #85, #90, #101, #110–#121) |
-| **A rendszer verziója** | v2.1.3 (kiadásra kész — élesítésre vár; élesben v2.1.1) |
+| **Dokumentum verziója** | 1.10 (Kaneo #82, #83, #88–#91, #102, #107–#109, #120–#124) |
+| **A rendszer verziója** | v2.1.4 (kiadásra kész — élesítésre vár; élesben v2.1.1) |
 | **Utolsó frissítés** | 2026-11-08 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
@@ -298,6 +298,10 @@ sorára kattintva **az adott sor részletei nyílnak meg** (esemény → részle
 a megfelelő szűrt nézet nyílik. A találat-típusok **felirata és színe ugyanaz, mint az
 Események fülön** (Értékelés, Feljegyzés, Házi feladat, Bejelentett számonkérés). A keresés
 a `/api/kereses` végponton fut (LIKE, escape-elt speciális karakterekkel), tipikusan <10 ms.
+**Kaneo #102:** a találatlista **↑/↓ billentyűkkel** navigálható, **Enter** megnyitja,
+**Esc** bezárja; az utolsó **5 keresés** a `localStorage`-ban marad; a megnyitott találat
+sora az eseménylistában **rövid sárga kiemelést** kap. Nagyobb adatbázison a keresés
+**FTS5 trigram indexet** használ (lásd 2.17), a LIKE marad fallbacknek.
 
 ### 2.11. „Milyen jegy kell?” kalkulátor (Kaneo #78, #101)
 
@@ -337,7 +341,9 @@ az eseménylista időszak-szűrője nem befolyásolja. A tételes válasz a
   fejléc (a dokumentum címe) **„SuliHub – Órarend – gyermek – hétfő–vasárnap”** formátumú.
 - **Kitűzött események:** az eseménysorban a **csillag** gomb az Áttekintésre tűzi a tételt
   (stabil tartalom-kulccsal, `app_meta`); a dashboardon megjelenő panelről egy kattintással
-  a szűrt listára lehet ugrani vagy le lehet venni.
+  a szűrt listára lehet ugrani vagy le lehet venni. **Kaneo #108:** a tételek **húzással
+  sorrendezhetők** (a sorrend `app_meta`-ban marad), és mindegyikhez **rövid megjegyzés**
+  fűzhető (ceruza ikon).
 
 ### 2.13. Tantárgyi trend és hiányzás-mintázat (Kaneo #80)
 
@@ -386,6 +392,59 @@ szept. 1. – aug. 31.
   vég, típus, megjegyzés) munkalapok; az igazolásoknál az időszakkal **átfedő** sorok
   kerülnek bele.
 - A számok/sorok a felület szűrőivel egyeznek; a fájlok `.xlsx` formátumúak (openpyxl).
+
+### 2.17. Keresés: FTS5 index (Kaneo #107)
+
+A `kreta_db.ensure_fts_schema()` **FTS5 virtuális táblákat** hoz létre
+(`esemenyek_fts`, `uzenetek_fts`) **trigram tokenizálóval**, hogy a részszöveges
+(infix) keresés is működjön; a triggerek az `esemenyek`/`uzenetek` beszúrás/ módosítás/
+törlés esetén szinkronban tartják, induláskor szükség esetén **rebuild**. A kereső
+3+ karakteres query-nél az FTS jelölteket használja, majd ugyanazt a LIKE-szűrést
+futtatja; rövid query-nél vagy FTS-hibánál a LIKE-út marad. A találatok **egyeznek a
+LIKE-kal** (teszt: `test_kereses` 5b).
+
+### 2.18. Szinkron-egészség riasztás (Kaneo #88)
+
+A szinkron befejezésekor az `app_meta` `sync_health` állapota frissül:
+- **3 egymást követő hibás futás** → magas prioritású (5) ntfy riasztás, legfeljebb
+  6 óránként egyszer;
+- **token-lejárat / refresh hiba** (a naplóban `token`/`refresh`/`401`/`bejelentkez`)
+  → külön üzenet: „újra be kell jelentkezni” (4-es prioritás, 6 órás throttle);
+- siker után a számláló nullázódik;
+- a `/api/scheduler/status` `health` mezőt ad (`consecutive_errors`, `last_error_type`,
+  `last_run_age_hours`), a fejléc státuszsávja is jelzi („Ismétlődő szinkronhiba” /
+  „Újra be kell jelentkezni”). A régi „elavult adat” riasztás (`STALE_ALERT_HOURS`)
+  változatlanul megmarad.
+
+### 2.19. Adatminőség- és integritás-riport (Kaneo #89)
+
+`tools/data_quality_report.py` — **csak olvas** (`mode=ro`): integrity_check, DB-méret,
+tábla-sorszámok, utolsó szinkron, duplikált esemény/hiányzás, hiányzó csatolmányfájlok,
+üres kötelező mezők, árva megjegyzések. Heti cronra javasolt; hibánál/figyelmeztetésnél
+ntfy-t küld, `--json` gépi kimenet. Nem módosít semmit.
+
+### 2.20. Teljesítmény-mérés (Kaneo #109)
+
+`tests/test_performance.py` 5 000 esemény + 500 üzenet fixture-ön méri a `/api/ma`,
+`/api/kereses`, `/api/statisztika`, `/api/atlagok` medián válaszidejét (3 futás);
+a küszöb `PERF_THRESHOLD_MS` (alap **500 ms**), a fast csomag része. A mért értékek
+a kimenetben látszanak; a küszöb túllépése piros tesztet ad.
+
+### 2.21. DB-migrációs lánc (Kaneo #91)
+
+A `kreta_db`-ben **`MIGRATIONS = [(4, fn), …]`** verziózott lánc fut a
+`schema_version` alapján, idempotensen; 0-nál újabb verzióról **`.bak` mentés** készül.
+A v4 a FTS5 indexet és a `riportkartyak` táblát hozza létre. A scraper alap-DDL továbbra
+is a bootstrap (a táblák első létrehozása), a **minden további séma-változás a
+MIGRATIONS-ba** kerül. Új migrációnál a verziót léptetni kell (`SCHEMA_VERSION`), és a
+`test_db_indexes` ellenőrzi a láncot.
+
+### 2.22. Órarend: 4 hét előre, múlt megőrzése (Kaneo #122)
+
+A szinkron az **aktuális hét + 3 hét** (28 nap) órarendjét kéri le (API: `week_window`,
+Playwright: 4 hét navigáció). A mentés **csak az új ablak kezdetétől** töröl, a korábbi
+heteket **megőrzi** (múltbéli adat); üres lista továbbra sem törölhet (adatvédelem).
+A régi (2 hetes) ablakhoz képest a naptár előretekerése is négy hétre elegendő.
 
 ---
 
@@ -1066,6 +1125,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v2.1.1** *(éles 2026-11-08)* | **2026-11-07** | **#117** a globális kereső (nagyító/Ctrl+K) megnyitásakor a **mező azonnal aktív** (`shown.bs.modal` + tartalék; a régi timer a megjelenés előtt futott). **#118** **átfogó sötét mód**: dashboard kártyacímek, táblázat-konténer, `.text-dark` szövegek, accordion-fejlécek, kiemelt sorok (ma/elkészült/olvasatlan), státuszsáv + verzió-jelvény, **FullCalendar** háttér/rács/cím, modálfejléc, csatolmány-badge/„Olvasás” gomb, Feljegyzés-badge; a **naptár-események szövegszíne** a háttér fényességéhez igazodik (`views_common.contrast_text` → `textColor`), így világos módban is jobb. Számított kontraszt-audit: 50 → **0 valódi** alacsony kontrasztú szöveg (9 fül + 6 modál + űrlapok). **1339 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/196) |
 | **v2.1.2** *(kiadásra kész)* | **2026-11-08** | **#120** az Iskolai események **szűrőpanelje alapból zárva** van, a fejlécére kattintva nyílik (a dashboard-csempéről érkezve is zárva marad; a szűrő továbbra is érvényesül). **#115** (Tailscale/WireGuard távoli elérés) és **#119** (SQLite vs MySQL/PostgreSQL) **elemzés** a jegyekben, kódváltozás nélkül. **1340 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/197) |
 | **v2.1.3** *(kiadásra kész)* | **2026-11-08** | **#121** a szűrőpanel a felső menüsor **alá** került (a menüsor nem ugrál a fülek között). **#82** A4-es **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve (`riportkartyak` tábla + data kötet), visszamenőleges lista/letöltés; a hivatalos félévi jegy hiányát jelzi. **#83** **Excel exportok**: események (Jegyek/Feljegyzések/Házi feladatok) és hiányzások (Hiányzások/Igazolások) a felület szűrőivel. **#90** üzemeltetési ellenőrzések: havi **restore-teszt** (`tools/backup_restore_check.py`, manifest-tel) + éjszakai **élő füstteszt** (`tools/live_smoke.py`, CI job, secret nélkül kimarad). **1411 ellenőrzés / 47 csomag** (fast 42/1212, browser 5/199) |
+| **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** a riportkártya címe „SuliHub - \<gyerek\> - ÉV/FÉLÉV”; a félévi/év végi jegy beépítése külön backlog (#123/#124). **1461 ellenőrzés / 50 csomag** (fast 45/1262, browser 5/199) |
 
 ---
 

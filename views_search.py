@@ -43,6 +43,23 @@ def _snippet(text, q, width=80):
     return ("…" if start > 0 else "") + res + ("…" if end < len(text) else "")
 
 
+def _fts_azonosítók(cursor, tabla, q, limit):
+    """FTS5 jelölt-rowid-ek (Kaneo #107); None, ha nincs FTS vagy rövid a keresés.
+
+    A trigram tokenizáló a 3+ karakteres részszövegeket is megtalálja. Ha nincs
+    találat, a hívó a LIKE-útra esik vissza (biztonsági háló).
+    """
+    if len(q) < 3:
+        return None
+    try:
+        cursor.execute(
+            f"SELECT rowid FROM {tabla} WHERE {tabla} MATCH ? LIMIT ?",
+            ('"' + q.replace('"', '""') + '"', max(limit * 5, 50)))
+        return [r[0] for r in cursor.fetchall()]
+    except sqlite3.Error:
+        return None
+
+
 @bp.route("/api/kereses")
 def api_kereses():
     started = time.perf_counter()
@@ -64,14 +81,19 @@ def api_kereses():
 
     # 1) Események: jegy, feljegyzés, házi, számonkérés (téma/cím/tartalom/tantárgy/érték).
     try:
-        cursor.execute(
-            "SELECT id, diak_nev, esemeny_tipus, tantargy, tema, cim, tartalom, ertek,"
-            " bej_datum, hatarido FROM esemenyek"
-            " WHERE tantargy LIKE ? ESCAPE '\\' OR tema LIKE ? ESCAPE '\\'"
-            " OR cim LIKE ? ESCAPE '\\' OR tartalom LIKE ? ESCAPE '\\'"
-            " OR ertek LIKE ? ESCAPE '\\'"
-            " ORDER BY id DESC LIMIT ?",
-            (like, like, like, like, like, limit))
+        fts_ids = _fts_azonosítók(cursor, "esemenyek_fts", q, limit)
+        sql = ("SELECT id, diak_nev, esemeny_tipus, tantargy, tema, cim, tartalom, ertek,"
+               " bej_datum, hatarido FROM esemenyek"
+               " WHERE (tantargy LIKE ? ESCAPE '\\' OR tema LIKE ? ESCAPE '\\'"
+               " OR cim LIKE ? ESCAPE '\\' OR tartalom LIKE ? ESCAPE '\\'"
+               " OR ertek LIKE ? ESCAPE '\\')")
+        params = [like, like, like, like, like]
+        if fts_ids:
+            sql += f" AND id IN ({','.join('?' * len(fts_ids))})"
+            params += fts_ids
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        cursor.execute(sql, params)
         for row in cursor.fetchall():
             cim = " – ".join(x for x in (row["tantargy"], row["tema"] or row["cim"]) if x)
             if not cim:
@@ -92,12 +114,17 @@ def api_kereses():
 
     # 2) Üzenetek (a teljes törzsben).
     try:
-        cursor.execute(
-            "SELECT id, diak_nev, felado, targy, idopont, szoveg FROM uzenetek"
-            " WHERE targy LIKE ? ESCAPE '\\' OR felado LIKE ? ESCAPE '\\'"
-            " OR szoveg LIKE ? ESCAPE '\\'"
-            " ORDER BY id DESC LIMIT ?",
-            (like, like, like, limit))
+        fts_ids = _fts_azonosítók(cursor, "uzenetek_fts", q, limit)
+        sql = ("SELECT id, diak_nev, felado, targy, idopont, szoveg FROM uzenetek"
+               " WHERE (targy LIKE ? ESCAPE '\\' OR felado LIKE ? ESCAPE '\\'"
+               " OR szoveg LIKE ? ESCAPE '\\')")
+        params = [like, like, like]
+        if fts_ids:
+            sql += f" AND id IN ({','.join('?' * len(fts_ids))})"
+            params += fts_ids
+        sql += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        cursor.execute(sql, params)
         for row in cursor.fetchall():
             talalatok.append({
                 "tipus": "uzenet",

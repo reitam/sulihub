@@ -103,7 +103,9 @@ ok("orarend" in r["blocked"], "üres lista -> blokkolt")
 ok(count("orarend") == 3, "az órarend megmaradt")
 r = k.save_orarend_to_db("Teszt", [ora(5)])
 ok(not r["blocked"] and r["saved"] == 1, "részleges csökkenés (3 -> 1) megengedett")
-ok(count("orarend") == 1, "az órarend 1 sorra változott")
+ok(count("orarend") == 4, "a múltbeli 3 sor megmaradt + az új (Kaneo #122)")
+r = k.save_orarend_to_db("Teszt", [dict(ora(5), title="Módosított")])
+ok(count("orarend") == 4, "az ablakon belüli sor cserélődik, nem duplikálódik")
 
 print("\n4) A szolgáltató hibát dob, ha a mentés védve maradt")
 

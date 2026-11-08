@@ -72,6 +72,17 @@ function schedulerCompactState(sched) {
             cls: 'text-primary fw-semibold'
         };
     }
+    const health = sched.health || {};
+    if (health.last_error_type === 'token') {
+        return {icon: '<i class="fa-solid fa-key text-danger"></i>',
+                text: 'Újra be kell jelentkezni a KRÉTA-ba',
+                cls: 'text-danger fw-semibold'};
+    }
+    if ((health.consecutive_errors || 0) >= 3) {
+        return {icon: '<i class="fa-solid fa-triangle-exclamation text-danger"></i>',
+                text: `Ismétlődő szinkronhiba (${health.consecutive_errors})`,
+                cls: 'text-danger fw-semibold'};
+    }
     if (!sched.last_run) {
         return {icon: '<i class="fa-solid fa-circle-minus text-secondary"></i>',
                 text: 'Még nem volt szinkronizálás',

@@ -133,6 +133,41 @@ ok(any("100% kedvezmény" in (t.get("reszlet") or "") for t in tal),
 r, d = search("100%25%25")
 ok(d.get("count") == 0, "a '%' nem működik wildcardként")
 
+print("\n5b) FTS5 index (Kaneo #107)")
+conn = sqlite3.connect(db)
+fts_tablak = {r[0] for r in conn.execute(
+    "SELECT name FROM sqlite_master WHERE name LIKE '%_fts'")}
+
+
+def like_ids(q):
+    like = "%" + q + "%"
+    ev = {r[0] for r in conn.execute(
+        "SELECT id FROM esemenyek WHERE tantargy LIKE ? OR tema LIKE ? OR cim LIKE ?"
+        " OR tartalom LIKE ? OR ertek LIKE ?", (like, like, like, like, like))}
+    uz = {r[0] for r in conn.execute(
+        "SELECT id FROM uzenetek WHERE targy LIKE ? OR felado LIKE ? OR szoveg LIKE ?",
+        (like, like, like))}
+    return ev, uz
+
+
+for q in ("elektromosság", "törtek", "kirándulás"):
+    r, d = search(q.replace(" ", "%20"))
+    found_ev = {t["id"] for t in d.get("talalatok", []) if t.get("tipus") == "esemeny"}
+    found_uz = {t["id"] for t in d.get("talalatok", []) if t.get("tipus") == "uzenet"}
+    ev, uz = like_ids(q)
+    ok(found_ev == ev and found_uz == uz,
+       f"FTS5 = LIKE ({q}): esemény {len(found_ev)}/{len(ev)}, üzenet {len(found_uz)}/{len(uz)}")
+ok({"esemenyek_fts", "uzenetek_fts"} <= fts_tablak, f"FTS táblák: {fts_tablak}")
+from kreta_db import ensure_fts_schema
+ensure_fts_schema(conn)
+ensure_fts_schema(conn)
+n_ev = conn.execute("SELECT COUNT(*) FROM esemenyek_fts").fetchone()[0]
+n_uz = conn.execute("SELECT COUNT(*) FROM uzenetek_fts").fetchone()[0]
+ok(n_ev == conn.execute("SELECT COUNT(*) FROM esemenyek").fetchone()[0]
+   and n_uz == conn.execute("SELECT COUNT(*) FROM uzenetek").fetchone()[0],
+   f"az FTS index idempotens és teljes ({n_ev} esemény, {n_uz} üzenet)")
+conn.close()
+
 print("\n6) A felületi modal, a gyorsgomb és a navigáció")
 html = client.get("/").get_data(as_text=True)
 js = client.get("/static/js/app-main.js").get_data(as_text=True)
@@ -151,6 +186,12 @@ ok("reszletekModal" in js and "esemenyReszletekSzoveg" in js
    and "hianyzasReszletekSzoveg" in js and "hidden.bs.modal" in js,
    "a találat sorára kattintva az adott sor részletei nyílnak meg (Kaneo #85)")
 ok("250" in js, "a gépelésre debounce (250 ms) van")
+ok('id="keresesElozmeny"' in html and "keresesElozmenyMent" in js
+   and "KERESES_ELOZMENY_KULCS" in js, "az utolsó 5 keresés mentődik (localStorage, #102)")
+ok("ArrowDown" in js and "ArrowUp" in js and "kereses-aktualis" in js,
+   "billentyű-navigáció a találatlistában (#102)")
+ok("kereses-kiemel" in js and "kiemelKeresesTalalat" in js,
+   "a megnyitott találat sora rövid kiemelést kap (#102)")
 ev = client.get("/api/esemenyek?diak=Kereso").get_json()
 ok(any(e.get("tema") == "Elektromosság" and e.get("tartalom") for e in ev),
    "a részletek modálhoz a teljes esemény lekérhető (/api/esemenyek)")
