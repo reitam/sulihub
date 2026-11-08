@@ -165,6 +165,9 @@
         .dash-tile .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
         .dash-tile .kpi-title { font-size: 1.05rem; font-weight: 700; color: #343a40; }
         .dash-tile .kpi-caption { font-size: .72rem; line-height: 1.15; }
+        .kedvenc-fogantyú { cursor: grab; color: #adb5bd; user-select: none; }
+        .kedvenc-drag { opacity: .5; }
+        .kedvenc-jegyzet { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .dash-tile:hover, .dash-tile:focus {
             transform: translateY(-2px);
             border-color: #adb5bd;
@@ -198,6 +201,16 @@
         table.dataTable tbody tr.today-row:hover td,
         table.dataTable.table-striped tbody tr.today-row:hover td {
             background-color: #fff59d !important;
+        }
+
+        /* Kereső: billentyű-navigáció és a találat rövid kiemelése (Kaneo #102) */
+        .kereses-talalat.kereses-aktualis { background-color: #e7f1ff; }
+        .kereses-talalat.kereses-villanas { animation: keresesVillanas .6s ease; }
+        @keyframes keresesVillanas { from { background-color: #fff3cd; } to { background-color: transparent; } }
+        table.dataTable tbody tr.kereses-kiemel td { animation: keresesSor 3s ease; }
+        @keyframes keresesSor {
+            0%, 40% { background-color: #fff3cd !important; }
+            100% { background-color: inherit; }
         }
 
         table.dataTable tbody tr.completed-hazi-row td,
@@ -1897,6 +1910,7 @@
                     <input type="search" id="keresesInput" class="form-control"
                            placeholder="Jegy, feljegyzés, házi, üzenet, hiányzás…"
                            autocomplete="off" aria-label="Keresett szöveg">
+                    <div id="keresesElozmeny" class="mt-2 d-none small"></div>
                     <div id="keresesEredmeny" class="list-group list-group-flush mt-2"></div>
                     <small class="text-muted d-block mt-2">
                         Legalább 2 karakter. <kbd>Ctrl</kbd>+<kbd>K</kbd> (mobilon a nagyító gomb).

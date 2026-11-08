@@ -110,7 +110,7 @@ try:
     text = "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(r.data)).pages)
     ok("RiportDiak" in text, "a gyermek neve a PDF-ben")
     ok("Matematika" in text and "Irodalom" in text, "a tantárgyak a PDF-ben")
-    ok("Tanulmányi riportkártya" in text, "a PDF címe")
+    ok("SuliHub - RiportDiak - ÉV" in text, "a PDF címe a gyermeket és az időszakot mutatja")
 except ImportError:
     print("  (pypdf nincs — a szövegkinyeréses ellenőrzések kimaradnak)")
 

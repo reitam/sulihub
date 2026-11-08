@@ -47,13 +47,16 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_routes_contract.py` | **KRÉ-14 refaktor-őr:** a Flask `url_map` teljes listája (48 rule = 47 route + beépített `static`) rule + metódus szerint egy fagyasztott konstanshoz mérve; nincs dupla regisztráció, minden endpoint-név egyedi. Ha ez piros, a refaktor megváltoztatta a nyilvános API-t — a kódot kell visszaállítani, nem a tesztet |
 | `test_data_dir.py` | **KRÉ-14 #98:** az útvonal-feloldás alapértéke `data/` (DB, csatolmányok), a legacy (gyökér) elrendezés felismerése és a `data/`-elsőbbség; a `tools/migrate_local_data.py` dry-run → migráció → rollback köre (DB-integrity ellenőrzéssel) |
 | `test_jegy_kalkulator.py` | **#78/#101:** „Milyen jegy kell?” — súlyozott átlag, egy jegy/több ötös, elérhetetlen cél, 0%-os súly, hiányzó jegy, tanév-szűrés, érvénytelen bemenet; **több várható jegy** (eltérő súlyok, szükséges összesített átlag, szimulált átlag), **félévi cél** (küszöb + szükséges átlag), **mentett célátlag** (`/api/kalkulator_cel` GET/POST), a meglévő jegyek táblázata, üres alap-választó |
-| `test_kereses.py` | **#85:** globális kereső — több adatforrás, üzenet teljes törzs, rendezés/limit, rövid keresés, LIKE-escape, modal és Ctrl+K, navigáció; **a találat sorára kattintva a részletek modálja nyílik** (esemény/hiányzás), fallback navigáció |
-| `test_kedvencek.py` | **#86:** `/api/kedvencek` add/remove/toggle, perzisztencia (`app_meta`), érvénytelen kérés; a dashboard-panel és a csillag gomb |
+| `test_kereses.py` | **#85/#102/#107:** globális kereső — több adatforrás, üzenet teljes törzs, rendezés/limit, rövid keresés, LIKE-escape, modal és Ctrl+K, navigáció; **a találat sorára kattintva a részletek modálja nyílik**; **↑/↓/Enter, előzmény (localStorage), találat-kiemelés**; **FTS5 = LIKE** egyezés és idempotens index |
+| `test_kedvencek.py` | **#86/#108:** `/api/kedvencek` add/remove/toggle, megjegyzés (`note`) és húzásos sorrend (`order`) perzisztencia, érvénytelen kérés; a dashboard-panel, a csillag gomb és a drag/note UI |
 | `test_ma.py` | **#9/#113:** `/api/ma` — mai órák duplikátum nélkül, ma/holnapi határidők, friss jegyek, olvasatlan üzenetek, diák-szűrés, üres/hibás dátum; **önálló „Ma” fül** (a dashboard-kártya elutasítva), **külön Frissítés gomb nélkül** (nyitáskor/gyermekváltáskor frissül) |
 | `test_trend.py` | **#80/#111:** tantárgyi trend (utolsó két hónap), **gyermekenkénti** romlás- (≤ -0,5) és javulás-figyelmeztetés (≥ +0,5) az időszakkal, hiányzás-mintázat nap/óra/tantárgy/hónap bontásban, tanév-szűrés; a felületi kötés (romló + javuló sáv) |
 | `test_riportkartya.py` | **#82:** riportkártya PDF generálás (félév/tanév), mentés a data kötetre + `riportkartyak` tábla, visszamenőleges lista/letöltés, PDF-tartalom (pypdf, ha van), hibás bemenetek, felületi kártya |
 | `test_tanulmanyi_export.py` | **#83:** `/api/esemenyek/export.xlsx` (Jegyek/Feljegyzések/Házi feladatok) és `/api/hianyzasok/export.xlsx` (Hiányzások/Igazolások) — munkalapok, sorok, diák/tanév/időszak szűrés, üres export, felületi gombok |
 | `test_ops_checks.py` | **#90:** restore-teszt (érvényes/sérült/hiányzó/elavult mentés, manifest-egyezés, izolált visszaállítás) + élő füstteszt (`/health`, `/api/sync/status`, utolsó futás kora, auth) fake HTTP-szerverrel; CI workflow |
+| `test_sync_health.py` | **#88:** 3 egymást követő hiba → magas prioritású riasztás, 6 órás throttle, token-lejárat külön üzenet, siker utáni reset, `health` a `/api/scheduler/status`-ban |
+| `test_data_quality.py` | **#89:** adatminőség-riport — tiszta DB, duplikált esemény, hiányzó csatolmány, üres kötelező mező, árva megjegyzés, CLI kilépési kód; csak olvas |
+| `test_performance.py` | **#109:** 5 000 esemény + 500 üzenet fixture; `/api/ma`, `/api/kereses`, `/api/statisztika`, `/api/atlagok` medián ideje 500 ms alatt, FTS index teljes |
 
 ## Függőségek
 
@@ -84,7 +87,7 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (47 csomag, 1411 ell.)
+python tests/run_all.py            # minden teszt (50 csomag, 1461 ell.)
 python tests/run_all.py --fast     # böngésző nélkül (39 csomag, 1120 ell.)
 python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
 ```

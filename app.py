@@ -357,6 +357,11 @@ def scheduler_status():
     if last_scheduled_status == "running" and not running:
         last_scheduled_status = "interrupted"
 
+    health = _sync_health()
+    last_run_dt = _parse_scheduler_dt(state.get("last_run_started"))
+    health["last_run_age_hours"] = (
+        round((_now() - last_run_dt).total_seconds() / 3600, 1) if last_run_dt else None)
+
     return {
         "enabled": cfg["enabled"],
         "interval_minutes": cfg["interval_minutes"],
@@ -376,6 +381,7 @@ def scheduler_status():
         "last_scheduled_failed_students": state.get("last_scheduled_failed_students") or [],
         "running": running,
         "trigger": trigger,
+        "health": health,
     }
 
 
@@ -616,6 +622,75 @@ def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=
             ["rotating_light"],
         )
     return False
+
+
+SYNC_HEALTH_META = "sync_health"
+SYNC_HEALTH_ERROR_LIMIT = 3
+SYNC_HEALTH_ALERT_REPEAT_HOURS = 6
+
+
+def _sync_health():
+    """A szinkron-egészség állapota (app_meta JSON; Kaneo #88)."""
+    raw = get_meta(SYNC_HEALTH_META, "") or ""
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data.setdefault("consecutive_errors", 0)
+    data.setdefault("last_status", "")
+    data.setdefault("last_error_type", "")
+    data.setdefault("last_error_at", "")
+    data.setdefault("last_alert_at", "")
+    data.setdefault("last_token_alert_at", "")
+    return data
+
+
+def _sync_health_ment(data):
+    set_meta(SYNC_HEALTH_META, json.dumps(data, ensure_ascii=False))
+
+
+def _health_throttled(data, kulcs):
+    last = _parse_scheduler_dt(data.get(kulcs))
+    return not last or (_now() - last).total_seconds() >= SYNC_HEALTH_ALERT_REPEAT_HOURS * 3600
+
+
+def _update_sync_health(status, failed_students, logs_text=""):
+    """Egymást követő hibák / token-lejárat riasztása, throttle-lal (Kaneo #88)."""
+    data = _sync_health()
+    hibas = status in ("error", "done_with_errors")
+    low = (logs_text or "").lower()
+    token_hiba = hibas and any(k in low for k in (
+        "token", "refresh", "401", "bejelentkez", "login"))
+    if hibas:
+        data["consecutive_errors"] = int(data.get("consecutive_errors") or 0) + 1
+        data["last_error_type"] = "token" if token_hiba else "sync"
+        data["last_error_at"] = _now().strftime(SCHEDULER_TS_FMT)
+    else:
+        data["consecutive_errors"] = 0
+        data["last_error_type"] = ""
+    data["last_status"] = status
+
+    if token_hiba and _health_throttled(data, "last_token_alert_at"):
+        if send_notification(
+                "KRÉTA: újra be kell jelentkezni",
+                "A szinkron tokenje lejárt vagy a frissítés hibás. Jelentkezz be újra "
+                "a KRÉTA-fiókkal (a részletek a Rendszernaplóban).",
+                4, ["key"]):
+            data["last_token_alert_at"] = _now().strftime(SCHEDULER_TS_FMT)
+    elif int(data.get("consecutive_errors") or 0) >= SYNC_HEALTH_ERROR_LIMIT \
+            and _health_throttled(data, "last_alert_at"):
+        n = data["consecutive_errors"]
+        if send_notification(
+                "KRÉTA: ismétlődő szinkronhiba",
+                f"{n} egymást követő szinkronhiba. "
+                + (f"Nem frissült: {', '.join(failed_students)}. " if failed_students else "")
+                + "Ellenőrizd a Rendszernaplót.",
+                5, ["rotating_light"]):
+            data["last_alert_at"] = _now().strftime(SCHEDULER_TS_FMT)
+    _sync_health_ment(data)
+    return data
 
 
 def _maybe_notify_stale(cfg):
@@ -874,6 +949,7 @@ def run_scraper_thread(trigger="manual"):
             final_new_messages = sync_state.get("new_messages") or {}
             final_new_hianyzasok = sync_state.get("new_hianyzasok") or {}
             final_sources = sync_state.get("sources") or {}
+            final_logs = "\n".join(sync_state["logs"])
 
         # Tanév-állapot (Kaneo #43): a TanevUid ellenőrzése a futás után; ha
         # megváltozott, a nyitott tanévet lezárjuk és az újat megnyitjuk.
@@ -908,6 +984,9 @@ def run_scraper_thread(trigger="manual"):
             f"SZINKRONIZÁCIÓ VÉGE ({trigger_label(trigger)}): {final_status}, {duration_min:.1f} perc"
             + (f" — hibás diák: {', '.join(final_failed)}" if final_failed else "")
         )
+
+        # Szinkron-egészség: egymást követő hibák / token-lejárat (Kaneo #88).
+        _update_sync_health(final_status, final_failed, final_logs)
 
         # Push értesítés: hiba / részleges hiba / sikeres (beállítástól függően).
         notify_sync_result(final_status, final_failed, trigger, duration_min, final_ok, final_total,

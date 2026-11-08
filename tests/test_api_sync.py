@@ -269,8 +269,8 @@ ok(lrows[0]["start"] == "2026-11-03T10:45:00" and lrows[0]["end"] == "2026-11-03
    "tanóra helyi idővel")
 ok(lrows[0]["title"] == "Történelem-6.A", "tantárgy + osztály a címben")
 ok(lrows[1]["start"] == "2026-10-26" and lrows[1]["end"] == "", "egész napos esemény dátuma")
-ok(week_window(date(2026, 11, 4)) == (date(2026, 11, 2), date(2026, 11, 15)),
-   "aktuális + következő hét (hétfő..vasárnap)")
+ok(week_window(date(2026, 11, 4)) == (date(2026, 11, 2), date(2026, 11, 29)),
+   "4 hét (aktuális + 3, hétfő..vasárnap)")
 ok(week_window(date(2026, 11, 2))[0] == date(2026, 11, 2), "hétfőn a hét eleje önmaga")
 
 consult_client = FakeClient(consultations=[{

@@ -186,10 +186,10 @@ def fetch_announced_tests(client, start: date, end: date) -> list[dict]:
 
 
 def week_window(today: date | None = None) -> tuple[date, date]:
-    """Az aktuális és a következő hét: hétfő .. vasárnap (14 nap, helyi idő)."""
+    """Az aktuális hét + a következő 3 hét: hétfő .. vasárnap (28 nap, helyi idő)."""
     today = today or date.today()
     monday = today - timedelta(days=today.weekday())
-    return monday, monday + timedelta(days=13)
+    return monday, monday + timedelta(days=27)
 
 
 def fetch_notes(client, start: date, end: date) -> list[dict]:

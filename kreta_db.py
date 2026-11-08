@@ -39,7 +39,7 @@ def get_db_connection():
 # → minden oldal 500-as hibát adott. Ezért a hiányzó sémát itt pótoljuk.
 SCRAPER_TABLES = ("esemenyek", "uzenetek", "orarend", "hianyzasok", "igazolasok")
 APP_OWN_TABLES = ("kifizetesek", "sync_runs", "app_meta", "kommentek")
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 CORE_TABLES = SCRAPER_TABLES + APP_OWN_TABLES
 _schema_lock = threading.Lock()
 _schema_bootstrapping = False
@@ -130,6 +130,121 @@ def ensure_db_schema(conn=None, reason=""):
 # módosítsd-írd vissza, felülírással). Mostantól minden futás egy sor a DB-ben:
 # van történet, tranzakció-védelem, és a mentés is DB-szintű.
 SYNC_RUNNING_STATUS = "running"
+
+# FTS5 (Kaneo #107): (alaptábla, FTS-tábla, oszlopok) — trigram tokenizálóval,
+# hogy az infix keresés is működjön (a LIKE-kal azonos találatok).
+FTS_TABLAK = (
+    ("esemenyek", "esemenyek_fts",
+     ("diak_nev", "tantargy", "tema", "cim", "tartalom", "ertek")),
+    ("uzenetek", "uzenetek_fts", ("diak_nev", "felado", "targy", "szoveg")),
+)
+
+
+def ensure_fts_schema(conn):
+    """FTS5 táblák + szinkron-triggerek létrehozása, szükség esetén rebuild (idempotens)."""
+    cur = conn.cursor()
+    for alap, fts, oszlopok in FTS_TABLAK:
+        try:
+            cur.execute(
+                f"CREATE VIRTUAL TABLE IF NOT EXISTS {fts} USING fts5("
+                f"{', '.join(oszlopok)}, content='{alap}', content_rowid='id', "
+                f"tokenize='trigram')")
+        except sqlite3.Error as exc:
+            print(f"[FTS] {fts} kihagyva ({exc}) — a keresés LIKE-kal megy tovább.")
+            continue
+
+        oszlop_lista = ", ".join(oszlopok)
+        uj_ertekek = ", ".join(f"new.{o}" for o in oszlopok)
+        regi_ertekek = ", ".join(f"old.{o}" for o in oszlopok)
+        try:
+            cur.execute(
+                f"CREATE TRIGGER IF NOT EXISTS {alap}_fts_ai AFTER INSERT ON {alap} BEGIN "
+                f"INSERT INTO {fts}(rowid, {oszlop_lista}) VALUES (new.id, {uj_ertekek}); END")
+            cur.execute(
+                f"CREATE TRIGGER IF NOT EXISTS {alap}_fts_ad AFTER DELETE ON {alap} BEGIN "
+                f"INSERT INTO {fts}({fts}, rowid, {oszlop_lista}) "
+                f"VALUES ('delete', old.id, {regi_ertekek}); END")
+            cur.execute(
+                f"CREATE TRIGGER IF NOT EXISTS {alap}_fts_au AFTER UPDATE ON {alap} BEGIN "
+                f"INSERT INTO {fts}({fts}, rowid, {oszlop_lista}) "
+                f"VALUES ('delete', old.id, {regi_ertekek}); "
+                f"INSERT INTO {fts}(rowid, {oszlop_lista}) VALUES (new.id, {uj_ertekek}); END")
+        except sqlite3.Error as exc:
+            print(f"[FTS] {alap} triggerek kihagyva ({exc})")
+
+        try:
+            n_fts = cur.execute(f"SELECT COUNT(*) FROM {fts}").fetchone()[0]
+            n_alap = cur.execute(f"SELECT COUNT(*) FROM {alap}").fetchone()[0]
+            if n_alap and n_fts != n_alap:
+                cur.execute(f"INSERT INTO {fts}({fts}) VALUES('rebuild')")
+                print(f"[FTS] {fts} újraépítve ({n_alap} sor)")
+        except sqlite3.Error as exc:
+            print(f"[FTS] {fts} rebuild kihagyva ({exc})")
+
+
+def _migracio_4(conn):
+    """v4: FTS5 index + riportkártya-tábla (Kaneo #107, #82) — idempotens."""
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS riportkartyak (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            diak_nev TEXT NOT NULL,
+            tanev TEXT,
+            periodus TEXT,
+            kezdo_datum TEXT,
+            zaro_datum TEXT,
+            fajl_nev TEXT NOT NULL,
+            letrehozva TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    ensure_fts_schema(conn)
+
+
+# Verziózott migrációs lánc (Kaneo #91). A meglévő oszlop-hozzáadásokat az
+# idempotens init_db_extensions végzi (base séma), az új változások ide jönnek.
+MIGRATIONS = [
+    (4, _migracio_4),
+]
+
+
+def run_migrations(conn):
+    """A `schema_version`-nél újabb migrációk futtatása, idempotensen (Kaneo #91)."""
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT,"
+                " updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    row = cur.execute(
+        "SELECT value FROM app_meta WHERE key = 'schema_version'").fetchone()
+    try:
+        current = int(row[0]) if row and str(row[0]).isdigit() else 0
+    except (TypeError, ValueError):
+        current = 0
+    if current >= SCHEMA_VERSION:
+        return current
+    if current > 0:
+        backup_path = f"{DB_FILE}.bak-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        try:
+            dst = sqlite3.connect(backup_path)
+            conn.backup(dst)
+            dst.close()
+            print(f"[Migráció] DB-másolat: {backup_path}")
+        except sqlite3.Error as exc:
+            print(f"[Migráció] A DB-másolat nem sikerült: {exc}")
+    for version, fn in MIGRATIONS:
+        if version <= current:
+            continue
+        try:
+            fn(conn)
+            cur.execute(
+                "INSERT OR REPLACE INTO app_meta (key, value, updated_at) VALUES (?,?,?)",
+                ("schema_version", str(version),
+                 datetime.now().replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")))
+            conn.commit()
+            print(f"[Migráció] séma v{version} kész")
+        except sqlite3.Error as exc:
+            print(f"[Migráció] v{version} kihagyva: {exc}")
+            conn.rollback()
+            break
+    return SCHEMA_VERSION
 
 
 def ensure_run_tables(conn):
@@ -656,14 +771,11 @@ def init_db_extensions():
                     cursor.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {target}")
                 except sqlite3.Error as exc:
                     print(f"[Index] {index_name} kihagyva: {exc}")
-            # Sémaverzió-jelző (a későbbi migrációs keret alapja).
-            try:
-                cursor.execute(
-                    "INSERT OR IGNORE INTO app_meta (key, value, updated_at) VALUES (?,?,?)",
-                    ("schema_version", "3", datetime.now().replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")),
-                )
-            except sqlite3.Error:
-                pass
+            # FTS5 keresőindexek (Kaneo #107); hiba esetén a LIKE marad.
+            ensure_fts_schema(conn)
+
+            # Verziózott migrációs lánc (Kaneo #91) — a sémaverziót lépteti.
+            run_migrations(conn)
 
             conn.commit()
             conn.close()

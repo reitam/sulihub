@@ -115,8 +115,13 @@ def sorok(ws):
 
 print("1) Esemény-export: munkalapok és tartalom")
 r, wb = wb_get("/api/esemenyek/export.xlsx?tanev=2026%2F2027")
-ok(wb.sheetnames == ["Jegyek", "Feljegyzések", "Házi feladatok"],
+ok(wb.sheetnames == ["Szűrt lista", "Jegyek", "Feljegyzések", "Házi feladatok"],
    f"munkalapok: {wb.sheetnames}")
+ws_lista = wb["Szűrt lista"]
+ok([c.value for c in ws_lista[1]][:4] == ["Diák", "Típus", "Tantárgy", "Érték / Mód"],
+   "Szűrt lista fejléc")
+ok(len(sorok(ws_lista)) == 6,
+   f"a szűrt lista minden típust tartalmaz (6 sor): {len(sorok(ws_lista))}")
 ws = wb["Jegyek"]
 ok([c.value for c in ws[1]][:3] == ["Diák", "Tantárgy", "Jegy"], "Jegyek fejléc")
 jegyek = sorok(ws)
@@ -142,6 +147,14 @@ _, wb4 = wb_get("/api/esemenyek/export.xlsx?diak=ExportDiak"
                 "&kezdo_datum=2026-10-01&zaro_datum=2026-10-31")
 ok(len(sorok(wb4["Jegyek"])) == 1 and len(sorok(wb4["Házi feladatok"])) == 2,
    "időszak-szűrés (október)")
+_, wb6 = wb_get("/api/esemenyek/export.xlsx?diak=ExportDiak&tipus=Feljegyz%C3%A9s")
+ok(len(sorok(wb6["Szűrt lista"])) == 1 and len(sorok(wb6["Jegyek"])) == 0
+   and len(sorok(wb6["Feljegyzések"])) == 1,
+   "típus-szűrés: csak a feljegyzés (a szűrt listában és a saját munkalapon)")
+_, wb7 = wb_get("/api/esemenyek/export.xlsx?diak=ExportDiak&tantargy=Matematika"
+                "&status=lejart")
+ok(len(sorok(wb7["Szűrt lista"])) == 1,
+   f"tantárgy + lejárt szűrés a szűrt listán: {len(sorok(wb7['Szűrt lista']))}")
 _, wb5 = wb_get("/api/esemenyek/export.xlsx?diak=NincsIlyen")
 ok(all(len(sorok(wb5[s])) == 0 for s in wb5.sheetnames), "üres szűrés -> üres munkalapok")
 

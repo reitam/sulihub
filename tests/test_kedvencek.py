@@ -100,6 +100,23 @@ ok(d.get("kulcsok") == [kulcs], "új kérésben is megvan (DB-ben tárolva)")
 ok(post({}).status_code == 400, "kulcs nélkül 400")
 ok(post({"kulcs": "  "}).status_code == 400, "üres kulcs 400")
 
+print("\n5b) Megjegyzés és húzásos sorrend (Kaneo #108)")
+kulcsok = [e["komment_kulcs"] for e in client.get("/api/esemenyek").get_json()]
+ok(len(kulcsok) >= 2, f"legalább 2 stabil kulcs: {len(kulcsok)}")
+k1, k2 = kulcsok[0], kulcsok[1]
+post({"kulcs": k2, "akcio": "add"})
+d = post({"akcio": "note", "kulcs": k1, "megjegyzes": "Fontos határidő"}).get_json()
+jegyzet = {e["kulcs"]: e.get("megjegyzes") for e in d.get("esemenyek", [])}
+ok(jegyzet.get(k1) == "Fontos határidő", f"a megjegyzés mentődik: {jegyzet}")
+d = post({"akcio": "order", "kulcsok": [k2, k1]}).get_json()
+ok(d.get("kulcsok") == [k2, k1], f"a sorrend mentődik: {d.get('kulcsok')}")
+d = client.get("/api/kedvencek").get_json()
+ok(d.get("kulcsok") == [k2, k1], "újratöltés után is a mentett sorrend")
+ok({e["kulcs"]: e.get("megjegyzes") for e in d["esemenyek"]}.get(k1) == "Fontos határidő",
+   "a sorrendezés nem veszíti el a megjegyzést")
+d = post({"akcio": "remove", "kulcs": k2}).get_json()
+ok(d.get("kulcsok") == [k1], f"levétel után marad a sorrend: {d.get('kulcsok')}")
+
 print("\n6) Felületi kötés")
 html = client.get("/").get_data(as_text=True)
 js = client.get("/static/js/app-main.js").get_data(as_text=True)
@@ -107,6 +124,10 @@ ok('id="kedvencPanel"' in html and 'id="kedvencLista"' in html, "a dashboard pan
 ok("btn-kedvenc" in js and "betoltKedvencek" in js and "/api/kedvencek" in js,
    "a csillag gomb és a JS hívás megvan")
 ok("kedvenc-torol" in js and "kedvenc-ugras" in js, "a panelen van eltávolítás és ugrás")
+ok("kedvenc-jegyzet-szerk" in js and "akcio: 'note'" in js,
+   "a panelen megjegyzés szerkeszthető (#108)")
+ok("kedvenc-sor" in js and "akcio: 'order'" in js and "dragstart" in js,
+   "a sorok húzhatók és a sorrend mentődik (#108)")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

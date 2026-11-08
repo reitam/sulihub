@@ -985,6 +985,11 @@ def api_esemenyek_xlsx():
         return jsonify({"error": "Nincs adatbázis."}), 404
 
     diak, tanev, kezdo, zaro = _export_szurok()
+    tipus_szuro = (request.args.get("tipus") or "").strip()
+    tantargy_szuro = (request.args.get("tantargy") or "").strip()
+    status_szuro = (request.args.get("status") or "").strip()
+    hat_kezdo = normalize_date(request.args.get("hatarido_kezdo") or "") or ""
+    hat_zaro = normalize_date(request.args.get("hatarido_zaro") or "") or ""
     conn = get_db_connection()
     cursor = conn.cursor()
     query = ("SELECT diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
@@ -997,6 +1002,12 @@ def api_esemenyek_xlsx():
     if tanev:
         query += " AND tanev = ?"
         params.append(tanev)
+    if tipus_szuro:
+        query += " AND esemeny_tipus = ?"
+        params.append(tipus_szuro)
+    if tantargy_szuro:
+        query += " AND tantargy = ?"
+        params.append(tantargy_szuro)
     query += " ORDER BY bej_datum, diak_nev, tantargy"
     try:
         cursor.execute(query, params)
@@ -1006,6 +1017,8 @@ def api_esemenyek_xlsx():
         print(f"[Export] események: {exc}")
         return jsonify({"error": "Az adatok nem olvashatók."}), 500
     conn.close()
+
+    mai = date.today().isoformat()
 
     def datum_benne(ertek):
         if not ertek:
@@ -1019,11 +1032,51 @@ def api_esemenyek_xlsx():
             return False
         return True
 
-    rows = [r for r in rows if datum_benne(r.get("bej_datum"))]
+    def lathato(r):
+        if not datum_benne(r.get("bej_datum")):
+            return False
+        hat = normalize_date(r.get("hatarido") or "")
+        if status_szuro:
+            if not hat:
+                return False
+            if status_szuro == "aktiv" and hat < mai:
+                return False
+            if status_szuro == "lejart" and hat >= mai:
+                return False
+        if hat_kezdo or hat_zaro:
+            if not hat:
+                return False
+            if hat_kezdo and hat < hat_kezdo:
+                return False
+            if hat_zaro and hat > hat_zaro:
+                return False
+        return True
+
+    rows = [r for r in rows if lathato(r)]
 
     wb = openpyxl.Workbook()
-    ws_jegy = wb.active
-    ws_jegy.title = "Jegyek"
+    ws_lista = wb.active
+    ws_lista.title = "Szűrt lista"
+    _xlsx_fejlec(ws_lista, ["Diák", "Típus", "Tantárgy", "Érték / Mód",
+                            "Bejegyzés dátuma", "Határidő", "Értékelő / Tanár",
+                            "Részletek", "Tanév"],
+                 [22, 24, 20, 18, 17, 17, 22, 50, 12])
+    for r in rows:
+        ertek = r.get("ertek") or ""
+        if r.get("mod") and r.get("mod") != "-":
+            ertek = (ertek + f" ({r['mod']})").strip()
+        if int(r.get("suly_szazalek") or 0) > 0 and r.get("esemeny_tipus") == "Értékelés":
+            ertek = (ertek + f" - {r['suly_szazalek']}%").strip()
+        reszletek = " | ".join(x for x in (r.get("tema"), r.get("cim"),
+                                           r.get("tartalom")) if x and x != "-")
+        ws_lista.append([
+            r.get("diak_nev") or "", r.get("esemeny_tipus") or "",
+            r.get("tantargy") or "", ertek, r.get("bej_datum") or "",
+            r.get("hatarido") or "", r.get("ertekelo") or "",
+            reszletek, r.get("tanev") or "",
+        ])
+
+    ws_jegy = wb.create_sheet("Jegyek")
     _xlsx_fejlec(ws_jegy, ["Diák", "Tantárgy", "Jegy", "Súly (%)", "Mód", "Téma",
                            "Tanár", "Bejegyzés dátuma", "Tanév"],
                  [22, 22, 14, 10, 18, 30, 22, 18, 12])
@@ -1290,8 +1343,8 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=1.4 * cm, rightMargin=1.4 * cm,
                             topMargin=1.2 * cm, bottomMargin=1.2 * cm)
     story = [
-        Paragraph("SuliHub – Tanulmányi riportkártya", cim),
-        Paragraph(f"<b>{diak}</b> · {tanev} · {PERIODUS_NEV.get(periodus, periodus)} · "
+        Paragraph(f"SuliHub - {diak} - {'FÉLÉV' if periodus == 'felvet' else 'ÉV'}", cim),
+        Paragraph(f"{tanev} · {'félév' if periodus == 'felvet' else 'teljes tanév'} · "
                   f"{kezdo.isoformat() if kezdo else '?'} – {zaro.isoformat() if zaro else '?'} · "
                   f"készült: {datetime.now().strftime('%Y-%m-%d %H:%M')}", alcim),
     ]
