@@ -982,6 +982,10 @@
             <button class="btn btn-sm btn-outline-secondary mb-2 btn-back-dashboard" type="button" style="font-size: 0.8rem;">
                 <i class="fa-solid fa-arrow-left me-1"></i>Vissza az áttekintésre
             </button>
+            <button id="btnEsemenyExportXlsx" class="btn btn-sm btn-outline-success mb-2 ms-1" type="button"
+                    style="font-size: 0.8rem;" title="A jelenlegi szűrőkkel Excel export">
+                <i class="fa-solid fa-file-excel me-1"></i>Excel export
+            </button>
             <div id="esemenyTanevHint" class="small text-muted mb-2 d-none"></div>
             <div class="table-container overflow-auto">
                 <table id="esemenyekTable" class="table table-striped table-hover w-100">
@@ -1026,6 +1030,9 @@
                     <div class="col-12 col-md-4 d-flex align-items-center justify-content-end gap-1">
                         <button id="btnHianyzasThisMonth" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;">Aktuális hónap</button>
                         <button id="btnHianyzasAll" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;">Összes</button>
+                        <button id="btnHianyzasExportXlsx" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size: 0.75rem;" title="A jelenlegi szűrőkkel Excel export">
+                            <i class="fa-solid fa-file-excel me-1"></i>Excel
+                        </button>
                     </div>
                 </div>
                 <div class="small text-muted mt-2" id="hianyzasModHint"></div>
@@ -1481,6 +1488,42 @@
                             A számítás a KRÉTA súlyozását használja (a 0%-os súlyú jegy kimarad);
                             a kalkulátor a kiválasztott tanév <b>teljes</b> jegyállományát veszi figyelembe.
                             A célátlag és a félévi céljegy tantárgyanként mentődik.
+                        </small>
+                    </div>
+                </div>
+
+                <div class="card card-stat bg-white mb-3" id="riportKartyaCard">
+                    <div class="p-3">
+                        <h6 class="fw-bold text-secondary mb-2">
+                            <i class="fa-solid fa-file-pdf me-2"></i>Riportkártya (PDF)
+                        </h6>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label small mb-1" for="riportDiak">Gyermek</label>
+                                <select id="riportDiak" class="form-select form-select-sm">
+                                    {% for d in diakok %}
+                                    <option value="{{ d }}">{{ d }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <label class="form-label small mb-1" for="riportPeriodus">Időszak</label>
+                                <select id="riportPeriodus" class="form-select form-select-sm">
+                                    <option value="felvet">Félév</option>
+                                    <option value="ev" selected>Teljes tanév</option>
+                                </select>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <button type="button" id="btnRiportGeneral" class="btn btn-sm btn-primary w-100">
+                                    <i class="fa-solid fa-file-pdf me-1"></i>PDF generálása
+                                </button>
+                            </div>
+                        </div>
+                        <div id="riportLista" class="mt-2 small"></div>
+                        <small class="text-muted d-block mt-1">
+                            A generált PDF a gyermekhez mentődik, később is megnyitható/nyomtatható.
+                            A hivatalos félévi/év végi osztályzat a KRÉTA API-ból nem érhető el;
+                            a riport a jegyekből számolt súlyozott átlagot mutatja.
                         </small>
                     </div>
                 </div>

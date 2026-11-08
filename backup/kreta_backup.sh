@@ -114,6 +114,24 @@ chmod 600 "$db_backup" 2>/dev/null \
     || log "Figyelem: a mentés jogosultsága nem állítható (NTFS/CIFS mount?)"
 log "DB mentés OK (${size} byte)"
 
+# Sorszám-manifest a havi restore-teszthez (Kaneo #90). Csak a futó konténer
+# esetén készül (ott van sqlite3 CLI); JSON1 hiányában kimarad.
+if $container_running; then
+    counts_json=$(docker exec "$CONTAINER" sqlite3 \
+        "file:/app/backup/kreta_adatok_${timestamp}.db?mode=ro" \
+        "SELECT json_group_object(t, n) FROM (SELECT 'esemenyek' AS t, COUNT(*) AS n FROM esemenyek UNION ALL SELECT 'uzenetek', COUNT(*) FROM uzenetek UNION ALL SELECT 'hianyzasok', COUNT(*) FROM hianyzasok UNION ALL SELECT 'igazolasok', COUNT(*) FROM igazolasok UNION ALL SELECT 'orarend', COUNT(*) FROM orarend UNION ALL SELECT 'kifizetesek', COUNT(*) FROM kifizetesek UNION ALL SELECT 'sync_runs', COUNT(*) FROM sync_runs UNION ALL SELECT 'kommentek', COUNT(*) FROM kommentek UNION ALL SELECT 'app_meta', COUNT(*) FROM app_meta);" 2>/dev/null)
+    case "$counts_json" in
+        \{*)
+            printf '%s\n' "$counts_json" > "$BACKUP_DIR/kreta_adatok_${timestamp}.counts.json"
+            chmod 600 "$BACKUP_DIR/kreta_adatok_${timestamp}.counts.json" 2>/dev/null || true
+            log "Sorszám-manifest kész"
+            ;;
+        *)
+            log "Figyelem: a sorszám-manifest nem készült el (JSON1?)"
+            ;;
+    esac
+fi
+
 # ── 3. Fájlok mentése (böngészőprofil + csatolmányok + config) ─────
 run_dir="$BACKUP_DIR/${timestamp}"
 mkdir -p "$run_dir"
@@ -168,6 +186,12 @@ for f in $(ls -1t "$BACKUP_DIR"/kreta_adatok_20*.db 2>/dev/null); do
 done
 find "$BACKUP_DIR" -name 'kreta_files_*.tar.gz' -mtime +14 -delete 2>/dev/null
 find "$BACKUP_DIR" -name 'kreta_config_*.tar.gz' -mtime +30 -delete 2>/dev/null
+# Árva manifestek törlése (ha a hozzá tartozó DB már kiforgott).
+for m in "$BACKUP_DIR"/kreta_adatok_*.counts.json; do
+    [ -f "$m" ] || continue
+    db="${m%.counts.json}.db"
+    [ -f "$db" ] || rm -f "$m"
+done
 find "$BACKUP_DIR" -mindepth 1 -type d -empty -delete 2>/dev/null
 
 log "Mentés kész."

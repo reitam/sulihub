@@ -12,7 +12,7 @@ import json
 import os
 import re
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import openpyxl
 from flask import Response, jsonify, make_response, request
@@ -28,10 +28,11 @@ from reportlab.platypus import (
     KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
 )
 
+import kreta_tanev
 from kreta_db import get_db_connection
-from kreta_paths import DB_FILE
+from kreta_paths import DB_FILE, RIPORTKARTYA_DIR
 from kreta_settings import load_config
-from views_common import _tanev_from_request, make_bp, normalize_date
+from views_common import _tanev_from_request, hianyzas_osszesito, make_bp, normalize_date
 
 bp = make_bp("exports")
 
@@ -931,4 +932,542 @@ def api_kifizetesek_csv():
     response.headers["Content-Disposition"] = (
         f"attachment; filename=\"kifizetesek_{suffix}.csv\""
     )
+    return response
+
+
+# ==============================================================================
+# Tanulmányi Excel exportok (Kaneo #83)
+# ==============================================================================
+def _xlsx_fejlec(ws, fejlecek, szelessegek):
+    """Fejlécsor + oszlopszélességek + fagyasztás (a zsebpénz-export stílusában)."""
+    header_fill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    ws.append(fejlecek)
+    for idx, width in enumerate(szelessegek, start=1):
+        cell = ws.cell(row=1, column=idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.column_dimensions[get_column_letter(idx)].width = width
+    ws.freeze_panes = "A2"
+
+
+def _xlsx_valasz(wb, fajlnev):
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    response = Response(
+        buf.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response.headers["Content-Disposition"] = f"attachment; filename=\"{fajlnev}\""
+    return response
+
+
+def _export_szurok():
+    """Közös szűrők: diák, tanév, kezdo_datum/zaro_datum (ISO-ra normalizálva)."""
+    diak = (request.args.get("diak") or "").strip()
+    tanev = _tanev_from_request()
+    kezdo = normalize_date(request.args.get("kezdo_datum") or "") or ""
+    zaro = normalize_date(request.args.get("zaro_datum") or "") or ""
+    return diak, tanev, kezdo, zaro
+
+
+@bp.route("/api/esemenyek/export.xlsx")
+def api_esemenyek_xlsx():
+    """Jegyek / feljegyzések / házik Excel exportja (Kaneo #83).
+
+    Szűrők: `diak`, `tanev`, `kezdo_datum`, `zaro_datum` (a bejegyzés dátumára).
+    A három munkalap: **Jegyek**, **Feljegyzések**, **Házi feladatok**
+    (a bejelentett számonkérésekkel együtt).
+    """
+    if not os.path.exists(DB_FILE):
+        return jsonify({"error": "Nincs adatbázis."}), 404
+
+    diak, tanev, kezdo, zaro = _export_szurok()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    query = ("SELECT diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
+             " suly_szazalek, mod, tipus, tema, cim, tartalom, ertekelo, bej_datum,"
+             " hatarido, kesz, tanev FROM esemenyek WHERE 1=1")
+    params = []
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+    if tanev:
+        query += " AND tanev = ?"
+        params.append(tanev)
+    query += " ORDER BY bej_datum, diak_nev, tantargy"
+    try:
+        cursor.execute(query, params)
+        rows = [dict(r) for r in cursor.fetchall()]
+    except sqlite3.Error as exc:
+        conn.close()
+        print(f"[Export] események: {exc}")
+        return jsonify({"error": "Az adatok nem olvashatók."}), 500
+    conn.close()
+
+    def datum_benne(ertek):
+        if not ertek:
+            return True
+        d = normalize_date(ertek)
+        if not d:
+            return True
+        if kezdo and d < kezdo:
+            return False
+        if zaro and d > zaro:
+            return False
+        return True
+
+    rows = [r for r in rows if datum_benne(r.get("bej_datum"))]
+
+    wb = openpyxl.Workbook()
+    ws_jegy = wb.active
+    ws_jegy.title = "Jegyek"
+    _xlsx_fejlec(ws_jegy, ["Diák", "Tantárgy", "Jegy", "Súly (%)", "Mód", "Téma",
+                           "Tanár", "Bejegyzés dátuma", "Tanév"],
+                 [22, 22, 14, 10, 18, 30, 22, 18, 12])
+    ws_fel = wb.create_sheet("Feljegyzések")
+    _xlsx_fejlec(ws_fel, ["Diák", "Típus", "Téma", "Leírás", "Tanár",
+                          "Bejegyzés dátuma", "Tanév"],
+                 [22, 26, 30, 46, 22, 18, 12])
+    ws_hazi = wb.create_sheet("Házi feladatok")
+    _xlsx_fejlec(ws_hazi, ["Diák", "Típus", "Tantárgy", "Téma / Cím", "Bejegyzés",
+                           "Határidő", "Állapot", "Tanár", "Tanév"],
+                 [22, 24, 20, 34, 16, 16, 14, 22, 12])
+
+    for r in rows:
+        tipus = r.get("esemeny_tipus") or ""
+        if tipus == "Értékelés":
+            ws_jegy.append([
+                r.get("diak_nev") or "", r.get("tantargy") or "",
+                r.get("ertek") or "", r.get("suly_szazalek") or 0,
+                r.get("mod") or "", r.get("tema") or "",
+                r.get("ertekelo") or "", r.get("bej_datum") or "",
+                r.get("tanev") or "",
+            ])
+        elif tipus == "Feljegyzés":
+            ws_fel.append([
+                r.get("diak_nev") or "", r.get("mod") or r.get("tipus") or "Feljegyzés",
+                r.get("tema") or "", r.get("tartalom") or r.get("cim") or "",
+                r.get("ertekelo") or "", r.get("bej_datum") or "",
+                r.get("tanev") or "",
+            ])
+        elif tipus in ("Házi feladat", "Bejelentett számonkérés"):
+            if tipus == "Házi feladat":
+                allapot = "Elkészítve" if int(r.get("kesz") or 0) == 1 else "Aktív"
+            else:
+                allapot = "-"
+            ws_hazi.append([
+                r.get("diak_nev") or "", tipus, r.get("tantargy") or "",
+                r.get("tema") or r.get("cim") or "", r.get("bej_datum") or "",
+                r.get("hatarido") or "", allapot, r.get("ertekelo") or "",
+                r.get("tanev") or "",
+            ])
+
+    suffix = re.sub(r"[^A-Za-z0-9._-]+", "_", diak)[:40] if diak else "osszes"
+    if kezdo or zaro:
+        suffix += "_" + re.sub(r"[^0-9]", "", kezdo)
+        suffix += "_" + re.sub(r"[^0-9]", "", zaro)
+    return _xlsx_valasz(wb, f"esemenyek_{suffix}.xlsx")
+
+
+@bp.route("/api/hianyzasok/export.xlsx")
+def api_hianyzasok_xlsx():
+    """Hiányzások és igazolások Excel exportja (Kaneo #83).
+
+    Szűrők: `diak`, `tanev`, `kezdo_datum`, `zaro_datum` (a hiányzás dátumára;
+    az igazolásoknál az időszakkal átfedő igazolások).
+    """
+    if not os.path.exists(DB_FILE):
+        return jsonify({"error": "Nincs adatbázis."}), 404
+
+    diak, tanev, kezdo, zaro = _export_szurok()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = "SELECT * FROM hianyzasok WHERE 1=1"
+    params = []
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+    if tanev:
+        query += " AND tanev = ?"
+        params.append(tanev)
+    query += " ORDER BY mulasztas_datum, ora_sorszam"
+    try:
+        cursor.execute(query, params)
+        hianyzasok = [dict(r) for r in cursor.fetchall()]
+    except sqlite3.Error as exc:
+        conn.close()
+        print(f"[Export] hiányzások: {exc}")
+        return jsonify({"error": "Az adatok nem olvashatók."}), 500
+
+    query = "SELECT * FROM igazolasok WHERE 1=1"
+    params = []
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+    if tanev:
+        query += " AND tanev = ?"
+        params.append(tanev)
+    query += " ORDER BY kezdete, diak_nev"
+    try:
+        cursor.execute(query, params)
+        igazolasok = [dict(r) for r in cursor.fetchall()]
+    except sqlite3.Error as exc:
+        conn.close()
+        print(f"[Export] igazolások: {exc}")
+        return jsonify({"error": "Az adatok nem olvashatók."}), 500
+    conn.close()
+
+    def datum_benne(ertek):
+        if not ertek:
+            return True
+        d = normalize_date(ertek)
+        if not d:
+            return True
+        if kezdo and d < kezdo:
+            return False
+        if zaro and d > zaro:
+            return False
+        return True
+
+    hianyzasok = [r for r in hianyzasok if datum_benne(r.get("mulasztas_datum"))]
+    if kezdo or zaro:
+        def atfed(ig):
+            k = normalize_date(ig.get("kezdete") or "")
+            v = normalize_date(ig.get("vege") or "") or k
+            if not k:
+                return True
+            if zaro and k > zaro:
+                return False
+            if kezdo and v and v < kezdo:
+                return False
+            return True
+        igazolasok = [r for r in igazolasok if atfed(r)]
+
+    wb = openpyxl.Workbook()
+    ws_h = wb.active
+    ws_h.title = "Hiányzások"
+    _xlsx_fejlec(ws_h, ["Diák", "Dátum", "Óra", "Tantárgy", "Téma", "Tanár",
+                        "Típus", "Igazolt", "Késés (perc)", "Tanév"],
+                 [22, 14, 8, 20, 34, 22, 16, 10, 14, 12])
+    for r in hianyzasok:
+        ws_h.append([
+            r.get("diak_nev") or "",
+            normalize_date(r.get("mulasztas_datum")) or r.get("mulasztas_datum") or "",
+            r.get("ora_sorszam") or 0,
+            r.get("tantargy") or "", r.get("tema") or "", r.get("tanar") or "",
+            r.get("mulasztas_tipus") or "",
+            "Igen" if int(r.get("igazolt") or 0) == 1 else "Nem",
+            r.get("perc") or 0, r.get("tanev") or "",
+        ])
+    ws_i = wb.create_sheet("Igazolások")
+    _xlsx_fejlec(ws_i, ["Diák", "Kezdete", "Vége", "Típus", "Megjegyzés", "Tanév"],
+                 [22, 14, 14, 30, 46, 12])
+    for r in igazolasok:
+        ws_i.append([
+            r.get("diak_nev") or "",
+            normalize_date(r.get("kezdete")) or r.get("kezdete") or "",
+            normalize_date(r.get("vege")) or r.get("vege") or "",
+            r.get("igazolas_tipus") or "", r.get("megjegyzes") or "",
+            r.get("tanev") or "",
+        ])
+
+    suffix = re.sub(r"[^A-Za-z0-9._-]+", "_", diak)[:40] if diak else "osszes"
+    if kezdo or zaro:
+        suffix += "_" + re.sub(r"[^0-9]", "", kezdo)
+        suffix += "_" + re.sub(r"[^0-9]", "", zaro)
+    return _xlsx_valasz(wb, f"hianyzasok_{suffix}.xlsx")
+
+
+# ==============================================================================
+# Félévi / év végi riportkártya PDF (Kaneo #82)
+# ==============================================================================
+PERIODUS_NEV = {"felvet": "félév", "ev": "tanév"}
+
+
+def _riport_idoszak(tanev, periodus):
+    """A riport időszaka: félév (tanév kezdete – jan. 31.) vagy teljes tanév."""
+    tanev = (tanev or kreta_tanev.current_tanev() or "").strip()
+    kezdo, zaro = kreta_tanev.tanev_bounds(tanev) if tanev else (None, None)
+    if not kezdo or not zaro:
+        return tanev, None, None
+    if periodus == "felvet":
+        felvet_vege = date(kezdo.year + 1, 1, 31)
+        if felvet_vege < zaro:
+            zaro = felvet_vege
+    return tanev, kezdo, zaro
+
+
+def _riport_adatok(diak, tanev, kezdo, zaro):
+    """A riporthoz szükséges adatok (jegyek, hiányzások, feljegyzések, egyenleg)."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT esemeny_tipus, tantargy, ertek, szam_ertek, suly_szazalek, mod,"
+        " tipus, tema, cim, tartalom, ertekelo, bej_datum, kesz"
+        " FROM esemenyek WHERE diak_nev = ? AND tanev = ?"
+        " ORDER BY bej_datum", (diak, tanev))
+    esemenyek = [dict(r) for r in cursor.fetchall()]
+    adatok = {"tantargyak": {}, "feljegyzesek": [], "egyeb_jegyek": {}}
+    for r in esemenyek:
+        d = normalize_date(r.get("bej_datum") or "")
+        if d and ((kezdo and d < kezdo.isoformat()) or (zaro and d > zaro.isoformat())):
+            continue
+        tipus = r.get("esemeny_tipus") or ""
+        if tipus == "Értékelés":
+            tantargy = (r.get("tantargy") or "Egyéb").strip()
+            try:
+                szam = int(r.get("szam_ertek"))
+            except (TypeError, ValueError):
+                szam = 0
+            if szam in (1, 2, 3, 4, 5):
+                entry = adatok["tantargyak"].setdefault(tantargy, [])
+                entry.append({"ertek": r.get("ertek") or str(szam), "szam": szam,
+                              "suly": int(r.get("suly_szazalek") or 0),
+                              "datum": d or ""})
+            elif r.get("ertek"):
+                adatok["egyeb_jegyek"][tantargy] = r.get("ertek")
+        elif tipus == "Feljegyzés":
+            adatok["feljegyzesek"].append({
+                "datum": d or "", "mod": r.get("mod") or r.get("tipus") or "",
+                "tema": r.get("tema") or "", "tartalom": r.get("tartalom") or "",
+                "tanar": r.get("ertekelo") or "",
+            })
+
+    for tantargy, jegyek in adatok["tantargyak"].items():
+        sulyos = [(j["szam"], j["suly"]) for j in jegyek if j["suly"] > 0]
+        if sulyos:
+            ossz_suly = sum(s for _e, s in sulyos)
+            atlag = sum(e * s for e, s in sulyos) / ossz_suly
+        else:
+            atlag = sum(j["szam"] for j in jegyek) / len(jegyek)
+        adatok["tantargyak"][tantargy] = {
+            "jegyek": jegyek,
+            "atlag": round(atlag, 2),
+            "db": len(jegyek),
+        }
+
+    try:
+        cursor.execute("SELECT * FROM hianyzasok WHERE diak_nev = ? AND tanev = ?",
+                       (diak, tanev))
+        hianyzasok = [dict(r) for r in cursor.fetchall()]
+        hianyzasok = [h for h in hianyzasok
+                      if (not kezdo or (normalize_date(h.get("mulasztas_datum")) or "") >= kezdo.isoformat())
+                      and (not zaro or (normalize_date(h.get("mulasztas_datum")) or "") <= zaro.isoformat())]
+        adatok["hianyzasok"] = hianyzas_osszesito(hianyzasok)
+    except sqlite3.Error:
+        adatok["hianyzasok"] = hianyzas_osszesito([])
+    conn.close()
+
+    stat = compute_zsebpenz_statisztika(
+        diak=diak, kezdo_datum=kezdo.isoformat() if kezdo else "",
+        zaro_datum=zaro.isoformat() if zaro else "", tanev_szuro=tanev)
+    adatok["egyenleg"] = int(stat.get("vegosszeg", 0) or 0) - int(stat.get("kifizetve", 0) or 0)
+    return adatok
+
+
+def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
+    """A4-es, egyoldalas riportkártya PDF bytes-ként."""
+    _register_pdf_fonts()
+    styles = getSampleStyleSheet()
+    cim = ParagraphStyle("RiportCim", parent=styles["Heading1"], fontName=_pdf_font_bold(),
+                         fontSize=19, leading=23, textColor=colors.HexColor("#0d6efd"),
+                         spaceAfter=2)
+    alcim = ParagraphStyle("RiportAlcim", parent=styles["Normal"], fontName=_pdf_font(),
+                           fontSize=10, leading=13, textColor=colors.HexColor("#6c757d"),
+                           spaceAfter=8)
+    szoveg = ParagraphStyle("RiportSzoveg", parent=styles["Normal"], fontName=_pdf_font(),
+                            fontSize=9, leading=12)
+    kicsi = ParagraphStyle("RiportKicsi", parent=szoveg, fontSize=7.5, leading=9.5)
+    cella = ParagraphStyle("RiportCella", parent=szoveg, fontSize=8.5, leading=10.5)
+    cella_fej = ParagraphStyle("RiportCellaFej", parent=cella, fontName=_pdf_font_bold(),
+                               textColor=colors.white)
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=1.4 * cm, rightMargin=1.4 * cm,
+                            topMargin=1.2 * cm, bottomMargin=1.2 * cm)
+    story = [
+        Paragraph("SuliHub – Tanulmányi riportkártya", cim),
+        Paragraph(f"<b>{diak}</b> · {tanev} · {PERIODUS_NEV.get(periodus, periodus)} · "
+                  f"{kezdo.isoformat() if kezdo else '?'} – {zaro.isoformat() if zaro else '?'} · "
+                  f"készült: {datetime.now().strftime('%Y-%m-%d %H:%M')}", alcim),
+    ]
+
+    h = adatok.get("hianyzasok", {})
+    ossz = [
+        [Paragraph("Tanulmányi átlag", cella), Paragraph(
+            f"{sum(t['atlag'] * t['db'] for t in adatok['tantargyak'].values()) / max(1, sum(t['db'] for t in adatok['tantargyak'].values())):.2f}"
+            if adatok["tantargyak"] else "–", cella)],
+        [Paragraph("Jegyek száma", cella),
+         Paragraph(str(sum(t["db"] for t in adatok["tantargyak"].values())), cella)],
+        [Paragraph("Hiányzás / igazolatlan", cella),
+         Paragraph(f"{h.get('osszes_ora', 0)} óra / {h.get('igazolatlan_ora', 0)} óra", cella)],
+        [Paragraph("Késés", cella),
+         Paragraph(f"{h.get('keses_db', 0)} db / {h.get('keses_perc', 0)} perc", cella)],
+        [Paragraph("Feljegyzések", cella),
+         Paragraph(str(len(adatok.get("feljegyzesek", []))), cella)],
+        [Paragraph("Zsebpénz egyenleg", cella),
+         Paragraph(f"{adatok.get('egyenleg', 0):,} Ft".replace(",", " "), cella)],
+    ]
+    ossz_tabla = Table(ossz, colWidths=[6.2 * cm, 10.8 * cm])
+    ossz_tabla.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#dee2e6")),
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f1f5fb")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story += [Paragraph("Összegzés", ParagraphStyle("RiportH2", parent=cim, fontSize=12,
+                                                   leading=15, spaceBefore=10, spaceAfter=4)),
+              ossz_tabla, Spacer(1, 0.35 * cm)]
+
+    fej = [Paragraph(x, cella_fej) for x in ("Tantárgy", "Jegyek", "Átlag", "Db")]
+    sorok = [fej]
+    for tantargy in sorted(adatok["tantargyak"]):
+        t = adatok["tantargyak"][tantargy]
+        jegyek = ", ".join(
+            f"{j['ertek']}" + (f" ({j['datum'][5:]})" if j["datum"] else "")
+            for j in t["jegyek"])
+        sorok.append([Paragraph(tantargy, cella), Paragraph(jegyek, kicsi),
+                      Paragraph(f"{t['atlag']:.2f}", cella), Paragraph(str(t["db"]), cella)])
+    if len(sorok) == 1:
+        sorok.append([Paragraph("Nincs értékelés az időszakban.", cella), "", "", ""])
+    tabla = Table(sorok, colWidths=[4.4 * cm, 10.0 * cm, 1.4 * cm, 1.2 * cm], repeatRows=1)
+    tabla.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#dee2e6")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0d6efd")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story += [Paragraph("Tantárgyi eredmények", ParagraphStyle(
+        "RiportH2b", parent=cim, fontSize=12, leading=15, spaceBefore=6, spaceAfter=4)),
+        tabla, Spacer(1, 0.3 * cm)]
+
+    if adatok.get("egyeb_jegyek"):
+        story.append(Paragraph("Viselkedés / magatartás: " + ", ".join(
+            f"{k}: {v}" for k, v in sorted(adatok["egyeb_jegyek"].items())), szoveg))
+        story.append(Spacer(1, 0.2 * cm))
+
+    fel = adatok.get("feljegyzesek", [])
+    if fel:
+        story.append(Paragraph("Feljegyzések", ParagraphStyle(
+            "RiportH2c", parent=cim, fontSize=10, leading=13, spaceBefore=4, spaceAfter=2)))
+        for f in fel[:8]:
+            story.append(Paragraph(
+                f"{f['datum']} · {f['mod'] or 'Feljegyzés'} · {f['tema'] or f['tartalom']}",
+                kicsi))
+
+    story.append(Spacer(1, 0.35 * cm))
+    story.append(Paragraph(
+        "Az átlagok a KRÉTA súlyozásával (Σ jegy×súly / Σ súly) számoltak; a 0%-os súlyú "
+        "jegy kimarad. A hivatalos félévi/év végi osztályzat a KRÉTA API-ból nem érhető el, "
+        "ezért a riport a jegyekből számolt átlagot mutatja.", kicsi))
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+@bp.route("/api/riportkartya", methods=["POST"])
+def api_riportkartya_letrehozas():
+    """Riportkártya PDF generálása és mentése (Kaneo #82)."""
+    data = request.get_json(silent=True) or {}
+    diak = (data.get("diak") or "").strip()
+    if not diak:
+        return jsonify({"error": "Válassz gyermeket."}), 400
+    periodus = (data.get("periodus") or "ev").strip()
+    if periodus not in PERIODUS_NEV:
+        return jsonify({"error": "Az időszak 'felvet' vagy 'ev' lehet."}), 400
+    tanev, kezdo, zaro = _riport_idoszak(data.get("tanev") or "", periodus)
+    if not kezdo or not zaro:
+        return jsonify({"error": "Érvénytelen tanév."}), 400
+
+    adatok = _riport_adatok(diak, tanev, kezdo, zaro)
+    try:
+        pdf = _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok)
+    except Exception as exc:  # a PDF hibája ne 500-as nyers stacktrace legyen
+        print(f"[Riport] PDF hiba: {exc}")
+        return jsonify({"error": "A PDF generálása nem sikerült."}), 500
+
+    biztonsagos = re.sub(r"[^A-Za-z0-9._-]+", "_", diak)[:50] or "diak"
+    mappa = os.path.join(RIPORTKARTYA_DIR, biztonsagos)
+    os.makedirs(mappa, exist_ok=True)
+    fajlnev = f"{tanev.replace('/', '-')}_{periodus}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    utvonal = os.path.join(mappa, fajlnev)
+    with open(utvonal, "wb") as f:
+        f.write(pdf)
+
+    conn = get_db_connection()
+    rel = os.path.join(biztonsagos, fajlnev).replace("\\", "/")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO riportkartyak (diak_nev, tanev, periodus, kezdo_datum, zaro_datum,"
+        " fajl_nev) VALUES (?,?,?,?,?,?)",
+        (diak, tanev, periodus, kezdo.isoformat(), zaro.isoformat(), rel))
+    conn.commit()
+    rid = cursor.lastrowid
+    conn.close()
+    return jsonify({"status": "ok", "id": rid, "diak": diak, "tanev": tanev,
+                    "periodus": periodus, "kezdo_datum": kezdo.isoformat(),
+                    "zaro_datum": zaro.isoformat(),
+                    "url": f"/api/riportkartyak/{rid}/pdf"})
+
+
+@bp.route("/api/riportkartyak")
+def api_riportkartyak():
+    """A korábban generált riportkártyák listája (Kaneo #82)."""
+    if not os.path.exists(DB_FILE):
+        return jsonify({"rows": []})
+    diak = (request.args.get("diak") or "").strip()
+    tanev = (request.args.get("tanev") or "").strip()
+    query = "SELECT id, diak_nev, tanev, periodus, kezdo_datum, zaro_datum, letrehozva FROM riportkartyak WHERE 1=1"
+    params = []
+    if diak:
+        query += " AND diak_nev = ?"
+        params.append(diak)
+    if tanev:
+        query += " AND tanev = ?"
+        params.append(tanev)
+    query += " ORDER BY id DESC"
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        rows = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+    except sqlite3.Error:
+        return jsonify({"rows": []})
+    for r in rows:
+        r["url"] = f"/api/riportkartyak/{r['id']}/pdf"
+        r["periodus_nev"] = PERIODUS_NEV.get(r.get("periodus"), r.get("periodus") or "")
+    return jsonify({"rows": rows})
+
+
+@bp.route("/api/riportkartyak/<int:riport_id>/pdf")
+def api_riportkartya_pdf(riport_id):
+    """Egy mentett riportkártya PDF letöltése/megnyitása (Kaneo #82)."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM riportkartyak WHERE id = ?", (riport_id,))
+        row = cursor.fetchone()
+        conn.close()
+    except sqlite3.Error:
+        row = None
+    if not row:
+        return jsonify({"error": "Nincs ilyen riportkártya."}), 404
+    alap = os.path.abspath(RIPORTKARTYA_DIR)
+    utvonal = os.path.abspath(os.path.join(alap, row["fajl_nev"]))
+    if os.path.commonpath([alap, utvonal]) != alap or not os.path.exists(utvonal):
+        return jsonify({"error": "A PDF fájl nem található."}), 404
+    with open(utvonal, "rb") as f:
+        tartalom = f.read()
+    response = Response(tartalom, mimetype="application/pdf")
+    response.headers["Content-Disposition"] = (
+        f"inline; filename=\"{os.path.basename(utvonal)}\"")
     return response
