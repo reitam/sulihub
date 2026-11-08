@@ -54,7 +54,7 @@ def _fts_azonosítók(cursor, tabla, q, limit):
     try:
         cursor.execute(
             f"SELECT rowid FROM {tabla} WHERE {tabla} MATCH ? LIMIT ?",
-            ('"' + q.replace('"', '""') + '"', max(limit * 5, 50)))
+            ('"' + q.lower().replace('"', '""') + '"', max(limit * 5, 50)))
         return [r[0] for r in cursor.fetchall()]
     except sqlite3.Error:
         return None
@@ -82,15 +82,20 @@ def api_kereses():
     # 1) Események: jegy, feljegyzés, házi, számonkérés (téma/cím/tartalom/tantárgy/érték).
     try:
         fts_ids = _fts_azonosítók(cursor, "esemenyek_fts", q, limit)
-        sql = ("SELECT id, diak_nev, esemeny_tipus, tantargy, tema, cim, tartalom, ertek,"
-               " bej_datum, hatarido FROM esemenyek"
-               " WHERE (tantargy LIKE ? ESCAPE '\\' OR tema LIKE ? ESCAPE '\\'"
-               " OR cim LIKE ? ESCAPE '\\' OR tartalom LIKE ? ESCAPE '\\'"
-               " OR ertek LIKE ? ESCAPE '\\')")
-        params = [like, like, like, like, like]
         if fts_ids:
-            sql += f" AND id IN ({','.join('?' * len(fts_ids))})"
-            params += fts_ids
+            # Az FTS Unicode-tudatos (ékezet/kis-nagybetű); a LIKE-ra itt nem
+            # szűrünk rá, mert az csak ASCII-nél case-insensitive (Kaneo #125).
+            sql = ("SELECT id, diak_nev, esemeny_tipus, tantargy, tema, cim, tartalom, ertek,"
+                   " bej_datum, hatarido FROM esemenyek"
+                   f" WHERE id IN ({','.join('?' * len(fts_ids))})")
+            params = list(fts_ids)
+        else:
+            sql = ("SELECT id, diak_nev, esemeny_tipus, tantargy, tema, cim, tartalom, ertek,"
+                   " bej_datum, hatarido FROM esemenyek"
+                   " WHERE (tantargy LIKE ? ESCAPE '\\' OR tema LIKE ? ESCAPE '\\'"
+                   " OR cim LIKE ? ESCAPE '\\' OR tartalom LIKE ? ESCAPE '\\'"
+                   " OR ertek LIKE ? ESCAPE '\\')")
+            params = [like, like, like, like, like]
         sql += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
         cursor.execute(sql, params)
@@ -115,13 +120,15 @@ def api_kereses():
     # 2) Üzenetek (a teljes törzsben).
     try:
         fts_ids = _fts_azonosítók(cursor, "uzenetek_fts", q, limit)
-        sql = ("SELECT id, diak_nev, felado, targy, idopont, szoveg FROM uzenetek"
-               " WHERE (targy LIKE ? ESCAPE '\\' OR felado LIKE ? ESCAPE '\\'"
-               " OR szoveg LIKE ? ESCAPE '\\')")
-        params = [like, like, like]
         if fts_ids:
-            sql += f" AND id IN ({','.join('?' * len(fts_ids))})"
-            params += fts_ids
+            sql = ("SELECT id, diak_nev, felado, targy, idopont, szoveg FROM uzenetek"
+                   f" WHERE id IN ({','.join('?' * len(fts_ids))})")
+            params = list(fts_ids)
+        else:
+            sql = ("SELECT id, diak_nev, felado, targy, idopont, szoveg FROM uzenetek"
+                   " WHERE (targy LIKE ? ESCAPE '\\' OR felado LIKE ? ESCAPE '\\'"
+                   " OR szoveg LIKE ? ESCAPE '\\')")
+            params = [like, like, like]
         sql += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
         cursor.execute(sql, params)

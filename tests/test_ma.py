@@ -162,6 +162,11 @@ ok(html.index('id="ma-tab"') > html.index('id="attekintes-tab"')
    "a Ma fül az Áttekintés után, az Események előtt van")
 ok("loadMaNezet" in js and "/api/ma" in js,
    "a frontend a saját fülhöz hívja a /api/ma végpontot (a felesleges Frissítés gomb nélkül)")
+ok('id="maNezetKapcsolo"' in html and 'id="maHetNezet"' in html
+   and 'id="maHonapNezet"' in html,
+   "Ma / Hét / Hónap nézetváltó a Ma fülön (Kaneo #104)")
+ok("maHetBetolt" in js and "maHonapBetolt" in js and "data-nezet" in js,
+   "a heti és havi nézet betöltése a JS-ben")
 ok("btnMaFrissit" not in html and "btnMaFrissit" not in js,
    "nincs külön szürke Frissítés gomb a Ma fülön (Kaneo #113)")
 ok(client.get("/api/ma?datum=2026-11-06").status_code == 200,

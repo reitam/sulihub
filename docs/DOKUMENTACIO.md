@@ -364,7 +364,9 @@ Az **Áttekintés utáni „Ma” fül** (a dashboard-kártyát a felhasználó 
 számonkérések pipával (kattintás → kész jelölés), **friss jegyek** (7 nap) és **olvasatlan
 üzenetek** (kattintás → üzenet-ablak). Saját gyermek-chipek; a fül megnyitásakor és
 gyermekváltáskor automatikusan frissül (nincs külön Frissítés gomb), a fejléc
-diák-szűrőjét követi. Adatforrás: `/api/ma?diak=&datum=`.
+diák-szűrőjét követi. **Kaneo #104:** a fülön belüli **Ma / Hét / Hónap** szegmentált
+kapcsoló választja a napi kártyákat, a hétfő–péntek heti áttekintést (5 napkártya) vagy a
+havi naptárgridet (napi óra/határidő/hiányzás jelvényekkel). Adatforrás: `/api/ma?diak=&datum=`.
 
 ### 2.15. Riportkártya PDF (Kaneo #82)
 
@@ -399,9 +401,11 @@ A `kreta_db.ensure_fts_schema()` **FTS5 virtuális táblákat** hoz létre
 (`esemenyek_fts`, `uzenetek_fts`) **trigram tokenizálóval**, hogy a részszöveges
 (infix) keresés is működjön; a triggerek az `esemenyek`/`uzenetek` beszúrás/ módosítás/
 törlés esetén szinkronban tartják, induláskor szükség esetén **rebuild**. A kereső
-3+ karakteres query-nél az FTS jelölteket használja, majd ugyanazt a LIKE-szűrést
-futtatja; rövid query-nél vagy FTS-hibánál a LIKE-út marad. A találatok **egyeznek a
-LIKE-kal** (teszt: `test_kereses` 5b).
+3+ karakteres query-nél az FTS jelölteket használja (Unicode-tudatos; a LIKE-ra nem
+szűr rá, így a nagybetűs ékezetes találat is megvan), rövid query-nél vagy FTS-hibánál
+a LIKE-út marad. A találatok a LIKE-kal egyező halmazt adnak a kisbetűs esetekben
+(teszt: `test_kereses` 5b). Az indexelt dokumentumok számát a `_docsize`
+alapján ellenőrzi, és ha elavult (pl. a triggerek előtti sorok), **rebuildel**.
 
 ### 2.18. Szinkron-egészség riasztás (Kaneo #88)
 
@@ -1125,7 +1129,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v2.1.1** *(éles 2026-11-08)* | **2026-11-07** | **#117** a globális kereső (nagyító/Ctrl+K) megnyitásakor a **mező azonnal aktív** (`shown.bs.modal` + tartalék; a régi timer a megjelenés előtt futott). **#118** **átfogó sötét mód**: dashboard kártyacímek, táblázat-konténer, `.text-dark` szövegek, accordion-fejlécek, kiemelt sorok (ma/elkészült/olvasatlan), státuszsáv + verzió-jelvény, **FullCalendar** háttér/rács/cím, modálfejléc, csatolmány-badge/„Olvasás” gomb, Feljegyzés-badge; a **naptár-események szövegszíne** a háttér fényességéhez igazodik (`views_common.contrast_text` → `textColor`), így világos módban is jobb. Számított kontraszt-audit: 50 → **0 valódi** alacsony kontrasztú szöveg (9 fül + 6 modál + űrlapok). **1339 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/196) |
 | **v2.1.2** *(kiadásra kész)* | **2026-11-08** | **#120** az Iskolai események **szűrőpanelje alapból zárva** van, a fejlécére kattintva nyílik (a dashboard-csempéről érkezve is zárva marad; a szűrő továbbra is érvényesül). **#115** (Tailscale/WireGuard távoli elérés) és **#119** (SQLite vs MySQL/PostgreSQL) **elemzés** a jegyekben, kódváltozás nélkül. **1340 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/197) |
 | **v2.1.3** *(kiadásra kész)* | **2026-11-08** | **#121** a szűrőpanel a felső menüsor **alá** került (a menüsor nem ugrál a fülek között). **#82** A4-es **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve (`riportkartyak` tábla + data kötet), visszamenőleges lista/letöltés; a hivatalos félévi jegy hiányát jelzi. **#83** **Excel exportok**: események (Jegyek/Feljegyzések/Házi feladatok) és hiányzások (Hiányzások/Igazolások) a felület szűrőivel. **#90** üzemeltetési ellenőrzések: havi **restore-teszt** (`tools/backup_restore_check.py`, manifest-tel) + éjszakai **élő füstteszt** (`tools/live_smoke.py`, CI job, secret nélkül kimarad). **1411 ellenőrzés / 47 csomag** (fast 42/1212, browser 5/199) |
-| **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** a riportkártya címe „SuliHub - \<gyerek\> - ÉV/FÉLÉV”; a félévi/év végi jegy beépítése külön backlog (#123/#124). **1461 ellenőrzés / 50 csomag** (fast 45/1262, browser 5/199) |
+| **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** a riportkártya címe „SuliHub - \<gyerek\> - ÉV/FÉLÉV”; a félévi/év végi jegy beépítése külön backlog (#123/#124). **#125** kódszemle-javítások: riport hiányzás-óraszám, FTS ékezet/kis-nagybetű, adatminőség-typo, csatolmány-rekurzió, órarend arányőr, silent JSON, dupla `.bak`, `/api/esemenyek` limit/offset. **#104** Ma/**Hét**/**Hónap** nézet a Ma fülön (szegmentált kapcsoló). **#82** a riportkártya címe a tanévvel (pl. „2026/2027 1. félév”) és rendezettebb kártyadesign. **1471 ellenőrzés / 50 csomag** (fast 45/1270, browser 5/201) |
 
 ---
 

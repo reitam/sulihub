@@ -1280,6 +1280,17 @@ def save_orarend_to_db(diak_nev, orarend_lista):
             kezdo_datumok.append(kezdo[:10])
     if kezdo_datumok:
         ablak_kezdo = min(kezdo_datumok)
+        old_window = cursor.execute(
+            "SELECT COUNT(*) FROM orarend WHERE diak_nev = ?"
+            " AND substr(kezdo_idopont, 1, 10) >= ?", (diak_nev, ablak_kezdo)
+        ).fetchone()[0]
+        if old_window > 0 and _would_drop_too_much(old_window, len(orarend_lista)):
+            result["blocked"]["orarend"] = {"old": old_window, "new": len(orarend_lista)}
+            log(f"  [FIGYELEM] Órarend: {len(orarend_lista)} új sor a meglévő "
+                f"{old_window} helyett az ablakban — a cserét kihagytam "
+                f"(adatvédelem, küszöb: {sync_min_ratio():.2f}).")
+            conn.close()
+            return result
         cursor.execute(
             "DELETE FROM orarend WHERE diak_nev = ? AND substr(kezdo_idopont, 1, 10) >= ?",
             (diak_nev, ablak_kezdo))

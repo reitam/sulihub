@@ -107,6 +107,13 @@ ok(count("orarend") == 4, "a múltbeli 3 sor megmaradt + az új (Kaneo #122)")
 r = k.save_orarend_to_db("Teszt", [dict(ora(5), title="Módosított")])
 ok(count("orarend") == 4, "az ablakon belüli sor cserélődik, nem duplikálódik")
 
+# Csonka válasz az ablakban: arányőr blokkolja (Kaneo #125).
+k.save_orarend_to_db("Teszt", [ora(10), ora(11), ora(12)])
+elotte = count("orarend")
+r = k.save_orarend_to_db("Teszt", [ora(10)])
+ok("orarend" in r["blocked"] and count("orarend") == elotte,
+   f"csonka órarend-válasz -> blokkolt, nincs adatvesztés ({r['blocked']})")
+
 print("\n4) A szolgáltató hibát dob, ha a mentés védve maradt")
 
 

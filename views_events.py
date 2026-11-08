@@ -50,6 +50,24 @@ def api_esemenyek():
 
     query += " ORDER BY id DESC"
 
+    # Opcionális lapozás (Kaneo #125): alapból változatlanul minden sor.
+    try:
+        limit = int(request.args.get("limit") or 0)
+    except ValueError:
+        limit = 0
+    try:
+        offset = int(request.args.get("offset") or 0)
+    except ValueError:
+        offset = 0
+    if limit > 0:
+        query += " LIMIT ?"
+        params.append(limit)
+    elif offset > 0:
+        query += " LIMIT -1"
+    if offset > 0:
+        query += " OFFSET ?"
+        params.append(offset)
+
     cursor.execute(query, params)
     rows = cursor.fetchall()
     komment_db = komment_szamok(cursor, "esemeny")
@@ -169,7 +187,7 @@ def api_naptar_esemenyek():
 
 @bp.route("/api/esemeny/statusz", methods=["POST"])
 def api_esemeny_statusz():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     esemeny_id = data.get("id")
     kesz = 1 if data.get("kesz") else 0
 
@@ -266,7 +284,7 @@ def api_kedvencek():
     """
     bejegyzesek = _kedvencek_bejegyzesek()
     if request.method == "POST":
-        data = request.json or {}
+        data = request.get_json(silent=True) or {}
         kulcs = str(data.get("kulcs") or "").strip()
         akcio = str(data.get("akcio") or "toggle").lower()
 

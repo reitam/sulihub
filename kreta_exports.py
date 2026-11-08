@@ -1342,9 +1342,10 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=1.4 * cm, rightMargin=1.4 * cm,
                             topMargin=1.2 * cm, bottomMargin=1.2 * cm)
+    periodus_cimke = f"{tanev} 1. félév" if periodus == "felvet" else f"{tanev} év"
     story = [
-        Paragraph(f"SuliHub - {diak} - {'FÉLÉV' if periodus == 'felvet' else 'ÉV'}", cim),
-        Paragraph(f"{tanev} · {'félév' if periodus == 'felvet' else 'teljes tanév'} · "
+        Paragraph(f"SuliHub - {diak} - {periodus_cimke}", cim),
+        Paragraph(f"{'1. félév' if periodus == 'felvet' else 'teljes tanév'} · "
                   f"{kezdo.isoformat() if kezdo else '?'} – {zaro.isoformat() if zaro else '?'} · "
                   f"készült: {datetime.now().strftime('%Y-%m-%d %H:%M')}", alcim),
     ]
@@ -1357,7 +1358,7 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
         [Paragraph("Jegyek száma", cella),
          Paragraph(str(sum(t["db"] for t in adatok["tantargyak"].values())), cella)],
         [Paragraph("Hiányzás / igazolatlan", cella),
-         Paragraph(f"{h.get('osszes_ora', 0)} óra / {h.get('igazolatlan_ora', 0)} óra", cella)],
+         Paragraph(f"{h.get('hianyzas_db', 0)} óra / {h.get('igazolatlan_ora', 0)} óra", cella)],
         [Paragraph("Késés", cella),
          Paragraph(f"{h.get('keses_db', 0)} db / {h.get('keses_perc', 0)} perc", cella)],
         [Paragraph("Feljegyzések", cella),
