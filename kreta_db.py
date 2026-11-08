@@ -144,6 +144,8 @@ def ensure_fts_schema(conn):
     """FTS5 táblák + szinkron-triggerek létrehozása, szükség esetén rebuild (idempotens)."""
     cur = conn.cursor()
     for alap, fts, oszlopok in FTS_TABLAK:
+        volt = cur.execute(
+            "SELECT 1 FROM sqlite_master WHERE name = ?", (fts,)).fetchone() is not None
         try:
             cur.execute(
                 f"CREATE VIRTUAL TABLE IF NOT EXISTS {fts} USING fts5("
@@ -173,9 +175,11 @@ def ensure_fts_schema(conn):
             print(f"[FTS] {alap} triggerek kihagyva ({exc})")
 
         try:
-            n_fts = cur.execute(f"SELECT COUNT(*) FROM {fts}").fetchone()[0]
+            # External-content FTS-nél a COUNT(*) a tartalmi táblát olvassa,
+            # ezért az indexelt dokumentumok számát a _docsize táblából vesszük.
+            n_idx = cur.execute(f"SELECT COUNT(*) FROM {fts}_docsize").fetchone()[0]
             n_alap = cur.execute(f"SELECT COUNT(*) FROM {alap}").fetchone()[0]
-            if n_alap and n_fts != n_alap:
+            if n_alap and (not volt or n_idx != n_alap):
                 cur.execute(f"INSERT INTO {fts}({fts}) VALUES('rebuild')")
                 print(f"[FTS] {fts} újraépítve ({n_alap} sor)")
         except sqlite3.Error as exc:
@@ -207,7 +211,7 @@ MIGRATIONS = [
 ]
 
 
-def run_migrations(conn):
+def run_migrations(conn, backup=True):
     """A `schema_version`-nél újabb migrációk futtatása, idempotensen (Kaneo #91)."""
     cur = conn.cursor()
     cur.execute("CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT,"
@@ -220,7 +224,7 @@ def run_migrations(conn):
         current = 0
     if current >= SCHEMA_VERSION:
         return current
-    if current > 0:
+    if backup and current > 0:
         backup_path = f"{DB_FILE}.bak-{datetime.now().strftime('%Y%m%d%H%M%S')}"
         try:
             dst = sqlite3.connect(backup_path)
@@ -775,7 +779,8 @@ def init_db_extensions():
             ensure_fts_schema(conn)
 
             # Verziózott migrációs lánc (Kaneo #91) — a sémaverziót lépteti.
-            run_migrations(conn)
+            # A .bak mentés már fentebb megtörtént (ne készüljön dupla).
+            run_migrations(conn, backup=False)
 
             conn.commit()
             conn.close()

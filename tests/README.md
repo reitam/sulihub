@@ -49,7 +49,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_jegy_kalkulator.py` | **#78/#101:** „Milyen jegy kell?” — súlyozott átlag, egy jegy/több ötös, elérhetetlen cél, 0%-os súly, hiányzó jegy, tanév-szűrés, érvénytelen bemenet; **több várható jegy** (eltérő súlyok, szükséges összesített átlag, szimulált átlag), **félévi cél** (küszöb + szükséges átlag), **mentett célátlag** (`/api/kalkulator_cel` GET/POST), a meglévő jegyek táblázata, üres alap-választó |
 | `test_kereses.py` | **#85/#102/#107:** globális kereső — több adatforrás, üzenet teljes törzs, rendezés/limit, rövid keresés, LIKE-escape, modal és Ctrl+K, navigáció; **a találat sorára kattintva a részletek modálja nyílik**; **↑/↓/Enter, előzmény (localStorage), találat-kiemelés**; **FTS5 = LIKE** egyezés és idempotens index |
 | `test_kedvencek.py` | **#86/#108:** `/api/kedvencek` add/remove/toggle, megjegyzés (`note`) és húzásos sorrend (`order`) perzisztencia, érvénytelen kérés; a dashboard-panel, a csillag gomb és a drag/note UI |
-| `test_ma.py` | **#9/#113:** `/api/ma` — mai órák duplikátum nélkül, ma/holnapi határidők, friss jegyek, olvasatlan üzenetek, diák-szűrés, üres/hibás dátum; **önálló „Ma” fül** (a dashboard-kártya elutasítva), **külön Frissítés gomb nélkül** (nyitáskor/gyermekváltáskor frissül) |
+| `test_ma.py` | **#9/#104/#113:** `/api/ma` — mai órák duplikátum nélkül, ma/holnapi határidők, friss jegyek, olvasatlan üzenetek, diák-szűrés, üres/hibás dátum; **önálló „Ma” fül** (a dashboard-kártya elutasítva), **Ma/Hét/Hónap nézetváltó** (heti 5 napkártya, havi naptárgrid), külön Frissítés gomb nélkül |
 | `test_trend.py` | **#80/#111:** tantárgyi trend (utolsó két hónap), **gyermekenkénti** romlás- (≤ -0,5) és javulás-figyelmeztetés (≥ +0,5) az időszakkal, hiányzás-mintázat nap/óra/tantárgy/hónap bontásban, tanév-szűrés; a felületi kötés (romló + javuló sáv) |
 | `test_riportkartya.py` | **#82:** riportkártya PDF generálás (félév/tanév), mentés a data kötetre + `riportkartyak` tábla, visszamenőleges lista/letöltés, PDF-tartalom (pypdf, ha van), hibás bemenetek, felületi kártya |
 | `test_tanulmanyi_export.py` | **#83:** `/api/esemenyek/export.xlsx` (Jegyek/Feljegyzések/Házi feladatok) és `/api/hianyzasok/export.xlsx` (Hiányzások/Igazolások) — munkalapok, sorok, diák/tanév/időszak szűrés, üres export, felületi gombok |
@@ -87,7 +87,7 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (50 csomag, 1461 ell.)
+python tests/run_all.py            # minden teszt (50 csomag, 1471 ell.)
 python tests/run_all.py --fast     # böngésző nélkül (39 csomag, 1120 ell.)
 python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
 ```

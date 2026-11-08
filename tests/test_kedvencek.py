@@ -117,6 +117,9 @@ ok({e["kulcs"]: e.get("megjegyzes") for e in d["esemenyek"]}.get(k1) == "Fontos 
 d = post({"akcio": "remove", "kulcs": k2}).get_json()
 ok(d.get("kulcsok") == [k1], f"levétel után marad a sorrend: {d.get('kulcsok')}")
 
+r = client.post("/api/kedvencek", data="nem json", content_type="text/plain")
+ok(r.status_code == 400, f"nem-JSON kérés -> 400, nem 415 (Kaneo #125): {r.status_code}")
+
 print("\n6) Felületi kötés")
 html = client.get("/").get_data(as_text=True)
 js = client.get("/static/js/app-main.js").get_data(as_text=True)

@@ -2698,16 +2698,25 @@ $(document).ready(function() {
             function(res) {
                 const rows = res.rows || [];
                 if (!rows.length) {
-                    $box.html('<span class="text-muted">Még nincs generált riportkártya.</span>');
+                    $box.html('<div class="text-muted small py-2">' +
+                              '<i class="fa-regular fa-folder-open me-1"></i>' +
+                              'Még nincs generált riportkártya.</div>');
                     return;
                 }
-                $box.html('<div class="fw-bold text-secondary mb-1">Korábbi riportkártyák</div>' +
+                $box.html('<div class="table-responsive"><table class="table table-sm align-middle mb-0">' +
+                    '<thead class="table-light"><tr><th>Tanév</th><th>Időszak</th>' +
+                    '<th>Készült</th><th class="text-end">Művelet</th></tr></thead><tbody>' +
                     rows.map(function(r) {
-                        return `<div class="d-flex justify-content-between gap-2 border-bottom py-1">
-                            <span>${escapeHtml(r.tanev || '')} · ${escapeHtml(r.periodus_nev || '')} · ${escapeHtml(String(r.letrehozva || '').replace('T', ' '))}</span>
-                            <a href="${r.url}" target="_blank" rel="noopener" class="text-nowrap">
-                                <i class="fa-solid fa-file-pdf me-1"></i>Megnyitás</a></div>`;
-                    }).join(''));
+                        const datum = String(r.letrehozva || '').replace('T', ' ').slice(0, 16);
+                        return `<tr>
+                            <td class="text-nowrap">${escapeHtml(r.tanev || '')}</td>
+                            <td><span class="badge bg-primary-subtle text-primary-emphasis">${escapeHtml(r.periodus_nev || '')}</span></td>
+                            <td class="text-muted text-nowrap">${escapeHtml(datum)}</td>
+                            <td class="text-end"><a href="${r.url}" target="_blank" rel="noopener"
+                                class="btn btn-sm btn-outline-primary py-0 px-2">
+                                <i class="fa-solid fa-file-pdf me-1"></i>Megnyitás</a></td>
+                        </tr>`;
+                    }).join('') + '</tbody></table></div>');
             }).fail(function() {
                 $box.html('<span class="text-danger">A lista nem tölthető be.</span>');
             });
@@ -3349,6 +3358,15 @@ $(document).ready(function() {
     // ── „Ma” önálló nézet (Kaneo #9) ────────────────────────────────────────
     // A felhasználó a dashboardon elutasította a Ma kártyát; itt külön fülként él.
     const MA_NAPOK = ['vasárnap', 'hétfő', 'kedd', 'szerda', 'csütörtök', 'péntek', 'szombat'];
+    let maNezet = 'nap';
+    let maAktualisDatum = null;
+
+    function maIso(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const nap = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${nap}`;
+    }
 
     function maDatumFelirat(datum) {
         const d = new Date(String(datum) + 'T00:00:00');
@@ -3361,12 +3379,148 @@ $(document).ready(function() {
         return `<div class="list-group-item text-muted">${escapeHtml(text)}</div>`;
     }
 
+    function maHetBetolt() {
+        const diak = $('#filterDiak').val() || '';
+        const alap = maAktualisDatum || maIso(new Date());
+        const d = new Date(alap + 'T00:00:00');
+        const off = (d.getDay() + 6) % 7;
+        const hetfo = new Date(d.getFullYear(), d.getMonth(), d.getDate() - off);
+        const napok = [0, 1, 2, 3, 4].map(function(i) {
+            return new Date(hetfo.getFullYear(), hetfo.getMonth(), hetfo.getDate() + i);
+        });
+        const keresek = napok.map(function(n) {
+            return $.getJSON(`/api/ma?diak=${encodeURIComponent(diak)}&datum=${maIso(n)}`);
+        });
+        Promise.all(keresek).then(function(list) {
+            let html = '<div class="row g-2">';
+            list.forEach(function(res, i) {
+                const nap = napok[i];
+                const cim = `${MA_NAPOK[nap.getDay()]} · ${honapNev(maIso(nap).slice(0, 7))} ` +
+                            `${nap.getDate()}.`;
+                const orak = (res.orak || []).slice(0, 8).map(function(o) {
+                    return `<div class="list-group-item py-1 px-2">
+                        <span class="fw-bold me-2">${escapeHtml(o.kezdes)}–${escapeHtml(o.vege)}</span>
+                        <span>${escapeHtml(o.tantargy)}</span>
+                        ${o.terem ? `<span class="text-muted ms-1">${escapeHtml(o.terem)}</span>` : ''}
+                    </div>`;
+                }).join('');
+                const hat = (res.hataridok || []).slice(0, 8).map(function(h) {
+                    const kesz = Number(h.kesz) === 1;
+                    return `<div class="list-group-item py-1 px-2 ${kesz ? 'text-muted' : ''}">
+                        <span class="badge bg-${h.mikor === 'ma' ? 'danger' : 'secondary'} me-1">${h.mikor}</span>
+                        <b>${escapeHtml(h.tantargy)}</b> — ${escapeHtml(h.megnevezes)}
+                    </div>`;
+                }).join('');
+                html += `<div class="col-12 col-md-6 col-xl-4">
+                    <div class="card card-stat bg-white h-100">
+                        <div class="card-header bg-white py-1 px-2 fw-bold small">${escapeHtml(cim)}</div>
+                        <div class="list-group list-group-flush small">
+                            ${orak || '<div class="list-group-item text-muted">Nincs óra.</div>'}
+                            ${hat}
+                        </div>
+                    </div>
+                </div>`;
+            });
+            $('#maHetNezet').html(html + '</div>');
+        }).catch(function() {
+            $('#maHetNezet').html('<div class="text-danger small">A heti nézet nem tölthető be.</div>');
+        });
+    }
+
+    function maHonapBetolt() {
+        const diak = $('#filterDiak').val() || '';
+        const tanev = kivalasztottTanev();
+        const alap = maAktualisDatum ? new Date(maAktualisDatum + 'T00:00:00') : new Date();
+        const y = alap.getFullYear();
+        const m = alap.getMonth();
+        const elso = new Date(y, m, 1);
+        const utolso = new Date(y, m + 1, 0);
+        const tanevParam = tanev ? `&tanev=${encodeURIComponent(tanev)}` : '';
+        Promise.all([
+            $.getJSON(`/api/orarend?diak=${encodeURIComponent(diak)}`),
+            $.getJSON(`/api/esemenyek?diak=${encodeURIComponent(diak)}${tanevParam}`),
+            $.getJSON(`/api/hianyzasok?diak=${encodeURIComponent(diak)}${tanevParam}`)
+        ]).then(function(res) {
+            const orarend = res[0] || [];
+            const esemenyek = res[1] || [];
+            const hianyzasok = (res[2] && res[2].rows) || [];
+            const honapKulcs = `${y}-${String(m + 1).padStart(2, '0')}`;
+            const adat = {};
+            function cella(nap) {
+                return adat[nap] || (adat[nap] = { ora: 0, hat: 0, hiany: 0 });
+            }
+            orarend.forEach(function(o) {
+                const nap = String(o.kezdo_idopont || '').slice(0, 10);
+                if (nap.slice(0, 7) === honapKulcs) cella(nap).ora += 1;
+            });
+            esemenyek.forEach(function(e) {
+                const d = dateToNum(e.hatarido);
+                if (!d) return;
+                const nap = `${String(d).slice(0, 4)}-${String(d).slice(4, 6)}-${String(d).slice(6, 8)}`;
+                if (nap.slice(0, 7) === honapKulcs) cella(nap).hat += 1;
+            });
+            hianyzasok.forEach(function(h) {
+                const nap = String(h.mulasztas_datum || '').slice(0, 10);
+                if (nap.slice(0, 7) === honapKulcs) cella(nap).hiany += 1;
+            });
+
+            let html = '<div class="card card-stat bg-white"><div class="card-header bg-white py-1 px-2 fw-bold small">' +
+                `${honapNev(honapKulcs)}</div><div class="p-2">` +
+                '<div class="ma-honap-grid mb-1">' +
+                ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V'].map(function(n) {
+                    return `<div class="text-muted small text-center fw-bold">${n}</div>`;
+                }).join('') + '</div><div class="ma-honap-grid">';
+            const off = (elso.getDay() + 6) % 7;
+            for (let i = 0; i < off; i++) html += '<div></div>';
+            for (let nap = 1; nap <= utolso.getDate(); nap++) {
+                const iso = `${honapKulcs}-${String(nap).padStart(2, '0')}`;
+                const a = adat[iso] || {};
+                const ma = iso === maAktualisDatum;
+                html += `<div class="ma-honap-cell${ma ? ' ma-ma' : ''}">
+                    <div class="ma-nap">${nap}</div>
+                    ${a.ora ? `<span class="badge bg-primary me-1" title="órák">${a.ora} óra</span>` : ''}
+                    ${a.hat ? `<span class="badge bg-warning text-dark me-1" title="határidők">${a.hat}</span>` : ''}
+                    ${a.hiany ? `<span class="badge bg-danger" title="hiányzások">${a.hiany}</span>` : ''}
+                </div>`;
+            }
+            html += '</div></div></div>';
+            $('#maHonapNezet').html(html);
+        }).catch(function() {
+            $('#maHonapNezet').html('<div class="text-danger small">A havi nézet nem tölthető be.</div>');
+        });
+    }
+
+    function maNezetValtas() {
+        $('#maNapNezet').toggleClass('d-none', maNezet !== 'nap');
+        $('#maHetNezet').toggleClass('d-none', maNezet !== 'het');
+        $('#maHonapNezet').toggleClass('d-none', maNezet !== 'honap');
+        $('#maNezetKapcsolo .btn').removeClass('active')
+            .filter(`[data-nezet="${maNezet}"]`).addClass('active');
+        if (maNezet === 'nap') {
+            loadMaNezet();
+        } else if (maNezet === 'het') {
+            $('#maDatumCim').html('<i class="fa-solid fa-calendar-week me-2 text-primary"></i>Heti áttekintés');
+            maHetBetolt();
+        } else {
+            $('#maDatumCim').html('<i class="fa-solid fa-calendar-days me-2 text-primary"></i>Havi áttekintés');
+            maHonapBetolt();
+        }
+    }
+
+    $('#maNezetKapcsolo').on('click', '.btn', function() {
+        maNezet = $(this).data('nezet') || 'nap';
+        maNezetValtas();
+    });
+
     function loadMaNezet() {
         const diak = $('#filterDiak').val() || '';
         $.getJSON(`/api/ma?diak=${encodeURIComponent(diak)}`, function(res) {
             const minden = !diak;
-            $('#maDatumCim').html('<i class="fa-solid fa-sun me-2 text-warning"></i>' +
-                                  escapeHtml(maDatumFelirat(res.datum)));
+            maAktualisDatum = res.datum;
+            if (maNezet === 'nap') {
+                $('#maDatumCim').html('<i class="fa-solid fa-sun me-2 text-warning"></i>' +
+                                      escapeHtml(maDatumFelirat(res.datum)));
+            }
 
             const orak = res.orak || [];
             $('#maOraDb').text(orak.length ? `(${orak.length} óra)` : '');
@@ -3426,6 +3580,9 @@ $(document).ready(function() {
                     <span>${escapeHtml(u.targy)}</span>
                 </a>`;
             }).join('') : maUres('Nincs olvasatlan üzenet.'));
+
+            if (maNezet === 'het') maHetBetolt();
+            else if (maNezet === 'honap') maHonapBetolt();
         });
     }
 

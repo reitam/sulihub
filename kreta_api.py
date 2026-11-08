@@ -681,7 +681,8 @@ class KretaApiClient:
         return self._eadmin_get(f"kommunikacio/postaladaelemek/{mailbox_id}")
 
     def download_attachment(self, attachment_id: str | int,
-                            max_bytes: int = MAX_ATTACHMENT_BYTES) -> tuple[bytes, str]:
+                            max_bytes: int = MAX_ATTACHMENT_BYTES,
+                            _ujraproba: bool = False) -> tuple[bytes, str]:
         """Csatolmány tartalma böngésző nélkül: eAdmin dokumentum → files nonce lánc.
 
         1. `GET {eAdmin}/dokumentumok/uzenetek/{csatolmanyAzonosito}` bearer tokennel
@@ -706,8 +707,11 @@ class KretaApiClient:
             raise KretaNetworkError(f"Csatolmány-hívás nem sikerült: {exc}") from exc
 
         if response.status_code == 401:
+            if _ujraproba:
+                raise KretaAuthError(
+                    "A csatolmány letöltése 401 maradt a token frissítése után is.")
             self.refresh()
-            return self.download_attachment(attachment_id, max_bytes)
+            return self.download_attachment(attachment_id, max_bytes, _ujraproba=True)
 
         location = _text(response.headers.get("Location"))
         if response.status_code == 200 and not location:

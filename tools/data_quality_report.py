@@ -166,7 +166,7 @@ def main(argv=None):
         print(json.dumps(riport, ensure_ascii=False, indent=1))
     else:
         print(f"KRÉTA adatminőség-riport — {riport['db']} ({riport['meret_mb']} MB)")
-        print(f"integrity_check: {riport.get('integrity')}")
+        print(f"integrity_check: {riport.get('integritas')}")
         print("táblák: " + ", ".join(f"{k}={v}" for k, v in riport["tablak"].items()))
         if riport.get("utolso_szinkron"):
             print(f"utolsó szinkron: {riport['utolso_szinkron']}")

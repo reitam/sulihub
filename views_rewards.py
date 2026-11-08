@@ -179,7 +179,7 @@ def api_statisztika():
 
 @bp.route("/api/kifizetes", methods=["POST"])
 def api_kifizetes_save():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     diak = data.get("diak", "")
     kezdo_datum = data.get("kezdo_datum", "")
     zaro_datum = data.get("zaro_datum", "")

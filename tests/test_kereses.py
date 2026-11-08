@@ -124,6 +124,10 @@ r, d = search("a")
 ok(d.get("count") == 0 and d.get("talalatok") == [], "1 karakter -> üres")
 r, d = search("zzzznincs")
 ok(d.get("count") == 0, "nincs találat -> üres")
+e1 = client.get("/api/esemenyek?limit=1").get_json()
+e2 = client.get("/api/esemenyek?limit=1&offset=1").get_json()
+ok(len(e1) == 1 and len(e2) == 1 and e1[0]["id"] != e2[0]["id"],
+   "az eseménylista limit/offset lapozható (#125)")
 
 print("\n5) LIKE-speciális karakterek escape-elve")
 r, d = search("100%25")
@@ -158,6 +162,9 @@ for q in ("elektromosság", "törtek", "kirándulás"):
     ok(found_ev == ev and found_uz == uz,
        f"FTS5 = LIKE ({q}): esemény {len(found_ev)}/{len(ev)}, üzenet {len(found_uz)}/{len(uz)}")
 ok({"esemenyek_fts", "uzenetek_fts"} <= fts_tablak, f"FTS táblák: {fts_tablak}")
+r, d = search("T%C3%96RT")  # TÖRT — nagybetűs, ékezetes
+ok(d.get("count", 0) > 0,
+   f"nagybetűs ékezetes keresés is talál (FTS, Kaneo #125): {d.get('count')}")
 from kreta_db import ensure_fts_schema
 ensure_fts_schema(conn)
 ensure_fts_schema(conn)
