@@ -22,6 +22,7 @@ work = Path(tempfile.mkdtemp(prefix="kreta_riport_"))
 db = work / "kreta_adatok.db"
 config = {"STUDENTS": [
     {"diak_nev": "RiportDiak", "enable_rewards": True, "active": False},
+    {"diak_nev": "NincsZseb", "enable_rewards": False, "active": False},
 ]}
 (work / "config.json").write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
 
@@ -50,6 +51,7 @@ EVENTS = [
     ("RiportDiak", "Értékelés", "Magatartás", "Példás", 0, 0, "2026. 09. 20.", "2026/2027"),
     ("RiportDiak", "Értékelés", "Szorgalom", "Jó", 0, 0, "2026. 09. 20.", "2026/2027"),
     ("RiportDiak", "Feljegyzés", "Matematika", "", 0, 0, "2026. 10. 12.", "2026/2027"),
+    ("NincsZseb", "Értékelés", "Matematika", "Jeles(5)", 5, 100, "2026. 09. 10.", "2026/2027"),
 ]
 for r in EVENTS:
     conn.execute(
@@ -113,12 +115,29 @@ try:
     ok("Db" not in text, "a tantárgyi táblából kikerült a Db oszlop")
     ok("Magatartás" in text and "Szorgalom" in text and "Példás" in text,
        "a magatartás/szorgalom értékelés benne van, ha van")
-    ok("TANULMÁNYI RIPORTKÁRTYA" in text and "SULIHUB" in text,
-       "dísz-bizonyítvány jellegű fejléc/pecsét")
+    ok("Zsebpénz egyenleg" in text,
+       "a zsebpénz egyenleg benne van, ha a modul engedélyezett a diáknál")
+    ok("AKTUÁLIS BIZONYÍTVÁNY" in text and "SULIHUB" in text,
+       "dísz-bizonyítvány jellegű fejléc/pecsét, „Aktuális bizonyítvány” felirattal")
+    ok(len(reader.pages[0].images) >= 1, "a bizonyítvány fejlécében ott az új SuliHub logó")
     ok("Feljegyzések" not in text, "nincs Feljegyzések szekció a kártyán")
     ok("Viselkedés / magatartás" not in text, "nincs külön Viselkedés szekció a kártyán")
 except ImportError:
     print("  (pypdf nincs — a szövegkinyeréses ellenőrzések kimaradnak)")
+
+print("\n2b) Zsebpénz modul nélküli diák")
+r = pdf("ev", diak="NincsZseb")
+ok(r.status_code == 200 and r.data.startswith(b"%PDF"),
+   "a zsebpénz nélküli diáknak is generálható bizonyítvány")
+try:
+    from pypdf import PdfReader
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(r.data)).pages)
+    ok("SuliHub - NincsZseb" in text, "a cím a zsebpénz nélküli diákot mutatja")
+    ok("Zsebpénz" not in text,
+       "kikapcsolt zsebpénz modulnál nincs zsebpénz sor a bizonyítványon")
+    ok("Tanulmányi átlag" in text, "a többi összegzés megmarad")
+except ImportError:
+    pass
 
 print("\n3) Félévi időszak és hibás bemenetek")
 r = pdf("felvet")
@@ -142,6 +161,11 @@ js = client.get("/static/js/app-main.js").get_data(as_text=True)
 ok('id="riportKartyaCard"' in html and 'id="riportDiak"' in html
    and 'id="riportPeriodus"' in html and 'id="btnRiportGeneral"' in html,
    "a riportkártya kártya a sablonban")
+ok("Aktuális bizonyítvány" in html and "Riportkártya" not in html.split('id="riportKartyaCard"')[1][:600],
+   "a kártya neve „Aktuális bizonyítvány”")
+ok("img/sulihub-ikon.png" in html and "img/sulihub-favicon.png" in html
+   and "sulihub.svg" not in html,
+   "az új SuliHub logó a fejlécben és a faviconon (a régi SVG helyett)")
 ok("/api/riportkartya/export_pdf" in js and "btnRiportGeneral" in js,
    "a JS közvetlenül a PDF végpontot nyitja")
 ok("loadRiportLista" not in js and "riportLista" not in html,

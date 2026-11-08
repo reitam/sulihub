@@ -2683,7 +2683,7 @@ $(document).ready(function() {
         window.location.href = url;
     });
 
-    // ── Riportkártya PDF (Kaneo #82) — mentés nélkül, azonnali generálás ──
+    // ── Aktuális bizonyítvány PDF (Kaneo #82) — mentés nélkül, azonnali generálás ──
     $('#btnRiportGeneral').on('click', function() {
         const diak = $('#riportDiak').val() || '';
         if (!diak) {

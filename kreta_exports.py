@@ -27,13 +27,13 @@ from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
-    HRFlowable, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
-    TableStyle,
+    HRFlowable, Image as RLImage, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate,
+    Spacer, Table, TableStyle,
 )
 
 import kreta_tanev
 from kreta_db import get_db_connection
-from kreta_paths import DB_FILE
+from kreta_paths import APP_DIR, DB_FILE
 from kreta_settings import load_config
 from views_common import _tanev_from_request, hianyzas_osszesito, make_bp, normalize_date
 
@@ -1278,7 +1278,7 @@ def api_hianyzasok_xlsx():
 
 
 # ==============================================================================
-# Félévi / év végi riportkártya PDF (Kaneo #82)
+# Félévi / év végi aktuális bizonyítvány PDF (Kaneo #82)
 # ==============================================================================
 PERIODUS_NEV = {"felvet": "félév", "ev": "tanév"}
 
@@ -1361,6 +1361,7 @@ def _riport_adatok(diak, tanev, kezdo, zaro):
         diak=diak, kezdo_datum=kezdo.isoformat() if kezdo else "",
         zaro_datum=zaro.isoformat() if zaro else "", tanev_szuro=tanev)
     adatok["egyenleg"] = int(stat.get("vegosszeg", 0) or 0) - int(stat.get("kifizetve", 0) or 0)
+    adatok["rewards_enabled"] = bool(stat.get("rewards_enabled"))
     return adatok
 
 
@@ -1391,7 +1392,7 @@ def _egyeb_jegy_sorrend(nev):
 
 
 def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
-    """A4-es, dísz-bizonyítvány jellegű riportkártya PDF bytes-ként (lehetőleg 1 oldal)."""
+    """A4-es, dísz-bizonyítvány jellegű aktuális bizonyítvány PDF bytes-ként (1 oldal)."""
     _register_pdf_fonts()
     NAVY = colors.HexColor("#1f3a5f")
     GOLD = colors.HexColor("#b08d3f")
@@ -1417,6 +1418,10 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
     cella_nev = ParagraphStyle("RiportCellaNev", parent=cella, fontName=_pdf_font_bold(),
                                textColor=NAVY)
     cella_szam = ParagraphStyle("RiportCellaSzam", parent=cella, alignment=TA_RIGHT)
+    cella_sor = ParagraphStyle("RiportCellaSor", parent=szoveg, fontSize=8.2, leading=10)
+    cella_sor_nev = ParagraphStyle("RiportCellaSorNev", parent=cella_sor,
+                                   fontName=_pdf_font_bold(), textColor=NAVY)
+    cella_sor_szam = ParagraphStyle("RiportCellaSorSzam", parent=cella_sor, alignment=TA_RIGHT)
     cella_fej = ParagraphStyle("RiportCellaFej", parent=cella, fontName=_pdf_serif_bold(),
                                fontSize=9, leading=11, textColor=colors.white)
     cella_fej_jobb = ParagraphStyle("RiportCellaFejJobb", parent=cella_fej, alignment=TA_RIGHT)
@@ -1444,7 +1449,7 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
                         fontName=_pdf_serif_bold(), fontSize=12, fillColor=GOLD))
         rajz.add(String(100, 50, periodus_cimke, textAnchor="middle",
                         fontName=_pdf_font(), fontSize=7.5, fillColor=NAVY))
-        rajz.add(String(100, 39, "digitális riport", textAnchor="middle",
+        rajz.add(String(100, 39, "aktuális bizonyítvány", textAnchor="middle",
                         fontName=_pdf_font(), fontSize=6, fillColor=MUTED))
         return rajz
 
@@ -1459,10 +1464,17 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
     egyeb = {nev: ertek for nev, ertek in (adatok.get("egyeb_jegyek") or {}).items()
              if "magatart" in (nev or "").lower() or "szorgalom" in (nev or "").lower()}
 
-    def epit_story(pecset_kell):
+    def epit_story(pecset_kell, logo_kell):
         """A story minden hívásnál új (a flowable-ök nem használhatók újra)."""
-        story = [
-            Paragraph("TANULMÁNYI RIPORTKÁRTYA", felirat),
+        story = []
+        if logo_kell:
+            logo_ut = os.path.join(APP_DIR, "static", "img", "sulihub-logo.png")
+            if os.path.exists(logo_ut):
+                kep = RLImage(logo_ut, width=2.3 * cm, height=1.38 * cm)
+                kep.hAlign = "CENTER"
+                story += [kep, Spacer(1, 0.08 * cm)]
+        story += [
+            Paragraph("AKTUÁLIS BIZONYÍTVÁNY", felirat),
             Spacer(1, 0.1 * cm),
             Paragraph(f"SuliHub - {diak} - {periodus_cimke}", cim),
             Spacer(1, 0.12 * cm),
@@ -1471,7 +1483,7 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
             Paragraph(f"{idoszak_szoveg} · {kezdo.isoformat() if kezdo else '?'} – "
                       f"{zaro.isoformat() if zaro else '?'} · "
                       f"készült: {datetime.now().strftime('%Y-%m-%d %H:%M')}", alcim),
-            Spacer(1, 0.55 * cm),
+            Spacer(1, 0.35 * cm),
         ]
 
         ossz = [
@@ -1482,9 +1494,11 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
              Paragraph(f"{h.get('hianyzas_db', 0)} óra / {h.get('igazolatlan_ora', 0)} óra", cella)],
             [Paragraph("Késés", cella_nev),
              Paragraph(f"{h.get('keses_db', 0)} db / {h.get('keses_perc', 0)} perc", cella)],
-            [Paragraph("Zsebpénz egyenleg", cella_nev),
-             Paragraph(f"{adatok.get('egyenleg', 0):,} Ft".replace(",", " "), cella)],
         ]
+        # A zsebpénz sor csak akkor kerül a bizonyítványra, ha a diákra engedélyezett a modul.
+        if adatok.get("rewards_enabled"):
+            ossz.append([Paragraph("Zsebpénz egyenleg", cella_nev),
+                         Paragraph(f"{adatok.get('egyenleg', 0):,} Ft".replace(",", " "), cella)])
         ossz_tabla = Table(ossz, colWidths=[7.0 * cm, 10.0 * cm])
         ossz_tabla.setStyle(TableStyle([
             ("BOX", (0, 0), (-1, -1), 0.9, GOLD),
@@ -1495,18 +1509,18 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
             ("TOPPADDING", (0, 0), (-1, -1), 4),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
-        story += [szekcio("Összegzés"), Spacer(1, 0.15 * cm), ossz_tabla, Spacer(1, 0.55 * cm)]
+        story += [szekcio("Összegzés"), Spacer(1, 0.15 * cm), ossz_tabla, Spacer(1, 0.4 * cm)]
 
         fej = [Paragraph("Tantárgy", cella_fej), Paragraph("Jegyek", cella_fej),
                Paragraph("Átlag", cella_fej_jobb)]
         sorok = [fej]
         for tantargy in sorted(adatok["tantargyak"]):
             t = adatok["tantargyak"][tantargy]
-            sorok.append([Paragraph(tantargy, cella_nev),
-                          Paragraph(_jegy_osszegzes(t["jegyek"]), kicsi_bal),
-                          Paragraph(f"{t['atlag']:.2f}", cella_szam)])
+            sorok.append([Paragraph(tantargy, cella_sor_nev),
+                          Paragraph(_jegy_osszegzes(t["jegyek"]), cella_sor),
+                          Paragraph(f"{t['atlag']:.2f}", cella_sor_szam)])
         if len(sorok) == 1:
-            sorok.append([Paragraph("Nincs értékelés az időszakban.", cella), "", ""])
+            sorok.append([Paragraph("Nincs értékelés az időszakban.", cella_sor), "", ""])
         tabla = Table(sorok, colWidths=[4.4 * cm, 10.8 * cm, 1.8 * cm], repeatRows=1)
         stilus = [
             ("BOX", (0, 0), (-1, -1), 0.9, GOLD),
@@ -1516,14 +1530,14 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
             ("LEFTPADDING", (0, 0), (-1, -1), 6),
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ]
         if len(sorok) == 2 and sorok[1][1] == "":
             stilus.append(("SPAN", (0, 1), (2, 1)))
         tabla.setStyle(TableStyle(stilus))
         story += [szekcio("Tantárgyi eredmények"), Spacer(1, 0.15 * cm), tabla,
-                  Spacer(1, 0.5 * cm)]
+                  Spacer(1, 0.4 * cm)]
 
         if egyeb:
             mag_sorok = [[Paragraph("Megnevezés", cella_fej),
@@ -1542,7 +1556,7 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]))
             story += [szekcio("Magatartás és szorgalom"), Spacer(1, 0.15 * cm), mag_tabla,
-                      Spacer(1, 0.4 * cm)]
+                      Spacer(1, 0.3 * cm)]
 
         story += [HRFlowable(width="100%", thickness=0.7, color=GOLD,
                              spaceBefore=2, spaceAfter=5),
@@ -1585,22 +1599,26 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
                                  f"SuliHub · {diak} · {periodus_cimke} · automatikusan generált")
         canvas.restoreState()
 
-    def epites(pecset_kell):
+    def epites(pecset_kell, logo_kell):
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=2.0 * cm,
                                 rightMargin=2.0 * cm, topMargin=2.0 * cm, bottomMargin=2.0 * cm)
-        doc.build(epit_story(pecset_kell), onFirstPage=keret, onLaterPages=keret)
+        doc.build(epit_story(pecset_kell, logo_kell), onFirstPage=keret, onLaterPages=keret)
         return buffer.getvalue(), doc.page
 
-    # A pecsét csak akkor kerül a kártyára, ha így is egy oldal marad (dísz → 1 oldal).
-    pdf, oldalak = epites(True)
+    # Díszítés csak addig, amíg 1 oldal marad: először logó + pecsét, aztán logó,
+    # végül a kettő nélkül (hosszú tantárgylistánál így sem lesz 2. oldal).
+    van_logo = os.path.exists(os.path.join(APP_DIR, "static", "img", "sulihub-logo.png"))
+    pdf, oldalak = epites(True, van_logo)
     if oldalak > 1:
-        pdf, _oldalak = epites(False)
+        pdf, oldalak = epites(False, van_logo)
+    if oldalak > 1:
+        pdf, _oldalak = epites(False, False)
     return pdf
 
 @bp.route("/api/riportkartya/export_pdf")
 def api_riportkartya_export_pdf():
-    """Riportkártya PDF generálása közvetlenül (mentés nélkül, Kaneo #82)."""
+    """Aktuális bizonyítvány PDF generálása közvetlenül (mentés nélkül, Kaneo #82)."""
     diak = (request.args.get("diak") or "").strip()
     if not diak:
         return jsonify({"error": "Válassz gyermeket."}), 400
