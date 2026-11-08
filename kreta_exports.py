@@ -30,7 +30,7 @@ from reportlab.platypus import (
 
 import kreta_tanev
 from kreta_db import get_db_connection
-from kreta_paths import DB_FILE, RIPORTKARTYA_DIR
+from kreta_paths import DB_FILE
 from kreta_settings import load_config
 from views_common import _tanev_from_request, hianyzas_osszesito, make_bp, normalize_date
 
@@ -1361,8 +1361,6 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
          Paragraph(f"{h.get('hianyzas_db', 0)} óra / {h.get('igazolatlan_ora', 0)} óra", cella)],
         [Paragraph("Késés", cella),
          Paragraph(f"{h.get('keses_db', 0)} db / {h.get('keses_perc', 0)} perc", cella)],
-        [Paragraph("Feljegyzések", cella),
-         Paragraph(str(len(adatok.get("feljegyzesek", []))), cella)],
         [Paragraph("Zsebpénz egyenleg", cella),
          Paragraph(f"{adatok.get('egyenleg', 0):,} Ft".replace(",", " "), cella)],
     ]
@@ -1403,20 +1401,6 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
         "RiportH2b", parent=cim, fontSize=12, leading=15, spaceBefore=6, spaceAfter=4)),
         tabla, Spacer(1, 0.3 * cm)]
 
-    if adatok.get("egyeb_jegyek"):
-        story.append(Paragraph("Viselkedés / magatartás: " + ", ".join(
-            f"{k}: {v}" for k, v in sorted(adatok["egyeb_jegyek"].items())), szoveg))
-        story.append(Spacer(1, 0.2 * cm))
-
-    fel = adatok.get("feljegyzesek", [])
-    if fel:
-        story.append(Paragraph("Feljegyzések", ParagraphStyle(
-            "RiportH2c", parent=cim, fontSize=10, leading=13, spaceBefore=4, spaceAfter=2)))
-        for f in fel[:8]:
-            story.append(Paragraph(
-                f"{f['datum']} · {f['mod'] or 'Feljegyzés'} · {f['tema'] or f['tartalom']}",
-                kicsi))
-
     story.append(Spacer(1, 0.35 * cm))
     story.append(Paragraph(
         "Az átlagok a KRÉTA súlyozásával (Σ jegy×súly / Σ súly) számoltak; a 0%-os súlyú "
@@ -1427,17 +1411,16 @@ def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
     return buffer.getvalue()
 
 
-@bp.route("/api/riportkartya", methods=["POST"])
-def api_riportkartya_letrehozas():
-    """Riportkártya PDF generálása és mentése (Kaneo #82)."""
-    data = request.get_json(silent=True) or {}
-    diak = (data.get("diak") or "").strip()
+@bp.route("/api/riportkartya/export_pdf")
+def api_riportkartya_export_pdf():
+    """Riportkártya PDF generálása közvetlenül (mentés nélkül, Kaneo #82)."""
+    diak = (request.args.get("diak") or "").strip()
     if not diak:
         return jsonify({"error": "Válassz gyermeket."}), 400
-    periodus = (data.get("periodus") or "ev").strip()
+    periodus = (request.args.get("periodus") or "ev").strip()
     if periodus not in PERIODUS_NEV:
         return jsonify({"error": "Az időszak 'felvet' vagy 'ev' lehet."}), 400
-    tanev, kezdo, zaro = _riport_idoszak(data.get("tanev") or "", periodus)
+    tanev, kezdo, zaro = _riport_idoszak(request.args.get("tanev") or "", periodus)
     if not kezdo or not zaro:
         return jsonify({"error": "Érvénytelen tanév."}), 400
 
@@ -1449,79 +1432,7 @@ def api_riportkartya_letrehozas():
         return jsonify({"error": "A PDF generálása nem sikerült."}), 500
 
     biztonsagos = re.sub(r"[^A-Za-z0-9._-]+", "_", diak)[:50] or "diak"
-    mappa = os.path.join(RIPORTKARTYA_DIR, biztonsagos)
-    os.makedirs(mappa, exist_ok=True)
-    fajlnev = f"{tanev.replace('/', '-')}_{periodus}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    utvonal = os.path.join(mappa, fajlnev)
-    with open(utvonal, "wb") as f:
-        f.write(pdf)
-
-    conn = get_db_connection()
-    rel = os.path.join(biztonsagos, fajlnev).replace("\\", "/")
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO riportkartyak (diak_nev, tanev, periodus, kezdo_datum, zaro_datum,"
-        " fajl_nev) VALUES (?,?,?,?,?,?)",
-        (diak, tanev, periodus, kezdo.isoformat(), zaro.isoformat(), rel))
-    conn.commit()
-    rid = cursor.lastrowid
-    conn.close()
-    return jsonify({"status": "ok", "id": rid, "diak": diak, "tanev": tanev,
-                    "periodus": periodus, "kezdo_datum": kezdo.isoformat(),
-                    "zaro_datum": zaro.isoformat(),
-                    "url": f"/api/riportkartyak/{rid}/pdf"})
-
-
-@bp.route("/api/riportkartyak")
-def api_riportkartyak():
-    """A korábban generált riportkártyák listája (Kaneo #82)."""
-    if not os.path.exists(DB_FILE):
-        return jsonify({"rows": []})
-    diak = (request.args.get("diak") or "").strip()
-    tanev = (request.args.get("tanev") or "").strip()
-    query = "SELECT id, diak_nev, tanev, periodus, kezdo_datum, zaro_datum, letrehozva FROM riportkartyak WHERE 1=1"
-    params = []
-    if diak:
-        query += " AND diak_nev = ?"
-        params.append(diak)
-    if tanev:
-        query += " AND tanev = ?"
-        params.append(tanev)
-    query += " ORDER BY id DESC"
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        rows = [dict(r) for r in cursor.fetchall()]
-        conn.close()
-    except sqlite3.Error:
-        return jsonify({"rows": []})
-    for r in rows:
-        r["url"] = f"/api/riportkartyak/{r['id']}/pdf"
-        r["periodus_nev"] = PERIODUS_NEV.get(r.get("periodus"), r.get("periodus") or "")
-    return jsonify({"rows": rows})
-
-
-@bp.route("/api/riportkartyak/<int:riport_id>/pdf")
-def api_riportkartya_pdf(riport_id):
-    """Egy mentett riportkártya PDF letöltése/megnyitása (Kaneo #82)."""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM riportkartyak WHERE id = ?", (riport_id,))
-        row = cursor.fetchone()
-        conn.close()
-    except sqlite3.Error:
-        row = None
-    if not row:
-        return jsonify({"error": "Nincs ilyen riportkártya."}), 404
-    alap = os.path.abspath(RIPORTKARTYA_DIR)
-    utvonal = os.path.abspath(os.path.join(alap, row["fajl_nev"]))
-    if os.path.commonpath([alap, utvonal]) != alap or not os.path.exists(utvonal):
-        return jsonify({"error": "A PDF fájl nem található."}), 404
-    with open(utvonal, "rb") as f:
-        tartalom = f.read()
-    response = Response(tartalom, mimetype="application/pdf")
+    response = Response(pdf, mimetype="application/pdf")
     response.headers["Content-Disposition"] = (
-        f"inline; filename=\"{os.path.basename(utvonal)}\"")
+        f"inline; filename=\"riport_{biztonsagos}_{tanev.replace('/', '-')}_{periodus}.pdf\"")
     return response

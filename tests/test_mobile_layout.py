@@ -171,21 +171,19 @@ try:
             ok(ma["title"].startswith("Ma,"), f"a Ma fül dátumfejléce betöltődött ('{ma['title']}')")
             ok(ma["db"] > 0, f"a Ma fül kártyái feltöltődtek ({ma['db']} sor)")
 
-            # 1b2) Ma / Hét / Hónap nézetváltó (Kaneo #104)
+            # 1b2) Ma / Hét nézetváltó (Kaneo #104) — kompakt heti kártya, havi nézet nincs
             await page.click('#maNezetKapcsolo [data-nezet="het"]')
             await page.wait_for_timeout(1500)
             het = await page.evaluate("""() => ({
                 visible: !document.querySelector('#maHetNezet').classList.contains('d-none'),
-                kartya: document.querySelectorAll('#maHetNezet .card').length})""")
-            ok(het["visible"] and het["kartya"] >= 5,
-               f"a heti nézet 5 napkártyát mutat ({het})")
-            await page.click('#maNezetKapcsolo [data-nezet="honap"]')
-            await page.wait_for_timeout(1500)
-            honap = await page.evaluate("""() => ({
-                visible: !document.querySelector('#maHonapNezet').classList.contains('d-none'),
-                cella: document.querySelectorAll('#maHonapNezet .ma-honap-cell').length})""")
-            ok(honap["visible"] and honap["cella"] >= 28,
-               f"a havi nézet naptárcellákat mutat ({honap})")
+                napok: document.querySelectorAll('#maHetNezet .ma-het-sor').length,
+                honapGomb: document.querySelectorAll('#maNezetKapcsolo [data-nezet="honap"]').length,
+                tulcsordulas: document.querySelector('#maHetNezet').scrollWidth
+                    > document.querySelector('#maHetNezet').clientWidth + 1})""")
+            ok(het["visible"] and het["napok"] == 5,
+               f"a heti nézet 5 kompakt nap-sort mutat ({het})")
+            ok(het["honapGomb"] == 0, "nincs havi nézet gomb a kapcsolón")
+            ok(not het["tulcsordulas"], "a heti nézet nem csordul túl mobilon")
             await page.click('#maNezetKapcsolo [data-nezet="nap"]')
             await page.wait_for_timeout(600)
 

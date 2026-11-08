@@ -168,16 +168,17 @@
         .kedvenc-fogantyú { cursor: grab; color: #adb5bd; user-select: none; }
         .kedvenc-drag { opacity: .5; }
         .kedvenc-jegyzet { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        /* Ma / Hét / Hónap nézet (Kaneo #104) */
-        .ma-honap-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .25rem; }
-        .ma-honap-cell {
-            border: 1px solid #dee2e6; border-radius: 6px; min-height: 64px;
-            padding: .25rem; background: #fff;
+        /* Ma / Hét nézet (Kaneo #104) */
+        .ma-het-lista .ma-het-sor {
+            display: flex; gap: .75rem; padding: .45rem .6rem;
+            border-bottom: 1px solid #dee2e6;
         }
-        .ma-honap-cell.ma-ma { border-color: #0d6efd; box-shadow: inset 0 0 0 1px #0d6efd; }
-        .ma-honap-cell .ma-nap { font-weight: 700; font-size: .8rem; }
-        .ma-honap-cell .badge { font-size: .62rem; }
-        [data-bs-theme="dark"] .ma-honap-cell { background: #1c2126; border-color: #343a40; }
+        .ma-het-lista .ma-het-sor:last-child { border-bottom: 0; }
+        .ma-het-nap { flex: 0 0 88px; font-weight: 700; font-size: .82rem; }
+        .ma-het-tartalom { min-width: 0; flex: 1 1 auto; }
+        .ma-het-orak { font-size: .8rem; }
+        .ma-het-hat { font-size: .72rem; }
+        [data-bs-theme="dark"] .ma-het-lista .ma-het-sor { border-color: #343a40; }
         .dash-tile:hover, .dash-tile:focus {
             transform: translateY(-2px);
             border-color: #adb5bd;
@@ -962,7 +963,6 @@
             <div class="btn-group btn-group-sm mb-2" id="maNezetKapcsolo" role="group" aria-label="Ma nézet">
                 <button type="button" class="btn btn-outline-primary active" data-nezet="nap">Ma</button>
                 <button type="button" class="btn btn-outline-primary" data-nezet="het">Hét</button>
-                <button type="button" class="btn btn-outline-primary" data-nezet="honap">Hónap</button>
             </div>
             <h6 class="fw-bold text-secondary mb-2" id="maDatumCim">
                 <i class="fa-solid fa-sun me-2 text-warning"></i>Ma
@@ -1004,7 +1004,6 @@
                 </div>
             </div>
             <div id="maHetNezet" class="d-none"></div>
-            <div id="maHonapNezet" class="d-none"></div>
         </div>
 
         <!-- 1. FÜL: ISKOLAI ESEMÉNYEK -->
@@ -1546,18 +1545,14 @@
                                     <option value="ev" selected>Teljes tanév</option>
                                 </select>
                             </div>
-                            <div class="col-6 col-md-2">
+                            <div class="col-6 col-md-2 ms-md-auto">
                                 <button type="button" id="btnRiportGeneral" class="btn btn-sm btn-primary w-100">
                                     <i class="fa-solid fa-file-pdf me-1"></i>Generálás
                                 </button>
                             </div>
-                            <div class="col-12 col-md-3 text-md-end">
-                                <small class="text-muted">Mentve a gyermekhez</small>
-                            </div>
                         </div>
-                        <div id="riportLista" class="mt-3 small"></div>
                         <small class="text-muted d-block mt-2">
-                            A generált PDF a gyermekhez mentődik, később is megnyitható/nyomtatható.
+                            A PDF azonnal megnyílik; mentés/nyomtatás a böngészőből.
                             A hivatalos félévi/év végi osztályzat a KRÉTA API-ból nem érhető el;
                             a riport a jegyekből számolt súlyozott átlagot mutatja.
                         </small>
