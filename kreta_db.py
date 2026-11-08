@@ -187,20 +187,7 @@ def ensure_fts_schema(conn):
 
 
 def _migracio_4(conn):
-    """v4: FTS5 index + riportkártya-tábla (Kaneo #107, #82) — idempotens."""
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS riportkartyak (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            diak_nev TEXT NOT NULL,
-            tanev TEXT,
-            periodus TEXT,
-            kezdo_datum TEXT,
-            zaro_datum TEXT,
-            fajl_nev TEXT NOT NULL,
-            letrehozva TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+    """v4: FTS5 index (Kaneo #107) — idempotens."""
     ensure_fts_schema(conn)
 
 
@@ -649,20 +636,6 @@ def init_db_extensions():
                     osszeg INTEGER DEFAULT 0,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(diak_nev, kezdo_datum, zaro_datum)
-                )
-            """)
-
-            # Riportkártya PDF-ek nyilvántartása (Kaneo #82) — a fájl a data köteten.
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS riportkartyak (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    diak_nev TEXT NOT NULL,
-                    tanev TEXT,
-                    periodus TEXT,
-                    kezdo_datum TEXT,
-                    zaro_datum TEXT,
-                    fajl_nev TEXT NOT NULL,
-                    letrehozva TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
 
