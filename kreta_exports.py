@@ -18,14 +18,17 @@ import openpyxl
 from flask import Response, jsonify, make_response, request
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from reportlab.graphics.shapes import Circle, Drawing, String
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
-    KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+    HRFlowable, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
+    TableStyle,
 )
 
 import kreta_tanev
@@ -38,6 +41,8 @@ bp = make_bp("exports")
 
 _PDF_FONT_REG = "KretaHU"
 _PDF_FONT_BOLD = "KretaHU-Bold"
+_PDF_SERIF_REG = "KretaHU-Serif"
+_PDF_SERIF_BOLD = "KretaHU-Serif-Bold"
 
 
 def _pdf_font_candidates():
@@ -57,27 +62,55 @@ def _pdf_font_candidates():
     ]
 
 
-def _register_pdf_fonts():
-    """Regisztrál egy ő/ű-t támogató betűkészletet; True ha sikerült."""
-    if _PDF_FONT_REG in pdfmetrics.getRegisteredFontNames():
-        return True
-    for regular, bold in _pdf_font_candidates():
+def _pdf_serif_candidates():
+    """A dísz-bizonyítvány jellegű címekhez használt (regular, bold) talpas betűk."""
+    return [
+        ("/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+         "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf"),
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf",
+         "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"),
+        ("/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
+         "/usr/share/fonts/truetype/freefont/FreeSerifBold.ttf"),
+        ("C:\\Windows\\Fonts\\times.ttf", "C:\\Windows\\Fonts\\timesbd.ttf"),
+        ("C:\\Windows\\Fonts\\georgia.ttf", "C:\\Windows\\Fonts\\georgiab.ttf"),
+    ]
+
+
+def _register_font_pair(reg_name, bold_name, candidates):
+    """Egy (regular, bold) pár regisztrálása az első elérhető fájlpárból."""
+    for regular, bold in candidates:
         if os.path.exists(regular) and os.path.exists(bold):
             try:
-                pdfmetrics.registerFont(TTFont(_PDF_FONT_REG, regular))
-                pdfmetrics.registerFont(TTFont(_PDF_FONT_BOLD, bold))
+                pdfmetrics.registerFont(TTFont(reg_name, regular))
+                pdfmetrics.registerFont(TTFont(bold_name, bold))
                 pdfmetrics.registerFontFamily(
-                    _PDF_FONT_REG,
-                    normal=_PDF_FONT_REG,
-                    bold=_PDF_FONT_BOLD,
-                    italic=_PDF_FONT_REG,
-                    boldItalic=_PDF_FONT_BOLD,
+                    reg_name,
+                    normal=reg_name,
+                    bold=bold_name,
+                    italic=reg_name,
+                    boldItalic=bold_name,
                 )
                 return True
             except Exception as e:
                 print(f"[PDF] A(z) {regular} betűkészlet regisztrálása sikertelen: {e}")
-    print("[PDF] FIGYELEM: nem található Unicode betűkészlet — az ő/ű hibás lehet.")
     return False
+
+
+def _register_pdf_fonts():
+    """Regisztrál egy ő/ű-t támogató betűkészletet; True ha sikerült."""
+    van_sans = _PDF_FONT_REG in pdfmetrics.getRegisteredFontNames()
+    van_serif = _PDF_SERIF_REG in pdfmetrics.getRegisteredFontNames()
+    if van_sans and van_serif:
+        return True
+    if not van_sans:
+        _register_font_pair(_PDF_FONT_REG, _PDF_FONT_BOLD, _pdf_font_candidates())
+    if not van_serif:
+        # A talpas betű csak a díszítéshez kell; ha nincs, a sans lesz a helyette.
+        _register_font_pair(_PDF_SERIF_REG, _PDF_SERIF_BOLD, _pdf_serif_candidates())
+    if _PDF_FONT_REG not in pdfmetrics.getRegisteredFontNames():
+        print("[PDF] FIGYELEM: nem található Unicode betűkészlet — az ő/ű hibás lehet.")
+        return False
+    return True
 
 
 def _pdf_font():
@@ -86,6 +119,15 @@ def _pdf_font():
 
 def _pdf_font_bold():
     return _PDF_FONT_BOLD if _PDF_FONT_BOLD in pdfmetrics.getRegisteredFontNames() else "Helvetica-Bold"
+
+
+def _pdf_serif():
+    return _PDF_SERIF_REG if _PDF_SERIF_REG in pdfmetrics.getRegisteredFontNames() else _pdf_font()
+
+
+def _pdf_serif_bold():
+    return (_PDF_SERIF_BOLD if _PDF_SERIF_BOLD in pdfmetrics.getRegisteredFontNames()
+            else _pdf_font_bold())
 
 
 @bp.route("/api/orarend/export_pdf")
@@ -1322,94 +1364,239 @@ def _riport_adatok(diak, tanev, kezdo, zaro):
     return adatok
 
 
+_ERDEMJEGY_NEV = {5: "Jeles", 4: "Jó", 3: "Közepes", 2: "Elégséges", 1: "Elégtelen"}
+
+
+def _jegy_osszegzes(jegyek):
+    """Jegyenként összesített darabszám, dátum nélkül (pl. „Jeles(5) - 3 db ; Jó(4) - 2 db”)."""
+    darab = {}
+    for j in jegyek or []:
+        darab[j["szam"]] = darab.get(j["szam"], 0) + 1
+    reszek = []
+    for szam in sorted(darab, reverse=True):
+        nev = _ERDEMJEGY_NEV.get(szam)
+        cimke = f"{nev}({szam})" if nev else str(szam)
+        reszek.append(f"{cimke} - {darab[szam]} db")
+    return " ; ".join(reszek)
+
+
+def _egyeb_jegy_sorrend(nev):
+    """A magatartás/szorgalom legyen elöl, utána a többi értékelés ABC-ben."""
+    n = (nev or "").lower()
+    if "magatart" in n:
+        return (0, n)
+    if "szorgalom" in n:
+        return (1, n)
+    return (2, n)
+
+
 def _riport_pdf(diak, tanev, periodus, kezdo, zaro, adatok):
-    """A4-es, egyoldalas riportkártya PDF bytes-ként."""
+    """A4-es, dísz-bizonyítvány jellegű riportkártya PDF bytes-ként (lehetőleg 1 oldal)."""
     _register_pdf_fonts()
+    NAVY = colors.HexColor("#1f3a5f")
+    GOLD = colors.HexColor("#b08d3f")
+    CREAM = colors.HexColor("#faf6ec")
+    INK = colors.HexColor("#2b3440")
+    MUTED = colors.HexColor("#6b7683")
+    LINE = colors.HexColor("#ddd2b6")
+    FEJ = colors.HexColor("#24405f")
+
     styles = getSampleStyleSheet()
-    cim = ParagraphStyle("RiportCim", parent=styles["Heading1"], fontName=_pdf_font_bold(),
-                         fontSize=19, leading=23, textColor=colors.HexColor("#0d6efd"),
-                         spaceAfter=2)
+    cim = ParagraphStyle("RiportCim", parent=styles["Heading1"], fontName=_pdf_serif_bold(),
+                         fontSize=21, leading=26, textColor=NAVY, alignment=TA_CENTER)
+    felirat = ParagraphStyle("RiportFelirat", parent=styles["Normal"], fontName=_pdf_serif(),
+                             fontSize=9.5, leading=12, textColor=GOLD, alignment=TA_CENTER)
     alcim = ParagraphStyle("RiportAlcim", parent=styles["Normal"], fontName=_pdf_font(),
-                           fontSize=10, leading=13, textColor=colors.HexColor("#6c757d"),
-                           spaceAfter=8)
+                           fontSize=9, leading=13, textColor=MUTED, alignment=TA_CENTER)
     szoveg = ParagraphStyle("RiportSzoveg", parent=styles["Normal"], fontName=_pdf_font(),
-                            fontSize=9, leading=12)
-    kicsi = ParagraphStyle("RiportKicsi", parent=szoveg, fontSize=7.5, leading=9.5)
-    cella = ParagraphStyle("RiportCella", parent=szoveg, fontSize=8.5, leading=10.5)
-    cella_fej = ParagraphStyle("RiportCellaFej", parent=cella, fontName=_pdf_font_bold(),
-                               textColor=colors.white)
+                            fontSize=9, leading=12, textColor=INK)
+    kicsi = ParagraphStyle("RiportKicsi", parent=szoveg, fontSize=7.5, leading=10,
+                           textColor=MUTED, alignment=TA_CENTER)
+    kicsi_bal = ParagraphStyle("RiportKicsiBal", parent=szoveg, fontSize=8, leading=10.5)
+    cella = ParagraphStyle("RiportCella", parent=szoveg, fontSize=8.5, leading=11)
+    cella_nev = ParagraphStyle("RiportCellaNev", parent=cella, fontName=_pdf_font_bold(),
+                               textColor=NAVY)
+    cella_szam = ParagraphStyle("RiportCellaSzam", parent=cella, alignment=TA_RIGHT)
+    cella_fej = ParagraphStyle("RiportCellaFej", parent=cella, fontName=_pdf_serif_bold(),
+                               fontSize=9, leading=11, textColor=colors.white)
+    cella_fej_jobb = ParagraphStyle("RiportCellaFejJobb", parent=cella_fej, alignment=TA_RIGHT)
+    h2 = ParagraphStyle("RiportH2", parent=styles["Heading2"], fontName=_pdf_serif_bold(),
+                        fontSize=12.5, leading=15, textColor=NAVY)
 
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=1.4 * cm, rightMargin=1.4 * cm,
-                            topMargin=1.2 * cm, bottomMargin=1.2 * cm)
+    def szekcio(szoveg_cim):
+        tabla_cim = Table([[Paragraph(szoveg_cim, h2)]], colWidths=[17.0 * cm])
+        tabla_cim.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), CREAM),
+            ("LINEBEFORE", (0, 0), (0, -1), 2.6, GOLD),
+            ("LEFTPADDING", (0, 0), (-1, -1), 7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        return tabla_cim
+
+    def pecsét():
+        rajz = Drawing(200, 118)
+        rajz.hAlign = "CENTER"
+        rajz.add(Circle(100, 58, 52, strokeColor=GOLD, strokeWidth=1.5, fillColor=None))
+        rajz.add(Circle(100, 58, 44, strokeColor=GOLD, strokeWidth=0.6, fillColor=None))
+        rajz.add(String(100, 64, "SULIHUB", textAnchor="middle",
+                        fontName=_pdf_serif_bold(), fontSize=12, fillColor=GOLD))
+        rajz.add(String(100, 50, periodus_cimke, textAnchor="middle",
+                        fontName=_pdf_font(), fontSize=7.5, fillColor=NAVY))
+        rajz.add(String(100, 39, "digitális riport", textAnchor="middle",
+                        fontName=_pdf_font(), fontSize=6, fillColor=MUTED))
+        return rajz
+
     periodus_cimke = f"{tanev} 1. félév" if periodus == "felvet" else f"{tanev} év"
-    story = [
-        Paragraph(f"SuliHub - {diak} - {periodus_cimke}", cim),
-        Paragraph(f"{'1. félév' if periodus == 'felvet' else 'teljes tanév'} · "
-                  f"{kezdo.isoformat() if kezdo else '?'} – {zaro.isoformat() if zaro else '?'} · "
-                  f"készült: {datetime.now().strftime('%Y-%m-%d %H:%M')}", alcim),
-    ]
-
+    idoszak_szoveg = "1. félév" if periodus == "felvet" else "teljes tanév"
     h = adatok.get("hianyzasok", {})
-    ossz = [
-        [Paragraph("Tanulmányi átlag", cella), Paragraph(
-            f"{sum(t['atlag'] * t['db'] for t in adatok['tantargyak'].values()) / max(1, sum(t['db'] for t in adatok['tantargyak'].values())):.2f}"
-            if adatok["tantargyak"] else "–", cella)],
-        [Paragraph("Jegyek száma", cella),
-         Paragraph(str(sum(t["db"] for t in adatok["tantargyak"].values())), cella)],
-        [Paragraph("Hiányzás / igazolatlan", cella),
-         Paragraph(f"{h.get('hianyzas_db', 0)} óra / {h.get('igazolatlan_ora', 0)} óra", cella)],
-        [Paragraph("Késés", cella),
-         Paragraph(f"{h.get('keses_db', 0)} db / {h.get('keses_perc', 0)} perc", cella)],
-        [Paragraph("Zsebpénz egyenleg", cella),
-         Paragraph(f"{adatok.get('egyenleg', 0):,} Ft".replace(",", " "), cella)],
-    ]
-    ossz_tabla = Table(ossz, colWidths=[6.2 * cm, 10.8 * cm])
-    ossz_tabla.setStyle(TableStyle([
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#dee2e6")),
-        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f1f5fb")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 5),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-    ]))
-    story += [Paragraph("Összegzés", ParagraphStyle("RiportH2", parent=cim, fontSize=12,
-                                                   leading=15, spaceBefore=10, spaceAfter=4)),
-              ossz_tabla, Spacer(1, 0.35 * cm)]
+    if adatok["tantargyak"]:
+        jegy_db = sum(t["db"] for t in adatok["tantargyak"].values())
+        atlag = f"{sum(t['atlag'] * t['db'] for t in adatok['tantargyak'].values()) / max(1, jegy_db):.2f}"
+    else:
+        atlag = "–"
+    egyeb = {nev: ertek for nev, ertek in (adatok.get("egyeb_jegyek") or {}).items()
+             if "magatart" in (nev or "").lower() or "szorgalom" in (nev or "").lower()}
 
-    fej = [Paragraph(x, cella_fej) for x in ("Tantárgy", "Jegyek", "Átlag", "Db")]
-    sorok = [fej]
-    for tantargy in sorted(adatok["tantargyak"]):
-        t = adatok["tantargyak"][tantargy]
-        jegyek = ", ".join(
-            f"{j['ertek']}" + (f" ({j['datum'][5:]})" if j["datum"] else "")
-            for j in t["jegyek"])
-        sorok.append([Paragraph(tantargy, cella), Paragraph(jegyek, kicsi),
-                      Paragraph(f"{t['atlag']:.2f}", cella), Paragraph(str(t["db"]), cella)])
-    if len(sorok) == 1:
-        sorok.append([Paragraph("Nincs értékelés az időszakban.", cella), "", "", ""])
-    tabla = Table(sorok, colWidths=[4.4 * cm, 10.0 * cm, 1.4 * cm, 1.2 * cm], repeatRows=1)
-    tabla.setStyle(TableStyle([
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#dee2e6")),
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0d6efd")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 4),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-    ]))
-    story += [Paragraph("Tantárgyi eredmények", ParagraphStyle(
-        "RiportH2b", parent=cim, fontSize=12, leading=15, spaceBefore=6, spaceAfter=4)),
-        tabla, Spacer(1, 0.3 * cm)]
+    def epit_story(pecset_kell):
+        """A story minden hívásnál új (a flowable-ök nem használhatók újra)."""
+        story = [
+            Paragraph("TANULMÁNYI RIPORTKÁRTYA", felirat),
+            Spacer(1, 0.1 * cm),
+            Paragraph(f"SuliHub - {diak} - {periodus_cimke}", cim),
+            Spacer(1, 0.12 * cm),
+            HRFlowable(width="52%", thickness=1.1, color=GOLD,
+                       spaceBefore=4, spaceAfter=5, hAlign="CENTER"),
+            Paragraph(f"{idoszak_szoveg} · {kezdo.isoformat() if kezdo else '?'} – "
+                      f"{zaro.isoformat() if zaro else '?'} · "
+                      f"készült: {datetime.now().strftime('%Y-%m-%d %H:%M')}", alcim),
+            Spacer(1, 0.55 * cm),
+        ]
 
-    story.append(Spacer(1, 0.35 * cm))
-    story.append(Paragraph(
-        "Az átlagok a KRÉTA súlyozásával (Σ jegy×súly / Σ súly) számoltak; a 0%-os súlyú "
-        "jegy kimarad. A hivatalos félévi/év végi osztályzat a KRÉTA API-ból nem érhető el, "
-        "ezért a riport a jegyekből számolt átlagot mutatja.", kicsi))
+        ossz = [
+            [Paragraph("Tanulmányi átlag", cella_nev), Paragraph(atlag, cella)],
+            [Paragraph("Jegyek száma", cella_nev),
+             Paragraph(str(sum(t["db"] for t in adatok["tantargyak"].values())), cella)],
+            [Paragraph("Hiányzás / igazolatlan", cella_nev),
+             Paragraph(f"{h.get('hianyzas_db', 0)} óra / {h.get('igazolatlan_ora', 0)} óra", cella)],
+            [Paragraph("Késés", cella_nev),
+             Paragraph(f"{h.get('keses_db', 0)} db / {h.get('keses_perc', 0)} perc", cella)],
+            [Paragraph("Zsebpénz egyenleg", cella_nev),
+             Paragraph(f"{adatok.get('egyenleg', 0):,} Ft".replace(",", " "), cella)],
+        ]
+        ossz_tabla = Table(ossz, colWidths=[7.0 * cm, 10.0 * cm])
+        ossz_tabla.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.9, GOLD),
+            ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+            ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, CREAM]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story += [szekcio("Összegzés"), Spacer(1, 0.15 * cm), ossz_tabla, Spacer(1, 0.55 * cm)]
 
-    doc.build(story)
-    return buffer.getvalue()
+        fej = [Paragraph("Tantárgy", cella_fej), Paragraph("Jegyek", cella_fej),
+               Paragraph("Átlag", cella_fej_jobb)]
+        sorok = [fej]
+        for tantargy in sorted(adatok["tantargyak"]):
+            t = adatok["tantargyak"][tantargy]
+            sorok.append([Paragraph(tantargy, cella_nev),
+                          Paragraph(_jegy_osszegzes(t["jegyek"]), kicsi_bal),
+                          Paragraph(f"{t['atlag']:.2f}", cella_szam)])
+        if len(sorok) == 1:
+            sorok.append([Paragraph("Nincs értékelés az időszakban.", cella), "", ""])
+        tabla = Table(sorok, colWidths=[4.4 * cm, 10.8 * cm, 1.8 * cm], repeatRows=1)
+        stilus = [
+            ("BOX", (0, 0), (-1, -1), 0.9, GOLD),
+            ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+            ("BACKGROUND", (0, 0), (-1, 0), FEJ),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, CREAM]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]
+        if len(sorok) == 2 and sorok[1][1] == "":
+            stilus.append(("SPAN", (0, 1), (2, 1)))
+        tabla.setStyle(TableStyle(stilus))
+        story += [szekcio("Tantárgyi eredmények"), Spacer(1, 0.15 * cm), tabla,
+                  Spacer(1, 0.5 * cm)]
 
+        if egyeb:
+            mag_sorok = [[Paragraph("Megnevezés", cella_fej),
+                          Paragraph("Értékelés", cella_fej)]]
+            for nev in sorted(egyeb, key=_egyeb_jegy_sorrend):
+                mag_sorok.append([Paragraph(nev, cella_nev), Paragraph(str(egyeb[nev]), cella)])
+            mag_tabla = Table(mag_sorok, colWidths=[8.5 * cm, 8.5 * cm], hAlign="CENTER")
+            mag_tabla.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.9, GOLD),
+                ("INNERGRID", (0, 0), (-1, -1), 0.3, LINE),
+                ("BACKGROUND", (0, 0), (-1, 0), FEJ),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, CREAM]),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story += [szekcio("Magatartás és szorgalom"), Spacer(1, 0.15 * cm), mag_tabla,
+                      Spacer(1, 0.4 * cm)]
+
+        story += [HRFlowable(width="100%", thickness=0.7, color=GOLD,
+                             spaceBefore=2, spaceAfter=5),
+                  Paragraph(
+                      "Az átlagok a KRÉTA súlyozásával (Σ jegy×súly / Σ súly) számoltak; a "
+                      "0%-os súlyú jegy kimarad. A hivatalos félévi/év végi osztályzat a KRÉTA "
+                      "API-ból nem érhető el, ezért a riport a jegyekből számolt átlagot mutatja.",
+                      kicsi)]
+        if pecset_kell:
+            story += [Spacer(1, 0.5 * cm), pecsét()]
+        return story
+
+    def keret(canvas, _doc):
+        """Arany duplakeret és sarokdíszek minden oldalon (dísz-bizonyítvány)."""
+        canvas.saveState()
+        w, hh = A4
+        canvas.setStrokeColor(GOLD)
+        canvas.setLineWidth(2.4)
+        canvas.rect(1.0 * cm, 1.0 * cm, w - 2.0 * cm, hh - 2.0 * cm)
+        canvas.setLineWidth(0.6)
+        canvas.rect(1.28 * cm, 1.28 * cm, w - 2.56 * cm, hh - 2.56 * cm)
+        for cx, cy in ((1.0 * cm, 1.0 * cm), (w - 1.0 * cm, 1.0 * cm),
+                       (1.0 * cm, hh - 1.0 * cm), (w - 1.0 * cm, hh - 1.0 * cm)):
+            canvas.setFillColor(GOLD)
+            canvas.circle(cx, cy, 0.17 * cm, stroke=0, fill=1)
+            canvas.setFillColor(colors.white)
+            canvas.circle(cx, cy, 0.075 * cm, stroke=0, fill=1)
+        for cy in (1.0 * cm, hh - 1.0 * cm):
+            canvas.setFillColor(GOLD)
+            p = canvas.beginPath()
+            p.moveTo(w / 2, cy + 0.17 * cm)
+            p.lineTo(w / 2 + 0.17 * cm, cy)
+            p.lineTo(w / 2, cy - 0.17 * cm)
+            p.lineTo(w / 2 - 0.17 * cm, cy)
+            p.close()
+            canvas.drawPath(p, stroke=0, fill=1)
+        canvas.setFont(_pdf_font(), 6.8)
+        canvas.setFillColor(MUTED)
+        canvas.drawCentredString(w / 2, 1.5 * cm,
+                                 f"SuliHub · {diak} · {periodus_cimke} · automatikusan generált")
+        canvas.restoreState()
+
+    def epites(pecset_kell):
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=2.0 * cm,
+                                rightMargin=2.0 * cm, topMargin=2.0 * cm, bottomMargin=2.0 * cm)
+        doc.build(epit_story(pecset_kell), onFirstPage=keret, onLaterPages=keret)
+        return buffer.getvalue(), doc.page
+
+    # A pecsét csak akkor kerül a kártyára, ha így is egy oldal marad (dísz → 1 oldal).
+    pdf, oldalak = epites(True)
+    if oldalak > 1:
+        pdf, _oldalak = epites(False)
+    return pdf
 
 @bp.route("/api/riportkartya/export_pdf")
 def api_riportkartya_export_pdf():

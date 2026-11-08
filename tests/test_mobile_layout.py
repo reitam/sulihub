@@ -176,12 +176,12 @@ try:
             await page.wait_for_timeout(1500)
             het = await page.evaluate("""() => ({
                 visible: !document.querySelector('#maHetNezet').classList.contains('d-none'),
-                napok: document.querySelectorAll('#maHetNezet .ma-het-sor').length,
+                napok: document.querySelectorAll('#maHetNezet .ma-het-kartya').length,
                 honapGomb: document.querySelectorAll('#maNezetKapcsolo [data-nezet="honap"]').length,
                 tulcsordulas: document.querySelector('#maHetNezet').scrollWidth
                     > document.querySelector('#maHetNezet').clientWidth + 1})""")
             ok(het["visible"] and het["napok"] == 5,
-               f"a heti nézet 5 kompakt nap-sort mutat ({het})")
+               f"a heti nézet 5 napkártyát mutat ({het})")
             ok(het["honapGomb"] == 0, "nincs havi nézet gomb a kapcsolón")
             ok(not het["tulcsordulas"], "a heti nézet nem csordul túl mobilon")
             await page.click('#maNezetKapcsolo [data-nezet="nap"]')

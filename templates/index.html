@@ -168,17 +168,71 @@
         .kedvenc-fogantyú { cursor: grab; color: #adb5bd; user-select: none; }
         .kedvenc-drag { opacity: .5; }
         .kedvenc-jegyzet { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        /* Ma / Hét nézet (Kaneo #104) */
-        .ma-het-lista .ma-het-sor {
-            display: flex; gap: .75rem; padding: .45rem .6rem;
-            border-bottom: 1px solid #dee2e6;
+        /* Ma / Hét nézet (Kaneo #104): kétsávos, középre igazított napkártyák */
+        .ma-het-wrap { max-width: 780px; }
+        .ma-het-grid {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .7rem; justify-items: stretch;
         }
-        .ma-het-lista .ma-het-sor:last-child { border-bottom: 0; }
-        .ma-het-nap { flex: 0 0 88px; font-weight: 700; font-size: .82rem; }
-        .ma-het-tartalom { min-width: 0; flex: 1 1 auto; }
-        .ma-het-orak { font-size: .8rem; }
-        .ma-het-hat { font-size: .72rem; }
-        [data-bs-theme="dark"] .ma-het-lista .ma-het-sor { border-color: #343a40; }
+        .ma-het-grid > .ma-het-kartya:last-child:nth-child(odd) {
+            grid-column: 1 / -1; justify-self: center; width: calc(50% - .35rem);
+        }
+        .ma-het-kartya {
+            background: #fff; border: 1px solid #e3e7ec; border-left: 4px solid #adb5bd;
+            border-radius: .55rem; overflow: hidden;
+        }
+        .ma-het-kartya--ora { border-left-color: #0d6efd; }
+        .ma-het-kartya--hat { border-left-color: #f0a020; }
+        .ma-het-kartya--vegyes { border-left-color: #6f42c1; }
+        .ma-het-kartya--ures { border-left-color: #ced4da; }
+        .ma-het-kartya.ma-ma { box-shadow: 0 0 0 2px rgba(13, 110, 253, .35); }
+        .ma-het-fej {
+            display: flex; align-items: baseline; justify-content: space-between;
+            gap: .4rem; padding: .38rem .6rem; background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .ma-het-kartya--ora .ma-het-fej { background: #eef4ff; }
+        .ma-het-kartya--hat .ma-het-fej { background: #fff7e8; }
+        .ma-het-kartya--vegyes .ma-het-fej { background: linear-gradient(90deg, #eef4ff, #fff7e8); }
+        .ma-het-napnev { font-weight: 700; font-size: .85rem; }
+        .ma-het-datum { font-size: .74rem; color: #6c757d; }
+        .ma-het-torzs { padding: .4rem .55rem .45rem; }
+        .ma-het-blokk + .ma-het-blokk {
+            margin-top: .35rem; padding-top: .35rem; border-top: 1px dashed #e9ecef;
+        }
+        .ma-het-blokk-cim {
+            font-size: .66rem; font-weight: 700; letter-spacing: .04em;
+            text-transform: uppercase; color: #6c757d; margin-bottom: .15rem;
+        }
+        .ma-het-blokk--ora .ma-het-blokk-cim { color: #0b4ec7; }
+        .ma-het-blokk--hat .ma-het-blokk-cim { color: #a86a00; }
+        .ma-het-blokk-cim .badge { font-size: .58rem; text-transform: none; letter-spacing: 0; }
+        .ma-het-ora, .ma-het-hat-sor {
+            display: flex; align-items: baseline; gap: .35rem;
+            font-size: .79rem; line-height: 1.4;
+        }
+        .ma-het-ido {
+            flex: 0 0 2.6rem; font-weight: 700; color: #0d6efd;
+            font-variant-numeric: tabular-nums;
+        }
+        .ma-het-tantargy { font-weight: 600; }
+        .ma-het-terem { margin-left: auto; color: #6c757d; font-size: .72rem; }
+        .ma-het-hat-sor .badge { font-size: .58rem; }
+        .ma-het-hat-nev { color: #6c757d; font-size: .74rem; }
+        .ma-het-kesz { opacity: .65; text-decoration: line-through; }
+        .ma-het-ures { font-size: .78rem; color: #adb5bd; }
+        [data-bs-theme="dark"] .ma-het-kartya { background: #1c2126; border-color: #343a40; }
+        [data-bs-theme="dark"] .ma-het-fej { background: #232a31; border-color: #343a40; }
+        [data-bs-theme="dark"] .ma-het-kartya--ora .ma-het-fej { background: #1b2a44; }
+        [data-bs-theme="dark"] .ma-het-kartya--hat .ma-het-fej { background: #3a2f1a; }
+        [data-bs-theme="dark"] .ma-het-kartya--vegyes .ma-het-fej { background: #2a2338; }
+        [data-bs-theme="dark"] .ma-het-blokk + .ma-het-blokk { border-color: #343a40; }
+        @media (max-width: 575.98px) {
+            .ma-het-grid { grid-template-columns: 1fr; }
+            .ma-het-grid > .ma-het-kartya:last-child:nth-child(odd) {
+                grid-column: auto; width: auto;
+            }
+        }
         .dash-tile:hover, .dash-tile:focus {
             transform: translateY(-2px);
             border-color: #adb5bd;
