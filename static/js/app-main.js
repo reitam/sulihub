@@ -3342,30 +3342,57 @@ $(document).ready(function() {
         });
         Promise.all(keresek).then(function(list) {
             const hetVege = napok[4];
-            let html = '<div class="card card-stat bg-white">' +
-                '<div class="card-header bg-white py-1 px-2 fw-bold small">' +
-                `${honapNev(maIso(hetfo).slice(0, 7))} ${hetfo.getDate()}. – ` +
-                `${hetVege.getDate()}. · hétfő–péntek</div><div class="ma-het-lista">`;
+            const idoszak = `${honapNev(maIso(hetfo).slice(0, 7))} ${hetfo.getDate()}. – ` +
+                            `${honapNev(maIso(hetVege).slice(0, 7))} ${hetVege.getDate()}.`;
+            let html = '<div class="ma-het-wrap mx-auto">' +
+                `<div class="ma-het-cim text-center text-muted small mb-2">` +
+                `${escapeHtml(idoszak)} · hétfő–péntek</div><div class="ma-het-grid">`;
             list.forEach(function(res, i) {
                 const nap = napok[i];
+                const iso = maIso(nap);
                 const orak = res.orak || [];
-                const hat = res.hataridok || [];
-                const oraSzoveg = orak.length
-                    ? orak.map(function(o) { return `${o.kezdes} ${o.tantargy}`; }).join(' · ')
-                    : 'nincs óra';
-                const hatSzoveg = hat.length
-                    ? hat.map(function(h) {
-                        return `${h.mikor === 'ma' ? 'ma' : 'holnap'}: ${h.tantargy}`;
-                    }).join(' · ')
-                    : '';
-                html += `<div class="ma-het-sor">
-                    <div class="ma-het-nap">${MA_NAPOK[nap.getDay()]}<br>
-                        <span class="text-muted fw-normal small">${nap.getMonth() + 1}. ${nap.getDate()}.</span>
+                // A heti nézetben minden nap a saját határidejét mutatja (a /api/ma a
+                // következő napit is visszaadja — az a holnapi kártyán jelenik meg).
+                const hat = (res.hataridok || []).filter(function(h) {
+                    return h.mikor === 'ma';
+                });
+                let szin = 'ures';
+                if (orak.length && hat.length) szin = 'vegyes';
+                else if (orak.length) szin = 'ora';
+                else if (hat.length) szin = 'hat';
+                const mai = iso === maAktualisDatum;
+                const oraBlokk = orak.length ? `<div class="ma-het-blokk ma-het-blokk--ora">
+                        <div class="ma-het-blokk-cim"><i class="fa-solid fa-clock me-1"></i>Órák
+                            <span class="badge bg-primary-subtle text-primary-emphasis ms-1">${orak.length}</span></div>
+                        ${orak.map(function(o) {
+                            return `<div class="ma-het-ora">
+                                <span class="ma-het-ido">${escapeHtml(o.kezdes)}</span>
+                                <span class="ma-het-tantargy">${escapeHtml(o.tantargy)}</span>
+                                ${o.terem ? `<span class="ma-het-terem">${escapeHtml(o.terem)}</span>` : ''}
+                            </div>`;
+                        }).join('')}
+                    </div>` : '';
+                const hatBlokk = hat.length ? `<div class="ma-het-blokk ma-het-blokk--hat">
+                        <div class="ma-het-blokk-cim"><i class="fa-solid fa-bookmark me-1"></i>Határidők
+                            <span class="badge bg-warning-subtle text-warning-emphasis ms-1">${hat.length}</span></div>
+                        ${hat.map(function(h) {
+                            const kesz = Number(h.kesz) === 1;
+                            const hazi = h.esemeny_tipus === 'Házi feladat';
+                            return `<div class="ma-het-hat-sor${kesz ? ' ma-het-kesz' : ''}">
+                                <span class="badge ${hazi ? 'bg-warning text-dark' : 'bg-danger'}">${hazi ? 'Házi' : 'Számonkérés'}</span>
+                                <span class="ma-het-tantargy">${escapeHtml(h.tantargy)}</span>
+                                <span class="ma-het-hat-nev">— ${escapeHtml(h.megnevezes)}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>` : '';
+                const ures = (!orak.length && !hat.length)
+                    ? '<div class="ma-het-ures">Nincs óra és határidő.</div>' : '';
+                html += `<div class="ma-het-kartya ma-het-kartya--${szin}${mai ? ' ma-ma' : ''}">
+                    <div class="ma-het-fej">
+                        <span class="ma-het-napnev">${MA_NAPOK[nap.getDay()]}</span>
+                        <span class="ma-het-datum">${nap.getMonth() + 1}. ${nap.getDate()}.</span>
                     </div>
-                    <div class="ma-het-tartalom">
-                        <div class="ma-het-orak text-truncate" title="${escapeHtml(oraSzoveg)}">${escapeHtml(oraSzoveg)}</div>
-                        ${hatSzoveg ? `<div class="ma-het-hat text-muted text-truncate" title="${escapeHtml(hatSzoveg)}">${escapeHtml(hatSzoveg)}</div>` : ''}
-                    </div>
+                    <div class="ma-het-torzs">${oraBlokk}${hatBlokk}${ures}</div>
                 </div>`;
             });
             $('#maHetNezet').html(html + '</div></div>');

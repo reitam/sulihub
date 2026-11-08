@@ -169,8 +169,15 @@ ok("maHetBetolt" in js and "maHonapBetolt" not in js and "data-nezet" in js,
    "a heti nézet betöltése a JS-ben; a havi nézet elhagyva")
 ok('data-nezet="het"' in html and 'data-nezet="honap"' not in html,
    "a kapcsolón csak Ma és Hét gomb van")
-ok("ma-het-sor" in js and "ma-het-sor" in html,
-   "a heti nézet kompakt sorai (.ma-het-sor) a JS-ben és a CSS-ben")
+ok("ma-het-grid" in js and "ma-het-grid" in html and "ma-het-kartya" in js,
+   "a heti nézet napkártyás (.ma-het-kartya) a rácsban (.ma-het-grid)")
+ok("repeat(2, minmax(0, 1fr))" in html,
+   "a heti rács kétoszlopos (nem a képernyő teljes szélessége)")
+ok("last-child:nth-child(odd)" in html and "justify-self: center" in html,
+   "páratlan számú kártyánál az utolsó a két oszlophoz képest középre kerül")
+ok("ma-het-kartya--${szin}" in js and "szin = 'vegyes'" in js
+   and ".ma-het-kartya--ora" in html and ".ma-het-kartya--hat" in html,
+   "a napkártyák színe az eseményekhez igazodik (óra/határidő/vegyes)")
 ok("btnMaFrissit" not in html and "btnMaFrissit" not in js,
    "nincs külön szürke Frissítés gomb a Ma fülön (Kaneo #113)")
 ok(client.get("/api/ma?datum=2026-11-06").status_code == 200,

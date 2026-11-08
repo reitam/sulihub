@@ -44,9 +44,11 @@ subprocess.run([sys.executable, "kreta_playwright.py", "--init-db"], cwd=str(ROO
 conn = sqlite3.connect(db)
 EVENTS = [
     ("RiportDiak", "Értékelés", "Matematika", "Jeles(5)", 5, 100, "2026. 09. 10.", "2026/2027"),
+    ("RiportDiak", "Értékelés", "Matematika", "Jeles(5)", 5, 100, "2026. 09. 25.", "2026/2027"),
     ("RiportDiak", "Értékelés", "Matematika", "Közepes(3)", 3, 50, "2026. 10. 10.", "2026/2027"),
     ("RiportDiak", "Értékelés", "Irodalom", "Jó(4)", 4, 100, "2026. 09. 15.", "2026/2027"),
     ("RiportDiak", "Értékelés", "Magatartás", "Példás", 0, 0, "2026. 09. 20.", "2026/2027"),
+    ("RiportDiak", "Értékelés", "Szorgalom", "Jó", 0, 0, "2026. 09. 20.", "2026/2027"),
     ("RiportDiak", "Feljegyzés", "Matematika", "", 0, 0, "2026. 10. 12.", "2026/2027"),
 ]
 for r in EVENTS:
@@ -96,13 +98,25 @@ ok("attachment" not in (r.headers.get("Content-Disposition") or "").lower(),
 print("\n2) Tartalom")
 try:
     from pypdf import PdfReader
-    text = "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(r.data)).pages)
+    reader = PdfReader(io.BytesIO(r.data))
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    ok(len(reader.pages) == 1, f"egyoldalas PDF ({len(reader.pages)} oldal)")
     ok("SuliHub - RiportDiak - 2026/2027 év" in text,
        "a cím a gyermeket, a tanévet és az időszakot mutatja")
     ok("Matematika" in text and "Irodalom" in text, "a tantárgyak a PDF-ben")
     ok("2 óra" in text, "a hiányzás-összesítő a valós óraszámot mutatja (nem 0)")
+    ok("Jeles(5) - 2 db ; Közepes(3) - 1 db" in text,
+       "a Jegyek oszlop jegyenként összesített darabszámot mutat")
+    ok("Jó(4) - 1 db" in text, "minden jegyfajta külön összesítve")
+    ok("09.10" not in text and "(09.25" not in text,
+       "a jegyek mellett nincs dátum a Jegyek oszlopban")
+    ok("Db" not in text, "a tantárgyi táblából kikerült a Db oszlop")
+    ok("Magatartás" in text and "Szorgalom" in text and "Példás" in text,
+       "a magatartás/szorgalom értékelés benne van, ha van")
+    ok("TANULMÁNYI RIPORTKÁRTYA" in text and "SULIHUB" in text,
+       "dísz-bizonyítvány jellegű fejléc/pecsét")
     ok("Feljegyzések" not in text, "nincs Feljegyzések szekció a kártyán")
-    ok("Viselkedés / magatartás" not in text, "nincs Viselkedés szekció a kártyán")
+    ok("Viselkedés / magatartás" not in text, "nincs külön Viselkedés szekció a kártyán")
 except ImportError:
     print("  (pypdf nincs — a szövegkinyeréses ellenőrzések kimaradnak)")
 

@@ -49,9 +49,9 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_jegy_kalkulator.py` | **#78/#101:** „Milyen jegy kell?” — súlyozott átlag, egy jegy/több ötös, elérhetetlen cél, 0%-os súly, hiányzó jegy, tanév-szűrés, érvénytelen bemenet; **több várható jegy** (eltérő súlyok, szükséges összesített átlag, szimulált átlag), **félévi cél** (küszöb + szükséges átlag), **mentett célátlag** (`/api/kalkulator_cel` GET/POST), a meglévő jegyek táblázata, üres alap-választó |
 | `test_kereses.py` | **#85/#102/#107:** globális kereső — több adatforrás, üzenet teljes törzs, rendezés/limit, rövid keresés, LIKE-escape, modal és Ctrl+K, navigáció; **a találat sorára kattintva a részletek modálja nyílik**; **↑/↓/Enter, előzmény (localStorage), találat-kiemelés**; **FTS5 = LIKE** egyezés és idempotens index |
 | `test_kedvencek.py` | **#86/#108:** `/api/kedvencek` add/remove/toggle, megjegyzés (`note`) és húzásos sorrend (`order`) perzisztencia, érvénytelen kérés; a dashboard-panel, a csillag gomb és a drag/note UI |
-| `test_ma.py` | **#9/#104/#113:** `/api/ma` — mai órák duplikátum nélkül, ma/holnapi határidők, friss jegyek, olvasatlan üzenetek, diák-szűrés, üres/hibás dátum; **önálló „Ma” fül** (a dashboard-kártya elutasítva), **Ma/Hét nézetváltó** (kompakt heti kártya 5 sorral, havi nézet nélkül), külön Frissítés gomb nélkül |
+| `test_ma.py` | **#9/#104/#113:** `/api/ma` — mai órák duplikátum nélkül, ma/holnapi határidők, friss jegyek, olvasatlan üzenetek, diák-szűrés, üres/hibás dátum; **önálló „Ma” fül** (a dashboard-kártya elutasítva), **Ma/Hét nézetváltó** (kétoszlopos, középre igazított napkártyák, esemény szerinti színek, páratlan darabszámnál középre tett utolsó kártya, havi nézet nélkül), külön Frissítés gomb nélkül |
 | `test_trend.py` | **#80/#111:** tantárgyi trend (utolsó két hónap), **gyermekenkénti** romlás- (≤ -0,5) és javulás-figyelmeztetés (≥ +0,5) az időszakkal, hiányzás-mintázat nap/óra/tantárgy/hónap bontásban, tanév-szűrés; a felületi kötés (romló + javuló sáv) |
-| `test_riportkartya.py` | **#82:** riportkártya PDF **mentés nélkül** (`GET /api/riportkartya/export_pdf`), félév/tanév, a címben a tanév, PDF-tartalom (pypdf, ha van): nincs Viselkedés/Feljegyzések szekció, valós hiányzás-óraszám; hibás bemenetek, felületi kártya, nincs mentett riport-lista |
+| `test_riportkartya.py` | **#82:** riportkártya PDF **mentés nélkül** (`GET /api/riportkartya/export_pdf`), félév/tanév, a címben a tanév, egyoldalas **dísz-bizonyítvány** (keret/pecsét), PDF-tartalom (pypdf, ha van): jegyenként összesített Jegyek oszlop dátum nélkül, nincs Db oszlop, magatartás/szorgalom benne, nincs Feljegyzések szekció, valós hiányzás-óraszám; hibás bemenetek, felületi kártya, nincs mentett riport-lista |
 | `test_tanulmanyi_export.py` | **#83:** `/api/esemenyek/export.xlsx` (Jegyek/Feljegyzések/Házi feladatok) és `/api/hianyzasok/export.xlsx` (Hiányzások/Igazolások) — munkalapok, sorok, diák/tanév/időszak szűrés, üres export, felületi gombok |
 | `test_ops_checks.py` | **#90:** restore-teszt (érvényes/sérült/hiányzó/elavult mentés, manifest-egyezés, izolált visszaállítás) + élő füstteszt (`/health`, `/api/sync/status`, utolsó futás kora, auth) fake HTTP-szerverrel; CI workflow |
 | `test_sync_health.py` | **#88:** 3 egymást követő hiba → magas prioritású riasztás, 6 órás throttle, token-lejárat külön üzenet, siker utáni reset, `health` a `/api/scheduler/status`-ban |
@@ -87,7 +87,7 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (50 csomag, 1469 ell.)
+python tests/run_all.py            # minden teszt (50 csomag, 1479 ell.)
 python tests/run_all.py --fast     # böngésző nélkül (39 csomag, 1120 ell.)
 python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
 ```
