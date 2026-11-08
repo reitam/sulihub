@@ -247,6 +247,23 @@ try:
         page.click('#accordionFilterBlock .accordion-button')
         page.wait_for_timeout(600)
         ok(page.is_visible("#collapseFilter"), "kattintásra lenyílik a szűrőpanel")
+        # A felső menüsor pozíciója ne változzon, a szűrőpanel alatta legyen (#121).
+        tab_top_esemenyek = page.evaluate(
+            "() => Math.round(document.querySelector('#mainTab').getBoundingClientRect().top)")
+        below = page.evaluate("""() => {
+            const t = document.querySelector('#mainTab').getBoundingClientRect();
+            const f = document.querySelector('#accordionFilterBlock').getBoundingClientRect();
+            return f.top >= t.bottom - 1;
+        }""")
+        ok(below, "a szűrőpanel a felső menüsor ALATT van")
+        page.click('#attekintes-tab')
+        page.wait_for_timeout(700)
+        tab_top_dash = page.evaluate(
+            "() => Math.round(document.querySelector('#mainTab').getBoundingClientRect().top)")
+        ok(abs(tab_top_esemenyek - tab_top_dash) <= 1,
+           f"a felső menüsor nem ugrál (Események {tab_top_esemenyek} px, Áttekintés {tab_top_dash} px)")
+        page.click('#esemenyek-tab')
+        page.wait_for_timeout(700)
         ok(page.input_value("#filterTipus") == "Értékelés", "típus = Értékelés")
         rows = page.eval_on_selector_all("#esemenyekTable tbody tr",
                                          "rows => rows.filter(r => r.querySelectorAll('td').length > 1).length")

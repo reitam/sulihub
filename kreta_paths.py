@@ -16,6 +16,7 @@ környezeti változókkal írhatók felül.
 | `KRETA_CSATOLMANYOK_DIR` | `<DATA_DIR>/csatolmanyok` |
 | `KRETA_SCHEDULER_STATE_FILE` | `<DATA_DIR>/scheduler_state.json` |
 | `KRETA_VERSION_FILE` | `<DATA_DIR>/version.txt` |
+| `KRETA_RIPORTKARTYA_DIR` | `<DATA_DIR>/riportkartyak` |
 
 **Visszafelé kompatibilitás:** ha a `KRETA_DATA_DIR` nincs beállítva, a `data/`
 alatt még nincs adatbázis, viszont a projekt gyökerében van (`kreta_adatok.db`),
@@ -68,6 +69,10 @@ SCHEDULER_STATE_FILE = os.environ.get(
 )
 # A deploy által a data kötetre írt verziószám (a felületen jelenik meg).
 VERSION_FILE = os.environ.get("KRETA_VERSION_FILE", os.path.join(DATA_DIR, "version.txt"))
+# A generált riportkártya PDF-ek (Kaneo #82) — gyermekenként, visszamenőlegesen.
+RIPORTKARTYA_DIR = os.environ.get(
+    "KRETA_RIPORTKARTYA_DIR", os.path.join(DATA_DIR, "riportkartyak")
+)
 
 if LEGACY_LAYOUT:
     print("[Útvonalak] Régi (gyökér) adatelrendezés — átköltöztetés: "

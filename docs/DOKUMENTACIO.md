@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Dokumentum verziója** | 1.8 (Kaneo #9, #78, #80, #85, #101, #110–#118) |
-| **A rendszer verziója** | v2.1.0 (kiadásra kész — élesítésre vár) |
-| **Utolsó frissítés** | 2026-11-06 |
+| **Dokumentum verziója** | 1.9 (Kaneo #9, #78, #80, #82, #83, #85, #90, #101, #110–#121) |
+| **A rendszer verziója** | v2.1.3 (kiadásra kész — élesítésre vár; élesben v2.1.1) |
+| **Utolsó frissítés** | 2026-11-08 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
 
@@ -67,12 +67,12 @@ továbbítanak.
 | Fül | Mire való |
 |---|---|
 | **Áttekintés** | Nyitó dashboard: **6 kattintható csempe** — **következő házi feladatok** (10 nap), **következő számonkérések** (10 nap), **új jegyek** (10 nap), **új üzenetek** (10 nap), **igazolatlan hiányzás** (óra), **kifizetetlen zsebpénz** (kiegészítő felirat nélkül) —, valamint **„Tanulmányi átlag”** szekció **gyermekenkénti kártyákkal**: **monogramos avatar**, név, diszkrét jegyszám-badge, nagy tanulmányi átlag és egyenleg. A **gyermekszűrő chipek** és az **„Események listája”** gomb a **fül-sáv alatt, az összes csempe felett** vannak (a szűrő a csempékre is vonatkozik). A tanév/súlyozás magyarázata **egyszer, a szakasz fejlécében** van. **Kompakt, 3×2 elrendezés**, egységes csempesablon, **látható kerettel**; széles kijelzőn a dashboard **középre igazított (max. 1200 px)**, a két szélen szimmetrikus üres sávval. **Színlogika:** 0 értéknél semleges (szürke) vagy „rendben” (zöld), csak > 0 esetén élénk szín. Az alsó sávban **2 hasáb**: **„Figyelmet igénylő bejegyzések”** (utolsó **10** feljegyzés típus-badge-dzsel: piros figyelmeztetés, zöld dicséret, szürke felszereléshiány) és **„Legutóbbi jegyek”** (utolsó **10** jegy színes jegy-körrel). A csempére kattintva a megfelelő (szűrt) nézet nyílik |
-| **Iskolai események** | Szűrhető, kereshető táblázat: jegyek (a jegy mellett a **súlyszázalék** jelvénye), feljegyzések, házik, számonkérések. Szűrők: gyermek (chip is), típus, tantárgy, időszak, dátumtartomány, gyorsszűrők; a **szűrőpanel alapból zárva** van, a fejlécére kattintva nyílik (Kaneo #120); "Vissza az áttekintésre" gomb. Soronként **saját megjegyzés** fűzhető (Kaneo #46) |
-| **Hiányzások** | Hiányzások és késések havi bontásban: **5 összesítő kártya** (összes hiányzás óra, igazolt óra, igazolatlan óra, késés db/perc, igazolás db) + részletes tábla és igazolás-lista. Alapból a **teljes előzmény** látszik, a havi bontás hónapválasztóval / „Aktuális hónap" gombbal |
+| **Iskolai események** | Szűrhető, kereshető táblázat: jegyek (a jegy mellett a **súlyszázalék** jelvénye), feljegyzések, házik, számonkérések. Szűrők: gyermek (chip is), típus, tantárgy, időszak, dátumtartomány, gyorsszűrők; a **szűrőpanel alapból zárva** van, a fejlécére kattintva nyílik (Kaneo #120); "Vissza az áttekintésre" gomb. **Excel export** a jelenlegi szűrőkkel (Jegyek / Feljegyzések / Házi feladatok — Kaneo #83). Soronként **saját megjegyzés** fűzhető (Kaneo #46) |
+| **Hiányzások** | Hiányzások és késések havi bontásban: **5 összesítő kártya** (összes hiányzás óra, igazolt óra, igazolatlan óra, késés db/perc, igazolás db) + részletes tábla és igazolás-lista. Alapból a **teljes előzmény** látszik, a havi bontás hónapválasztóval / „Aktuális hónap" gombbal. **Excel export** (Hiányzások / Igazolások — Kaneo #83) |
 | **Heti órarend** | Idősávos heti nézet, gyermekszínekkel; **A4 PDF export**; **kézi „Saját óra”** tételek (szakkör, plusz foglalkozás) tanévre / hétre / egyedi időszakra, egy alkalom vagy a teljes sorozat törlésével (Kaneo #55); **ICS export** hét / hónap / félév / tanév időszakra (Kaneo #73) |
 | **Feladatok naptár nézet** | Házik és számonkérések határidő szerint, színkódolva; a részletek ablakból **közvetlen „Naptárba küldés”** (előre kitöltött Google Naptár esemény, egy kattintásos mentés) (Kaneo #47) |
 | **Beérkezett üzenetek** | Üzenetek olvasása (a **teljes törzs** a részletes API-válaszból, a sortörések megőrzésével — Kaneo #74), **szöveges keresés a tárgyban, a feladóban és az üzenet tartalmában**, **helyi olvasott/olvasatlan állapot** (olvasatlan számláló a fülön, félkövér + kék pötty a listában, Mind/Olvasatlan/Olvasott gyorsszűrő, megnyitáskor automatikus olvasottnak jelölés + kézi oda-vissza váltás; **checkboxos kijelölés** soronként és „mind” a fejlécben, a kijelölteken vagy a teljes listán **egylépéses olvasott/olvasatlan** váltás; a KRÉTA felé nem ír vissza — Kaneo #11), csatolmányok letöltése; az üzenethez is fűzhető **saját megjegyzés** (Kaneo #46), valamint **„Naptárba küldés”** Google Naptárba (Kaneo #47/#60) |
-| **Statisztika & Zsebpénz** | Havi jegyeloszlás, átlag, dicséret/hiány mutatók, elszámolás; **az egyenleg tételeinek Excel (`.xlsx`) exportja** — *kiválasztott időszakra*, *teljes tanévre* vagy *teljes előzményre*, tételes **pénzügyi rendezettség-jelöléssel** (Kaneo #11/#77) |
+| **Statisztika & Zsebpénz** | Havi jegyeloszlás, átlag, dicséret/hiány mutatók, elszámolás; **az egyenleg tételeinek Excel (`.xlsx`) exportja** — *kiválasztott időszakra*, *teljes tanévre* vagy *teljes előzményre*, tételes **pénzügyi rendezettség-jelöléssel** (Kaneo #11/#77); **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve és visszakereshetően (Kaneo #82) |
 | **Rendszernapló** | A szinkronizációk naplója, hibák, előzmények; **legutóbbi 20 futás** táblázata (indult, futásidő, státusz, új esemény, hibás diák, tanév) és **futásidő-sparkline** (Kaneo #10) |
 
 **Szűrőfüggetlen dashboard (Kaneo #76):** az Áttekintés a saját, szűrés nélküli
@@ -360,6 +360,33 @@ számonkérések pipával (kattintás → kész jelölés), **friss jegyek** (7 
 gyermekváltáskor automatikusan frissül (nincs külön Frissítés gomb), a fejléc
 diák-szűrőjét követi. Adatforrás: `/api/ma?diak=&datum=`.
 
+### 2.15. Riportkártya PDF (Kaneo #82)
+
+A Statisztika fülön **gyermek + időszak** (félév / teljes tanév) választással **A4-es PDF
+riportkártya** generálható. Tartalma: összegzés (tanulmányi átlag, jegyszám, hiányzás/
+igazolatlan, késés, feljegyzésszám, zsebpénz-egyenleg), **tantárgyi táblázat** (jegyek
+dátummal, súlyozott átlag, db), viselkedés/magatartás és a feljegyzések. A PDF a
+**data köteten, gyermekenként** mentődik (`riportkartyak` tábla + fájl), és a kártya
+**korábbi riportjai visszakereshetők, megnyithatók/nyomtathatók**
+(`/api/riportkartyak`, `/api/riportkartyak/<id>/pdf`).
+
+A **hivatalos félévi/év végi osztályzat** a KRÉTA API-ból nem érhető el (félévkor sem
+kérdezhető le), ezért a riport a jegyekből számolt, KRÉTA-súlyozású átlagot mutatja, és
+ezt a PDF láblécében jelzi is. Az időszak: félév = tanév kezdete – jan. 31., tanév =
+szept. 1. – aug. 31.
+
+### 2.16. Tanulmányi Excel exportok (Kaneo #83)
+
+- **Iskolai események** fül: **Excel export** a jelenlegi szűrőkkel (diák, tanév,
+  bejegyzés-dátumtartomány) → `GET /api/esemenyek/export.xlsx`, munkalapok: **Jegyek**
+  (diák, tantárgy, jegy, súly%, mód, téma, tanár, dátum, tanév), **Feljegyzések**,
+  **Házi feladatok** (a bejelentett számonkérésekkel; állapot: elkészítve/aktív).
+- **Hiányzások** fül: `GET /api/hianyzasok/export.xlsx` → **Hiányzások** (dátum, óra,
+  tantárgy, téma, tanár, típus, igazolt, késés perc, tanév) és **Igazolások** (kezdet,
+  vég, típus, megjegyzés) munkalapok; az igazolásoknál az időszakkal **átfedő** sorok
+  kerülnek bele.
+- A számok/sorok a felület szűrőivel egyeznek; a fájlok `.xlsx` formátumúak (openpyxl).
+
 ---
 
 ## 3. Hogyan működik (architektúra)
@@ -585,6 +612,20 @@ futás tanévét.
 | **Docker / Docker Compose** | Futtatás a szerveren | Konténer: `kreta-app`, port **8085** |
 | **Samba + SSH** | Deploy Windowsról a szerverre | `deploy.ps1` (staging másolás + SSH parancsok) |
 | **cron (host)** | Napi mentés 03:00-kor | `kreta_backup.sh` |
+
+### 5.1. Mentés és üzemeltetési ellenőrzések (Kaneo #90)
+
+- A napi mentés (`backup/kreta_backup.sh`) a DB mellé **sorszám-manifestet** ír
+  (`kreta_adatok_*.counts.json`), hogy a visszaállítás ellenőrizhető legyen.
+- **Havi restore-teszt:** `python3 tools/backup_restore_check.py --backup-dir ... --db ...`
+  — a legfrissebb mentést izolált temp könyvtárba állítja vissza, `PRAGMA integrity_check`,
+  manifest-egyezés, elavult/sérült mentés detektálása; hibánál ntfy riasztás, a valódi DB-hez
+  nem nyúl. Javasolt cron: `15 4 1 * *`.
+- **Éjszakai élő füstteszt:** `python3 tools/live_smoke.py --url ... --max-age-hours 26`
+  — `/health` + `/api/sync/status`, az utolsó futás státusza és kora. A GitHub Actions
+  `live-smoke` jobja éjszakánként fut; `KRETA_URL` (és opcionálisan `KRETA_AUTH_USER`/
+  `KRETA_AUTH_PASS`) secret nélkül kimarad. A szervernek kívülről elérhetőnek kell lennie
+  (pl. Tailscale Funnel/Cloudflare Tunnel) vagy self-hosted runner kell hozzá.
 
 ---
 
@@ -860,7 +901,7 @@ egy kiadásig még működik, figyelmeztetéssel. Átköltöztetés (az app áll
 ### 9.3. Tesztek
 
 ```bash
-python tests/run_all.py            # mind (1272 ellenőrzés, 44 csomag)
+python tests/run_all.py            # mind (1411 ellenőrzés, 47 csomag)
 python tests/run_all.py --fast     # böngésző nélkül (39 csomag, 1120 ell.)
 python tests/run_all.py --browser  # Playwrightos (5 csomag, 152 ell.)
 ```
@@ -1024,6 +1065,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v2.1.0** *(éles 2026-11-07)* | **2026-11-07** | **Öt új funkció (Kaneo #78, #80, #85, #86):** **globális kereső** (Ctrl+K, `/api/kereses` — jegy, feljegyzés, házi, üzenet teljes törzs, hiányzás; találat a megfelelő nézetet nyitja), **„Milyen jegy kell?” kalkulátor** (`/api/jegy_kalkulator`, célátlag + a következő jegy súlya; egy jegy vagy több ötös, elérhetetlen cél), **UX csomag** (sötét mód `data-bs-theme`-tel + localStorage, nyomtatásbarát A4 fekvő heti órarend, kitűzött események a dashboardon `app_meta`-ban), **tantárgyi trend + hiányzás-mintázat** (`/api/atlagok` trend + romlás-figyelmeztetés, sparkline a táblázatban; `/api/hianyzas-mintazat` nap/óra/tantárgy bontás, a táblázatok alatt csukva). **Follow-upok (2026-11-07, Kaneo #9, #78, #85, #101, #110–#114):** **önálló „Ma” fül** (a dashboard-kártya helyett: mai órák, ma/holnapi házik pipával, friss jegyek, olvasatlan üzenetek), a kalkulátor **táblázatban kilistázza a tantárgy meglévő jegyeit**, **alapból üres a tantárgy-választó** (csak kiválasztás után tölt), **több várható jegyet** (eltérő súllyal) és **félévi céljegyet** kezel, a célátlagot **tantárgyanként menti**, és **mindig a teljes tanév** jegyállományát használja; a **kereső találatára kattintva az adott sor részletei** nyílnak meg, a **típus-címkék felirata/színe egyezik az Események füllel**; a **romló tantárgy sáv gyermeknevet és időszakot** is mutat, alatta **javuló tantárgyak** zöld sávja; mobilon az **értékeléseknél a jegy oszlop alapból látszik**; a **Ma fülről a felesleges szürke Frissítés gomb kikerült**; a **nyomtatott órarend fejléce** „SuliHub – Órarend – gyermek – hét”. Új tesztek: `test_jegy_kalkulator`, `test_kereses`, `test_kedvencek`, `test_trend`, `test_ma`; a `test_mobile_layout` a sötét módot, a látható jegy-oszlopot, a Ma fület és a nyomtatási fejlécet, a `test_dashboard` a kalkulátor jegytáblázatát és a több jegy/félévi cél UI-t is ellenőrzi. **1327 ellenőrzés / 44 csomag** (fast 39/1138, browser 5/189) |
 | **v2.1.1** *(éles 2026-11-08)* | **2026-11-07** | **#117** a globális kereső (nagyító/Ctrl+K) megnyitásakor a **mező azonnal aktív** (`shown.bs.modal` + tartalék; a régi timer a megjelenés előtt futott). **#118** **átfogó sötét mód**: dashboard kártyacímek, táblázat-konténer, `.text-dark` szövegek, accordion-fejlécek, kiemelt sorok (ma/elkészült/olvasatlan), státuszsáv + verzió-jelvény, **FullCalendar** háttér/rács/cím, modálfejléc, csatolmány-badge/„Olvasás” gomb, Feljegyzés-badge; a **naptár-események szövegszíne** a háttér fényességéhez igazodik (`views_common.contrast_text` → `textColor`), így világos módban is jobb. Számított kontraszt-audit: 50 → **0 valódi** alacsony kontrasztú szöveg (9 fül + 6 modál + űrlapok). **1339 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/196) |
 | **v2.1.2** *(kiadásra kész)* | **2026-11-08** | **#120** az Iskolai események **szűrőpanelje alapból zárva** van, a fejlécére kattintva nyílik (a dashboard-csempéről érkezve is zárva marad; a szűrő továbbra is érvényesül). **#115** (Tailscale/WireGuard távoli elérés) és **#119** (SQLite vs MySQL/PostgreSQL) **elemzés** a jegyekben, kódváltozás nélkül. **1340 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/197) |
+| **v2.1.3** *(kiadásra kész)* | **2026-11-08** | **#121** a szűrőpanel a felső menüsor **alá** került (a menüsor nem ugrál a fülek között). **#82** A4-es **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve (`riportkartyak` tábla + data kötet), visszamenőleges lista/letöltés; a hivatalos félévi jegy hiányát jelzi. **#83** **Excel exportok**: események (Jegyek/Feljegyzések/Házi feladatok) és hiányzások (Hiányzások/Igazolások) a felület szűrőivel. **#90** üzemeltetési ellenőrzések: havi **restore-teszt** (`tools/backup_restore_check.py`, manifest-tel) + éjszakai **élő füstteszt** (`tools/live_smoke.py`, CI job, secret nélkül kimarad). **1411 ellenőrzés / 47 csomag** (fast 42/1212, browser 5/199) |
 
 ---
 

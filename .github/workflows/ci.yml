@@ -58,3 +58,26 @@ jobs:
             ${{ runner.temp }}/kreta_*
             /tmp/kreta_*
           if-no-files-found: ignore
+
+  live-smoke:
+    name: Élő füstteszt (szerver)
+    # Csak éjszakánként vagy kézi indításra; a KRETA_URL secret hiányában kimarad.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Füstteszt
+        env:
+          KRETA_URL: ${{ secrets.KRETA_URL }}
+          KRETA_AUTH_USER: ${{ secrets.KRETA_AUTH_USER }}
+          KRETA_AUTH_PASS: ${{ secrets.KRETA_AUTH_PASS }}
+        run: |
+          if [ -z "$KRETA_URL" ]; then
+            echo "KRETA_URL secret nincs beállítva — élő füstteszt kihagyva."
+            exit 0
+          fi
+          python tools/live_smoke.py --url "$KRETA_URL" --max-age-hours 26

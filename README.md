@@ -92,6 +92,8 @@ a saját szerveren maradnak.
   `data-suly` attribútumából); tooltip: „Az értékelés 100%-os súllyal számít bele az átlagba."
 - **Saját megjegyzés** fűzhető bármelyik sorhoz (jegy, feljegyzés, házi, számonkérés) és
   bármelyik üzenethez — a megjegyzés a szinkronok után is megmarad (tartalom-alapú kulcs).
+- **Excel export** a jelenlegi szűrőkkel: **Jegyek / Feljegyzések / Házi feladatok**
+  munkalapok (`/api/esemenyek/export.xlsx`).
 
 ### 📝 Házi feladat kezelés
 - „Elkészült" jelölés, amely **megmarad** a következő szinkronok után is (zöld kiemelés).
@@ -107,6 +109,8 @@ a saját szerveren maradnak.
 - A késéseket a KRÉTA „(N perc)” adatából ismeri fel; a havi összesítő külön kezeli őket.
 - **Inkrementális mentés:** a rekordot a dátum + órasorszám azonosítja, ezért az
   újraszinkron csak a változásokat írja (a sor-ID stabil, az eltűnt sorok törlődnek).
+- **Excel export:** **Hiányzások / Igazolások** munkalapok a jelenlegi szűrőkkel
+  (`/api/hianyzasok/export.xlsx`).
 
 ### 🗓️ Feladatok naptár
 - Házik és számonkérések határidő szerint (FullCalendar 6), színkódolva;
@@ -131,6 +135,10 @@ a saját szerveren maradnak.
   illetve mennyi a várható átlag; **félévi céljegy** esetén a küszöbhöz szükséges átlag.
   A célátlag/félévi cél **tantárgyanként mentődik**, a kártya a tantárgy **meglévő jegyeit**
   táblázatban listázza, és mindig a **teljes tanév** jegyállományával dolgozik.
+- **Riportkártya PDF (félév / tanév):** A4-es összefoglaló (átlag, jegyek, hiányzás, késés,
+  feljegyzések, zsebpénz-egyenleg), **gyermekenként mentve** a data kötetre; a korábbi
+  riportok **visszakereshetők, megnyithatók és nyomtathatók**. A hivatalos félévi jegy a
+  KRÉTA API-ból nem érhető el — ezt a PDF jelzi, és a jegyekből számolt átlagot mutatja.
 
 ### 🔎 Keresés és UX
 - **Globális kereső (Ctrl+K):** jegyek, feljegyzések, házik, üzenetek (teljes törzs) és
@@ -154,6 +162,10 @@ a saját szerveren maradnak.
 ### 🛠️ Üzemeltetés
 - Futásnapló a DB-ben (`sync_runs`), napló-rotáció, `waitress` produkciós szerver,
   DB-guard indításkor, napi automatikus mentés forgatással.
+- **Havi restore-teszt:** `tools/backup_restore_check.py` — a legfrissebb mentés izolált
+  visszaállítása, `integrity_check`, manifest-egyeztetés, ntfy riasztás hibánál.
+- **Éjszakai élő füstteszt:** `tools/live_smoke.py` (`/health`, `/api/sync/status`, az
+  utolsó futás kora); GitHub Actions job, `KRETA_URL` secret nélkül kimarad.
 
 ---
 
@@ -393,13 +405,13 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**44 csomag, 1340 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**47 csomag, 1411 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
 **adatvédelem** (üres válasz nem töröl), **DB-séma őr** (zárolt DB),
 **deploy-konzisztencia** (Dockerfile COPY + requirements), **mobil elrendezés**,
-**route-contract** (a 43 Flask-rule rögzítve) és **data/-migráció**.
+**route-contract** (a 48 Flask-rule rögzítve) és **data/-migráció**.
 Részletek: [`tests/README.md`](tests/README.md).
 
 ---
@@ -458,7 +470,7 @@ telepíti a mentő-cront.
 
 | Verzió | Tartalom |
 |---|---|
-| v2.1.x | **Globális kereső (Ctrl+K)** (azonnal aktív mező; a találat sorára kattintva a részletek nyílnak, egységes típus-címkék), **jegy-kalkulátor** (üres alap-választó, meglévő jegyek táblázata, **több várható jegy eltérő súllyal**, **félévi céljegy**, **mentett célátlag**, teljes tanév), **sötét mód + nyomtatás + kedvencek** (átfogó sötét mód, a naptár-események olvasható szövegszíne, nyomtatási fejléc gyerekkel és héttel), **tantárgyi trend + hiányzás-mintázat** (gyermekenkénti romló **és javuló** figyelmeztetés időszakkal), **önálló „Ma” fül**, **alapból zárt szűrőpanel** az eseménylistán; mobilon a **jegy oszlop alapból látszik** |
+| v2.1.x | **Globális kereső (Ctrl+K)** (azonnal aktív mező; a találat sorára kattintva a részletek nyílnak, egységes típus-címkék), **jegy-kalkulátor** (üres alap-választó, meglévő jegyek táblázata, **több várható jegy eltérő súllyal**, **félévi céljegy**, **mentett célátlag**, teljes tanév), **riportkártya PDF** (félév/tanév, gyermekenként mentve, visszakereshető), **Excel exportok** (jegyek/feljegyzések/házik, hiányzások/igazolások), **sötét mód + nyomtatás + kedvencek** (átfogó sötét mód, a naptár-események olvasható szövegszíne, nyomtatási fejléc gyerekkel és héttel), **tantárgyi trend + hiányzás-mintázat** (gyermekenkénti romló **és javuló** figyelmeztetés időszakkal), **önálló „Ma” fül**, **alapból zárt szűrőpanel** a menüsor alatt, **restore-teszt + élő füstteszt**; mobilon a **jegy oszlop alapból látszik** |
 | v2.0.x | **KRÉ-14 refaktor:** `app.py` és a frontend szétbontása (8 blueprint + közös rétegek, `static/js/`), **futásidejű adatok a `data/` alatt** migráló szkripttel; a viselkedés (URL-ek, válaszok, DB-séma) változatlan |
 | v1.9.x | **Saját órák** (kézi szakkör/pluszfoglalkozás tanévre/hétre/egyedi időszakra, saját színnel, **módosítható**, egy alkalom vagy sorozat törlése), **naptárba küldés** házihoz/számonkéréshez/üzenethez (előre kitöltött Google esemény), **órarend ICS export** (hét/hónap/félév/tanév), **futástörténet**, **órarend-színek**, **SuliHub arculat** (logó/név), **modern egysoros fejléc**, opcionális **basic auth**, **DB-indexek/sémaverzió**, **zsebpénz CSV**, **teljes üzenettörzs** (a lista csak előnézet volt — #74), **dashboard szűrőfüggetlen újratöltése** (#76); az AI-elemzés csak API-ként elérhető |
 | v1.8.x | **Offline-képes frontend:** minden CDN-függőség vendorolva a `static/vendor/` alá (Bootstrap, DataTables, FontAwesome, FullCalendar, jQuery), nincs külső hivatkozás; apróságok (#17: `SyntaxWarning`, érvényes `config.json.example`, halott `autoSyncAlert` törlése) |

@@ -9,6 +9,19 @@ $(document).ready(function() {
     let calendar = null;
     let orarendCalendar = null;
 
+    // A szűrőpanel a fül-sáv ALÁ kerül (az Események fül tartalmába), hogy a
+    // felső menüsor pozíciója ne ugráljon a fülek között (Kaneo #121).
+    (function () {
+        const $blokk = $('#accordionFilterBlock');
+        const $pane = $('#esemenyek-pane');
+        if ($blokk.length && $pane.length) {
+            const $back = $pane.find('.btn-back-dashboard').first();
+            $blokk.removeClass('d-none');
+            if ($back.length) $blokk.insertAfter($back);
+            else $pane.prepend($blokk);
+        }
+    })();
+
     let fmtDate = (d) => {
         let year = d.getFullYear();
         let month = String(d.getMonth() + 1).padStart(2, '0');
@@ -2481,17 +2494,6 @@ $(document).ready(function() {
     });
 
     $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
-        let collapseFilterEl = document.getElementById('collapseFilter');
-        let collapseFilterInstance = bootstrap.Collapse.getInstance(collapseFilterEl) || new bootstrap.Collapse(collapseFilterEl, { toggle: false });
-
-        if (e.target.id === 'esemenyek-tab') {
-            // A szűrőpanel alapból zárva van; a felhasználó nyitja ki (Kaneo #120).
-            $('#accordionFilterBlock').removeClass('d-none');
-        } else {
-            $('#accordionFilterBlock').addClass('d-none');
-            collapseFilterInstance.hide();
-        }
-
         if (e.target.id === 'attekintes-tab') {
             // Visszaérkezéskor azonnal számoljunk a már letöltött dashboard-adatból,
             // majd frissítsük is — F5 nélkül is teljes képet adjon (Kaneo #76).
@@ -2531,6 +2533,8 @@ $(document).ready(function() {
             }
         } else if (e.target.id === 'rewards-tab') {
             loadRewardsData();
+            if ($('#filterDiak').val()) $('#riportDiak').val($('#filterDiak').val());
+            loadRiportLista();
         } else if (e.target.id === 'naptar-tab') {
             if (!calendar) {
                 initCalendar();
@@ -2628,6 +2632,91 @@ $(document).ready(function() {
         $('#filterBejZaroDatum').val('');
         $('#filterStatus').val('aktiv');
         applyFilters();
+    });
+
+    // ── Tanulmányi Excel exportok (Kaneo #83) ──────────────────────────────
+    function exportIdoszakParams(kezdo, zaro) {
+        let out = '';
+        if (kezdo) out += `&kezdo_datum=${encodeURIComponent(kezdo)}`;
+        if (zaro) out += `&zaro_datum=${encodeURIComponent(zaro)}`;
+        return out;
+    }
+
+    $('#btnEsemenyExportXlsx').on('click', function() {
+        let url = `/api/esemenyek/export.xlsx?diak=${encodeURIComponent($('#filterDiak').val() || '')}`;
+        url += exportIdoszakParams($('#filterBejKezdoDatum').val(), $('#filterBejZaroDatum').val());
+        url += tanevQueryParam();
+        window.location.href = url;
+    });
+
+    $('#btnHianyzasExportXlsx').on('click', function() {
+        let url = `/api/hianyzasok/export.xlsx?diak=${encodeURIComponent($('#hianyzasFilterDiak').val() || '')}`;
+        const honap = $('#hianyzasHonap').val() || '';
+        if (honap) {
+            const p = honap.split('-');
+            const utolso = new Date(Number(p[0]), Number(p[1]), 0).getDate();
+            url += exportIdoszakParams(
+                `${p[0]}-${p[1]}-01`,
+                `${p[0]}-${p[1]}-${String(utolso).padStart(2, '0')}`
+            );
+        }
+        url += tanevQueryParam();
+        window.location.href = url;
+    });
+
+    // ── Riportkártya PDF (Kaneo #82) ───────────────────────────────────────
+    function loadRiportLista() {
+        const diak = $('#riportDiak').val() || '';
+        const tanev = kivalasztottTanev();
+        const $box = $('#riportLista');
+        if (!diak) {
+            $box.empty();
+            return;
+        }
+        $.getJSON(`/api/riportkartyak?diak=${encodeURIComponent(diak)}` +
+                  (tanev ? `&tanev=${encodeURIComponent(tanev)}` : ''),
+            function(res) {
+                const rows = res.rows || [];
+                if (!rows.length) {
+                    $box.html('<span class="text-muted">Még nincs generált riportkártya.</span>');
+                    return;
+                }
+                $box.html('<div class="fw-bold text-secondary mb-1">Korábbi riportkártyák</div>' +
+                    rows.map(function(r) {
+                        return `<div class="d-flex justify-content-between gap-2 border-bottom py-1">
+                            <span>${escapeHtml(r.tanev || '')} · ${escapeHtml(r.periodus_nev || '')} · ${escapeHtml(String(r.letrehozva || '').replace('T', ' '))}</span>
+                            <a href="${r.url}" target="_blank" rel="noopener" class="text-nowrap">
+                                <i class="fa-solid fa-file-pdf me-1"></i>Megnyitás</a></div>`;
+                    }).join(''));
+            }).fail(function() {
+                $box.html('<span class="text-danger">A lista nem tölthető be.</span>');
+            });
+    }
+
+    $('#riportDiak').on('change', loadRiportLista);
+    $('#btnRiportGeneral').on('click', function() {
+        const diak = $('#riportDiak').val() || '';
+        if (!diak) {
+            alert('Válassz gyermeket.');
+            return;
+        }
+        const $btn = $(this).prop('disabled', true);
+        $.ajax({
+            url: '/api/riportkartya',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                diak: diak,
+                periodus: $('#riportPeriodus').val(),
+                tanev: kivalasztottTanev() || ''
+            })
+        }).done(function(res) {
+            window.open(res.url, '_blank');
+            loadRiportLista();
+        }).fail(function(xhr) {
+            alert((xhr.responseJSON && xhr.responseJSON.error) ||
+                  'A PDF generálása nem sikerült.');
+        }).always(function() { $btn.prop('disabled', false); });
     });
 
     $('#rewardFilterDiak, #rewardKezdoDatum, #rewardZaroDatum').change(function() {
