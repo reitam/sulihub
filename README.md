@@ -80,7 +80,9 @@ a saját szerveren maradnak.
 
 ### ☀️ „Ma” nézet
 - Önálló fül az Áttekintés után: **mai órák** (időpont, terem, tanár), **ma és holnap
-  esedékes** házik és számonkérések pipával (kattintásra készre jelölhető), **friss jegyek**
+  esedékes** házik és számonkérések pipával (kattintásra készre jelölhető); a **sorra
+  kattintva részletek modál** nyílik (téma/leírás, tanár, határidő, állapot), a heti nézet
+  határidő-sorain is. **Friss jegyek**
   (7 nap), **olvasatlan üzenetek** (kattintásra megnyílnak). Saját gyermek-chipek; a fül
   megnyitásakor és gyermekváltáskor automatikusan frissül; a fejléc diák-szűrőjét követi.
   **Ma / Hét** szegmentált kapcsoló: a heti nézet **kétoszlopos, középre igazított**

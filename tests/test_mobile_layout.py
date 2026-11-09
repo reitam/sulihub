@@ -17,7 +17,9 @@ import tempfile
 import time
 import shutil
 import urllib.request
+from datetime import date, timedelta
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 _hibak = []
@@ -68,6 +70,20 @@ for i in range(8):
         "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg) VALUES (?,?,?,?,?,?)",
         ("Teszt Elek", str(i), "Iskola", f"Tájékoztató üzenet {i}", "2026. 10. 20.", "Szöveg"),
     )
+# A Ma fül részletek-modál tesztjéhez a /api/ma válaszát egészítjük ki
+# (a DB-fixture marad változatlan, így az Események táblázat tesztjeit nem érinti).
+MAI = date.today().isoformat()
+HETFO = (date.today() - timedelta(days=date.today().weekday())).isoformat()
+
+
+def ma_hatarido(id_, tipus, tantargy, tema, tartalom, hatarido):
+    return {
+        "id": id_, "diak_nev": "Teszt Elek", "esemeny_tipus": tipus,
+        "tantargy": tantargy, "megnevezes": tema, "hatarido": hatarido,
+        "mikor": "ma", "kesz": 0, "ertek": "", "suly_szazalek": 0,
+        "bej_datum": "2026. 11. 01.", "ertekelo": "Kovács Anna", "tipus": tipus,
+        "mod": "", "tema": tema, "cim": "", "tartalom": tartalom,
+    }
 for i, nap in enumerate(["hétfő", "kedd", "szerda", "csütörtök", "péntek"]):
     conn.execute(
         "INSERT INTO orarend (diak_nev, kezdo_idopont, zaro_idopont, nap, tantargy, tanar, terem)"
@@ -133,6 +149,24 @@ try:
             b = await p.chromium.launch()
             ctx = await b.new_context(viewport={"width": 393, "height": 873}, device_scale_factor=2)
             page = await ctx.new_page()
+
+            async def ma_route(route):
+                """A /api/ma válaszát kiegészíti a részletek-modál tesztadatokkal."""
+                resp = await route.fetch()
+                data = await resp.json()
+                query = parse_qs(urlparse(route.request.url).query)
+                datum = (query.get("datum") or [data.get("datum") or ""])[0]
+                extra = []
+                if datum == MAI:
+                    extra.append(ma_hatarido(900001, "Házi feladat", "Biológia",
+                                             "Ma teszt házi", "Részletes leírás a modálhoz", MAI))
+                if datum == HETFO:
+                    extra.append(ma_hatarido(900002, "Bejelentett számonkérés", "Fizika",
+                                             "Heti teszt dolgozat", "Heti részletek a modálhoz", HETFO))
+                data["hataridok"] = (data.get("hataridok") or []) + extra
+                await route.fulfill(response=resp, json=data)
+
+            await page.route("**/api/ma*", ma_route)
             await page.goto(base, wait_until="networkidle", timeout=60000)
             await page.wait_for_timeout(2500)
 
@@ -171,6 +205,19 @@ try:
             ok(ma["title"].startswith("Ma,"), f"a Ma fül dátumfejléce betöltődött ('{ma['title']}')")
             ok(ma["db"] > 0, f"a Ma fül kártyái feltöltődtek ({ma['db']} sor)")
 
+            # 1b1) a ma/holnapi határidőre koppintva részletek modál (felhasználói kérés)
+            await page.click("#maHataridok .ma-hatarido:has-text('Ma teszt házi')")
+            await page.wait_for_selector('#detailsModal.show', timeout=5000)
+            await page.wait_for_timeout(250)
+            reszlet = await page.evaluate("""() => ({
+                visible: document.querySelector('#detailsModal').classList.contains('show'),
+                text: (document.querySelector('#detailsModalBody') || {}).innerText || ''})""")
+            ok(reszlet["visible"] and "Ma teszt házi" in reszlet["text"]
+               and "Részletes leírás a modálhoz" in reszlet["text"],
+               f"a Ma fül határidő-sorára koppintva részletek modál nyílik: {reszlet['text'][:80]!r}")
+            await page.click('#detailsModal .btn-close')
+            await page.wait_for_timeout(400)
+
             # 1b2) Ma / Hét nézetváltó (Kaneo #104) — kompakt heti kártya, havi nézet nincs
             await page.click('#maNezetKapcsolo [data-nezet="het"]')
             await page.wait_for_timeout(1500)
@@ -184,6 +231,20 @@ try:
                f"a heti nézet 5 napkártyát mutat ({het})")
             ok(het["honapGomb"] == 0, "nincs havi nézet gomb a kapcsolón")
             ok(not het["tulcsordulas"], "a heti nézet nem csordul túl mobilon")
+
+            # 1b3) a heti nézet határidő-sorára koppintva is részletek modál nyílik
+            await page.click("#maHetNezet .ma-hatarido:has-text('Heti teszt dolgozat')")
+            await page.wait_for_selector('#detailsModal.show', timeout=5000)
+            await page.wait_for_timeout(250)
+            het_reszlet = await page.evaluate("""() => ({
+                visible: document.querySelector('#detailsModal').classList.contains('show'),
+                text: (document.querySelector('#detailsModalBody') || {}).innerText || ''})""")
+            ok(het_reszlet["visible"] and "Heti részletek a modálhoz" in het_reszlet["text"],
+               f"a heti nézet határidő-sorára koppintva részletek modál nyílik: "
+               f"{het_reszlet['text'][:80]!r}")
+            await page.click('#detailsModal .btn-close')
+            await page.wait_for_timeout(400)
+
             await page.click('#maNezetKapcsolo [data-nezet="nap"]')
             await page.wait_for_timeout(600)
 

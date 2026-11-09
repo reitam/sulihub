@@ -458,10 +458,10 @@ def api_ma():
     except sqlite3.Error as exc:
         print(f"[Ma] órák: {exc}")
 
-    # 2) Ma/holnap esedékes házik és számonkérések (a kész jelzővel)
+    # 2) Ma/holnap esedékes házik és számonkérések (a kész jelzővel).
+    # A részletek modálhoz a teljes eseménysor kell (leírás, tanár, dátum stb.).
     try:
-        query = ("SELECT id, diak_nev, esemeny_tipus, tantargy, tema, cim, hatarido, kesz"
-                 " FROM esemenyek WHERE esemeny_tipus IN ('Házi feladat',"
+        query = ("SELECT * FROM esemenyek WHERE esemeny_tipus IN ('Házi feladat',"
                  " 'Bejelentett számonkérés')")
         params = []
         if diak:
@@ -472,6 +472,7 @@ def api_ma():
             hat = normalize_date(row["hatarido"])
             if hat not in (datum, holnap.isoformat()):
                 continue
+            keys = row.keys()
             valasz["hataridok"].append({
                 "id": row["id"],
                 "diak_nev": row["diak_nev"] or "",
@@ -481,6 +482,16 @@ def api_ma():
                 "hatarido": hat,
                 "mikor": "ma" if hat == datum else "holnap",
                 "kesz": int(row["kesz"] or 0),
+                # Részletek a kattintásra nyíló modálhoz (mint az Események fülön).
+                "ertek": row["ertek"] or "",
+                "suly_szazalek": int(row["suly_szazalek"] or 0) if "suly_szazalek" in keys else 0,
+                "bej_datum": row["bej_datum"] or "",
+                "ertekelo": row["ertekelo"] or "",
+                "tipus": row["tipus"] or "",
+                "mod": row["mod"] or "",
+                "tema": row["tema"] or "",
+                "cim": row["cim"] or "",
+                "tartalom": row["tartalom"] or "",
             })
     except sqlite3.Error as exc:
         print(f"[Ma] határidők: {exc}")

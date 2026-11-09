@@ -3309,6 +3309,8 @@ $(document).ready(function() {
     const MA_NAPOK = ['vasárnap', 'hétfő', 'kedd', 'szerda', 'csütörtök', 'péntek', 'szombat'];
     let maNezet = 'nap';
     let maAktualisDatum = null;
+    // A Ma fül határidő-soraihoz tartozó teljes eseményadatok (részletek modálhoz).
+    let maHataridokAdat = {};
 
     function maIso(d) {
         const y = d.getFullYear();
@@ -3378,7 +3380,9 @@ $(document).ready(function() {
                         ${hat.map(function(h) {
                             const kesz = Number(h.kesz) === 1;
                             const hazi = h.esemeny_tipus === 'Házi feladat';
-                            return `<div class="ma-het-hat-sor${kesz ? ' ma-het-kesz' : ''}">
+                            maHataridokAdat[Number(h.id)] = h;
+                            return `<div class="ma-het-hat-sor ma-hatarido${kesz ? ' ma-het-kesz' : ''}"
+                                        role="button" tabindex="0" data-id="${h.id}">
                                 <span class="badge ${hazi ? 'bg-warning text-dark' : 'bg-danger'}">${hazi ? 'Házi' : 'Számonkérés'}</span>
                                 <span class="ma-het-tantargy">${escapeHtml(h.tantargy)}</span>
                                 <span class="ma-het-hat-nev">— ${escapeHtml(h.megnevezes)}</span>
@@ -3448,7 +3452,9 @@ $(document).ready(function() {
                 const rovid = h.esemeny_tipus === 'Házi feladat' ? 'Házi' : 'Számonkérés';
                 const nev = (minden && h.diak_nev)
                     ? `<span class="text-muted ms-auto">${escapeHtml(h.diak_nev)}</span>` : '';
-                return `<div class="list-group-item py-1 px-2 d-flex align-items-center gap-2">
+                maHataridokAdat[Number(h.id)] = h;
+                return `<div class="list-group-item list-group-item-action py-1 px-2 d-flex align-items-center gap-2 ma-hatarido"
+                                 role="button" tabindex="0" data-id="${h.id}">
                     <button class="btn btn-sm btn-link p-0 btn-ma-kesz" data-id="${h.id}"
                             data-kesz="${kesz ? 0 : 1}"
                             title="${kesz ? 'Kész jelölés visszavonása' : 'Megjelölés elkészültként'}">
@@ -3494,6 +3500,7 @@ $(document).ready(function() {
 
     $('#ma-pane').on('click', '.btn-ma-kesz', function(e) {
         e.preventDefault();
+        e.stopPropagation();
         const $btn = $(this);
         $.ajax({
             url: '/api/esemeny/statusz',
@@ -3507,6 +3514,24 @@ $(document).ready(function() {
                 }
             }
         });
+    });
+
+    function maHataridoReszletek(h) {
+        if (!h) return;
+        // A /api/ma ISO-dátumot ad; a közös részletek-modál magyar formátumot vár.
+        const adat = Object.assign({}, h, { hatarido: fmtIsoToHu(h.hatarido) });
+        reszletekModal(h.esemeny_tipus || 'Esemény részletei', esemenyReszletekSzoveg(adat));
+    }
+
+    $('#ma-pane').on('click', '.ma-hatarido', function(e) {
+        if ($(e.target).closest('.btn-ma-kesz').length) return;
+        maHataridoReszletek(maHataridokAdat[Number($(this).data('id'))]);
+    });
+
+    $('#ma-pane').on('keydown', '.ma-hatarido', function(e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        maHataridoReszletek(maHataridokAdat[Number($(this).data('id'))]);
     });
 
     $('#ma-pane').on('click', '.ma-uzenet', function(e) {

@@ -362,7 +362,9 @@ kártya (a táblázatok **alatt, alapból csukva**) bontja a hiányzásokat **na
 
 Az **Áttekintés utáni „Ma” fül** (a dashboard-kártyát a felhasználó elutasította) napi
 összefoglalót ad: **mai órák** (időpont, terem, tanár), **ma és holnap esedékes** házik és
-számonkérések pipával (kattintás → kész jelölés), **friss jegyek** (7 nap) és **olvasatlan
+számonkérések pipával (kattintás → kész jelölés); a **sorra kattintva részletek modál**
+nyílik (tantárgy, téma/leírás, tanár, határidő, állapot). Ugyanez a heti nézet
+határidő-sorain is működik. **Friss jegyek** (7 nap) és **olvasatlan
 üzenetek** (kattintás → üzenet-ablak). Saját gyermek-chipek; a fül megnyitásakor és
 gyermekváltáskor automatikusan frissül (nincs külön Frissítés gomb), a fejléc
 diák-szűrőjét követi. **Kaneo #104:** a fülön belüli **Ma / Hét** szegmentált kapcsoló

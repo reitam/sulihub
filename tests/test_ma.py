@@ -128,6 +128,13 @@ ok(len(hat) == 4, f"4 határidő (ma 3 + holnap 1, a későbbi nem): {len(hat)}"
 ok(sum(1 for e in hat if e["mikor"] == "ma") == 3, "3 mai")
 ok(any(e["kesz"] == 1 for e in hat), "a kész jelző átjön")
 ok(all(e["hatarido"] in ("2026-11-06", "2026-11-07") for e in hat), "csak ma/holnap")
+# A sorra kattintva részletek modál nyílik -> a teljes eseményadatok is kellenek.
+matek = next(e for e in hat if e["tantargy"] == "Matematika")
+ok(matek.get("tema") == "Törtek", f"a részletekhez téma is jön: {matek.get('tema')}")
+ok(matek.get("bej_datum") == "2026. 11. 01.", "a részletekhez bejegyzés dátuma is jön")
+ok(all(kulcs in matek for kulcs in
+       ("ertek", "suly_szazalek", "ertekelo", "tipus", "mod", "tema", "cim", "tartalom")),
+   "a határidő-sor a részletek modál mezőit is tartalmazza")
 
 print("\n3) Friss jegyek (7 nap) és olvasatlan üzenetek")
 ok(len(d.get("uj_jegyek") or []) == 1, f"1 friss jegy: {len(d.get('uj_jegyek') or [])}")
@@ -180,6 +187,11 @@ ok("ma-het-kartya--${szin}" in js and "szin = 'vegyes'" in js
    "a napkártyák színe az eseményekhez igazodik (óra/határidő/vegyes)")
 ok("btnMaFrissit" not in html and "btnMaFrissit" not in js,
    "nincs külön szürke Frissítés gomb a Ma fülön (Kaneo #113)")
+ok("ma-hatarido" in js and "maHataridokAdat" in js and "esemenyReszletekSzoveg" in js
+   and "reszletekModal" in js,
+   "a Ma fül határidő-sorára kattintva megnyílik a részletek modál")
+ok('role="button" tabindex="0"' in js and ".ma-hatarido { cursor: pointer; }" in html,
+   "a határidő-sorok kattinthatók és billentyűzettel is elérhetők")
 ok(client.get("/api/ma?datum=2026-11-06").status_code == 200,
    "a /api/ma végpont él")
 
