@@ -161,6 +161,55 @@
         .jegy-3 { background: #ffc107; color: #212529; }
         .jegy-2 { background: #fd7e14; }
         .jegy-1 { background: #dc3545; }
+        /* Esemény-részletek modál (közös, minden nézetben) */
+        .reszletek-hero {
+            background: #f1f5ff; border: 1px solid #d7e2f7; border-radius: .55rem;
+            padding: .6rem .7rem; margin-bottom: .6rem;
+        }
+        .reszletek-hero-fej { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+        .reszletek-tantargy { font-size: 1.02rem; font-weight: 700; color: #1f2d3d; line-height: 1.2; }
+        .reszletek-tipus { font-size: .68rem; }
+        .reszletek-hero-alap {
+            display: flex; flex-wrap: wrap; gap: .35rem .9rem;
+            margin-top: .35rem; font-size: .78rem; color: #5c677d;
+        }
+        .reszletek-hero-alap i { color: #6c8ac7; }
+        .reszletek-jegy { display: inline-flex; align-items: center; gap: .3rem; }
+        .reszletek-jegy-szoveg { font-size: .72rem; color: #5c677d; }
+        .reszletek-meta {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .45rem .6rem;
+        }
+        .reszletek-meta-item {
+            background: #f8f9fa; border: 1px solid #e9ecef; border-radius: .4rem;
+            padding: .32rem .5rem; min-width: 0;
+        }
+        .reszletek-label {
+            display: block; font-size: .63rem; font-weight: 700; letter-spacing: .04em;
+            text-transform: uppercase; color: #6c757d; line-height: 1.2;
+        }
+        .reszletek-ertek { display: block; font-size: .84rem; color: #212529; word-break: break-word; }
+        .reszletek-leiras {
+            margin-top: .55rem; padding: .45rem .6rem; border-left: 3px solid #0d6efd;
+            background: #f8f9fa; border-radius: .3rem;
+        }
+        .reszletek-leiras-cim {
+            font-size: .64rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+            color: #0b5ed7; margin-bottom: .2rem;
+        }
+        .reszletek-leiras-szoveg {
+            white-space: pre-wrap; word-break: break-word;
+            font-size: .85rem; line-height: 1.5;
+        }
+        @media (max-width: 575.98px) { .reszletek-meta { grid-template-columns: 1fr; } }
+        [data-bs-theme="dark"] .reszletek-hero { background: #1b2a44; border-color: #2c3e5c; }
+        [data-bs-theme="dark"] .reszletek-tantargy { color: #e9ecef; }
+        [data-bs-theme="dark"] .reszletek-hero-alap { color: #aeb9c7; }
+        [data-bs-theme="dark"] .reszletek-meta-item { background: #232a31; border-color: #343a40; }
+        [data-bs-theme="dark"] .reszletek-label { color: #aeb9c7; }
+        [data-bs-theme="dark"] .reszletek-ertek { color: #e9ecef; }
+        [data-bs-theme="dark"] .reszletek-leiras { background: #232a31; border-left-color: #4d8dfd; }
+        [data-bs-theme="dark"] .reszletek-leiras-cim { color: #8ab4ff; }
         .feed-main { min-width: 0; }
         .dash-tile .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
         .dash-tile .kpi-title { font-size: 1.05rem; font-weight: 700; color: #343a40; }
@@ -1793,7 +1842,7 @@
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <div id="detailsModalBody" class="p-2 bg-light rounded border mb-2" style="white-space: pre-wrap; word-break: break-word;"></div>
+        <div id="detailsModalBody" class="mb-2"></div>
         <div id="modalActionContainer" class="d-none text-end mt-2 pt-2 border-top"></div>
       </div>
       <div class="modal-footer p-2">
