@@ -191,7 +191,7 @@ $(document).ready(function() {
                         }
                     }
 
-                    let btnDetailsHtml = `<button class="btn btn-xs btn-outline-primary py-0 px-1 btn-show-details" data-text="${safeTitle}" title="Részletek megtekintése">
+                    let btnDetailsHtml = `<button class="btn btn-xs btn-outline-primary py-0 px-1 btn-show-details" data-id="${data.id}" data-text="${safeTitle}" title="Részletek megtekintése">
                         <i class="fa-solid fa-magnifying-glass"></i>
                     </button>`;
 
@@ -613,7 +613,7 @@ $(document).ready(function() {
                         + `\nÉrvényesség: ${props.ervenyes_tol} – ${props.ervenyes_ig}`
                         + `\nMegjegyzés: ${props.megjegyzes || '-'}`;
                     $('#detailsModalTitle').html(`<i class="fa-solid fa-calendar-plus me-2"></i>${info.event.title}`);
-                    $('#detailsModalBody').text(bodyText);
+                    reszletekBody(bodyText);
                     actionContainer.removeClass('d-none').html(`
                         <div class="d-flex gap-2 justify-content-end flex-wrap">
                             <button class="btn btn-sm btn-outline-primary btn-sajat-szerkeszt" data-id="${props.sajat_id}">
@@ -630,7 +630,7 @@ $(document).ready(function() {
                 } else {
                     let bodyText = `Diák: ${props.diak}\nÓra / Esemény: ${props.tantargy}\nTanár: ${props.tanar || '-'}\nTerem: ${props.terem || '-'}`;
                     $('#detailsModalTitle').html(`<i class="fa-solid fa-clock me-2"></i>${info.event.title}`);
-                    $('#detailsModalBody').text(bodyText);
+                    reszletekBody(bodyText);
                     actionContainer.addClass('d-none');
                 }
 
@@ -687,7 +687,7 @@ $(document).ready(function() {
                 let bodyText = `Diák: ${props.diak}\nTípus / Mód: ${tipusKijelzes}\nTantárgy: ${props.tantargy}\nTanár: ${props.tanar}\n\nLeírás / Részletek:\n${props.leiras}`;
                 
                 $('#detailsModalTitle').html(`<i class="fa-solid fa-circle-info me-2"></i>${info.event.title}`);
-                $('#detailsModalBody').text(bodyText);
+                reszletekBody(bodyText);
 
                 let actionContainer = $('#modalActionContainer');
                 actionContainer.empty();
@@ -1051,11 +1051,14 @@ $(document).ready(function() {
 
     $('#esemenyekTable').on('click', '.btn-show-details', function(e) {
         e.stopPropagation();
-        let fullText = $(this).data('text');
-        $('#detailsModalBody').text(fullText);
-        $('#modalActionContainer').addClass('d-none');
-        let detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
-        detailsModal.show();
+        const id = Number($(this).data('id'));
+        const esemeny = (rawData || []).find(function(x) { return Number(x.id) === id; });
+        if (esemeny) {
+            reszletekModal(esemeny.esemeny_tipus || 'Esemény részletei',
+                           esemenyReszletekSzoveg(esemeny));
+        } else {
+            reszletekModal('Esemény részletei', $(this).data('text') || '');
+        }
     });
 
     // ── Saját megjegyzések (Kaneo #46) ─────────────────────────────────────
@@ -3224,10 +3227,159 @@ $(document).ready(function() {
         return sorok.join('\n');
     }
 
+    const RESZLETEK_LEIRAS_CIMKE = /^(leírás|leírás \/ részletek|megjegyzés|tartalom)$/i;
+
+    function reszletekParse(szoveg) {
+        const rows = [];
+        const sections = [];
+        let aktualis = null;
+        String(szoveg || '').split(/\r?\n/).forEach(function(raw) {
+            const line = raw.trim();
+            if (!line) { aktualis = null; return; }
+            const m = line.match(/^([^:]{1,40}):\s*(.*)$/);
+            if (m) {
+                const cimke = m[1].trim();
+                const ertek = m[2].trim();
+                if (ertek && !RESZLETEK_LEIRAS_CIMKE.test(cimke)) {
+                    rows.push({ cimke: cimke, ertek: ertek });
+                    aktualis = null;
+                } else {
+                    aktualis = { cim: cimke, sorok: ertek ? [ertek] : [] };
+                    sections.push(aktualis);
+                }
+            } else if (aktualis) {
+                aktualis.sorok.push(line);
+            } else {
+                aktualis = { cim: '', sorok: [line] };
+                sections.push(aktualis);
+            }
+        });
+        return { rows: rows, sections: sections };
+    }
+
+    function reszletekRow(rows, nevek) {
+        for (let i = 0; i < rows.length; i++) {
+            const cimke = rows[i].cimke.toLowerCase();
+            if (nevek.some(function(nev) { return cimke === nev; })) {
+                return rows.splice(i, 1)[0];
+            }
+        }
+        return null;
+    }
+
+    function reszletekTipusOsztaly(tipus) {
+        const t = String(tipus || '').toLowerCase();
+        if (t.indexOf('házi') >= 0) return 'text-bg-warning';
+        if (t.indexOf('számonkérés') >= 0) return 'text-bg-danger';
+        if (t.indexOf('értékelés') >= 0 || t.indexOf('jegy') >= 0) return 'text-bg-success';
+        if (t.indexOf('hiányzás') >= 0 || t.indexOf('késés') >= 0) return 'text-bg-secondary';
+        if (t.indexOf('feljegyzés') >= 0) return 'text-bg-info';
+        return 'text-bg-primary';
+    }
+
+    function reszletekAllapotOsztaly(allapot) {
+        const a = String(allapot || '').toLowerCase();
+        if (a.indexOf('elkész') >= 0 || a === 'igazolt') return 'text-bg-success';
+        if (a.indexOf('lejárt') >= 0 || a.indexOf('igazolatlan') >= 0) return 'text-bg-danger';
+        if (a.indexOf('aktív') >= 0) return 'text-bg-warning';
+        return 'text-bg-secondary';
+    }
+
+    function reszletekJegyHtml(ertek) {
+        if (!ertek) return '';
+        const m = String(ertek).match(/\((\d)\)/);
+        const kor = m ? `<span class="jegy-kor jegy-${m[1]}">${m[1]}</span>` : '';
+        return `<span class="reszletek-jegy">${kor}` +
+               `<span class="reszletek-jegy-szoveg">${escapeHtml(ertek)}</span></span>`;
+    }
+
+    function reszletekRender(szoveg) {
+        const parsed = reszletekParse(szoveg);
+        const rows = parsed.rows;
+        const tantargy = reszletekRow(rows, ['tantárgy', 'óra / esemény', 'megnevezés']);
+        const tipus = reszletekRow(rows, ['típus / mód', 'típus']);
+        const diak = reszletekRow(rows, ['diák']);
+        const datum = reszletekRow(rows, ['határidő', 'dátum', 'időpont']);
+        const allapot = reszletekRow(rows, ['állapot']);
+        const igazolt = reszletekRow(rows, ['igazolt']);
+        const ertek = reszletekRow(rows, ['érték']);
+
+        let html = '';
+        const heroFej = [];
+        if (tantargy) {
+            heroFej.push(`<span class="reszletek-tantargy">${escapeHtml(tantargy.ertek)}</span>`);
+        }
+        if (tipus) {
+            heroFej.push(`<span class="badge reszletek-tipus ${reszletekTipusOsztaly(tipus.ertek)}">` +
+                         `${escapeHtml(tipus.ertek)}</span>`);
+        }
+        if (allapot) {
+            heroFej.push(`<span class="badge ${reszletekAllapotOsztaly(allapot.ertek)}">` +
+                         `${escapeHtml(allapot.ertek)}</span>`);
+        } else if (igazolt) {
+            const ig = igazolt.ertek.toLowerCase() === 'igen' ? 'Igazolt' : 'Igazolatlan';
+            heroFej.push(`<span class="badge ${reszletekAllapotOsztaly(ig)}">${escapeHtml(ig)}</span>`);
+        }
+        if (ertek) heroFej.push(reszletekJegyHtml(ertek.ertek));
+
+        if (heroFej.length || diak || datum) {
+            html += '<div class="reszletek-hero">';
+            if (heroFej.length) {
+                html += `<div class="reszletek-hero-fej">${heroFej.join('')}</div>`;
+            }
+            const also = [];
+            if (diak) {
+                also.push(`<span><i class="fa-solid fa-user-graduate me-1"></i>` +
+                          `${escapeHtml(diak.ertek)}</span>`);
+            }
+            if (datum) {
+                also.push(`<span><i class="fa-regular fa-calendar me-1"></i>` +
+                          `${escapeHtml(datum.cimke)}: ${escapeHtml(datum.ertek)}</span>`);
+            }
+            if (also.length) html += `<div class="reszletek-hero-alap">${also.join('')}</div>`;
+            html += '</div>';
+        }
+
+        if (rows.length) {
+            html += '<div class="reszletek-meta">' + rows.map(function(row) {
+                return `<div class="reszletek-meta-item">
+                    <span class="reszletek-label">${escapeHtml(row.cimke)}</span>
+                    <span class="reszletek-ertek">${escapeHtml(row.ertek)}</span>
+                </div>`;
+            }).join('') + '</div>';
+        }
+
+        parsed.sections.forEach(function(section) {
+            const text = section.sorok.join('\n').trim();
+            if (!text) return;
+            html += `<div class="reszletek-leiras">
+                <div class="reszletek-leiras-cim"><i class="fa-solid fa-align-left me-1"></i>${escapeHtml(section.cim || 'Leírás')}</div>
+                <div class="reszletek-leiras-szoveg">${escapeHtml(text)}</div>
+            </div>`;
+        });
+
+        return html || '<div class="text-muted">Nincs megjeleníthető részlet.</div>';
+    }
+
+    function reszletekIcon(cim) {
+        const c = String(cim || '').toLowerCase();
+        if (c.indexOf('házi') >= 0) return 'fa-book-open';
+        if (c.indexOf('számonkérés') >= 0) return 'fa-file-pen';
+        if (c.indexOf('értékelés') >= 0 || c.indexOf('jegy') >= 0) return 'fa-graduation-cap';
+        if (c.indexOf('hiányzás') >= 0 || c.indexOf('késés') >= 0) return 'fa-user-clock';
+        if (c.indexOf('feljegyzés') >= 0) return 'fa-note-sticky';
+        if (c.indexOf('fogadóóra') >= 0) return 'fa-handshake';
+        return 'fa-circle-info';
+    }
+
+    function reszletekBody(szoveg) {
+        $('#detailsModalBody').html(reszletekRender(szoveg));
+    }
+
     function reszletekModal(cim, szoveg) {
-        $('#detailsModalTitle').html('<i class="fa-solid fa-circle-info me-2"></i>' +
+        $('#detailsModalTitle').html(`<i class="fa-solid ${reszletekIcon(cim)} me-2"></i>` +
                                      escapeHtml(cim));
-        $('#detailsModalBody').text(szoveg || 'Nincs megjeleníthető részlet.');
+        reszletekBody(szoveg);
         $('#modalActionContainer').addClass('d-none');
         bootstrap.Modal.getOrCreateInstance(document.getElementById('detailsModal')).show();
     }

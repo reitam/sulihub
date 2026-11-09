@@ -373,6 +373,11 @@ középre igazított rácsban** (max. 780 px, nem a képernyő teljes szélessé
 színe az eseményekhez igazodik (óra = kék, határidő = borostyán, vegyes = lila). Páratlan
 számú kártyánál az utolsó a két oszlophoz képest **középre** kerül. A havi nézet a
 felhasználó döntése alapján **nincs**. Adatforrás: `/api/ma?diak=&datum=`.
+A **részletek modál** mindenhonnan (naptár, Események táblázat, kereső, Ma fül,
+hiányzások) ugyanazt a **tagolt elrendezést** használja: felül a tantárgy + típus- és
+állapotjelvény, valamint a diák és a határidő; alatta kétoszlopos adatkártyák; végül a
+leírás külön blokkban. Mobilon az adatkártyák egy oszlopra törnek, sötét módban is
+olvasható.
 
 ### 2.15. Aktuális bizonyítvány PDF (Kaneo #82)
 

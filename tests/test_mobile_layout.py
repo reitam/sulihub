@@ -209,12 +209,20 @@ try:
             await page.click("#maHataridok .ma-hatarido:has-text('Ma teszt házi')")
             await page.wait_for_selector('#detailsModal.show', timeout=5000)
             await page.wait_for_timeout(250)
-            reszlet = await page.evaluate("""() => ({
-                visible: document.querySelector('#detailsModal').classList.contains('show'),
-                text: (document.querySelector('#detailsModalBody') || {}).innerText || ''})""")
-            ok(reszlet["visible"] and "Ma teszt házi" in reszlet["text"]
-               and "Részletes leírás a modálhoz" in reszlet["text"],
-               f"a Ma fül határidő-sorára koppintva részletek modál nyílik: {reszlet['text'][:80]!r}")
+            reszlet = await page.evaluate("""() => {
+                const body = document.querySelector('#detailsModalBody');
+                return {
+                    visible: document.querySelector('#detailsModal').classList.contains('show'),
+                    text: (body || {}).innerText || '',
+                    hero: !!body.querySelector('.reszletek-hero'),
+                    subject: (body.querySelector('.reszletek-tantargy') || {}).innerText || '',
+                    meta: body.querySelectorAll('.reszletek-meta-item').length,
+                    leiras: (body.querySelector('.reszletek-leiras-szoveg') || {}).innerText || ''
+                };
+            }""")
+            ok(reszlet["visible"] and reszlet["hero"] and reszlet["subject"] == "Biológia"
+               and reszlet["meta"] >= 2 and "Részletes leírás a modálhoz" in reszlet["leiras"],
+               f"a Ma fül határidő-sorára koppintva tagolt részletek modál nyílik: {reszlet}")
             await page.click('#detailsModal .btn-close')
             await page.wait_for_timeout(400)
 
