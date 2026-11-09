@@ -375,9 +375,9 @@ számú kártyánál az utolsó a két oszlophoz képest **középre** kerül. A
 felhasználó döntése alapján **nincs**. Adatforrás: `/api/ma?diak=&datum=`.
 A **részletek modál** mindenhonnan (naptár, Események táblázat, kereső, Ma fül,
 hiányzások) ugyanazt a **tagolt elrendezést** használja: felül a tantárgy + típus- és
-állapotjelvény, valamint a diák és a határidő; alatta kétoszlopos adatkártyák; végül a
-leírás külön blokkban. Mobilon az adatkártyák egy oszlopra törnek, sötét módban is
-olvasható.
+állapotjelvény, valamint a diák és a határidő; alatta kétoszlopos, tömör
+címke–érték sorok; végül a leírás külön blokkban. Az **aktív** állapot zöld jelvényt kap.
+Mobilon az adatsorok egy oszlopra törnek, sötét módban is olvashatók.
 
 ### 2.15. Aktuális bizonyítvány PDF (Kaneo #82)
 

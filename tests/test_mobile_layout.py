@@ -211,18 +211,25 @@ try:
             await page.wait_for_timeout(250)
             reszlet = await page.evaluate("""() => {
                 const body = document.querySelector('#detailsModalBody');
+                const status = [...body.querySelectorAll('.reszletek-hero-fej .badge')]
+                    .find(b => b.innerText.trim() === 'Aktív');
                 return {
                     visible: document.querySelector('#detailsModal').classList.contains('show'),
                     text: (body || {}).innerText || '',
                     hero: !!body.querySelector('.reszletek-hero'),
                     subject: (body.querySelector('.reszletek-tantargy') || {}).innerText || '',
+                    adat: body.querySelectorAll('.reszletek-hero-adat').length,
+                    statusClass: status ? status.className : '',
                     meta: body.querySelectorAll('.reszletek-meta-item').length,
                     leiras: (body.querySelector('.reszletek-leiras-szoveg') || {}).innerText || ''
                 };
             }""")
             ok(reszlet["visible"] and reszlet["hero"] and reszlet["subject"] == "Biológia"
-               and reszlet["meta"] >= 2 and "Részletes leírás a modálhoz" in reszlet["leiras"],
+               and reszlet["adat"] == 2 and reszlet["meta"] >= 2
+               and "Részletes leírás a modálhoz" in reszlet["leiras"],
                f"a Ma fül határidő-sorára koppintva tagolt részletek modál nyílik: {reszlet}")
+            ok("text-bg-success" in reszlet["statusClass"],
+               f"az aktív állapot zöld jelvény ({reszlet['statusClass']})")
             await page.click('#detailsModal .btn-close')
             await page.wait_for_timeout(400)
 
@@ -416,6 +423,27 @@ try:
                and abs(attek["r"] - ma_szeles["r"]) <= 1,
                f"a Ma fül ugyanakkora középre igazított sávot használ, mint az Áttekintés "
                f"({attek} / {ma_szeles})")
+
+            # 7e) asztali részletek modál: kétoszlopos meta, nincs túlcsordulás
+            await page.click("#maHataridok .ma-hatarido:has-text('Ma teszt házi')")
+            await page.wait_for_selector('#detailsModal.show', timeout=5000)
+            await page.wait_for_timeout(250)
+            asztali_modal = await page.evaluate("""() => {
+                const body = document.querySelector('#detailsModalBody');
+                const meta = body.querySelector('.reszletek-meta');
+                const modal = document.querySelector('#detailsModal .modal-dialog');
+                return {
+                    cols: meta ? getComputedStyle(meta).gridTemplateColumns.split(' ').length : 0,
+                    bodyScroll: body.scrollWidth, bodyClient: body.clientWidth,
+                    modalWidth: Math.round(modal.getBoundingClientRect().width),
+                    heroAdat: body.querySelectorAll('.reszletek-hero-adat').length
+                };
+            }""")
+            ok(asztali_modal["cols"] == 2, f"asztalon a részletek kétoszloposak ({asztali_modal})")
+            ok(asztali_modal["bodyScroll"] <= asztali_modal["bodyClient"] + 1,
+               f"a részletek modál tartalma nem csúszik ki ({asztali_modal})")
+            await page.click('#detailsModal .btn-close')
+            await page.wait_for_timeout(400)
 
             await page.set_viewport_size({"width": 393, "height": 873})
             await page.wait_for_timeout(300)
