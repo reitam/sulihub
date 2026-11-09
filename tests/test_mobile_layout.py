@@ -388,6 +388,27 @@ try:
                f"a fejléc asztalon sem csúszik ki ({desk['headerScroll']} <= {desk['headerClient']})")
             ok(desk["logoWidth"] >= 64 and desk["titleSize"] >= 32,
                f"a középső logó/név nagy (logó {desk['logoWidth']} px, név {desk['titleSize']} px)")
+
+            # 7d) széles kijelzőn a Ma fül ugyanúgy középre igazított, mint az Áttekintés
+            await page.set_viewport_size({"width": 1600, "height": 950})
+            await page.wait_for_timeout(400)
+            await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('attekintes-tab')).show()")
+            await page.wait_for_timeout(400)
+            attek = await page.evaluate("""() => {
+                const r = document.querySelector('#attekintes-pane').getBoundingClientRect();
+                return {w: Math.round(r.width), l: Math.round(r.left), r: Math.round(r.right)}; }""")
+            await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('ma-tab')).show()")
+            await page.wait_for_timeout(600)
+            ma_szeles = await page.evaluate("""() => {
+                const r = document.querySelector('#ma-pane').getBoundingClientRect();
+                return {w: Math.round(r.width), l: Math.round(r.left), r: Math.round(r.right)}; }""")
+            ok(attek["w"] <= 1200 and ma_szeles["w"] <= 1200
+               and abs(attek["w"] - ma_szeles["w"]) <= 1
+               and abs(attek["l"] - ma_szeles["l"]) <= 1
+               and abs(attek["r"] - ma_szeles["r"]) <= 1,
+               f"a Ma fül ugyanakkora középre igazított sávot használ, mint az Áttekintés "
+               f"({attek} / {ma_szeles})")
+
             await page.set_viewport_size({"width": 393, "height": 873})
             await page.wait_for_timeout(300)
 

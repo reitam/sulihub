@@ -192,6 +192,8 @@ ok("ma-hatarido" in js and "maHataridokAdat" in js and "esemenyReszletekSzoveg" 
    "a Ma fül határidő-sorára kattintva megnyílik a részletek modál")
 ok('role="button" tabindex="0"' in js and ".ma-hatarido { cursor: pointer; }" in html,
    "a határidő-sorok kattinthatók és billentyűzettel is elérhetők")
+ok("#attekintes-pane,\n            #ma-pane { max-width: 1200px" in html,
+   "a Ma fül széles kijelzőn ugyanúgy középre igazított, mint az Áttekintés")
 ok(client.get("/api/ma?datum=2026-11-06").status_code == 200,
    "a /api/ma végpont él")
 
