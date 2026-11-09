@@ -663,11 +663,32 @@ class KretaApiClient:
         return str(data.get("TanevUid") or "").strip()
 
     def fetch_consultations(self, start: date, end: date) -> list[dict]:
-        """Fogadóórák tanáronként (a webes naptár is mutatja őket)."""
-        data = self._api_get("sajat/Fogadoorak", {
-            "datumTol": start.isoformat(), "datumIg": end.isoformat(),
-        })
-        return list(data or [])
+        """Fogadóórák tanáronként (a webes naptár is mutatja őket).
+
+        A `/sajat/Fogadoorak` legfeljebb **3 hetes** intervallumot fogad el, ezért
+        a kért ablakot ugyanúgy szeleteljük, mint a többi adatkörnél (a 4 hetes
+        órarend-ablak így nem fut 400-as validációs hibára). Egy tanár blokkja
+        több szeletben is visszajöhet: a slotokat Uid/időpont szerint
+        összefésüljük, hogy ne legyen duplikált fogadóóra.
+        """
+        blocks: dict[str, dict] = {}
+        for chunk_start, chunk_end in chunk_date_range(start, end):
+            data = self._api_get("sajat/Fogadoorak", {
+                "datumTol": chunk_start.isoformat(), "datumIg": chunk_end.isoformat(),
+            })
+            for block in data or []:
+                teacher = _nev(block.get("Tanar"))
+                key = teacher or f"__blokk_{len(blocks)}"
+                existing = blocks.get(key)
+                if existing is None:
+                    blocks[key] = block
+                    continue
+                slots = {_consultation_slot_key(slot): slot
+                         for slot in existing.get("Fogadoorak") or []}
+                for slot in block.get("Fogadoorak") or []:
+                    slots.setdefault(_consultation_slot_key(slot), slot)
+                existing["Fogadoorak"] = list(slots.values())
+        return list(blocks.values())
 
     def fetch_messages(self) -> list[dict]:
         data = self._eadmin_get("kommunikacio/postaladaelemek/sajat")
@@ -805,6 +826,12 @@ def normalize_lesson(item: dict) -> dict:
         "teremNev": _text(item.get("TeremNeve")),
         "allDay": all_day,
     }
+
+
+def _consultation_slot_key(slot: dict) -> str:
+    """Fogadóóra-slot azonosítója a szeletek közötti összefésüléshez."""
+    return str(slot.get("Uid")
+               or f"{_text(slot.get('KezdoIdopont'))}|{_text(slot.get('VegIdopont'))}")
 
 
 def normalize_consultations(blocks: list[dict]) -> list[dict]:

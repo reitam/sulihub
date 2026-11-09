@@ -456,7 +456,10 @@ MIGRATIONS-ba** kerül. Új migrációnál a verziót léptetni kell (`SCHEMA_VE
 ### 2.22. Órarend: 4 hét előre, múlt megőrzése (Kaneo #122)
 
 A szinkron az **aktuális hét + 3 hét** (28 nap) órarendjét kéri le (API: `week_window`,
-Playwright: 4 hét navigáció). A mentés **csak az új ablak kezdetétől** töröl, a korábbi
+Playwright: 4 hét navigáció). Az API-hívások 20 napos szeletekben mennek: az
+`OrarendElemek` és a `Fogadoorak` végpont is így kapja meg a 4 hetes ablakot
+(utóbbi legfeljebb 3 hetet enged egy kérésben; a szeletek között az azonos
+fogadóóra-slotok Uid/időpont szerint összefésülődnek). A mentés **csak az új ablak kezdetétől** töröl, a korábbi
 heteket **megőrzi** (múltbéli adat); üres lista továbbra sem törölhet (adatvédelem).
 A régi (2 hetes) ablakhoz képest a naptár előretekerése is négy hétre elegendő.
 

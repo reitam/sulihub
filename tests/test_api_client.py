@@ -467,6 +467,35 @@ ok(safe_fajlnev("") == "csatolmany", "üres név helyére alapérték")
 ok(safe_fajlnev("x" * 200 + ".pdf").endswith(".pdf"), "hosszú név: a kiterjesztés megmarad")
 ok(len(safe_fajlnev("x" * 200 + ".pdf")) <= 120, "hosszú név 120 karakterre vágva")
 
+print("\n8g) Fogadóórák: 3 hetes API-korlát -> szeletelés")
+client = make_client([
+    FakeResponse(200, json_data=[{
+        "Tanar": {"Nev": "Szentkirályi Zsuzsanna"},
+        "Fogadoorak": [{"Uid": "1", "KezdoIdopont": "2026-11-12T15:30:00Z",
+                        "VegIdopont": "2026-11-12T17:30:00Z"}],
+    }]),
+    FakeResponse(200, json_data=[{
+        "Tanar": {"Nev": "Szentkirályi Zsuzsanna"},
+        "Fogadoorak": [{"Uid": "1", "KezdoIdopont": "2026-11-12T15:30:00Z",
+                        "VegIdopont": "2026-11-12T17:30:00Z"}],
+    }, {
+        "Tanar": {"Nev": "Erl Andrea"},
+        "Fogadoorak": [{"Uid": "2", "KezdoIdopont": "2026-12-03T15:30:00Z",
+                        "VegIdopont": "2026-12-03T17:30:00Z"}],
+    }]),
+])
+client.token = ApiToken("a", "r", "iskola", time.time() + 3600)
+consult_blocks = client.fetch_consultations(date(2026, 11, 9), date(2026, 12, 6))
+consult_ranges = [(call[2]["params"]["datumTol"], call[2]["params"]["datumIg"])
+                  for call in client.session.calls]
+ok(len(consult_ranges) == 2, f"28 nap -> 2 szelet ({len(consult_ranges)})")
+ok(consult_ranges == [("2026-11-09", "2026-11-28"), ("2026-11-29", "2026-12-06")],
+   f"a szeletek határai: {consult_ranges}")
+ok(all((date.fromisoformat(end) - date.fromisoformat(start)).days + 1 <= 21
+       for start, end in consult_ranges), "egyik szelet sem hosszabb 3 hétnél")
+ok(len(consult_blocks) == 2, f"két tanár blokkja, duplikáció nélkül ({len(consult_blocks)})")
+ok(len(consult_blocks[0]["Fogadoorak"]) == 1, "a szeletek közti közös slot nem duplázódik")
+
 print("\n9) Nincs Playwright-függés")
 source = (ROOT / "kreta_api.py").read_text(encoding="utf-8")
 ok("import playwright" not in source and "from playwright" not in source,
