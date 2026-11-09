@@ -3279,9 +3279,10 @@ $(document).ready(function() {
 
     function reszletekAllapotOsztaly(allapot) {
         const a = String(allapot || '').toLowerCase();
-        if (a.indexOf('elkész') >= 0 || a === 'igazolt') return 'text-bg-success';
         if (a.indexOf('lejárt') >= 0 || a.indexOf('igazolatlan') >= 0) return 'text-bg-danger';
-        if (a.indexOf('aktív') >= 0) return 'text-bg-warning';
+        if (a.indexOf('aktív') >= 0 || a.indexOf('elkész') >= 0 || a === 'igazolt') {
+            return 'text-bg-success';
+        }
         return 'text-bg-secondary';
     }
 
@@ -3329,11 +3330,13 @@ $(document).ready(function() {
             }
             const also = [];
             if (diak) {
-                also.push(`<span><i class="fa-solid fa-user-graduate me-1"></i>` +
+                also.push(`<span class="reszletek-hero-adat">` +
+                          `<i class="fa-solid fa-user-graduate"></i>` +
                           `${escapeHtml(diak.ertek)}</span>`);
             }
             if (datum) {
-                also.push(`<span><i class="fa-regular fa-calendar me-1"></i>` +
+                also.push(`<span class="reszletek-hero-adat">` +
+                          `<i class="fa-regular fa-calendar"></i>` +
                           `${escapeHtml(datum.cimke)}: ${escapeHtml(datum.ertek)}</span>`);
             }
             if (also.length) html += `<div class="reszletek-hero-alap">${also.join('')}</div>`;
