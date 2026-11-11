@@ -35,7 +35,10 @@ import kreta_tanev
 from kreta_db import get_db_connection
 from kreta_paths import APP_DIR, DB_FILE
 from kreta_settings import load_config
-from views_common import _tanev_from_request, hianyzas_osszesito, make_bp, normalize_date
+from views_common import (
+    _tanev_from_request, hianyzas_osszesito, legjobb_tantargy_nev, make_bp, normalize_date,
+    tantargy_kulcs,
+)
 
 bp = make_bp("exports")
 
@@ -1047,9 +1050,6 @@ def api_esemenyek_xlsx():
     if tipus_szuro:
         query += " AND esemeny_tipus = ?"
         params.append(tipus_szuro)
-    if tantargy_szuro:
-        query += " AND tantargy = ?"
-        params.append(tantargy_szuro)
     query += " ORDER BY bej_datum, diak_nev, tantargy"
     try:
         cursor.execute(query, params)
@@ -1075,6 +1075,8 @@ def api_esemenyek_xlsx():
         return True
 
     def lathato(r):
+        if tantargy_szuro and tantargy_kulcs(r.get("tantargy")) != tantargy_kulcs(tantargy_szuro):
+            return False
         if not datum_benne(r.get("bej_datum")):
             return False
         hat = normalize_date(r.get("hatarido") or "")
@@ -1307,6 +1309,8 @@ def _riport_adatok(diak, tanev, kezdo, zaro):
         " ORDER BY bej_datum", (diak, tanev))
     esemenyek = [dict(r) for r in cursor.fetchall()]
     adatok = {"tantargyak": {}, "feljegyzesek": [], "egyeb_jegyek": {}}
+    tantargy_nevek = {}
+    egyeb_nevek = {}
     for r in esemenyek:
         d = normalize_date(r.get("bej_datum") or "")
         if d and ((kezdo and d < kezdo.isoformat()) or (zaro and d > zaro.isoformat())):
@@ -1314,17 +1318,22 @@ def _riport_adatok(diak, tanev, kezdo, zaro):
         tipus = r.get("esemeny_tipus") or ""
         if tipus == "Értékelés":
             tantargy = (r.get("tantargy") or "Egyéb").strip()
+            kulcs = tantargy_kulcs(tantargy) or "egyeb"
+            tantargy_nevek.setdefault(kulcs, {})
+            tantargy_nevek[kulcs][tantargy] = tantargy_nevek[kulcs].get(tantargy, 0) + 1
             try:
                 szam = int(r.get("szam_ertek"))
             except (TypeError, ValueError):
                 szam = 0
             if szam in (1, 2, 3, 4, 5):
-                entry = adatok["tantargyak"].setdefault(tantargy, [])
+                entry = adatok["tantargyak"].setdefault(kulcs, [])
                 entry.append({"ertek": r.get("ertek") or str(szam), "szam": szam,
                               "suly": int(r.get("suly_szazalek") or 0),
                               "datum": d or ""})
             elif r.get("ertek"):
-                adatok["egyeb_jegyek"][tantargy] = r.get("ertek")
+                egyeb_nevek.setdefault(kulcs, {})
+                egyeb_nevek[kulcs][tantargy] = egyeb_nevek[kulcs].get(tantargy, 0) + 1
+                adatok["egyeb_jegyek"][kulcs] = r.get("ertek")
         elif tipus == "Feljegyzés":
             adatok["feljegyzesek"].append({
                 "datum": d or "", "mod": r.get("mod") or r.get("tipus") or "",
@@ -1332,18 +1341,26 @@ def _riport_adatok(diak, tanev, kezdo, zaro):
                 "tanar": r.get("ertekelo") or "",
             })
 
-    for tantargy, jegyek in adatok["tantargyak"].items():
+    # A tantárgyakat kis/nagybetűtől függetlenül vonjuk össze (Kaneo #127).
+    tantargyak_osszevont = {}
+    for kulcs, jegyek in adatok["tantargyak"].items():
         sulyos = [(j["szam"], j["suly"]) for j in jegyek if j["suly"] > 0]
         if sulyos:
             ossz_suly = sum(s for _e, s in sulyos)
             atlag = sum(e * s for e, s in sulyos) / ossz_suly
         else:
             atlag = sum(j["szam"] for j in jegyek) / len(jegyek)
-        adatok["tantargyak"][tantargy] = {
+        nev = legjobb_tantargy_nev(tantargy_nevek.get(kulcs, {}))
+        tantargyak_osszevont[nev] = {
             "jegyek": jegyek,
             "atlag": round(atlag, 2),
             "db": len(jegyek),
         }
+    adatok["tantargyak"] = tantargyak_osszevont
+    adatok["egyeb_jegyek"] = {
+        legjobb_tantargy_nev(egyeb_nevek.get(kulcs, {})): ertek
+        for kulcs, ertek in adatok["egyeb_jegyek"].items()
+    }
 
     try:
         cursor.execute("SELECT * FROM hianyzasok WHERE diak_nev = ? AND tanev = ?",

@@ -101,6 +101,33 @@ def _has_tanev_column(cursor, table: str) -> bool:
         return False
 
 
+def tantargy_kulcs(value) -> str:
+    """Tantárgy-összehasonlítás kulcsa: szóköz-normalizált, kis/nagybetű-független.
+
+    A KRÉTA tantárgynevei nem egységesen nagybetűsek (pl. „Angol nyelv" vs.
+    „angol nyelv" ugyanarra a tantárgyra), ezért a szűrést és a csoportosítást
+    ezzel a kulccsal végezzük (Kaneo #127).
+    """
+    return " ".join(str(value or "").split()).casefold()
+
+
+def legjobb_tantargy_nev(valtozatok: dict) -> str:
+    """A leggyakoribb írásmód kiválasztása.
+
+    Holtversenynél a „normál" (nem csupa nagybetűs, nagy kezdőbetűs) alakot
+    részesítjük előnyben, hogy a felületen ne „ANGOL NYELV" jelenjen meg.
+    """
+    if not valtozatok:
+        return ""
+
+    def sorrend(kv):
+        nev, db = kv
+        csupa_nagy = 1 if str(nev).isupper() else 0
+        return (-db, csupa_nagy, not str(nev)[:1].isupper(), str(nev))
+
+    return sorted(valtozatok.items(), key=sorrend)[0][0]
+
+
 def normalize_date(d_str):
     if not d_str or d_str == "-":
         return None

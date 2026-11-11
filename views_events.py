@@ -15,7 +15,7 @@ from kreta_db import (
     get_db_connection, get_meta, komment_kulcs_esemeny, komment_szamok, set_meta,
 )
 from kreta_paths import DB_FILE
-from views_common import _tanev_from_request, contrast_text, make_bp, normalize_date
+from views_common import _tanev_from_request, contrast_text, make_bp, normalize_date, tantargy_kulcs
 
 bp = make_bp("events")
 
@@ -41,9 +41,9 @@ def api_esemenyek():
     if tipus:
         query += " AND esemeny_tipus = ?"
         params.append(tipus)
-    if tantargy:
-        query += " AND tantargy = ?"
-        params.append(tantargy)
+    # A tantárgy-szűrést Pythonban végezzük: a KRÉTA írásmódja nem egységes
+    # („Angol nyelv" vs. „angol nyelv"), az SQL `=` viszont kis/nagybetű-érzékeny
+    # (Kaneo #127). Így a szűrő mindkét írásmódra ugyanazt adja.
     if tanev:
         query += " AND tanev = ?"
         params.append(tanev)
@@ -59,17 +59,16 @@ def api_esemenyek():
         offset = int(request.args.get("offset") or 0)
     except ValueError:
         offset = 0
-    if limit > 0:
-        query += " LIMIT ?"
-        params.append(limit)
-    elif offset > 0:
-        query += " LIMIT -1"
-    if offset > 0:
-        query += " OFFSET ?"
-        params.append(offset)
 
     cursor.execute(query, params)
     rows = cursor.fetchall()
+    if tantargy:
+        kulcs = tantargy_kulcs(tantargy)
+        rows = [r for r in rows if tantargy_kulcs(r["tantargy"]) == kulcs]
+    if limit > 0:
+        rows = rows[offset:offset + limit]
+    elif offset > 0:
+        rows = rows[offset:]
     komment_db = komment_szamok(cursor, "esemeny")
 
     esemenyek = []
