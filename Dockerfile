@@ -11,7 +11,10 @@ WORKDIR /app
 # tzdata a TZ=Europe/Budapest-hez, sqlite3 CLI (entrypoint DB-guard + mentések),
 # util-linux a setpriv-hez (entrypoint jogosultságváltás), fonts-liberation a
 # PDF magyar ő/ű betűkészletéhez (a ReportLab beépített Type1 betűi nem tudják).
-RUN apt-get update && apt-get install -y --no-install-recommends tzdata sqlite3 util-linux fonts-liberation \
+# libatomic1: a Playwright bundle-elt Node-ja (driver/node) ezt keresi; a friss
+# python:3.12-slim alapimage-bol hianyzik, es a "playwright install" a sajat
+# fuggosegeinek telepitese ELOTT elszall (exit 127, libatomic.so.1).
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata sqlite3 util-linux fonts-liberation libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Függőségek külön rétegben (cache: kódváltozáskor nem épül újra)
