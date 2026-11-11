@@ -426,6 +426,14 @@
             box-shadow: none;
         }
 
+        /* Dátum-tartomány csoport felirata mobilon (a címkék ≤767 px-en rejtve) */
+        .date-range-caption {
+            font-size: .75rem;
+            font-weight: 700;
+            color: var(--bs-secondary-color);
+            margin-bottom: .15rem;
+        }
+
         /* ══════════════════════════════════════════════════════════════════
            MOBIL NÉZET (Redmi 12/13/14 ~393 CSS px, ≤ 767 px)
            Cél: minden tartalom olvasható, görgethető, koppintható.
@@ -867,11 +875,21 @@
 
                         <div class="row g-2 align-items-center">
                             <div class="col-12 col-md-6">
+                                <div class="date-range-caption d-md-none">Bejegyzés kelte</div>
                                 <div class="input-group input-group-sm date-range-group">
                                     <span class="input-group-text bg-light text-secondary fw-bold" style="font-size: 0.75rem;">Bejegyzés kelte (-tól)</span>
                                     <input type="date" id="filterBejKezdoDatum" class="form-control">
                                     <span class="input-group-text bg-light text-secondary fw-bold" style="font-size: 0.75rem;">(-ig)</span>
                                     <input type="date" id="filterBejZaroDatum" class="form-control">
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <div class="date-range-caption d-md-none">Határidő</div>
+                                <div class="input-group input-group-sm date-range-group">
+                                    <span class="input-group-text bg-light text-secondary fw-bold" style="font-size: 0.75rem;">Határidő (-tól)</span>
+                                    <input type="date" id="filterHatKezdoDatum" class="form-control">
+                                    <span class="input-group-text bg-light text-secondary fw-bold" style="font-size: 0.75rem;">(-ig)</span>
+                                    <input type="date" id="filterHatZaroDatum" class="form-control">
                                 </div>
                             </div>
                         </div>
@@ -883,9 +901,6 @@
                             <button class="btn btn-sm btn-outline-dark py-0 px-2 chip-diak" data-diak="{{ d }}" style="font-size: 0.78rem;">{{ d }}</button>
                             {% endfor %}
                         </div>
-                        <input type="hidden" id="filterHatKezdoDatum">
-                        <input type="hidden" id="filterHatZaroDatum">
-                        <div id="hataridoFilterInfo" class="small text-muted mt-1 d-none"></div>
                     </div>
                 </div>
             </div>

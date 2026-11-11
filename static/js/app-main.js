@@ -1217,7 +1217,6 @@ $(document).ready(function() {
         let hatZaroStr = $('#filterHatZaroDatum').val();
         let hatKezdoNum = hatKezdoStr ? parseInt(hatKezdoStr.replace(/-/g, ''), 10) : null;
         let hatZaroNum = hatZaroStr ? parseInt(hatZaroStr.replace(/-/g, ''), 10) : null;
-        updateHataridoFilterInfo(hatKezdoNum, hatZaroNum);
 
         let filteredData = rawData.filter(item => {
             if (statusFilter) {
@@ -1265,23 +1264,6 @@ $(document).ready(function() {
                 setTimeout(function() { $(node).removeClass('kereses-kiemel'); }, 3200);
             });
         }, 200);
-    }
-
-    function updateHataridoFilterInfo(kezdoNum, zaroNum) {
-        let $info = $('#hataridoFilterInfo');
-        if (!kezdoNum && !zaroNum) {
-            $info.addClass('d-none').empty();
-            return;
-        }
-        let fmt = (n) => {
-            let s = String(n);
-            return `${s.slice(0, 4)}. ${s.slice(4, 6)}. ${s.slice(6, 8)}.`;
-        };
-        let txt = 'Határidő-szűrő: ' + (kezdoNum ? fmt(kezdoNum) : '') +
-                  (zaroNum ? ' – ' + fmt(zaroNum) : '');
-        $info.removeClass('d-none').html(
-            `<i class="fa-solid fa-filter me-1"></i>${txt}
-             <button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline" id="btnClearHataridoFilter">törlés</button>`);
     }
 
     // A hónap-oszlop csak a hónap neve (a tanév az időszak-feliratban látszik);
@@ -2599,7 +2581,7 @@ $(document).ready(function() {
         loadData();
     });
 
-    $('#filterBejKezdoDatum, #filterBejZaroDatum, #filterStatus').change(function() {
+    $('#filterBejKezdoDatum, #filterBejZaroDatum, #filterHatKezdoDatum, #filterHatZaroDatum, #filterStatus').change(function() {
         applyFilters();
     });
 
@@ -2610,6 +2592,7 @@ $(document).ready(function() {
 
         $('#filterBejKezdoDatum').val(r.kezdo);
         $('#filterBejZaroDatum').val(r.zaro);
+        $('#filterHatKezdoDatum, #filterHatZaroDatum').val('');
         $('#filterStatus').val('');
 
         applyFilters();
@@ -2625,6 +2608,7 @@ $(document).ready(function() {
 
         $('#filterBejKezdoDatum').val(r.kezdo);
         $('#filterBejZaroDatum').val(r.zaro);
+        $('#filterHatKezdoDatum, #filterHatZaroDatum').val('');
         $('#filterStatus').val('');
 
         applyFilters();
@@ -2641,6 +2625,7 @@ $(document).ready(function() {
 
         $('#filterBejKezdoDatum').val(r.kezdo);
         $('#filterBejZaroDatum').val(r.zaro);
+        $('#filterHatKezdoDatum, #filterHatZaroDatum').val('');
         $('#filterStatus').val('');
 
         applyFilters();
@@ -2649,6 +2634,7 @@ $(document).ready(function() {
     $('#btnQuickActive').click(function() {
         $('#filterBejKezdoDatum').val('');
         $('#filterBejZaroDatum').val('');
+        $('#filterHatKezdoDatum, #filterHatZaroDatum').val('');
         $('#filterStatus').val('aktiv');
         applyFilters();
     });
@@ -2729,12 +2715,6 @@ $(document).ready(function() {
     // ── Dashboard: csempék, gyermek-chipek, visszalépés ────────────────────
     $('#filterDiakChips, #dashboardDiakChips, #maDiakChips').on('click', '.chip-diak', function() {
         setDiakFilter($(this).data('diak') || '');
-    });
-
-    $(document).on('click', '#btnClearHataridoFilter', function() {
-        $('#filterHatKezdoDatum').val('');
-        $('#filterHatZaroDatum').val('');
-        applyFilters();
     });
 
     function lastNDaysRange(days) {
