@@ -188,6 +188,20 @@ ok(torzs2 == "Ma nem történt esemény, holnapra nincs esedékes feladat.",
 cim3, _ = kreta_digest.build_message("Teszt Béla", TODAY, {}, False)
 ok("Teszt Béla" not in cim3, f"név nélküli cím: {cim3!r}")
 
+# Több napot átfogó (manuális) összefoglaló
+conn = app.get_db_connection()
+adat_multi = kreta_digest.collect_range(conn, "Teszt Anna", TEGNAP, TODAY)
+conn.close()
+ok(len(adat_multi["jegyek"]) == 2,
+   f"a tegnapi + mai jegy együtt: {len(adat_multi['jegyek'])}")
+cim_r, torzs_r = kreta_digest.build_message("Teszt Anna", TODAY, adat_multi, True,
+                                            kezdo=TEGNAP)
+ok(TEGNAP.strftime("%Y") in cim_r and " – " in cim_r, f"időszakos cím: {cim_r}")
+ok(torzs_r.startswith("Időszak:"), f"az időszak a törzs elején: {torzs_r.splitlines()[0]!r}")
+_, torzs_ures = kreta_digest.build_message("Teszt Anna", TODAY, {}, True, kezdo=TEGNAP)
+ok(torzs_ures == "Az utolsó automatikus összefoglaló óta nem történt esemény.",
+   f"üres időszak szövege: {torzs_ures!r}")
+
 print("\n2) Küldési döntés")
 settings = {"enabled": True, "time": "19:30", "include_names": True}
 ok(not kreta_digest.should_send(settings, "", datetime(2026, 11, 11, 19, 0)), "19:00-kor még nem")
@@ -222,6 +236,8 @@ ok(n == 0 and not calls, "19:00 előtt nincs küldés")
 n = app._maybe_send_digests(now=datetime(TODAY.year, TODAY.month, TODAY.day, 19, 30))
 ok(n == 2, f"19:30-kor 2 gyermek -> 2 üzenet: {n}")
 ok(len(calls) == 2, f"2 push ment ki: {len(calls)}")
+last_auto = app.get_meta(kreta_digest.DIGEST_LAST_AT_PREFIX + "Teszt Anna", "")
+ok(last_auto.startswith(TODAY.isoformat()), f"az automata időpontja mentve: {last_auto}")
 anna = next((c for c in calls if "Teszt Anna" in c["title"]), {})
 bela = next((c for c in calls if "Teszt Béla" in c["title"]), {})
 ok("📊 Jegyek (1)" in anna.get("message", ""), "Anna üzenetében ott a mai jegy")
@@ -244,13 +260,43 @@ n = app._maybe_send_digests(now=datetime(MASNAP.year, MASNAP.month, MASNAP.day, 
 ok(n == 0, "ntfy topic nélkül nincs küldés")
 app.NTFY_TOPIC = "teszt/topic"
 
-print("\n4) Beállítás API")
+print("\n4) Manuális összefoglaló (az utolsó automata óta)")
 client = app.app.test_client()
+sent_key = kreta_digest.DIGEST_SENT_PREFIX + "Teszt Anna"
+last_key = kreta_digest.DIGEST_LAST_AT_PREFIX + "Teszt Anna"
+before_sent = app.get_meta(sent_key, "")
+before_last = app.get_meta(last_key, "")
+
+calls.clear()
+res = client.post("/api/digest/run", json={})
+ok(res.status_code == 200, f"POST /api/digest/run: {res.status_code}")
+results = (res.get_json() or {}).get("results") or []
+ok(len(results) == 2 and len(calls) == 2, f"2 diák -> 2 push: {len(results)}")
+anna = next((r for r in results if r["diak"] == "Teszt Anna"), {})
+ok(anna.get("kezdo") == TODAY.isoformat(),
+   f"az automata napja után: mai naptól: {anna.get('kezdo')}")
+ok(app.get_meta(sent_key, "") == before_sent, "a napi jelölő nem változott")
+ok(app.get_meta(last_key, "") == before_last, "az automata időpontja nem változott")
+
+# Ha régebben ment ki az automata, a hiányzó napokat is hozza.
+app.set_meta(last_key, (TODAY - timedelta(days=3)).isoformat() + "T19:30:00")
+calls.clear()
+res = client.post("/api/digest/run", json={"diak": "Teszt Anna"})
+r = ((res.get_json() or {}).get("results") or [{}])[0]
+ok(r.get("kezdo") == (TODAY - timedelta(days=2)).isoformat(),
+   f"3 nappal korábbi automata -> 2 nappal korábbi kezdet: {r.get('kezdo')}")
+ok(len(calls) == 1, "csak a kért diák")
+app.set_meta(last_key, before_last)
+res = client.post("/api/digest/run", json={"diak": "Nincs Ilyen"})
+ok(res.status_code == 400, "ismeretlen diák -> 400")
+
+print("\n5) Beállítás API")
 res = client.get("/api/digest/settings")
 ok(res.status_code == 200, f"GET settings: {res.status_code}")
 data = res.get_json()
 ok(data["settings"]["time"] == "19:30" and data["ntfy_configured"] is True,
    f"alap beállítások: {data}")
+ok("last_auto" in data, f"a válaszban ott az utolsó automata időpontja: {data.get('last_auto')}")
 
 res = client.put("/api/digest/settings", json={"time": "25:99"})
 ok(res.status_code == 400 and res.get_json().get("errors"), "hibás idő -> 400")
@@ -262,13 +308,6 @@ res = client.get("/api/digest/settings")
 data = res.get_json()["settings"]
 ok(data["time"] == "20:15" and data["include_names"] is False,
    f"a mentett beállítás visszaolvasható: {data}")
-
-calls.clear()
-res = client.post("/api/digest/test", json={})
-ok(res.status_code == 200 and len(calls) == 2,
-   f"teszt küldés 2 diákra: {res.status_code}, {len(calls)} push")
-res = client.post("/api/digest/test", json={"diak": "Nincs Ilyen"})
-ok(res.status_code == 400, "ismeretlen diák -> 400")
 
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")

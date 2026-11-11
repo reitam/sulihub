@@ -20,7 +20,8 @@ from datetime import date, datetime, timedelta
 
 # app_meta kulcsok
 DIGEST_SETTINGS_META = "digest_settings"
-DIGEST_SENT_PREFIX = "digest_sent:"          # digest_sent:<diák> -> 'YYYY-MM-DD'
+DIGEST_SENT_PREFIX = "digest_sent:"          # digest_sent:<diák> -> 'YYYY-MM-DD' (napi jelölő)
+DIGEST_LAST_AT_PREFIX = "digest_last_at:"    # digest_last_at:<diák> -> 'YYYY-MM-DDTHH:MM:SS'
 
 DEFAULT_TIME = "19:30"
 DEFAULT_SETTINGS = {
@@ -137,14 +138,29 @@ def _int(value, default=0) -> int:
 
 
 def collect_day(conn: sqlite3.Connection, diak_nev: str, nap: date) -> dict:
-    """Egy diák adott napi eseményei + a holnapi határidők (csak olvasás)."""
+    """Egy diák adott napi eseményei (a `collect_range` rövidítése)."""
+    return collect_range(conn, diak_nev, nap, nap)
+
+
+def collect_range(conn: sqlite3.Connection, diak_nev: str,
+                  kezdo: date, vege: date) -> dict:
+    """Egy diák eseményei a [kezdo, vege] napokon + a holnapi határidők.
+
+    A manuális „az utolsó automata óta" összefoglaló több napot is átfoghat;
+    az automatikus digesnél `kezdo == vege == ma`.
+    """
     adat = {
         "jegyek": [], "hazi": [], "dolgozatok": [], "feljegyzesek": [],
         "hianyzasok": [], "igazolasok": [], "uzenetek": [],
         "holnapi_hataridok": [], "olvasatlan_db": 0,
+        "kezdo": kezdo, "vege": vege,
     }
-    holnap = nap + timedelta(days=1)
+    holnap = vege + timedelta(days=1)
     conn.row_factory = sqlite3.Row
+
+    def _in_range(value) -> bool:
+        nap = parse_date(value)
+        return nap is not None and kezdo <= nap <= vege
 
     try:
         rows = conn.execute(
@@ -160,7 +176,7 @@ def collect_day(conn: sqlite3.Connection, diak_nev: str, nap: date) -> dict:
         hatarido = parse_date(row["hatarido"])
         kesz = _int(row["kesz"]) if "kesz" in keys else 0
 
-        if tipus == "Értékelés" and bej == nap:
+        if tipus == "Értékelés" and bej is not None and kezdo <= bej <= vege:
             adat["jegyek"].append({
                 "tantargy": _text(row["tantargy"]),
                 "ertek": _text(row["ertek"]),
@@ -170,21 +186,21 @@ def collect_day(conn: sqlite3.Connection, diak_nev: str, nap: date) -> dict:
                 "tema": _text(row["tema"]),
                 "tanar": _text(row["ertekelo"]),
             })
-        elif tipus == "Házi feladat" and bej == nap:
+        elif tipus == "Házi feladat" and bej is not None and kezdo <= bej <= vege:
             adat["hazi"].append({
                 "tantargy": _text(row["tantargy"]),
                 "szoveg": _text(row["tartalom"]),
                 "hatarido": hatarido,
                 "kesz": kesz,
             })
-        elif tipus == "Bejelentett számonkérés" and bej == nap:
+        elif tipus == "Bejelentett számonkérés" and bej is not None and kezdo <= bej <= vege:
             adat["dolgozatok"].append({
                 "tantargy": _text(row["tantargy"]),
                 "mod": _text(row["mod"]),
                 "tema": _text(row["tema"]),
                 "hatarido": hatarido,
             })
-        elif tipus == "Feljegyzés" and bej == nap:
+        elif tipus == "Feljegyzés" and bej is not None and kezdo <= bej <= vege:
             adat["feljegyzesek"].append({
                 "tipus": _text(row["tipus"]),
                 "tartalom": _text(row["tartalom"]),
@@ -207,9 +223,10 @@ def collect_day(conn: sqlite3.Connection, diak_nev: str, nap: date) -> dict:
 
     try:
         for row in conn.execute(
-            "SELECT * FROM hianyzasok WHERE diak_nev = ? AND mulasztas_datum = ?",
-            (diak_nev, nap.isoformat()),
+            "SELECT * FROM hianyzasok WHERE diak_nev = ?", (diak_nev,)
         ):
+            if not _in_range(row["mulasztas_datum"]):
+                continue
             adat["hianyzasok"].append({
                 "ora": _int(row["ora_sorszam"]),
                 "tantargy": _text(row["tantargy"]),
@@ -217,6 +234,7 @@ def collect_day(conn: sqlite3.Connection, diak_nev: str, nap: date) -> dict:
                 "perc": _int(row["perc"]) if row["perc"] is not None else None,
                 "igazolt": _int(row["igazolt"]),
                 "igazolas_tipus": _text(row["igazolas_tipus"]),
+                "datum": parse_date(row["mulasztas_datum"]),
             })
     except sqlite3.Error:
         pass
@@ -225,7 +243,7 @@ def collect_day(conn: sqlite3.Connection, diak_nev: str, nap: date) -> dict:
         for row in conn.execute(
             "SELECT * FROM igazolasok WHERE diak_nev = ?", (diak_nev,)
         ):
-            if parse_date(row["kezdete"]) != nap:
+            if not _in_range(row["kezdete"]):
                 continue
             adat["igazolasok"].append({
                 "tipus": _text(row["igazolas_tipus"]),
@@ -242,12 +260,13 @@ def collect_day(conn: sqlite3.Connection, diak_nev: str, nap: date) -> dict:
             (diak_nev,),
         ).fetchall()
         for row in rows:
-            if parse_date(row["idopont"]) != nap:
+            if not _in_range(row["idopont"]):
                 continue
             adat["uzenetek"].append({
                 "felado": _text(row["felado"]),
                 "targy": _text(row["targy"]),
                 "olvasott": bool(row["olvasott"]) if "olvasott" in row.keys() else False,
+                "idopont": parse_date(row["idopont"]),
             })
         adat["olvasatlan_db"] = int(conn.execute(
             "SELECT COUNT(*) FROM uzenetek WHERE diak_nev = ? "
@@ -335,7 +354,7 @@ def _hianyzas_sor(e: dict) -> str:
 def _igazolas_sor(e: dict) -> str:
     sor = [e["tipus"] or "Igazolás"]
     if e["kezdete"] or e["vege"]:
-        sor.append(f": {_hu_short(e['kezdete'])} – {_hu_short(e['vege'])}")
+        sor[-1] = sor[-1] + f": {_hu_short(e['kezdete'])} – {_hu_short(e['vege'])}"
     if e["megjegyzes"]:
         sor.append(f"· {_rovid(e['megjegyzes'], 60)}")
     return " ".join(sor)
@@ -357,10 +376,19 @@ def _szekcio(cim: str, sorok: list[str]) -> list[str]:
 
 
 def build_message(diak_nev: str, nap: date, adat: dict,
-                  include_names: bool = True) -> tuple[str, str]:
-    """A digest (cím, törzs) szövege. Üres napon is ad rövid üzenetet."""
+                  include_names: bool = True, kezdo: date | None = None) -> tuple[str, str]:
+    """A digest (cím, törzs) szövege. Üres napon is ad rövid üzenetet.
+
+    `kezdo` megadásával több napot átfogó (manuális, „az utolsó automata óta")
+    összefoglaló készül; a címben és az első sorban látszik az időszak.
+    """
+    kezdo = kezdo or nap
     nev = f" – {diak_nev}" if include_names and diak_nev else ""
-    cim = f"SuliHub{nev} – {nap.year}. {nap.month:02d}. {nap.day:02d}."
+    if kezdo == nap:
+        cim = f"SuliHub{nev} – {nap.year}. {nap.month:02d}. {nap.day:02d}."
+    else:
+        cim = (f"SuliHub{nev} – {kezdo.year}. {kezdo.month:02d}. {kezdo.day:02d}. – "
+               f"{nap.month:02d}. {nap.day:02d}.")
 
     sorok: list[str] = []
     sorok += _szekcio("📊 Jegyek", [_jegy_sor(e) for e in adat.get("jegyek") or []])
@@ -381,8 +409,13 @@ def build_message(diak_nev: str, nap: date, adat: dict,
         sorok += ["", f"✉️ {olvasatlan} olvasatlan üzenet a postaládában."]
 
     if not sorok:
-        torzs = "Ma nem történt esemény, holnapra nincs esedékes feladat."
+        if kezdo == nap:
+            torzs = "Ma nem történt esemény, holnapra nincs esedékes feladat."
+        else:
+            torzs = "Az utolsó automatikus összefoglaló óta nem történt esemény."
     else:
+        if kezdo != nap:
+            sorok.insert(0, f"Időszak: {_hu_short(kezdo)} – {_hu_short(nap)}")
         torzs = "\n".join(sorok).strip()
 
     return cim, torzs

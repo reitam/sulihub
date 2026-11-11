@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="hu">
 <head>
     <meta charset="UTF-8">
@@ -2084,11 +2084,13 @@
                         <label class="form-check-label" for="digestNames">Gyermek neve az üzenetben</label>
                     </div>
                     <div id="digestChannel" class="small text-muted mt-2"></div>
+                    <div id="digestLastAuto" class="small text-muted mt-1"></div>
                     <div id="digestStatus" class="small mt-2" role="status"></div>
                 </div>
                 <div class="modal-footer p-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary me-auto" id="btnDigestTest">
-                        <i class="fa-solid fa-paper-plane me-1"></i>Teszt küldés
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-auto" id="btnDigestNow"
+                            title="Az utolsó automatikus összefoglaló óta történt események; az automatát nem érinti">
+                        <i class="fa-solid fa-paper-plane me-1"></i>Összefoglaló most
                     </button>
                     <button type="button" class="btn btn-sm btn-primary" id="btnDigestSave">
                         <i class="fa-solid fa-floppy-disk me-1"></i>Mentés
