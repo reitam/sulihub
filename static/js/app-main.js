@@ -1,4 +1,4 @@
-// KRÉ-14 #97: az index.html inline scriptjének fő része (szó szerinti mozgatás,
+﻿// KRÉ-14 #97: az index.html inline scriptjének fő része (szó szerinti mozgatás,
 // a $(document).ready wrapperrel együtt). A vendor scriptek után töltődik.
 $(document).ready(function() {
     let rawData = [];
@@ -3822,6 +3822,11 @@ $(document).ready(function() {
             .text(text || '');
     }
 
+    function digestRovid(iso) {
+        const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? `${m[2]}. ${m[3]}.` : '';
+    }
+
     function loadDigestSettings() {
         $.getJSON('/api/digest/settings', function(res) {
             const s = (res && res.settings) || {};
@@ -3832,6 +3837,10 @@ $(document).ready(function() {
                 ? '<i class="fa-solid fa-circle-check text-success me-1"></i>ntfy csatorna beállítva.'
                 : '<i class="fa-solid fa-triangle-exclamation text-warning me-1"></i>' +
                   'Nincs ntfy topic beállítva — az összefoglaló nem tud kimegni.');
+            const last = res && res.last_auto ? String(res.last_auto) : '';
+            $('#digestLastAuto').text(last
+                ? 'Utolsó automatikus: ' + last.slice(0, 10).replace(/-/g, '. ') + '. ' + last.slice(11, 16)
+                : 'Még nem ment ki automatikus összefoglaló.');
             digestStatus('');
         }).fail(function() {
             digestStatus('A beállítások betöltése nem sikerült.', false);
@@ -3856,14 +3865,23 @@ $(document).ready(function() {
         });
     });
 
-    $('#btnDigestTest').on('click', function() {
+    $('#btnDigestNow').on('click', function() {
         digestStatus('Küldés...');
         $.ajax({
-            url: '/api/digest/test', type: 'POST', contentType: 'application/json', data: '{}'
+            url: '/api/digest/run', type: 'POST', contentType: 'application/json', data: '{}'
         }).done(function(res) {
+            const results = (res && res.results) || [];
+            if (!results.length) {
+                digestStatus('Nem ment ki üzenet.', false);
+                return;
+            }
+            const text = results.map(function(r) {
+                if (r.error) return r.diak + ' (hiba)';
+                const idoszak = digestRovid(r.kezdo) + ' – ' + digestRovid(r.vege);
+                return r.diak + ' (' + idoszak + ')';
+            }).join(', ');
             const sent = (res && res.sent) || [];
-            digestStatus(sent.length ? 'Elküldve: ' + sent.join(', ')
-                                      : 'Nem ment ki üzenet.', sent.length > 0);
+            digestStatus('Elküldve: ' + text + '.', sent.length > 0);
         }).fail(function(xhr) {
             const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'A küldés nem sikerült.';
             digestStatus(msg, false);

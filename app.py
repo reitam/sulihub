@@ -728,25 +728,31 @@ def digest_settings():
     return kreta_digest.load_settings(cfg, meta)
 
 
-def build_digest_for(diak_nev, nap=None):
-    """Egy diák digestje (cím, törzs) az adott napra."""
+def build_digest_for(diak_nev, nap=None, kezdo=None):
+    """Egy diák digestje (cím, törzs) a megadott időszakra."""
     nap = nap or _now().date()
+    kezdo = kezdo or nap
     conn = get_db_connection()
     try:
-        adat = kreta_digest.collect_day(conn, diak_nev, nap)
+        adat = kreta_digest.collect_range(conn, diak_nev, kezdo, nap)
     finally:
         conn.close()
     settings = digest_settings()
     return kreta_digest.build_message(
-        diak_nev, nap, adat, bool(settings.get("include_names", True))
+        diak_nev, nap, adat, bool(settings.get("include_names", True)), kezdo=kezdo
     )
+
+
+def _active_students():
+    return [s for s in (load_config().get("STUDENTS") or []) if s.get("active", True)]
 
 
 def _maybe_send_digests(now=None):
     """Esti digest: gyermekenként egy üzenet, naponta egyszer (a tickből hívva).
 
-    A napot `app_meta` jelölő zárja le (`digest_sent:<diák>`), így újraindítás
-    után sem megy ki kétszer. Üres napon is küld (a felhasználó kérése).
+    A napot `app_meta` jelölő zárja le (`digest_sent:<diák>`), az elküldés
+    időpontját a `digest_last_at:<diák>` őrzi (a manuális összefoglaló ez óta
+    kérdezi az eseményeket). Üres napon is küld (a felhasználó kérése).
     """
     now = now or _now()
     settings = digest_settings()
@@ -755,9 +761,8 @@ def _maybe_send_digests(now=None):
     if sync_state.get("running") or not os.path.exists(DB_FILE):
         return 0
 
-    students = [s for s in (load_config().get("STUDENTS") or []) if s.get("active", True)]
     sent = 0
-    for student in students:
+    for student in _active_students():
         diak = str(student.get("diak_nev") or "").strip()
         if not diak:
             continue
@@ -772,9 +777,60 @@ def _maybe_send_digests(now=None):
         if not send_notification(cim, torzs, 2, ["memo"]):
             break
         set_meta(key, now.date().isoformat())
+        set_meta(kreta_digest.DIGEST_LAST_AT_PREFIX + diak,
+                 now.strftime("%Y-%m-%dT%H:%M:%S"))
         sent += 1
         _append_sync_log(f"[Digest] {diak}: esti összefoglaló elküldve")
     return sent
+
+
+def digest_last_auto():
+    """A legutóbbi automatikus digest időpontja (a legfrissebb diák szerint)."""
+    latest = ""
+    for student in _active_students():
+        diak = str(student.get("diak_nev") or "").strip()
+        if not diak:
+            continue
+        value = get_meta(kreta_digest.DIGEST_LAST_AT_PREFIX + diak, "") or ""
+        if value > latest:
+            latest = value
+    return latest
+
+
+def manual_digest(diak=None, now=None):
+    """Manuális összefoglaló: az utolsó **automatikus** digest óta (diákonként).
+
+    A manuális küldés nem írja felül a napi jelölőt (`digest_sent`) és a
+    `digest_last_at`-et sem, tehát az automatikus digest időpontját és
+    tartalmát nem befolyásolja.
+    """
+    now = now or _now()
+    students = _active_students()
+    if diak:
+        students = [s for s in students if s.get("diak_nev") == diak]
+
+    results = []
+    for student in students:
+        nev = str(student.get("diak_nev") or "")
+        # Diákonként az ő utolsó automatikus küldése számít; ha még nem volt,
+        # az előző napot vesszük alapnak (gyakorlatilag a mai nap).
+        kezdo_alap = kreta_digest.parse_date(
+            get_meta(kreta_digest.DIGEST_LAST_AT_PREFIX + nev, "") or ""
+        ) or (now.date() - timedelta(days=1))
+        kezdo = kezdo_alap + timedelta(days=1)
+        if kezdo > now.date() or kezdo_alap >= now.date():
+            kezdo = now.date()
+        try:
+            cim, torzs = build_digest_for(nev, now.date(), kezdo=kezdo)
+        except Exception as exc:  # noqa: BLE001
+            results.append({"diak": nev, "error": f"{type(exc).__name__}: {exc}"})
+            continue
+        ok_sent = send_notification(cim, torzs, 2, ["memo"])
+        results.append({
+            "diak": nev, "sent": ok_sent,
+            "kezdo": kezdo.isoformat(), "vege": now.date().isoformat(),
+        })
+    return results
 
 
 def trigger_label(trigger):
@@ -1298,6 +1354,7 @@ def api_digest_settings():
             "status": "ok",
             "settings": digest_settings(),
             "ntfy_configured": bool(NTFY_TOPIC),
+            "last_auto": digest_last_auto(),
         })
 
     data = request.get_json(silent=True) or {}
@@ -1309,9 +1366,13 @@ def api_digest_settings():
     return jsonify({"status": "ok", "settings": settings})
 
 
-@app.route("/api/digest/test", methods=["POST"])
-def api_digest_test():
-    """Azonnali próbaküldés (a napi jelölőt nem állítja be)."""
+@app.route("/api/digest/run", methods=["POST"])
+def api_digest_run():
+    """Manuális összefoglaló az utolsó **automatikus** digest óta.
+
+    Tesztelési/kérési célra; a napi jelölőt és a `digest_last_at`-et nem
+    módosítja, tehát az automatikus digest időpontja/tartalma változatlan marad.
+    """
     if not NTFY_TOPIC:
         return jsonify({
             "status": "error",
@@ -1319,23 +1380,12 @@ def api_digest_test():
         }), 400
     data = request.get_json(silent=True) or {}
     diak = str(data.get("diak") or "").strip()
-    students = [s for s in (load_config().get("STUDENTS") or []) if s.get("active", True)]
-    if diak:
-        students = [s for s in students if s.get("diak_nev") == diak]
-    if not students:
+    if diak and not any(s.get("diak_nev") == diak for s in _active_students()):
         return jsonify({"status": "error", "message": "Nincs ilyen aktív diák."}), 400
 
-    now = _now()
-    sent = []
-    for student in students:
-        nev = str(student.get("diak_nev") or "")
-        try:
-            cim, torzs = build_digest_for(nev, now.date())
-        except Exception as exc:  # noqa: BLE001
-            return jsonify({"status": "error", "message": f"{nev}: {exc}"}), 500
-        if send_notification(cim, torzs, 2, ["memo"]):
-            sent.append(nev)
-    return jsonify({"status": "ok", "sent": sent})
+    results = manual_digest(diak or None)
+    sent = [r["diak"] for r in results if r.get("sent")]
+    return jsonify({"status": "ok", "sent": sent, "results": results})
 
 
 if __name__ == "__main__":

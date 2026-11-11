@@ -44,8 +44,11 @@ a saját szerveren maradnak.
   **gyermekenként egy üzenet** a nap eseményeivel — jegyek súlyozással, ma feladott
   házik, ma bejelentett dolgozatok, feljegyzések, hiányzások, igazolások, üzenetek —,
   valamint a **holnap esedékes** házik/dolgozatok. Órarend nincs benne; eseménytelen
-  napon is jön rövid üzenet. A fejléc 🔔 ikonjából állítható (időpont, ki/be, név,
-  teszt küldés); naponta max. 1 üzenet gyermekenként.
+  napon is jön rövid üzenet. A küldés ideje a `config.json` `DIGEST.TIME`-ban (alap
+  19:30), a felületen is állítható. A fejléc 🔔 ikonjából bármikor kérhető
+  **„Összefoglaló most”** az **utolsó automatikus óta** — ez nem írja felül az
+  automata időpontját/tartalmát (tesztelési/kérési cél). Naponta max. 1 automata
+  üzenet gyermekenként.
 
 ### 📅 Heti/napi órarend + PDF
 - Asztali nézetben idősávos **heti** órarend, mobilon **napi naptár** ‹ › lapozással.
