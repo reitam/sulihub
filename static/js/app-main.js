@@ -678,16 +678,24 @@ $(document).ready(function() {
             eventClick: function(info) {
                 let props = info.event.extendedProps;
                 let eventId = info.event.id;
-                
-                let tipusKijelzes = props.tipus;
-                if (props.tipus === 'Bejelentett számonkérés' && props.mod && props.mod !== '-') {
-                    tipusKijelzes = `${props.tipus} (${props.mod})`;
-                }
 
-                let bodyText = `Diák: ${props.diak}\nTípus / Mód: ${tipusKijelzes}\nTantárgy: ${props.tantargy}\nTanár: ${props.tanar}\n\nLeírás / Részletek:\n${props.leiras}`;
-                
-                $('#detailsModalTitle').html(`<i class="fa-solid fa-circle-info me-2"></i>${info.event.title}`);
-                reszletekBody(bodyText);
+                // Egységes részletek modál — ugyanaz a szerkezet, mint az
+                // esemény-táblában (Kaneo #126: a naptárból nyitva is tagolt).
+                reszletekModal(props.tipus, esemenyReszletekSzoveg({
+                    diak_nev: props.diak_nev || props.diak,
+                    esemeny_tipus: props.esemeny_tipus || props.tipus,
+                    tantargy: props.tantargy,
+                    ertek: props.ertek,
+                    mod: props.mod,
+                    bej_datum: props.bej_datum,
+                    hatarido: props.hatarido,
+                    ertekelo: props.ertekelo || props.tanar,
+                    tema: props.tema,
+                    cim: props.cim,
+                    tartalom: props.tartalom,
+                    suly_szazalek: props.suly_szazalek,
+                    kesz: props.kesz
+                }));
 
                 let actionContainer = $('#modalActionContainer');
                 actionContainer.empty();
@@ -716,9 +724,6 @@ $(document).ready(function() {
                 } else {
                     actionContainer.addClass('d-none');
                 }
-
-                let detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
-                detailsModal.show();
             }
         });
 
@@ -2293,28 +2298,8 @@ $(document).ready(function() {
         if (opts.zaro !== undefined) $('#filterBejZaroDatum').val(opts.zaro || '');
         if (opts.hatKezdo !== undefined) $('#filterHatKezdoDatum').val(opts.hatKezdo || '');
         if (opts.hatZaro !== undefined) $('#filterHatZaroDatum').val(opts.hatZaro || '');
-        // A csempéről érkezve nyissuk ki a szűrőpanelt, hogy látszódjanak az
-        // alkalmazott szűrők (alapból csukva van, Kaneo #120).
-        openFilterPanel();
         showMainTab('esemenyek-tab');
         loadData();   // a szerveroldali (diák/típus/tantárgy) szűrő miatt
-    }
-
-    function openFilterPanel() {
-        let el = document.getElementById('collapseFilter');
-        if (!el || el.classList.contains('show')) return;
-        try {
-            if (window.bootstrap && bootstrap.Collapse) {
-                bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).show();
-                return;
-            }
-        } catch (e) { /* fallback az alábbi */ }
-        el.classList.add('show');
-        let btn = document.querySelector('#headingFilter button');
-        if (btn) {
-            btn.classList.remove('collapsed');
-            btn.setAttribute('aria-expanded', 'true');
-        }
     }
 
     // ── Ütemező visszajelzése a fejlécben ───────────────────────────────────
@@ -3197,10 +3182,10 @@ $(document).ready(function() {
         sor('Értékelő / tanár', e.ertekelo);
         sor('Téma', e.tema);
         sor('Cím', e.cim);
-        sor('Leírás', e.tartalom);
         if (e.esemeny_tipus === 'Házi feladat') {
             sor('Állapot', Number(e.kesz) === 1 ? 'Elkészítve' : 'Aktív');
         }
+        sor('Leírás', e.tartalom);
         return sorok.join('\n');
     }
 
@@ -3235,7 +3220,15 @@ $(document).ready(function() {
         let aktualis = null;
         String(szoveg || '').split(/\r?\n/).forEach(function(raw) {
             const line = raw.trim();
-            if (!line) { aktualis = null; return; }
+            if (!line) return;
+            // Egy megkezdett szakaszon (Leírás / Megjegyzés) belül minden sor
+            // ehhez a szakaszhoz tartozik — akkor is, ha kettőspont van benne
+            // (pl. „… a tanult módon: módja, ideje …”), különben a szöveg
+            // címke–érték sorként széttörné a megjelenítést (Kaneo #126).
+            if (aktualis) {
+                aktualis.sorok.push(line);
+                return;
+            }
             const m = line.match(/^([^:]{1,40}):\s*(.*)$/);
             if (m) {
                 const cimke = m[1].trim();
@@ -3247,8 +3240,6 @@ $(document).ready(function() {
                     aktualis = { cim: cimke, sorok: ertek ? [ertek] : [] };
                     sections.push(aktualis);
                 }
-            } else if (aktualis) {
-                aktualis.sorok.push(line);
             } else {
                 aktualis = { cim: '', sorok: [line] };
                 sections.push(aktualis);

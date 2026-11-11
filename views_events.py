@@ -178,7 +178,19 @@ def api_naptar_esemenyek():
                 "tantargy": r["tantargy"],
                 "tanar": r["ertekelo"] or "-",
                 "leiras": leiras,
-                "kesz": is_kesz
+                "kesz": is_kesz,
+                # A részletek modál ugyanazokat a mezőket kapja, mint az
+                # esemény-táblában (Kaneo #126: egységes megjelenés).
+                "diak_nev": teljes_nev,
+                "esemeny_tipus": es_tipus,
+                "ertek": r["ertek"],
+                "bej_datum": r["bej_datum"],
+                "hatarido": r["hatarido"],
+                "ertekelo": r["ertekelo"],
+                "tema": r["tema"],
+                "cim": r["cim"],
+                "tartalom": r["tartalom"],
+                "suly_szazalek": r["suly_szazalek"] if "suly_szazalek" in keys else 0,
             }
         })
 
