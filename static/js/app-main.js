@@ -2293,8 +2293,28 @@ $(document).ready(function() {
         if (opts.zaro !== undefined) $('#filterBejZaroDatum').val(opts.zaro || '');
         if (opts.hatKezdo !== undefined) $('#filterHatKezdoDatum').val(opts.hatKezdo || '');
         if (opts.hatZaro !== undefined) $('#filterHatZaroDatum').val(opts.hatZaro || '');
+        // A csempéről érkezve nyissuk ki a szűrőpanelt, hogy látszódjanak az
+        // alkalmazott szűrők (alapból csukva van, Kaneo #120).
+        openFilterPanel();
         showMainTab('esemenyek-tab');
         loadData();   // a szerveroldali (diák/típus/tantárgy) szűrő miatt
+    }
+
+    function openFilterPanel() {
+        let el = document.getElementById('collapseFilter');
+        if (!el || el.classList.contains('show')) return;
+        try {
+            if (window.bootstrap && bootstrap.Collapse) {
+                bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).show();
+                return;
+            }
+        } catch (e) { /* fallback az alábbi */ }
+        el.classList.add('show');
+        let btn = document.querySelector('#headingFilter button');
+        if (btn) {
+            btn.classList.remove('collapsed');
+            btn.setAttribute('aria-expanded', 'true');
+        }
     }
 
     // ── Ütemező visszajelzése a fejlécben ───────────────────────────────────
