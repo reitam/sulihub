@@ -19,7 +19,7 @@ from kreta_paths import DB_FILE
 from kreta_settings import load_config
 from views_common import (
     _date_range_from_request, _has_tanev_column, _tanev_from_request,
-    hianyzas_osszesito, make_bp, normalize_date,
+    hianyzas_osszesito, legjobb_tantargy_nev, make_bp, normalize_date, tantargy_kulcs,
 )
 
 bp = make_bp("stats")
@@ -284,6 +284,8 @@ def api_atlagok():
     per_honap = {}
     honapok = set()
     mind = []
+    # Tantárgy-kulcs -> írásmódok (a KRÉTA nem egységes kis/nagybetűben, #127).
+    nev_valtozatok = {}
 
     for r in rows:
         val = r["szam_ertek"]
@@ -300,6 +302,9 @@ def api_atlagok():
             honapok.add(honap)
         suly = (r["suly_szazalek"] if has_suly else 0) or 0
         tantargy = (r["tantargy"] or "Egyéb").strip()
+        kulcs = tantargy_kulcs(tantargy) or "egyeb"
+        nev_valtozatok.setdefault(kulcs, {})
+        nev_valtozatok[kulcs][tantargy] = nev_valtozatok[kulcs].get(tantargy, 0) + 1
         item = {
             "val": val,
             "suly": suly,
@@ -309,24 +314,24 @@ def api_atlagok():
             "tanar": r["ertekelo"] or "",
             "mod": r["mod"] or "",
         }
-        entry = per_tantargy.setdefault(tantargy, {"honapok": {}, "mind": []})
+        entry = per_tantargy.setdefault(kulcs, {"honapok": {}, "mind": []})
         entry["honapok"].setdefault(honap, []).append(item)
         entry["mind"].append(item)
         d_nev = (r["diak_nev"] or "").strip()
         dentry = per_diak_tantargy.setdefault(d_nev, {}).setdefault(
-            tantargy, {"honapok": {}, "mind": []})
+            kulcs, {"honapok": {}, "mind": []})
         dentry["honapok"].setdefault(honap, []).append(item)
         dentry["mind"].append(item)
         per_honap.setdefault(honap, []).append(item)
         mind.append(item)
 
     tantargyak = []
-    for tantargy in sorted(per_tantargy):
-        entry = per_tantargy[tantargy]
+    for kulcs in sorted(per_tantargy):
+        entry = per_tantargy[kulcs]
         honap_atlagok = {h: summarize(v) for h, v in entry["honapok"].items()}
         trend = _trend_szamitas(honap_atlagok)
         tantargyak.append({
-            "tantargy": tantargy,
+            "tantargy": legjobb_tantargy_nev(nev_valtozatok.get(kulcs, {})),
             "honapok": honap_atlagok,
             "osszes": summarize(entry["mind"]),
             "trend": trend,
@@ -338,9 +343,10 @@ def api_atlagok():
     figyelmeztetesek = []
     javulasok = []
     for d_nev in sorted(per_diak_tantargy):
-        for tantargy in sorted(per_diak_tantargy[d_nev]):
+        for kulcs in sorted(per_diak_tantargy[d_nev]):
+            tantargy = legjobb_tantargy_nev(nev_valtozatok.get(kulcs, {}))
             honap_atlagok = {h: summarize(v)
-                             for h, v in per_diak_tantargy[d_nev][tantargy]["honapok"].items()}
+                             for h, v in per_diak_tantargy[d_nev][kulcs]["honapok"].items()}
             trend = _trend_szamitas(honap_atlagok)
             valtozas = trend.get("valtozas")
             if valtozas is None:
@@ -923,9 +929,9 @@ def api_jegy_kalkulator():
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            query = ("SELECT ertek, szam_ertek, suly_szazalek, bej_datum FROM esemenyek"
-                     " WHERE esemeny_tipus = 'Értékelés' AND tantargy = ?")
-            params = [tantargy]
+            query = ("SELECT tantargy, ertek, szam_ertek, suly_szazalek, bej_datum FROM esemenyek"
+                     " WHERE esemeny_tipus = 'Értékelés'")
+            params = []
             if diak:
                 query += " AND diak_nev = ?"
                 params.append(diak)
@@ -938,9 +944,9 @@ def api_jegy_kalkulator():
         except sqlite3.Error:
             # Régi DB: nincs suly_szazalek oszlop.
             has_suly = False
-            query = ("SELECT ertek, szam_ertek, bej_datum FROM esemenyek"
-                     " WHERE esemeny_tipus = 'Értékelés' AND tantargy = ?")
-            params = [tantargy]
+            query = ("SELECT tantargy, ertek, szam_ertek, bej_datum FROM esemenyek"
+                     " WHERE esemeny_tipus = 'Értékelés'")
+            params = []
             if diak:
                 query += " AND diak_nev = ?"
                 params.append(diak)
@@ -949,6 +955,10 @@ def api_jegy_kalkulator():
                 params.append(tanev_szuro)
             cursor.execute(query, params)
             rows = cursor.fetchall()
+        # A tantárgy-egyeztetés kis/nagybetű-független (Kaneo #127).
+        kulcs = tantargy_kulcs(tantargy)
+        rows = [row for row in rows
+                if tantargy_kulcs(row["tantargy"] if "tantargy" in row.keys() else "") == kulcs]
         for row in rows:
             dat = normalize_date(row["bej_datum"])
             if dat:

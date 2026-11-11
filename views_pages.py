@@ -12,7 +12,7 @@ from flask import render_template
 from kreta_db import get_db_connection
 from kreta_paths import DB_FILE
 from kreta_settings import get_app_version, load_config
-from views_common import make_bp
+from views_common import legjobb_tantargy_nev, make_bp, tantargy_kulcs
 
 bp = make_bp("pages")
 
@@ -38,8 +38,19 @@ def index():
         cursor.execute("SELECT DISTINCT esemeny_tipus FROM esemenyek ORDER BY esemeny_tipus")
         tipusok = [row["esemeny_tipus"] for row in cursor.fetchall() if row["esemeny_tipus"]]
 
-        cursor.execute("SELECT DISTINCT tantargy FROM esemenyek WHERE tantargy IS NOT NULL AND tantargy != '' ORDER BY tantargy")
-        tantargyak = [row["tantargy"] for row in cursor.fetchall()]
+        cursor.execute(
+            "SELECT tantargy, COUNT(*) FROM esemenyek "
+            "WHERE tantargy IS NOT NULL AND tantargy != '' GROUP BY tantargy")
+        # A KRÉTA nem egységes kis/nagybetűben („Angol nyelv" vs. „angol nyelv"):
+        # a listában egyszer jelenjen meg, a leggyakoribb írásmóddal (Kaneo #127).
+        valtozatok = {}
+        for row in cursor.fetchall():
+            kulcs = tantargy_kulcs(row[0])
+            valtozatok.setdefault(kulcs, {})[row[0]] = row[1]
+        tantargyak = sorted(
+            (legjobb_tantargy_nev(v) for v in valtozatok.values()),
+            key=str.casefold,
+        )
 
         conn.close()
 
