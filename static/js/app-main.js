@@ -3813,6 +3813,62 @@ $(document).ready(function() {
             keresesModalNyitas();
         }
     });
+
+    // ── Esti összefoglaló beállításai (KRÉ-8) ───────────────────────────────
+    function digestStatus(text, ok) {
+        $('#digestStatus')
+            .removeClass('text-danger text-success text-muted')
+            .addClass(ok === undefined ? 'text-muted' : (ok ? 'text-success' : 'text-danger'))
+            .text(text || '');
+    }
+
+    function loadDigestSettings() {
+        $.getJSON('/api/digest/settings', function(res) {
+            const s = (res && res.settings) || {};
+            $('#digestEnabled').prop('checked', s.enabled !== false);
+            $('#digestTime').val(s.time || '19:30');
+            $('#digestNames').prop('checked', s.include_names !== false);
+            $('#digestChannel').html(res && res.ntfy_configured
+                ? '<i class="fa-solid fa-circle-check text-success me-1"></i>ntfy csatorna beállítva.'
+                : '<i class="fa-solid fa-triangle-exclamation text-warning me-1"></i>' +
+                  'Nincs ntfy topic beállítva — az összefoglaló nem tud kimegni.');
+            digestStatus('');
+        }).fail(function() {
+            digestStatus('A beállítások betöltése nem sikerült.', false);
+        });
+    }
+
+    $('#digestModal').on('show.bs.modal', loadDigestSettings);
+
+    $('#btnDigestSave').on('click', function() {
+        $.ajax({
+            url: '/api/digest/settings', type: 'PUT', contentType: 'application/json',
+            data: JSON.stringify({
+                enabled: $('#digestEnabled').is(':checked'),
+                time: $('#digestTime').val() || '19:30',
+                include_names: $('#digestNames').is(':checked')
+            })
+        }).done(function() {
+            digestStatus('Beállítások mentve.', true);
+        }).fail(function(xhr) {
+            const err = (xhr.responseJSON && xhr.responseJSON.errors) || [];
+            digestStatus(err[0] || 'A mentés nem sikerült.', false);
+        });
+    });
+
+    $('#btnDigestTest').on('click', function() {
+        digestStatus('Küldés...');
+        $.ajax({
+            url: '/api/digest/test', type: 'POST', contentType: 'application/json', data: '{}'
+        }).done(function(res) {
+            const sent = (res && res.sent) || [];
+            digestStatus(sent.length ? 'Elküldve: ' + sent.join(', ')
+                                      : 'Nem ment ki üzenet.', sent.length > 0);
+        }).fail(function(xhr) {
+            const msg = (xhr.responseJSON && xhr.responseJSON.message) || 'A küldés nem sikerült.';
+            digestStatus(msg, false);
+        });
+    });
     $('#keresesInput').on('input', function() {
         const q = $(this).val().trim();
         clearTimeout(keresesTimer);

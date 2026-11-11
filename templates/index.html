@@ -765,6 +765,12 @@
                 </div>
             </div>
 
+            <button id="btnDigest" class="btn btn-outline-secondary app-sync-btn px-2 me-1"
+                    title="Esti összefoglaló (értesítések)" aria-label="Értesítések"
+                    data-bs-toggle="modal" data-bs-target="#digestModal">
+                <i class="fa-solid fa-bell"></i>
+            </button>
+
             <button id="btnTheme" class="btn btn-outline-secondary app-sync-btn me-1"
                     title="Sötét mód" aria-label="Téma váltása">
                 <i class="fa-solid fa-moon"></i>
@@ -2047,6 +2053,50 @@
     </div>
   </div>
 </div>
+
+    <!-- ESTI ÖSSZEFOGLALÓ BEÁLLÍTÁSAI (KRÉ-8) -->
+    <div class="modal fade" id="digestModal" tabindex="-1" aria-labelledby="digestModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header py-2 bg-primary text-white">
+                    <h6 class="modal-title" id="digestModalTitle">
+                        <i class="fa-solid fa-bell me-2"></i>Esti összefoglaló
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Bezárás"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">
+                        Minden nap a beállított idő után <strong>gyermekenként egy üzenet</strong> a nap
+                        eseményeivel: jegyek (súlyozással), házik, dolgozatok, feljegyzések, hiányzások,
+                        igazolások és üzenetek —, valamint a <strong>holnap esedékes</strong> házik és
+                        dolgozatok. Órarend nincs benne; eseménytelen napon is jön egy rövid üzenet.
+                    </p>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="digestEnabled">
+                        <label class="form-check-label" for="digestEnabled">Esti összefoglaló bekapcsolva</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="digestTime" class="form-label small fw-bold mb-1">Küldés ideje</label>
+                        <input type="time" id="digestTime" class="form-control form-control-sm" value="19:30">
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="digestNames" checked>
+                        <label class="form-check-label" for="digestNames">Gyermek neve az üzenetben</label>
+                    </div>
+                    <div id="digestChannel" class="small text-muted mt-2"></div>
+                    <div id="digestStatus" class="small mt-2" role="status"></div>
+                </div>
+                <div class="modal-footer p-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-auto" id="btnDigestTest">
+                        <i class="fa-solid fa-paper-plane me-1"></i>Teszt küldés
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" id="btnDigestSave">
+                        <i class="fa-solid fa-floppy-disk me-1"></i>Mentés
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
 <!-- JS könyvtárak -->
     <!-- GLOBÁLIS KERESŐ (Kaneo #85) -->

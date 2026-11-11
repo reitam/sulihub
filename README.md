@@ -40,6 +40,12 @@ a saját szerveren maradnak.
 - A sikeres üzenet tartalmazza a **diákonkénti új eseményeket**:
   `Teszt Elek: 2 jegy, 1 házi` · `Teszt Anna: 1 számonkérés, 2 üzenet, 1 hiányzás (2 igazolatlan óra)`.
 - Diáknevek alapból **nem** mennek ki (csak darabszám); kapcsolható.
+- **Esti összefoglaló (KRÉ-8):** minden nap a beállított idő után (alap **19:30**)
+  **gyermekenként egy üzenet** a nap eseményeivel — jegyek súlyozással, ma feladott
+  házik, ma bejelentett dolgozatok, feljegyzések, hiányzások, igazolások, üzenetek —,
+  valamint a **holnap esedékes** házik/dolgozatok. Órarend nincs benne; eseménytelen
+  napon is jön rövid üzenet. A fejléc 🔔 ikonjából állítható (időpont, ki/be, név,
+  teszt küldés); naponta max. 1 üzenet gyermekenként.
 
 ### 📅 Heti/napi órarend + PDF
 - Asztali nézetben idősávos **heti** órarend, mobilon **napi naptár** ‹ › lapozással.
@@ -238,6 +244,11 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
   "SCRAPE_MESSAGES": true,
   "SYNC_MODE": "api_first",
   "SYNC_SHADOW": false,
+  "DIGEST": {
+    "ENABLED": true,
+    "TIME": "19:30",
+    "INCLUDE_NAMES": true
+  },
   "ENABLE_REWARDS": true,
   "SCHEDULER": {
     "ENABLED": true,
@@ -424,13 +435,13 @@ A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
 python tests/run_all.py
 ```
 
-**50 csomag, 1488 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**52 csomag, 1566 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
-**adatvédelem** (üres válasz nem töröl), **DB-séma őr** (zárolt DB),
+**adatvédelem** (üres válasz nem töröl), **DB-séma őr** (zárolt DB), **esti digest** (tartalom, idempotencia, beállítás-API),
 **deploy-konzisztencia** (Dockerfile COPY + requirements), **mobil elrendezés**,
-**route-contract** (az 51 Flask-rule rögzítve) és **data/-migráció**.
+**route-contract** (az 52 Flask-rule rögzítve) és **data/-migráció**.
 Részletek: [`tests/README.md`](tests/README.md).
 
 ---
