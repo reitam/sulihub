@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Dokumentum verziója** | 1.11 (Kaneo #126) |
-| **A rendszer verziója** | v2.2.6 (kiadásra kész; élesben v2.2.5) |
+| **Dokumentum verziója** | 1.12 (Kaneo #126, KRÉ-8) |
+| **A rendszer verziója** | v2.2.7 (kiadásra kész; élesben v2.2.6) |
 | **Utolsó frissítés** | 2026-11-11 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
@@ -142,6 +142,30 @@ a fő elemek a képernyőn belül vannak, a táblázat összecsukott, a státusz
 
 Az értesítések az **ntfy** szolgáltatáson keresztül mennek a telefonra. Diáknevek alapból
 **nem** kerülnek ki; a részletes bontás a felületen és a naplóban látható.
+
+#### 2.5.1. Esti összefoglaló (KRÉ-8)
+
+Minden nap a beállított idő után (**alap: 19:30**) **gyermekenként egy üzenet** megy ki a
+szülőnek arról, **mi történt aznap** — órarend nélkül:
+
+| Szekció | Tartalom |
+|---|---|
+| Jegyek | a ma rögzített értékelések: tantárgy, jegy, **súlyszázalék**, típus/mód, téma, tanár |
+| Házi feladat | a ma feladott házik: tantárgy, rövid leírás, **határidő** (és ha kész) |
+| Dolgozatok | a ma bejelentett számonkérések: tantárgy, mód, téma, **a dolgozat napja** |
+| Feljegyzés | a mai bejegyzések (dicséret/megrovás/hiány), rövid tartalommal |
+| Hiányzás | a mai mulasztások: óra, tantárgy, késés vagy hiányzás, **igazolt / IGAZOLATLAN** |
+| Igazolás | a ma kezdődő igazolások (típus, érvényesség, megjegyzés) |
+| Üzenetek | a ma érkezett üzenetek (feladó + tárgy), és az olvasatlanok száma |
+| **Holnap esedékes** | a holnapi határidős házik (a kész kimarad) és dolgozatok |
+
+- **Eseménytelen napon is megy** egy rövid üzenet: „Ma nem történt esemény, holnapra nincs
+  esedékes feladat."
+- Naponta **legfeljebb egyszer** gyermekenként (`app_meta`: `digest_sent:<diák>`), 23 óra
+  után már nem pótolja.
+- A beállítás a fejléc **harang** ikonjából nyílik (ki/be, időpont, név az üzenetben,
+  **Teszt küldés**); a mentés `app_meta`-ba kerül, a `config.json DIGEST` blokk csak alap.
+  Ha nincs ntfy topic, a modal jelzi, hogy nem tud kimegni.
 
 **Beállítás — két helyen, az env az erősebb:**
 
@@ -726,6 +750,7 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 | `SCRAPE_MESSAGES` | Üzenetek gyűjtése globálisan |
 | `SYNC_MODE` | A szinkron forrása: `playwright` (alap) / `api` / `api_first` — lásd 3.2.1 |
 | `SYNC_SHADOW` | `api_first` mellett a Playwright is lefut egy DB-másolaton, csak összehasonlítás (lásd 3.2.1) |
+| `DIGEST` | Esti összefoglaló (KRÉ-8): `ENABLED`, `TIME` (`19:30`), `INCLUDE_NAMES`; a felület beállításai felülírják (`app_meta`) |
 | `ENABLE_REWARDS` | Zsebpénz modul globálisan |
 | `REWARDS` | A 2.5. pont tarifái |
 | `KEYWORDS` | A feljegyzések kategorizálásához használt kulcsszavak |
@@ -1151,7 +1176,8 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v2.1.2** *(kiadásra kész)* | **2026-11-08** | **#120** az Iskolai események **szűrőpanelje alapból zárva** van, a fejlécére kattintva nyílik (a dashboard-csempéről érkezve is zárva marad; a szűrő továbbra is érvényesül). **#115** (Tailscale/WireGuard távoli elérés) és **#119** (SQLite vs MySQL/PostgreSQL) **elemzés** a jegyekben, kódváltozás nélkül. **1340 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/197) |
 | **v2.1.3** *(kiadásra kész)* | **2026-11-08** | **#121** a szűrőpanel a felső menüsor **alá** került (a menüsor nem ugrál a fülek között). **#82** A4-es **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve (`riportkartyak` tábla + data kötet), visszamenőleges lista/letöltés; a hivatalos félévi jegy hiányát jelzi. **#83** **Excel exportok**: események (Jegyek/Feljegyzések/Házi feladatok) és hiányzások (Hiányzások/Igazolások) a felület szűrőivel. **#90** üzemeltetési ellenőrzések: havi **restore-teszt** (`tools/backup_restore_check.py`, manifest-tel) + éjszakai **élő füstteszt** (`tools/live_smoke.py`, CI job, secret nélkül kimarad). **1411 ellenőrzés / 47 csomag** (fast 42/1212, browser 5/199) |
 | **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** az **aktuális bizonyítvány** (a felületi kártya és a PDF fejléce is ezt a nevet viseli) **mentés/előzmény nélkül**, mindig közvetlenül generálódik (`GET /api/riportkartya/export_pdf`); a fő címe a tanévet és az időszakot mutatja („SuliHub - \<gyerek\> - 2026/2027 1. félév”), **dísz-bizonyítvány** kivitelben (arany keret, pecsét, serif címek), a tantárgyi táblában nincs Db oszlop, a jegyek jegyenként összesítve („Jeles(5) - 3 db ; Jó(4) - 2 db”), a magatartás/szorgalom értékelés benne van, a zsebpénz-egyenleg csak engedélyezett modulnál, a **Feljegyzések** szekció nincs. A félévi/év végi hivatalos jegy beépítése külön backlog (#123/#124). **#125** kódszemle-javítások: riport hiányzás-óraszám, FTS ékezet/kis-nagybetű, adatminőség-typo, csatolmány-rekurzió, órarend arányőr, silent JSON, dupla `.bak`, `/api/esemenyek` limit/offset. **#104** **Ma/Hét** nézet a Ma fülön: a heti nézet **kétoszlopos, középre igazított napkártyák** (az események szerinti színekkel, páratlan darabszámnál középre tett utolsó kártyával), a **havi nézet elhagyva**. **Új SuliHub logó mindenhol:** fejléc (embléma + név), favicon/apple-touch ikon, valamint a PDF-bizonyítvány fejléce (a teljes logó a cím fölött). **1488 ellenőrzés / 50 csomag** (fast 45/1286, browser 5/202) |
-| **v2.2.6** *(kiadásra kész)* | **2026-11-11** | **KRÉ-126:** a **naptárból** nyitott részletek modál ugyanazt a tagolt szerkezetet kapja, mint az esemény-táblából — közös renderer (`esemenyReszletekSzoveg` + `reszletekModal`), az `/api/naptar_esemenyek` a teljes eseménymezőket is átadja; a leírásban lévő kettőspont („… a tanult módon: módja, ideje …”) már nem töri szét a címke–érték sorokat (a megkezdett leírás-szakasz minden sorát megtartja). A csempe-navigáció **nem** nyitja ki automatikusan a szűrőpanelt (a #120 viselkedés marad). Új regressziós teszt: `test_reszletek_modal.py` |
+| **v2.2.7** *(kiadásra kész)* | **2026-11-11** | **KRÉ-8 – esti összefoglaló:** minden nap a beállított idő után (alap **19:30**) **gyermekenként egy push** a nap eseményeivel — jegyek (tantárgy, jegy, **súly%**, mód, téma, tanár), ma feladott házik (határidővel), ma bejelentett dolgozatok (dátummal), mai feljegyzések, hiányzások (igazoltan/igazolatlanul), igazolások, mai üzenetek —, valamint a **holnap esedékes** házik/dolgozatok. Órarend nincs benne; eseménytelen napon is jön rövid üzenet. Naponta max. 1/gyerek (`app_meta: digest_sent:<diák>`), 23 óra után nincs pótlás. Beállítás a fejléc **harang** ikonjából (ki/be, időpont, név, teszt küldés), `app_meta`-ban tárolva; `config.json DIGEST` csak alap. Új: `kreta_digest.py`, `GET/PUT /api/digest/settings`, `POST /api/digest/test`, `tests/test_digest.py` |
+| **v2.2.6** *(éles 2026-11-11)* | **2026-11-11** | **KRÉ-126:** a **naptárból** nyitott részletek modál ugyanazt a tagolt szerkezetet kapja, mint az esemény-táblából — közös renderer (`esemenyReszletekSzoveg` + `reszletekModal`), az `/api/naptar_esemenyek` a teljes eseménymezőket is átadja; a leírásban lévő kettőspont („… a tanult módon: módja, ideje …”) már nem töri szét a címke–érték sorokat (a megkezdett leírás-szakasz minden sorát megtartja). A csempe-navigáció **nem** nyitja ki automatikusan a szűrőpanelt (a #120 viselkedés marad). Új regressziós teszt: `test_reszletek_modal.py` |
 | **v2.2.5** *(éles 2026-11-11)* | **2026-11-11** | **Szűrőpanel:** a **Határidő** dátumtartomány bekerült a rendes szűrők közé (a panel alján megjelenő külön, apró „Határidő-szűrő: … törlés” sor megszűnt); az Áttekintés csempéi (következő házik/számonkérések) ezt a látható mezőt állítják, mobilon felirattal („Bejegyzés kelte” / „Határidő”). A gyors időszakgombok törlik a határidő-szűrőt. Csempéről érkezve a panel automatikusan kinyílt |
 | **v2.2.4** *(éles 2026-11-10)* | **2026-11-10** | **Tagolt részletek modál** minden nézetben: hero (tantárgy + típus/állapot jelvény, diák, határidő), kétoszlopos adatkártyák, külön leírás-blokk; zöld Aktív jelvény, tömör meta sorok, asztali 2 oszlop, mobilon 1 |
 | **v2.2.3** *(éles 2026-11-09)* | **2026-11-09** | A **Ma** fül széles kijelzőn az Áttekintéshez hasonlóan **középre igazított** (max. 1200 px) |

@@ -13,9 +13,9 @@ Ha ez a teszt piros lesz, a refaktor véletlenül megváltoztatta a nyilvános
 felületet (pl. blueprint-prefix az URL-ben, elgépelt rule, dupla regisztráció,
 eltűnt végpont) — nem szabad „tesztet igazítani", hanem a kódot kell visszaállítani.
 
-A lista az app.py 41 explicit route-ja + a Flask beépített `static` végpontja
-(összesen 42 rule). A HEAD/OPTIONS metódusokat a Flask automatikusan adja, ezért
-a contract csak a deklarált metódusokat rögzíti.
+A lista az app.py explicit route-jai + a Flask beépített `static` végpontja
+(a KRÉ-8-cal együtt 44 rule). A HEAD/OPTIONS metódusokat a Flask automatikusan
+adja, ezért a contract csak a deklarált metódusokat rögzíti.
 """
 import os
 import sqlite3
@@ -30,6 +30,8 @@ EXPECTED_RULES = [
     ("/", ["GET"]),
     ("/api/atlagok", ["GET"]),
     ("/api/dashboard", ["GET"]),
+    ("/api/digest/settings", ["GET", "PUT"]),
+    ("/api/digest/test", ["POST"]),
     ("/api/esemeny/statusz", ["POST"]),
     ("/api/esemenyek", ["GET"]),
     ("/api/esemenyek/export.xlsx", ["GET"]),

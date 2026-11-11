@@ -16,6 +16,7 @@ import urllib.request
 from datetime import datetime, timedelta
 import kreta_tanev
 import kreta_api
+import kreta_digest
 import kreta_sajat_orarend
 import kreta_naptar
 import kreta_ai
@@ -719,10 +720,66 @@ def _maybe_notify_stale(cfg):
     return sent
 
 
+# ── Esti digest (KRÉ-8) ─────────────────────────────────────────────────────
+def digest_settings():
+    """Az esti digest beállításai: config.json DIGEST alap + app_meta felülírás."""
+    cfg = (load_config() or {}).get("DIGEST") or {}
+    meta = get_meta(kreta_digest.DIGEST_SETTINGS_META, "") or ""
+    return kreta_digest.load_settings(cfg, meta)
+
+
+def build_digest_for(diak_nev, nap=None):
+    """Egy diák digestje (cím, törzs) az adott napra."""
+    nap = nap or _now().date()
+    conn = get_db_connection()
+    try:
+        adat = kreta_digest.collect_day(conn, diak_nev, nap)
+    finally:
+        conn.close()
+    settings = digest_settings()
+    return kreta_digest.build_message(
+        diak_nev, nap, adat, bool(settings.get("include_names", True))
+    )
+
+
+def _maybe_send_digests(now=None):
+    """Esti digest: gyermekenként egy üzenet, naponta egyszer (a tickből hívva).
+
+    A napot `app_meta` jelölő zárja le (`digest_sent:<diák>`), így újraindítás
+    után sem megy ki kétszer. Üres napon is küld (a felhasználó kérése).
+    """
+    now = now or _now()
+    settings = digest_settings()
+    if not settings.get("enabled") or not NTFY_TOPIC:
+        return 0
+    if sync_state.get("running") or not os.path.exists(DB_FILE):
+        return 0
+
+    students = [s for s in (load_config().get("STUDENTS") or []) if s.get("active", True)]
+    sent = 0
+    for student in students:
+        diak = str(student.get("diak_nev") or "").strip()
+        if not diak:
+            continue
+        key = kreta_digest.DIGEST_SENT_PREFIX + diak
+        if not kreta_digest.should_send(settings, get_meta(key, "") or "", now):
+            continue
+        try:
+            cim, torzs = build_digest_for(diak, now.date())
+        except Exception as exc:  # noqa: BLE001 — egy diák hibája ne állítsa meg a többit
+            print(f"[Digest] {diak}: nem sikerült összeállítani ({exc})")
+            continue
+        if not send_notification(cim, torzs, 2, ["memo"]):
+            break
+        set_meta(key, now.date().isoformat())
+        sent += 1
+        _append_sync_log(f"[Digest] {diak}: esti összefoglaló elküldve")
+    return sent
+
+
 def trigger_label(trigger):
     """A naplóban/UI-ban használt magyar megnevezés."""
     return {"manual": "kézi", "scheduled": "ütemezett"}.get(trigger, trigger or "-")
-
 
 def start_sync(trigger="manual"):
     """
@@ -767,6 +824,7 @@ def _scheduler_loop():
                 start_sync("scheduled")
                 # ha épp fut valami, a következő tick újra próbálja (nincs sorban állás)
             _maybe_notify_stale(cfg)
+            _maybe_send_digests()
         except Exception as e:
             print(f"[Ütemező] Hiba a ciklusban: {e}")
         time.sleep(SCHEDULER_TICK_SECONDS)
@@ -1229,6 +1287,56 @@ def api_ntfy_test():
                         "error": f"{type(exc).__name__}: {exc}"}), 502
     return jsonify({"ok": status == 200, "configured": True, "url": url,
                     "topic": topic, "status": status})
+
+
+# ── Esti digest beállításai és tesztje (KRÉ-8) ─────────────────────────────
+@app.route("/api/digest/settings", methods=["GET", "PUT"])
+def api_digest_settings():
+    """A napi esti összefoglaló beállításai (config alap + app_meta felülírás)."""
+    if request.method == "GET":
+        return jsonify({
+            "status": "ok",
+            "settings": digest_settings(),
+            "ntfy_configured": bool(NTFY_TOPIC),
+        })
+
+    data = request.get_json(silent=True) or {}
+    settings, errors = kreta_digest.parse_settings(data, base=digest_settings())
+    if errors:
+        return jsonify({"status": "error", "errors": errors}), 400
+    set_meta(kreta_digest.DIGEST_SETTINGS_META, json.dumps(settings, ensure_ascii=False))
+    _append_sync_log("[Digest] beállítások mentve: " + json.dumps(settings, ensure_ascii=False))
+    return jsonify({"status": "ok", "settings": settings})
+
+
+@app.route("/api/digest/test", methods=["POST"])
+def api_digest_test():
+    """Azonnali próbaküldés (a napi jelölőt nem állítja be)."""
+    if not NTFY_TOPIC:
+        return jsonify({
+            "status": "error",
+            "message": "Nincs ntfy topic beállítva (config.json → NTFY.TOPIC vagy NTFY_TOPIC).",
+        }), 400
+    data = request.get_json(silent=True) or {}
+    diak = str(data.get("diak") or "").strip()
+    students = [s for s in (load_config().get("STUDENTS") or []) if s.get("active", True)]
+    if diak:
+        students = [s for s in students if s.get("diak_nev") == diak]
+    if not students:
+        return jsonify({"status": "error", "message": "Nincs ilyen aktív diák."}), 400
+
+    now = _now()
+    sent = []
+    for student in students:
+        nev = str(student.get("diak_nev") or "")
+        try:
+            cim, torzs = build_digest_for(nev, now.date())
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"status": "error", "message": f"{nev}: {exc}"}), 500
+        if send_notification(cim, torzs, 2, ["memo"]):
+            sent.append(nev)
+    return jsonify({"status": "ok", "sent": sent})
+
 
 if __name__ == "__main__":
     host = os.environ.get("KRETA_HOST", "127.0.0.1")

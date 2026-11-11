@@ -10,6 +10,12 @@
   },
   "SYNC_MODE": "api_first",
   "SYNC_SHADOW": false,
+  "DIGEST": {
+    "_comment": "Esti osszefoglalo (KRE-8): gyermekenkent egy push a nap esemenyeivel. A felulet beallitasai felulirjak (app_meta).",
+    "ENABLED": true,
+    "TIME": "19:30",
+    "INCLUDE_NAMES": true
+  },
   "ENABLE_REWARDS": true,
   "NTFY": {
     "_comment": "Push ertesites. CSAK akkor hasznalja, ha a .env-ben NINCS NTFY_TOPIC (az env erosebb). Ures TOPIC = nincs ertesites. A topic neve maga a cim: az ntfy appban ugyanerre a nevere kell feliratkozni, ezert hosszu, veletlen nevet hasznalj. Ellenorzes: POST /api/ntfy/test",
