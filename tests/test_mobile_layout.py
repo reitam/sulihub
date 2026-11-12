@@ -265,7 +265,7 @@ try:
 
             # 1c) a kereső fókuszát külön, óra-mock nélküli oldalon ellenőrizzük
             # (a rögzített óra mellett a Bootstrap átmenet-timerje nem fut le).
-            page.wait_for_timeout(50)
+            await page.wait_for_timeout(50)
             # 2) a fő elemek láthatók és elférnek
             await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('esemenyek-tab')).show()")
             await page.wait_for_timeout(500)
