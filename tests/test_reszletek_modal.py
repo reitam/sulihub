@@ -17,7 +17,7 @@ import tempfile
 import time
 import shutil
 import urllib.request
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -40,7 +40,10 @@ def free_port():
 
 LEIRAS = ("5 igét meghatározni a tanult módon: módja, ideje, száma és személye, "
           "igefajta meghatározása.")
-HATARIDO = date.today() + timedelta(days=3)
+# A naptár alapból az aktuális hetet mutatja (dayGridWeek). Ha a határidő
+# hétvégén túlnyúlna (pl. pénteken +3 nap), az esemény nem látszana a héten,
+# és a teszt a CI-ban timeouttal elhalna. Ezért a határidő mindig "ma".
+HATARIDO = date.today()
 HATARIDO_HU = f"{HATARIDO.year}. {HATARIDO.month:02d}. {HATARIDO.day:02d}."
 
 work = Path(tempfile.mkdtemp(prefix="kreta_reszletek_"))
