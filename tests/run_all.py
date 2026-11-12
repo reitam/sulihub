@@ -43,6 +43,8 @@ print(f"Tesztek: {mode} ({len(tests)} csomag)")
 CHILD_ENV = os.environ.copy()
 CHILD_ENV["PYTHONIOENCODING"] = "utf-8"
 CHILD_ENV["PYTHONUTF8"] = "1"
+# A CI joblogban a gyerek-tesztek kimenete azonnal jelenjen meg (ne bufferelődjön).
+CHILD_ENV["PYTHONUNBUFFERED"] = "1"
 failed = []
 for name in tests:
     print("=" * 64)
