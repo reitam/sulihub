@@ -32,14 +32,14 @@ def ok(condition, message):
 
 
 print("1) SYNC_MODE feloldása")
-ok(kreta_sync.resolve_sync_mode({}) == "playwright", "alapértelmezés: playwright")
+ok(kreta_sync.resolve_sync_mode({}) == "api", "alapértelmezés: api (böngésző nélkül)")
 ok(kreta_sync.resolve_sync_mode({"SYNC_MODE": "api"}) == "api", "api mód")
 ok(kreta_sync.resolve_sync_mode({"SYNC_MODE": "api_first"}) == "api_first", "api_first mód")
 ok(kreta_sync.resolve_sync_mode({"SYNC_MODE": " API-First "}) == "api_first",
    "kis/nagybetű, szóköz és kötőjel kezelve")
-ok(kreta_sync.resolve_sync_mode({"SYNC_MODE": "bogus"}) == "playwright",
-   "ismeretlen érték -> playwright")
-ok(kreta_sync.resolve_sync_mode(None) == "playwright", "None config -> playwright")
+ok(kreta_sync.resolve_sync_mode({"SYNC_MODE": "bogus"}) == "api",
+   "ismeretlen érték -> api (nem indít böngészőt)")
+ok(kreta_sync.resolve_sync_mode(None) == "api", "None config -> api")
 
 ok(kreta_sync.needs_api("api") and kreta_sync.needs_api("api_first"), "api/api_first használ API-t")
 ok(not kreta_sync.needs_api("playwright"), "playwright mód nem használ API-t")

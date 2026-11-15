@@ -4,11 +4,11 @@ Adatforrás-kezelés a KRÉTA szinkronhoz: `SYNC_MODE` és adatkör-szintű fall
 
 A szinkron három üzemmódban futhat (config.json `SYNC_MODE`):
 
-- `playwright` (alap): a régi, bevált DOM-scraper út, API nélkül;
-- `api`: kizárólag a mobil API (nincs böngésző); ha egy adatkör elhal, az
+- `api` (alap): kizárólag a mobil API (nincs böngésző); ha egy adatkör elhal, az
   a diák részleges hibának számít, de a többi adatkör és diák megy tovább;
 - `api_first`: adatkörönként először az API, hiba/timeout/parse hiba esetén
-  ugyanarra az adatkörre Playwright fallback.
+  ugyanarra az adatkörre Playwright fallback (csak a Chromiumos image-ben);
+- `playwright`: a régi, bevált DOM-scraper út, API nélkül (csak fallback/rollback).
 
 Ez a modul csak a döntési logikát és a forrás-követést tartalmazza; nem importál
 Playwrightot és nem nyúl az adatbázishoz, ezért önállóan tesztelhető.
@@ -19,7 +19,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Iterable
 
-DEFAULT_MODE = "playwright"
+DEFAULT_MODE = "api"
 MODES = ("playwright", "api", "api_first")
 
 # Az adatkörök sorrendje a szinkronban (a UI és a napló is ezt használja).

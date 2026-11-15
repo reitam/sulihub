@@ -1,0 +1,6 @@
+# KRÉTA Adatlekérő — opcionális böngészős (Playwright) fallback
+#
+# Csak a `:playwright` image-hez / a böngészős tesztekhez kell. Az alap image
+# e nélkül fut, API módban (a `kreta_playwright.py` lazy importtal kezeli).
+-r requirements.txt
+playwright>=1.64,<2

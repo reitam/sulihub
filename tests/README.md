@@ -18,8 +18,9 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_migration.py` | Egyszeri migráció: régi `scheduler_state.json` → `sync_runs`/`app_meta` |
 | `test_hianyzasok.py` | Hiányzások/igazolások: táblák, mentés + dedupe, új-hiányzás számítás, havi API-összesítő (igazolt/igazolatlan óra, késés), push-szöveg |
 | `test_api_client.py` | Termelési API-kliens (`kreta_api.py`): login/refresh/401-retry/implicit belépés fake HTTP-vel, dátumszeletek, dátum/HTML konverzió, normalizálás, órarend-elem és fogadóóra, üzenetszűrés |
-| `test_api_sync.py` | API-szinkron adatkörök: lekérési ablak (magyar/ISO dátum), órarend-join párhuzamos csoportokkal, táboros téma megőrzése, jegyek (Magatartás/Szorgalom 0 értékkel), házi `kesz` megőrzés, számonkérés, feljegyzés, órarend + fogadóóra, üzenetek (inkrementális, csatolmány-fallback), stabil ID-k, igazolások |
-| `test_sync_mode.py` | `SYNC_MODE` feloldás, forrásnapló, API-hiba → Playwright fallback, duplikációvédelem valódi SQLite-on |
+| `test_api_sync.py` | API-szinkron adatkörök: lekérési ablak (magyar/ISO dátum), órarend-join párhuzamos csoportokkal, táboros téma megőrzése, jegyek (Magatartás/Szorgalom 0 értékkel), házi `kesz` megőrzés, számonkérés, feljegyzés, órarend + fogadóóra, üzenetek (inkrementális, csatolmány-fallback és **pótlás**), stabil ID-k, igazolások |
+| `test_sync_mode.py` | `SYNC_MODE` feloldás (alap: `api`), forrásnapló, API-hiba → Playwright fallback, duplikációvédelem valódi SQLite-on |
+| `test_playwright_optional.py` | **#138:** nincs modulszintű `playwright` import, a lazy import a `main()`-ben van; hiányzó csomagnál `api_first`/`playwright` → `api`; `init_db()` és `--init-db` böngésző nélkül, a `csatolmany_proba` oszloppal |
 | `test_shadow.py` | Árnyék mód: DB-másolat, táblánkénti összehasonlítás (kulcs + mezők), a valódi DB érintetlensége, `NEW_*` visszaállítás |
 | `test_digest.py` | Esti digest: adatgyűjtés (jegy súlyozással, házi, dolgozat, feljegyzés, hiányzás, igazolás, üzenet, holnapi határidők), üres nap szövege, küldési idempotencia, manuális küldés (az automata érintetlen), beállítás-API, fake ntfy |
 | `test_tantargy_szuro.py` | Tantárgy-szűrő kis/nagybetű-függetlenül („Angol nyelv" / „angol nyelv"): eseménylista, Excel export, átlagok/trend, jegy-kalkulátor, főoldali választó (Kaneo #127) |
@@ -67,7 +68,9 @@ A tesztek a futó alkalmazás függőségein (flask, reportlab) túl **opcionál
 - `pypdf` — a PDF szövegének kinyerése (e nélkül a PDF-teszt szövegellenőrzése kimarad),
 - `pymupdf` (`fitz`) — a beágyazott betűk listázása (csak diagnosztika).
 
-Ezek nélkül a tesztek lefutnak, csak a kapcsolódó ellenőrzések maradnak ki.
+A **böngészős tesztekhez** a `requirements-playwright.txt` és a Chromium kell
+(`pip install -r requirements-playwright.txt; playwright install chromium`). A gyors
+tesztek az alap `requirements.txt`-vel futnak, Playwright nélkül is.
 
 ## API-pillanatkép (KRÉ-14)
 
