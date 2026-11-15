@@ -2,9 +2,16 @@ services:
   kreta-app:
     build:
       context: .
+      # Alap: karcsú, böngésző nélküli image (API-s szinkron).
+      # Fallback/rollback: a szerver .env-jében
+      #   KRETA_BUILD_TARGET=playwright
+      #   KRETA_IMAGE_TAG=playwright
+      # majd `docker compose up -d --build`.
+      target: ${KRETA_BUILD_TARGET:-runtime}
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
+    image: kreta-app:${KRETA_IMAGE_TAG:-runtime}
     container_name: kreta-app
     # Belső hálózati port: 8085 (a RabbitApp_Svelte 8084-es portja mellett)
     ports:
@@ -33,7 +40,8 @@ services:
       # RÉTEGÉBE írna (rebuildnél elvesznek a csatolmányok, és a mentő sem
       # éri el őket) — ezért explicit a data kötet alá irányítjuk.
       - KRETA_CSATOLMANYOK_DIR=/app/data/csatolmanyok
-    # A Chromiumnak több shared memória kell Playwright alatt
+    # A Chromiumnak több shared memória kell Playwright alatt. Az alap (API-s)
+    # image-ben nem használt, de ártalmatlan; a :playwright tagnél kell.
     shm_size: "1gb"
     restart: unless-stopped
     healthcheck:

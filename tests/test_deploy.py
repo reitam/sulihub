@@ -10,9 +10,12 @@ stb.) hiányoztak a képből → `ModuleNotFoundError: No module named 'kreta_ap
 
 A teszt statikusan ellenőrzi:
 1. a Dockerfile minden gyökér `*.py` modult bemásol (explicit lista vagy `*.py` glob);
-2. a `requirements.txt` lefedi a gyökér modulok harmadik féltől származó importjait;
+2. a `requirements.txt` (alap) és a `requirements-playwright.txt` (opcionális
+   böngészős fallback) lefedi a gyökér modulok harmadik féltől származó importjait;
 3. a `.dockerignore` nem zárja ki a szükséges fájlokat, a `config.json` viszont nem
-   kerülhet a képbe.
+   kerülhet a képbe;
+4. a Dockerfile multi-stage (runtime + playwright), a compose pedig a targetet és
+   az image taget `.env`-ből választja.
 """
 import ast
 import re
@@ -31,6 +34,8 @@ def ok(condition, message):
 
 dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8").lower()
+requirements_pw = (ROOT / "requirements-playwright.txt").read_text(encoding="utf-8").lower()
+compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
 dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
 
 root_modules = sorted(path.stem for path in ROOT.glob("*.py"))
@@ -76,10 +81,36 @@ aliases = {
     "openpyxl": "openpyxl",
     "werkzeug": "flask",   # a Flask része, külön nem kell a requirements-be
 }
+def _req_packages(text):
+    """A requirements-szöveg csomagnevei (kommentek és `-r` sorok nélkül)."""
+    names = set()
+    for line in text.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line or line.startswith("-"):
+            continue
+        name = re.split(r"[<>=!~\[]", line, maxsplit=1)[0].strip().lower()
+        if name:
+            names.add(name)
+    return names
+
+
+declared = requirements + "\n" + requirements_pw
 not_declared = [name for name in third_party
-                if aliases.get(name, name).lower() not in requirements]
-ok(not not_declared, f"minden import a requirements-ben (hiányzó: {not_declared or 'nincs'})")
+                if aliases.get(name, name).lower() not in declared]
+ok(not not_declared, f"minden import a requirements-ekben (hiányzó: {not_declared or 'nincs'})")
 ok("requests" in requirements, "a requests (kreta_api HTTP) benne van")
+ok("playwright" not in _req_packages(requirements),
+   "a playwright nincs az alap requirements-ben (karcsú image)")
+ok("playwright" in requirements_pw and "-r requirements.txt" in requirements_pw,
+   "a playwright a külön requirements-playwright.txt-ben van, az alapot hozza")
+runtime_part = dockerfile.split("FROM runtime AS playwright")[0]
+ok("import playwright" not in runtime_part,
+   "a Dockerfile runtime stage-e nem importál playwrightot")
+ok("AS runtime" in dockerfile and "AS playwright" in dockerfile,
+   "a Dockerfile multi-stage (runtime + playwright target)")
+ok("target: ${KRETA_BUILD_TARGET:-runtime}" in compose
+   and "image: kreta-app:${KRETA_IMAGE_TAG:-runtime}" in compose,
+   "a compose a build targetet és az image taget .env-ből választja")
 
 print("\n3) .dockerignore: a szükséges fájlok nem esnek ki, a titkok nem mennek be")
 ignored = {line.strip().rstrip("/") for line in dockerignore.splitlines()

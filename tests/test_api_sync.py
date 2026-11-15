@@ -462,6 +462,10 @@ class FakeClient:
         # A lista csak előnézet; a részletes válasz a teljes törzs (Kaneo #74).
         if int(mailbox_id) == 1:
             return {{"uzenet": {{"szoveg": "<p>Teljes törzs</p><p>második sor</p>"}}}}
+        if int(mailbox_id) == 4:
+            # A fájl nélkül mentett üzenet pótlásához a detail adja a csatolmányt.
+            return {{"uzenet": {{"csatolmanyok": [
+                {{"azonosito": 7, "fajlNev": "hiba.pdf"}}]}}}}
         return {{}}
 
     def download_attachment(self, attachment_id, max_bytes=None):
@@ -624,6 +628,11 @@ k.SYNC_MODE = "api"
 k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
 uz4 = uzenet_snapshot()
 
+# A következő futáson a letöltés már sikerül -> a fájl nélküli sor pótlódik.
+FAIL_DOWNLOADS.discard("7")
+k.api_provider_uzenetek({{"diak_nev": "Teszt"}}, client_factory=factory)
+uz_retry = uzenet_snapshot()
+
 csat_dir = k.CSATOLMANYOK_DIR
 csat_files = []
 for base, _dirs, files in os.walk(csat_dir):
@@ -661,6 +670,7 @@ print("RESULT=" + json.dumps({{
     "csat_files": csat_files,
     "uz_after_fallback": uz_after_fallback,
     "uz_api_mode": uz4,
+    "uz_retry": uz_retry,
     "uj_first": uj1,
     "uj_second": uj2,
     "fallback_error": fallback_error,
@@ -814,6 +824,11 @@ uz_api = payload.get("uz_api_mode") or []
 ok(len(uz_api) == 4, f"api módban a fájl nélkül is menti: {len(uz_api)}")
 ok(any(u[1] == "Hibás csatolmány" and u[4] == "hiba.pdf" and (u[5] or "") == "" for u in uz_api),
    "az új üzenet csatolmány-neve megvan, az útvonal üres")
+uz_retry = payload.get("uz_retry") or []
+ok(any(u[1] == "Hibás csatolmány" and (u[5] or "").endswith("hiba.pdf") for u in uz_retry),
+   f"a fájl nélküli sor a következő futáson pótlódik: {uz_retry}")
+ok("Teszt/hiba.pdf" in (payload.get("csat_files") or []),
+   "a pótolt csatolmány valóban a lemezen van")
 
 print("\n8) Igazolások")
 ok(len(payload.get("just_first") or []) == 1, "1 igazolás mentve")

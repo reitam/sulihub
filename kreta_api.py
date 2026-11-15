@@ -972,6 +972,23 @@ def message_body_from_detail(detail) -> str:
     return ""
 
 
+def attachments_from_detail(detail) -> list[dict]:
+    """A részletes üzenet-válasz csatolmányai (`{azonosito, fajlNev}` listája).
+
+    A válasz alakja a `message_body_from_detail`-hez hasonlóan nem dokumentált:
+    lehet `{uzenet: {csatolmanyok: [...]}}`, közvetlen `{csatolmanyok: [...]}`,
+    vagy ezek listája. Ismeretlen alaknál üres listát ad.
+    """
+    for candidate in (detail if isinstance(detail, list) else [detail]):
+        if not isinstance(candidate, dict):
+            continue
+        inner = candidate.get("uzenet") if isinstance(candidate.get("uzenet"), dict) else candidate
+        attachments = inner.get("csatolmanyok")
+        if isinstance(attachments, list):
+            return [item for item in attachments if isinstance(item, dict)]
+    return []
+
+
 def normalize_message(item: dict) -> dict:
     message = item.get("uzenet") or {}
     name = _text(message.get("feladoNev"))

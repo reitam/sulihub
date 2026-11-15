@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Dokumentum verziója** | 1.13 (Kaneo #126, KRÉ-8) |
-| **A rendszer verziója** | v2.3.0 (kiadásra kész; élesben v2.2.6) |
-| **Utolsó frissítés** | 2026-11-11 |
+| **Dokumentum verziója** | 1.14 (KRÉ-138, #64) |
+| **A rendszer verziója** | v2.4.0 (kiadásra kész; élesben v2.3.1) |
+| **Utolsó frissítés** | 2026-11-15 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
 
@@ -519,9 +519,9 @@ A régi (2 hetes) ablakhoz képest a naptár előretekerése is négy hétre ele
 │                                     └─ Szinkron indítása (gyerekprocessz)         │
 │                                              │                                    │
 │                                              ▼                                    │
-│                                   kreta_playwright.py                             │
-│                                   (Playwright + Chromium)                         │
-│                                     ├─► KRÉTA (3 fiók)                            │
+│                                   kreta_playwright.py (szinkron futtató)          │
+│                                     ├─► Kréta mobil API (alap, böngésző nélkül)    │
+│                                     ├─► KRÉTA web (opcionális Playwright fallback)│
 │                                     └─► e-Ügyintézés (üzenetek, csatolmányok)      │
 │                                              │                                    │
 │                                              ▼                                    │
@@ -581,9 +581,15 @@ kikényszeríthető az új belépés.
 
 | Mód | Mit jelent |
 |---|---|
-| `playwright` | **Alapértelmezés.** Csak a DOM-scraper fut (a korábbi viselkedés). |
-| `api` | Csak a mobil API; böngésző nem indul. Egy adatkör hibája részleges hiba, a többi adatkör és diák megy tovább. |
-| `api_first` | Adatkörönként először az API; hiba/timeout/parse hiba esetén **automatikus Playwright fallback** arra az adatkörre. |
+| `api` | **Alapértelmezés.** Csak a mobil API; böngésző nem indul. Egy adatkör hibája részleges hiba, a többi adatkör és diák megy tovább. |
+| `api_first` | Adatkörönként először az API; hiba/timeout/parse hiba esetén **automatikus Playwright fallback** arra az adatkörre. Csak a Chromiumos (`:playwright`) image-ben elérhető. |
+| `playwright` | Csak a DOM-scraper fut (a régi viselkedés) — **rollbackhez**; csak a `:playwright` image-ben. |
+
+> **Karcsú alap image (#138):** a `runtime` image-ben nincs `playwright` csomag és
+> Chromium, ezért `api_first`/`playwright` módot kérve a futtató **figyelmeztetés
+> mellett `api` módra vált** (nem száll el import-hibával). A böngészős fallbacket
+> a külön `:playwright` image adja (lásd 7.3.2). A `requirements.txt` az alapot, a
+> `requirements-playwright.txt` az opcionális böngészős réteget tartalmazza.
 
 Az adatkörök: órarend, jegyek, feljegyzések, házi feladatok, bejelentett számonkérések,
 hiányzások/késések, igazolások, üzenetek. A sikeres API-adatkörök `skip` halmazba kerülnek,
@@ -595,7 +601,10 @@ a `sync_runs.sources` oszlopba kerül; a `/api/sync/status` is átadja.
 **másolt** adatbázison, és csak összehasonlítunk (táblánként kulcs + mezők, a POC logikája
 szerint). A valódi DB-hez csak az API ír, így nincs dupla írás/értesítés; az eltérések a
 `sync.log`-ba kerülnek (`[ÁRNYÉK]` sorok). Élesítés előtt 1–2 hétig érdemes bekapcsolva
-hagyni, utána kikapcsolható — a Playwright csak fallback marad.
+hagyni, utána kikapcsolható — a Playwright csak fallback marad. Élesben ez alapból
+**nincs bekapcsolva**; a #64 mérési feltételéhez elég a `sync_runs.sources` (a folyamatos
+shadow minden futásnál egy teljes második scrape lenne). Ha kell, **heti/kézi** ellenőrzésre
+használd, ne folyamatosan.
 
 > A D3–D7-tel a **hiányzások/késések, az igazolások, a jegyek, a házi feladatok, a
 > bejelentett számonkérések, a feljegyzések, az órarend** (fogadóórákkal) és az
@@ -605,7 +614,9 @@ hagyni, utána kikapcsolható — a Playwright csak fallback marad.
 > átirányítást követi a `files.e-kreta.hu/fajlok/?nonce=…` címre, és a bájtokat a
 > `csatolmanyok/<diák>/` alá menti. Így **tiszta `api` módban sincs böngésző**; ha egy
 > letöltés mégis elhal, `api_first` módban a teljes üzenet-adatkör Playwright-fallbackre
-> megy (nincs félkész mentés), `api` módban a fájl kimarad (figyelmeztetés a naplóban).
+> megy (nincs félkész mentés), `api` módban a fájl kimarad (figyelmeztetés a naplóban),
+> de a következő futások **pótolják** (`csatolmany_proba`, max. 3 próba) — így tiszta
+> `api` módban sincs végleges adatrés.
 
 > **UTC-határ az órarendnél:** az `OrarendElemek` a `KezdetIdopont` **UTC** dátuma
 > szerint szűr, a helyi nap 00:00-kor kezdődő egész napos események (szünetek,
@@ -722,7 +733,7 @@ futás tanévét.
 
 | Integráció | Mire használjuk | Megjegyzés |
 |---|---|---|
-| **KRÉTA** (`<intézmény>.e-kreta.hu`) | Adatgyűjtés böngésző-automatizálással (Playwright) | 3 iskolai azonosító; a bejelentkezés sütiképre támaszkodik |
+| **KRÉTA** (`<intézmény>.e-kreta.hu`) | Adatgyűjtés **mobil API-ból** (alap, böngésző nélkül) | 3 iskolai azonosító; a Playwright csak opcionális fallback (`:playwright` image) |
 | **e-Ügyintézés** (`eugyintezes.e-kreta.hu`) | Üzenetek + csatolmányok | API-ból (mobil token), `X-Uzenet-Lokalizacio` illesztő; a Playwright-út csak fallback |
 | **ntfy** (`ntfy.sh`) | Push értesítések | Csak állapotinformáció; diáknév alapból nem megy ki |
 | **Docker / Docker Compose** | Futtatás a szerveren | Konténer: `kreta-app`, port **8085** |
@@ -756,7 +767,7 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 |---|---|
 | `HEADLESS` | A böngésző háttérben fusson-e (élesben igen) |
 | `SCRAPE_MESSAGES` | Üzenetek gyűjtése globálisan |
-| `SYNC_MODE` | A szinkron forrása: `playwright` (alap) / `api` / `api_first` — lásd 3.2.1 |
+| `SYNC_MODE` | A szinkron forrása: `api` (alap) / `api_first` / `playwright` - lásd 3.2.1 |
 | `SYNC_SHADOW` | `api_first` mellett a Playwright is lefut egy DB-másolaton, csak összehasonlítás (lásd 3.2.1) |
 | `DIGEST` | Esti összefoglaló (KRÉ-8): `ENABLED`, `TIME` (`19:30`), `INCLUDE_NAMES`; a felület beállításai felülírják (`app_meta`) |
 | `ENABLE_REWARDS` | Zsebpénz modul globálisan |
@@ -830,7 +841,8 @@ derül ki.
 köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data kötetre másolni.
 
 **Csak a futásidejű fájlok mennek fel.** A munkakönyvtárba (`/mnt/work/Kreta`) a
-következők kerülnek: `app.py`, `kreta_*.py`, `requirements.txt`, `Dockerfile`,
+következők kerülnek: `app.py`, `kreta_*.py`, `requirements.txt`,
+`requirements-playwright.txt`, `Dockerfile`,
 `docker-compose.yml`, `.dockerignore`, `entrypoint.sh`, `templates/`, `static/`
 (a csatolmányok nélkül) és `backup/kreta_backup.sh` (a `-InstallBackup` kapcsolóhoz).
 **Soha nem kerül fel:** `config.json`, `*.db`, `api_tokens.json`, `.env`, `sync.log`,
@@ -885,6 +897,34 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 6. **Oszlopszélesség:** az átméretezés/húzás nem rendezi át a táblát; a Hiányzások fülön is
    van fogantyú.
 7. **Adatvédelem:** üres (de 200-as) API-válasz nem törli a jegyeket (napló: `[FIGYELEM]`).
+
+#### 7.3.3. v2.4.0 (opcionális Playwright, #138) élesítési ellenőrzőlista
+
+1. **Éles config:** a data köteten a `config.json`-ban `"SYNC_MODE": "api"` (a #64
+   mérési időszaka). Ha még `api_first` marad, az alap image ezt figyelmeztetés mellett
+   `api`-ra váltja — nem száll el import-hibával.
+2. `.\deploy.ps1 -Release v2.4.0` — az alap (`runtime`) image **Chromium és playwright
+   csomag nélkül** épül; a deploy és a healthcheck változatlan.
+3. Ellenőrzés:
+   - `/health` = `v2.4.0`, a konténer `healthy`;
+   - `docker image ls kreta-app` → a `runtime` tag mérete érdemben kisebb (nincs
+     Chromium-réteg);
+   - kézi szinkron után a `sync.log`-ban `Szinkron mód: api`, a diák végén
+     `adatforrások: API: 8, Playwright: 0`.
+4. **Fallback/rollback kép:** a szerver `.env`-jében
+   ```
+   KRETA_BUILD_TARGET=playwright
+   KRETA_IMAGE_TAG=playwright
+   ```
+   majd `docker compose up -d --build` → `kreta-app:playwright` (Chromiummal). Ha a
+   fallbacket használni is akarod, a `config.json`-ban `"SYNC_MODE": "api_first"`.
+   Visszaállás: a két sor törlése a `.env`-ből, `"SYNC_MODE": "api"`, újra
+   `docker compose up -d --build`.
+5. **A `:playwright` image próbája (opcionális):** ideiglenesen rossz API-viselkedés
+   mellett a naplóban `[API HIBA]` + Playwright-forrás; az adatok nem duplikálódnak.
+6. **#64 lezárása** csak a 1–2 hónapos mérési ablak után: a scraper kód, a
+   `browser_user_data` és a Playwright-függőség végleges kivezetése (a #138 ettől
+   külön, azonnal hasznos).
 
 ### 7.4. Mentés és visszaállítás
 
@@ -963,7 +1003,7 @@ A felület a fejléc választójában **mindig explicit** értéket küld. A `/a
 | Réteg | Eszköz |
 |---|---|
 | Backend | Python 3.12, Flask, waitress, ReportLab (PDF) |
-| Scraper | Playwright (Chromium), asyncio |
+| Adatforrás | **Kréta mobil API** (alap, böngésző nélkül); opcionális Playwright (Chromium) fallback a `:playwright` image-ben |
 | Adat | SQLite |
 | Frontend | Bootstrap 5.3, jQuery, DataTables, FullCalendar 6, FontAwesome |
 | Konténer | Docker, Docker Compose, Debian slim |
@@ -985,7 +1025,7 @@ Kreta/
 ├── kreta_db.py            # DB-kapcsolat, séma/migrációk, app_meta, futásnapló
 ├── kreta_settings.py      # config.json, verzió, órarend-színek
 ├── views_common.py        # blueprint-építő + közös request-segédek
-├── kreta_playwright.py    # scraper
+├── kreta_playwright.py    # szinkron futtató + opcionális Playwright scraper
 ├── kreta_api.py           # mobil KRÉTA API kliens (böngésző nélkül)
 ├── kreta_api_sync.py      # API adatkör-lekérők, ablakok
 ├── kreta_sync.py          # SYNC_MODE, forrásnapló, fallback
@@ -1074,16 +1114,16 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 |---|---|---|
 | Nincs felhasználói hitelesítés | belső hálózaton belül bárki eléri | tudatos kompromisszum |
 | Egy processzes ütemező | több worker esetén duplikálódna | Dockerben egy processz fut |
-| KRÉTA DOM-scraping | a KRÉTA felületváltása törheti | az API-first út (v1.6.0) ezt kiváltja; a Playwright fallback megmarad |
+| KRÉTA DOM-scraping | a KRÉTA felületváltása törheti | az **alap az API** (v1.6.0+); a Playwright fallback opcionális, külön `:playwright` image-ben (#138) |
 | Táboros hiányzás témája | az API nem ad rá témát (nincs órarendi elem) | a meglévő DB-érték megmarad; új táboros sornál üres |
 | Adatvédelmi küszöb (3.2.2) | valódi, nagy arányú csökkenést is blokkol (a régi adat marad) | a napló `[FIGYELEM]`-et ír; `KRETA_SYNC_MIN_RATIO`-val állítható |
 | Órarend-ablak első napja | az `OrarendElemek` a `KezdetIdopont` UTC dátuma szerint szűr, az egész napos események `23:00Z`-ként jönnek | a kliens egy nappal korábbra is kér (`fetch_lessons`), így a hétfői szünet/ünnep nem marad ki |
 | Jövőbeli dolgozat/házi kimarad | az API az ablakon belül adja a sorokat, a házi/számonkérés határideje viszont jövőbeli | a `Házi feladat` és `Bejelentett számonkérés` ablaka **+90 nappal** előre nyúlik (`FUTURE_LOOKAHEAD_DAYS`) |
-| Üzenet-csatolmány letöltése | az eAdmin API csak fájl-metadatot ad, a fájl egy rövid életű `nonce` URL-en jön | a kliens a `dokumentumok/uzenetek/{id}` 302-jét követi, és a `files.e-kreta.hu/fajlok/?nonce=…` címről tölt (2026-10-31 óta API-ból, böngésző nélkül); hiba esetén `api_first` fallback |
+| Üzenet-csatolmány letöltése | az eAdmin API csak fájl-metadatot ad, a fájl egy rövid életű `nonce` URL-en jön | a kliens a `dokumentumok/uzenetek/{id}` 302-jét követi, és a `files.e-kreta.hu/fajlok/?nonce=…` címről tölt (2026-10-31 óta API-ból, böngésző nélkül); hiba esetén `api_first` fallback, `api` módban max. 3 próbás pótlás |
 | „Új bejelentkezés" e-mailek | az API-út minden futásnál belépne (a Playwright-nál a profil megjegyezte a munkamenetet) | tokentárolás a data köteten (`api_tokens.json`): a 2. futástól **nincs új belépés**, lejárat után refresh token; teljes belépés csak token nélkül/hibánál |
 | Nincs `MESSAGE_LIMIT` | az első API-s futás az összes üzenetet letölti (nálunk ~76 sor), utána már csak az újakat | tudatos döntés: az inkrementális futások így is 1–5 üzenetet hoznak |
 | Az üzenetlista csak előnézetet ad | az eAdmin `postaladaelemek/sajat` válasz `szoveg` mezője rövid és a sortörések nélkül | a mentéskor (és utólagos backfill-lel) a `postaladaelemek/<posta_id>` részletes választ használjuk, ami megőrzi a bekezdéseket (Kaneo #74) |
-| Chromium az image-ben | nagyobb image | a Playwright fallback miatt szükséges, amíg az API hosszú távon nem bizonyít |
+| Chromium az image-ben | nagyobb image | **#138:** az alap `runtime` image-ből kikerült; csak a külön `:playwright` tagben van (fallback/rollback) |
 | CDN-függő frontend | internet nélkül nem indulna a felület | **megoldva (Kaneo #12):** minden CDN-fájl a `static/vendor/` alatt, a sablon csak helyi `url_for('static', ...)` hivatkozásokat használ |
 | `config.json` egyszerű szöveg | jelszavak olvashatók a fájlból | a data kötet védett |
 | A tanárgyi átlagok forrása | a KRÉTA webes `*_HaviAtlag` mezői üresek/nullák, a `Atlag` (időszaki) viszont súlyozott | a havi bontást a saját számításunk adja a jegyek súlyából; az időszaki átlag **egyezik** a KRÉTA `Atlag` mezőjével (élő ellenőrzés) |
@@ -1184,6 +1224,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v2.1.2** *(kiadásra kész)* | **2026-11-08** | **#120** az Iskolai események **szűrőpanelje alapból zárva** van, a fejlécére kattintva nyílik (a dashboard-csempéről érkezve is zárva marad; a szűrő továbbra is érvényesül). **#115** (Tailscale/WireGuard távoli elérés) és **#119** (SQLite vs MySQL/PostgreSQL) **elemzés** a jegyekben, kódváltozás nélkül. **1340 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/197) |
 | **v2.1.3** *(kiadásra kész)* | **2026-11-08** | **#121** a szűrőpanel a felső menüsor **alá** került (a menüsor nem ugrál a fülek között). **#82** A4-es **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve (`riportkartyak` tábla + data kötet), visszamenőleges lista/letöltés; a hivatalos félévi jegy hiányát jelzi. **#83** **Excel exportok**: események (Jegyek/Feljegyzések/Házi feladatok) és hiányzások (Hiányzások/Igazolások) a felület szűrőivel. **#90** üzemeltetési ellenőrzések: havi **restore-teszt** (`tools/backup_restore_check.py`, manifest-tel) + éjszakai **élő füstteszt** (`tools/live_smoke.py`, CI job, secret nélkül kimarad). **1411 ellenőrzés / 47 csomag** (fast 42/1212, browser 5/199) |
 | **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** az **aktuális bizonyítvány** (a felületi kártya és a PDF fejléce is ezt a nevet viseli) **mentés/előzmény nélkül**, mindig közvetlenül generálódik (`GET /api/riportkartya/export_pdf`); a fő címe a tanévet és az időszakot mutatja („SuliHub - \<gyerek\> - 2026/2027 1. félév”), **dísz-bizonyítvány** kivitelben (arany keret, pecsét, serif címek), a tantárgyi táblában nincs Db oszlop, a jegyek jegyenként összesítve („Jeles(5) - 3 db ; Jó(4) - 2 db”), a magatartás/szorgalom értékelés benne van, a zsebpénz-egyenleg csak engedélyezett modulnál, a **Feljegyzések** szekció nincs. A félévi/év végi hivatalos jegy beépítése külön backlog (#123/#124). **#125** kódszemle-javítások: riport hiányzás-óraszám, FTS ékezet/kis-nagybetű, adatminőség-typo, csatolmány-rekurzió, órarend arányőr, silent JSON, dupla `.bak`, `/api/esemenyek` limit/offset. **#104** **Ma/Hét** nézet a Ma fülön: a heti nézet **kétoszlopos, középre igazított napkártyák** (az események szerinti színekkel, páratlan darabszámnál középre tett utolsó kártyával), a **havi nézet elhagyva**. **Új SuliHub logó mindenhol:** fejléc (embléma + név), favicon/apple-touch ikon, valamint a PDF-bizonyítvány fejléce (a teljes logó a cím fölött). **1488 ellenőrzés / 50 csomag** (fast 45/1286, browser 5/202) |
+| **v2.4.0** *(kiadásra kész)* | **2026-11-15** | **KRÉ-138 — Playwright opcionális image:** az alap `runtime` Docker image **Chromium és playwright csomag nélkül** épül (karcsú), a böngészős fallback külön `:playwright` target/tag (`KRETA_BUILD_TARGET=playwright`, `KRETA_IMAGE_TAG=playwright` a szerver `.env`-jében). A `kreta_playwright.py` playwright-importja **lazy** (a `main()`-ben), az alap image-ben `api` módban fut; ha `api_first`/`playwright` van beállítva, figyelmeztetés mellett `api`-ra vált. A `SYNC_MODE` alapértelmezése **`api`**. Új `requirements-playwright.txt`; a CI böngészős jobja azt telepíti. **Csatolmány-pótlás:** `api` módban a fájl nélkül mentett üzenetek csatolmányát a következő futások pótolják (`csatolmany_proba`, max. 3 próba), így nincs végleges adatrés. Új teszt: `tests/test_playwright_optional.py` |
 | **v2.3.0** *(kiadásra kész)* | **2026-11-11** | **KRÉ-8 – esti összefoglaló:** minden nap a beállított idő után (alap **19:30**, `config.json → DIGEST.TIME`, a felületen is állítható) **gyermekenként egy push** a nap eseményeivel — jegyek (tantárgy, jegy, **súly%**, mód, téma, tanár), ma feladott házik (határidővel), ma bejelentett dolgozatok (dátummal), mai feljegyzések, hiányzások (igazoltan/igazolatlanul), igazolások, mai üzenetek —, valamint a **holnap esedékes** házik/dolgozatok. Órarend nincs benne; eseménytelen napon is jön rövid üzenet. **Manuális „Összefoglaló most"** a felületről: az **utolsó automatikus digest óta** (a kimaradt napokat is hozza), az automata időpontját/tartalmát **nem** befolyásolja (napi jelölő `digest_sent:<diák>`, utolsó automata `digest_last_at:<diák>`). Naponta max. 1 automata/gyerek, 23 óra után nincs pótlás. Beállítás a fejléc **harang** ikonjából (ki/be, időpont, név, összefoglaló most), `app_meta`-ban tárolva; `config.json DIGEST` csak alap. **KRÉ-127:** a **tantárgy-szűrő kis/nagybetű-független** (a KRÉTA írásmódja nem egységes: „Angol nyelv" / „angol nyelv" ugyanarra a tantárgyra) — az eseménylista, az Excel export, a jegy-kalkulátor, az átlagok/trend és a riportkártya is a normalizált kulccsal dolgozik, a tantárgy-választókban tantárgyanként egy tétel. Új: `kreta_digest.py`, `GET/PUT /api/digest/settings`, `POST /api/digest/run`, `tests/test_digest.py`, `tests/test_tantargy_szuro.py` |
 | **v2.2.6** *(éles 2026-11-11)* | **2026-11-11** | **KRÉ-126:** a **naptárból** nyitott részletek modál ugyanazt a tagolt szerkezetet kapja, mint az esemény-táblából — közös renderer (`esemenyReszletekSzoveg` + `reszletekModal`), az `/api/naptar_esemenyek` a teljes eseménymezőket is átadja; a leírásban lévő kettőspont („… a tanult módon: módja, ideje …”) már nem töri szét a címke–érték sorokat (a megkezdett leírás-szakasz minden sorát megtartja). A csempe-navigáció **nem** nyitja ki automatikusan a szűrőpanelt (a #120 viselkedés marad). Új regressziós teszt: `test_reszletek_modal.py` |
 | **v2.2.5** *(éles 2026-11-11)* | **2026-11-11** | **Szűrőpanel:** a **Határidő** dátumtartomány bekerült a rendes szűrők közé (a panel alján megjelenő külön, apró „Határidő-szűrő: … törlés” sor megszűnt); az Áttekintés csempéi (következő házik/számonkérések) ezt a látható mezőt állítják, mobilon felirattal („Bejegyzés kelte” / „Határidő”). A gyors időszakgombok törlik a határidő-szűrőt. Csempéről érkezve a panel automatikusan kinyílt |

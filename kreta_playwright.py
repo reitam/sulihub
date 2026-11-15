@@ -1,4 +1,5 @@
 import asyncio
+import importlib.util
 import json
 import sqlite3
 import os
@@ -8,7 +9,6 @@ import sys
 import logging
 import logging.handlers
 from datetime import datetime, timedelta
-from playwright.async_api import async_playwright
 
 import kreta_api
 import kreta_api_sync
@@ -84,8 +84,28 @@ else:
 HEADLESS_MODE = config.get("HEADLESS", True)
 STUDENTS = config.get("STUDENTS", [])
 GLOBAL_SCRAPE_MESSAGES = config.get("SCRAPE_MESSAGES", True)
-# Szinkron forrása: playwright | api | api_first (lásd kreta_sync.py).
-SYNC_MODE = kreta_sync.resolve_sync_mode(config)
+def effective_sync_mode(mode, playwright_available):
+    """A kért mód, ha a böngészős csomag hiányzik, biztonságosan `api`-ra vált.
+
+    Az alap (karcsú) image-ben nincs `playwright` csomag; ha a config mégis
+    `api_first`/`playwright` módot kér, nem szabad import-hibával elszállni,
+    hanem API módban kell továbbmenni (a fallback ilyenkor nem elérhető).
+    """
+    if kreta_sync.needs_playwright(mode) and not playwright_available:
+        return "api"
+    return mode
+
+
+# Szinkron forrása: api | api_first | playwright (lásd kreta_sync.py).
+_requested_sync_mode = kreta_sync.resolve_sync_mode(config)
+# A `playwright` csomag csak a Chromiumos fallback-image-ben van telepítve. Az
+# alap (karcsú) image-ben a modul importálható és `api` módban fut; ha valaki
+# mégis böngészős módot kér, itt hangosan és biztonságosan API-ra váltunk.
+PLAYWRIGHT_AVAILABLE = importlib.util.find_spec("playwright") is not None
+SYNC_MODE = effective_sync_mode(_requested_sync_mode, PLAYWRIGHT_AVAILABLE)
+if SYNC_MODE != _requested_sync_mode:
+    log("[FIGYELEM] A playwright csomag nincs telepítve ebben a környezetben — "
+        "API módra váltok (böngészős fallback nem elérhető).")
 # Árnyék/ellenőrző mód: api_first mellett a Playwright is lefut egy DB-másolaton,
 # és csak összehasonlítunk (a valódi DB-hez nem nyúl).
 SYNC_SHADOW = str(config.get("SYNC_SHADOW", False)).strip().lower() in ("1", "true", "yes", "on")
@@ -152,6 +172,7 @@ def init_db():
             szoveg TEXT,
             csatolmany_nev TEXT,
             csatolmany_utvonal TEXT,
+            csatolmany_proba INTEGER DEFAULT 0,
             olvasott INTEGER DEFAULT 0
         )
     ''')
@@ -248,6 +269,7 @@ def init_db():
         "szoveg": "TEXT",
         "csatolmany_nev": "TEXT",
         "csatolmany_utvonal": "TEXT",
+        "csatolmany_proba": "INTEGER DEFAULT 0",
         "olvasott": "INTEGER DEFAULT 0"
     }
     
@@ -876,19 +898,7 @@ def api_provider_uzenetek(student, client_factory=None):
         csatolmany_utvonal = ""
         files = downloads.get(m["uzenet_id"]) or []
         if files:
-            target_dir = os.path.join(CSATOLMANYOK_DIR, diak_nev.replace(" ", "_"))
-            os.makedirs(target_dir, exist_ok=True)
-            saved = []
-            for fajlnev, content in files:
-                save_path = _unique_path(os.path.join(target_dir, fajlnev))
-                with open(save_path, "wb") as handle:
-                    handle.write(content)
-                saved.append(save_path)
-            csatolmany_nev = os.path.basename(saved[0])
-            csatolmany_utvonal = os.path.relpath(saved[0], CSATOLMANYOK_DIR).replace("\\", "/")
-            if len(saved) > 1:
-                log(f"    [INFO] {len(saved)} csatolmány (a felület az elsőt linkeli): "
-                    + ", ".join(os.path.basename(p) for p in saved))
+            csatolmany_nev, csatolmany_utvonal = _ment_csatolmanyok(diak_nev, files)
         elif expected_names.get(m["uzenet_id"]):
             # a fájl nem jött le (csak api módban jutunk ide): a nevet mentjük,
             # az útvonal üres marad — a felület így is látja, hogy volt csatolmány
@@ -897,6 +907,10 @@ def api_provider_uzenetek(student, client_factory=None):
                           csatolmany_nev, csatolmany_utvonal, m.get("posta_id") or "",
                           olvasott=1 if m.get("olvasott") else 0)
         uj += 1
+
+    # `api` módban a letöltési hiba miatt fájl nélkül mentett üzenetek pótlása
+    # a következő futásokon (max. 3 próba), hogy ne legyen végleges adatrés.
+    _csatolmany_potlas(diak_nev, client)
 
     NEW_MESSAGE_COUNTS[diak_nev] = uj
     log(f"  [ÜZENETEK OK] {len(messages)} üzenet az API-ból ({uj} új).")
@@ -911,6 +925,63 @@ def _unique_path(path):
     while os.path.exists(f"{stem} ({index}){ext}"):
         index += 1
     return f"{stem} ({index}){ext}"
+
+
+def _ment_csatolmanyok(diak_nev, files):
+    """A letöltött csatolmányok kiírása a data kötetre; `(név, relatív út)`."""
+    target_dir = os.path.join(CSATOLMANYOK_DIR, diak_nev.replace(" ", "_"))
+    os.makedirs(target_dir, exist_ok=True)
+    saved = []
+    for fajlnev, content in files:
+        save_path = _unique_path(os.path.join(target_dir, fajlnev))
+        with open(save_path, "wb") as handle:
+            handle.write(content)
+        saved.append(save_path)
+    if len(saved) > 1:
+        log(f"    [INFO] {len(saved)} csatolmány (a felület az elsőt linkeli): "
+            + ", ".join(os.path.basename(p) for p in saved))
+    return (os.path.basename(saved[0]),
+            os.path.relpath(saved[0], CSATOLMANYOK_DIR).replace("\\", "/"))
+
+
+def _csatolmany_potlas(diak_nev, client, limit=5):
+    """Fájl nélkül mentett üzenetek csatolmányának pótlása (api mód).
+
+    A részletes üzenet-válaszból vesszük a csatolmány-azonosítókat, letöltjük,
+    majd a sor `csatolmany_utvonal` mezőjét frissítjük. Sikertelen próbánál a
+    `csatolmany_proba` nő; 3 után nem próbálkozik tovább (nincs végtelen kör).
+    """
+    rows = uzenet_hianyzo_csatolmanyok(diak_nev, limit=limit)
+    if not rows:
+        return
+    potolt = 0
+    for row in rows:
+        try:
+            detail = client.fetch_message_detail(row["posta_id"])
+            files = []
+            for attachment in kreta_api.attachments_from_detail(detail):
+                attachment_id = attachment.get("azonosito")
+                if not attachment_id:
+                    continue
+                fajlnev = kreta_api.safe_fajlnev(
+                    attachment.get("fajlNev") or f"csatolmany_{attachment_id}")
+                content, _content_type = kreta_api_sync.fetch_attachment(
+                    client, attachment_id)
+                files.append((fajlnev, content))
+            if not files:
+                # nincs (már) csatolmány a részletes válaszban: ne pörögjön örökre
+                uzenet_csatolmany_proba_novel(row["id"])
+                continue
+            nev, utvonal = _ment_csatolmanyok(diak_nev, files)
+            update_uzenet_csatolmany(row["id"], nev, utvonal)
+            potolt += 1
+            log(f"    [CSATOLMÁNY PÓTLÁS] {row['csatolmany_nev']} -> {utvonal}")
+        except Exception as exc:  # noqa: BLE001 — hálózat/parse/méret bármi
+            uzenet_csatolmany_proba_novel(row["id"])
+            log(f"    [FIGYELEM] csatolmány-pótlás nem sikerült "
+                f"({row['csatolmany_nev']}): {kreta_sync.describe_error(exc)}")
+    if potolt:
+        log(f"    [Üzenetek] {potolt} korábbi csatolmány pótolva.")
 
 
 API_PROVIDERS = {
@@ -1217,6 +1288,55 @@ def update_uzenet_szoveg(row_id, szoveg):
         conn.commit()
     finally:
         conn.close()
+
+
+def uzenet_hianyzo_csatolmanyok(diak_nev, limit=5):
+    """A mentett üzenetek, amelyekhez a csatolmány neve megvan, de a fájl nem.
+
+    `api` módban a letöltési hiba nem állítja meg az üzenet mentését: a sor a
+    fájl nélkül (üres `csatolmany_utvonal`) kerül a DB-be. Ezeket a következő
+    futások pótolják (max. 3 próbáig), hogy ne legyen végleges adatrés.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    try:
+        return conn.execute(
+            "SELECT id, posta_id, csatolmany_nev FROM uzenetek "
+            "WHERE diak_nev = ? AND csatolmany_nev IS NOT NULL AND csatolmany_nev != '' "
+            "AND (csatolmany_utvonal IS NULL OR csatolmany_utvonal = '') "
+            "AND posta_id IS NOT NULL AND posta_id != '' "
+            "AND COALESCE(csatolmany_proba, 0) < 3 "
+            "ORDER BY id DESC LIMIT ?", (diak_nev, limit)).fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+
+
+def update_uzenet_csatolmany(row_id, csatolmany_nev, csatolmany_utvonal):
+    """A pótolt csatolmány útjának mentése; a próbaszámláló nullázódik."""
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        conn.execute(
+            "UPDATE uzenetek SET csatolmany_nev = ?, csatolmany_utvonal = ?, "
+            "csatolmany_proba = 0 WHERE id = ?",
+            (csatolmany_nev, csatolmany_utvonal, row_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def uzenet_csatolmany_proba_novel(row_id):
+    """Sikertelen csatolmány-pótlás: a próbaszámláló növelése (max. 3)."""
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        conn.execute(
+            "UPDATE uzenetek SET csatolmany_proba = COALESCE(csatolmany_proba, 0) + 1 "
+            "WHERE id = ?", (row_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
 
 def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="",
                       csatolmany_utvonal="", posta_id="", olvasott=0):
@@ -2492,6 +2612,10 @@ async def main():
     failed = []
 
     if kreta_sync.needs_playwright(SYNC_MODE):
+        # Lazy import: az alap (Chromium nélküli) image-ben ez a modul `api`
+        # módban fut, a playwright csomag csak a fallback-image-ben kell.
+        from playwright.async_api import async_playwright
+
         user_data_dir = os.environ.get("KRETA_BROWSER_DATA_DIR",
                                        os.path.join(DATA_DIR, "browser_user_data"))
         async with async_playwright() as p:

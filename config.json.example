@@ -8,7 +8,8 @@
     "PASSWORD_HASH": "",
     "PASSWORD": ""
   },
-  "SYNC_MODE": "api_first",
+  "_comment_sync_mode": "api = bongeszo nelkul (alap); api_first = API + Playwright fallback (csak a :playwright image-ben); playwright = csak scraper (rollback).",
+  "SYNC_MODE": "api",
   "SYNC_SHADOW": false,
   "DIGEST": {
     "_comment": "Esti osszefoglalo (KRE-8): gyermekenkent egy push a nap esemenyeivel. A felulet beallitasai felulirjak (app_meta).",
