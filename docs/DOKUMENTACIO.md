@@ -521,7 +521,7 @@ A régi (2 hetes) ablakhoz képest a naptár előretekerése is négy hétre ele
 │                                              ▼                                    │
 │                                   kreta_playwright.py (szinkron futtató)          │
 │                                     ├─► Kréta mobil API (alap, böngésző nélkül)    │
-│                                     ├─► KRÉTA web (opcionális Playwright fallback)│
+│                                     ├─► KRÉTA web (opcionális Playwright)          │
 │                                     └─► e-Ügyintézés (üzenetek, csatolmányok)      │
 │                                              │                                    │
 │                                              ▼                                    │
@@ -588,7 +588,7 @@ kikényszeríthető az új belépés.
 > **Karcsú alap image (#138):** a `runtime` image-ben nincs `playwright` csomag és
 > Chromium, ezért `api_first`/`playwright` módot kérve a futtató **figyelmeztetés
 > mellett `api` módra vált** (nem száll el import-hibával). A böngészős fallbacket
-> a külön `:playwright` image adja (lásd 7.3.2). A `requirements.txt` az alapot, a
+> a külön `:playwright` image adja (lásd 7.3.3). A `requirements.txt` az alapot, a
 > `requirements-playwright.txt` az opcionális böngészős réteget tartalmazza.
 
 Az adatkörök: órarend, jegyek, feljegyzések, házi feladatok, bejelentett számonkérések,
@@ -922,7 +922,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
    `docker compose up -d --build`.
 5. **A `:playwright` image próbája (opcionális):** ideiglenesen rossz API-viselkedés
    mellett a naplóban `[API HIBA]` + Playwright-forrás; az adatok nem duplikálódnak.
-6. **#64 lezárása** csak a 1–2 hónapos mérési ablak után: a scraper kód, a
+6. **#64 lezárása** csak az 1–2 hónapos mérési ablak után: a scraper kód, a
    `browser_user_data` és a Playwright-függőség végleges kivezetése (a #138 ettől
    külön, azonnal hasznos).
 
