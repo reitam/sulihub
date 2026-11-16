@@ -911,18 +911,39 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
      Chromium-réteg);
    - kézi szinkron után a `sync.log`-ban `Szinkron mód: api`, a diák végén
      `adatforrások: API: 8, Playwright: 0`.
-4. **Fallback/rollback kép:** a szerver `.env`-jében
+4. **Fallback image előkészítése (a deploy UTÁN, még az API-próba előtt):**
+   ```
+   cd /opt/sulihub
+   KRETA_BUILD_TARGET=playwright KRETA_IMAGE_TAG=playwright docker compose build
+   docker image ls kreta-app        # runtime 278 MB + playwright ~2 GB
+   docker system df                 # van-e ~2 GB szabad hely a Docker rooton?
+   ```
+   Így a rollback pillanatában nem kell a Chromiumot letölteni/építeni; a futó
+   konténer továbbra is a `runtime` image marad. A régi (v2.3.1-es) image-et
+   **ne töröld** (`docker image prune`), amíg a rollback lehetőség kell.
+5. **Fallback/rollback (API-s útvonal hibája):** a szerver `.env`-jében
    ```
    KRETA_BUILD_TARGET=playwright
    KRETA_IMAGE_TAG=playwright
    ```
-   majd `docker compose up -d --build` → `kreta-app:playwright` (Chromiummal). Ha a
-   fallbacket használni is akarod, a `config.json`-ban `"SYNC_MODE": "api_first"`.
-   Visszaállás: a két sor törlése a `.env`-ből, `"SYNC_MODE": "api"`, újra
+   majd `docker compose up -d` (ha a 4. lépésben előre lebuildelted; ha nem,
+   `docker compose up -d --build`) → `kreta-app:playwright` (Chromiummal). A
+   `config.json`-ban `"SYNC_MODE": "api_first"`; ezt a következő szinkron már látja,
+   nem kell konténer-restart. Ellenőrzés: `docker ps` image = `kreta-app:playwright`;
+   a `sync.log`-ban `Szinkron mód: api_first`, `[API HIBA]` + `[FORRÁS] … Playwright`.
+   Visszaállás az API-hoz: a két sor törlése a `.env`-ből, `"SYNC_MODE": "api"`,
    `docker compose up -d --build`.
-5. **A `:playwright` image próbája (opcionális):** ideiglenesen rossz API-viselkedés
+6. **Kód-szintű rollback (ha nem az API, hanem a v2.4.0 kódja a hibás):** a
+   `:playwright` image a **v2.4.0 kódját** tartalmazza, tehát erre nem jó. A deploy
+   ELŐTT tageld az addig futó image-et:
+   ```
+   docker ps --format '{{.Image}}'          # a most futó (v2.3.1) image
+   docker tag <most-futo-image> kreta-app:playwright
+   ```
+   Rollbacknél `.env` + `docker compose up -d --no-build` → az ismert jó v2.3.1 fut.
+7. **A `:playwright` image próbája (opcionális):** ideiglenesen rossz API-viselkedés
    mellett a naplóban `[API HIBA]` + Playwright-forrás; az adatok nem duplikálódnak.
-6. **#64 lezárása** csak az 1–2 hónapos mérési ablak után: a scraper kód, a
+8. **#64 lezárása** csak az 1–2 hónapos mérési ablak után: a scraper kód, a
    `browser_user_data` és a Playwright-függőség végleges kivezetése (a #138 ettől
    külön, azonnal hasznos).
 
