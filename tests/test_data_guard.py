@@ -144,11 +144,11 @@ ok("Értékelés" in r["blocked"],
 ok(count("esemenyek", "Értékelés") == 1, "a jegy megmaradt")
 os.environ.pop("KRETA_SYNC_MIN_RATIO", None)
 
-print("\n6) A Playwright-út is véd (nincs kivétel)")
+print("\n6) A közös mentő is véd (nincs kivétel)")
 k.save_esemenyek_by_type("Teszt", [feljegyzes(5)], set(), ["Feljegyzés"])
 r = k.save_esemenyek_by_type("Teszt", [], set(), ["Feljegyzés"])
 ok("Feljegyzés" in r["blocked"] and count("esemenyek", "Feljegyzés") == 1,
-   "a webes mentésnél is megmarad a sor")
+   "a mentésnél is megmarad a sor")
 
 print("\n7) Igazolások: adatvédelem (Kaneo #42)")
 

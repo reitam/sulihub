@@ -8,7 +8,7 @@
     "PASSWORD_HASH": "",
     "PASSWORD": ""
   },
-  "_comment_sync_mode": "api = bongeszo nelkul (alap); api_first = API + Playwright fallback (csak a :playwright image-ben); playwright = csak scraper (rollback).",
+  "_comment_sync_mode": "api = az egyetlen futó mod (Kreta mobil API, bongeszo nelkul). A regi api_first/playwright ertekek automatikusan api-ra valtanak.",
   "SYNC_MODE": "api",
   "SYNC_SHADOW": false,
   "DIGEST": {

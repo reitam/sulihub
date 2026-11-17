@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-A D2 (SYNC_MODE + automatikus Playwright fallback) tesztjei.
+A D2 (SYNC_MODE + forrásnapló) tesztjei.
 
 Két rész:
 1) `kreta_sync` tiszta logikája (mód-feloldás, forrásnapló, API-hiba kezelés)
    hálózat és adatbázis nélkül;
 2) valódi SQLite-on (külön folyamatban, temp adatkönyvtárral) annak igazolása,
-   hogy API-hiba után a Playwright fallback nem hoz létre duplikált sort, és a
-   már API-ból frissült típusokat a Playwright nem írja felül.
+   hogy a hibás adatkör nem hoz létre duplikált sort, és a már frissült
+   típusok írását senki nem írja felül. (A böngészős fallback a v2.5.0-ban
+   kikerült — a forrásnapló `playwright` címkéje a tracker logikájának maradt.)
 """
 import json
 import os

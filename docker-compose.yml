@@ -2,22 +2,17 @@ services:
   kreta-app:
     build:
       context: .
-      # Alap: karcsú, böngésző nélküli image (API-s szinkron).
-      # Fallback/rollback: a szerver .env-jében
-      #   KRETA_BUILD_TARGET=playwright
-      #   KRETA_IMAGE_TAG=playwright
-      # majd `docker compose up -d --build`.
-      target: ${KRETA_BUILD_TARGET:-runtime}
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
-    image: kreta-app:${KRETA_IMAGE_TAG:-runtime}
+    # A v2.5.0-tól egyetlen (API-s, böngésző nélküli) image van (Kaneo #64).
+    image: kreta-app:runtime
     container_name: kreta-app
     # Belső hálózati port: 8085 (a RabbitApp_Svelte 8084-es portja mellett)
     ports:
       - "8085:5000"
     volumes:
-      # A data kötet: DB, config.json, böngészőprofil, csatolmányok, sync.log
+      # A data kötet: DB, config.json, csatolmányok, sync.log
       - ${DATA_DIR:-./data}:/app/data
       # A mentési kötet: ide írja a cron mentő a pillanatfelvételeket
       - ${BACKUP_DIR:-./backup}:/app/backup
@@ -35,14 +30,10 @@ services:
       # Élesben waitress (a Flask dev szerver csak fejlesztésre való)
       - KRETA_SERVER=waitress
       - KRETA_DATA_DIR=/app/data
-      - KRETA_BROWSER_DATA_DIR=/app/data/browser_user_data
       # Fontos: az alapérték "static/csatolmanyok" lenne, ami a konténer
       # RÉTEGÉBE írna (rebuildnél elvesznek a csatolmányok, és a mentő sem
       # éri el őket) — ezért explicit a data kötet alá irányítjuk.
       - KRETA_CSATOLMANYOK_DIR=/app/data/csatolmanyok
-    # A Chromiumnak több shared memória kell Playwright alatt. Az alap (API-s)
-    # image-ben nem használt, de ártalmatlan; a :playwright tagnél kell.
-    shm_size: "1gb"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3).status==200 else 1)"]

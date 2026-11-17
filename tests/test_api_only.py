@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-#138: a Playwright legyen opcionális a futásidejű (alap) image-ben.
+#64: a szinkron kizárólag a Kréta mobil API-ból fut, böngésző nélkül.
 
-A cél, hogy az alap image-ben ne legyen `playwright` csomag és Chromium, de a
-szinkron `api` módban fusson, a `--init-db` séma pedig böngésző nélkül is
-létrejöjjön. A böngészős fallback külön image-target (`:playwright`).
+A böngészős (Playwright) scraper a v2.5.0-ben kikerült. A Playwright a
+**böngészős UI-tesztek** fejlesztői függősége marad (`requirements-playwright.txt`),
+a KRÉTA-adatlekéréshez nincs köze.
 
 Ellenőrzések:
-1. egyetlen gyökér modul sem importálja a `playwright`-ot modulszinten;
-2. a `kreta_playwright.py` lazy importja a `main()`-ben van;
-3. a `effective_sync_mode` hiányzó csomagnál `api`-ra vált;
-4. a modul importálható és `init_db()` lefut (a `csatolmany_proba` oszloppal);
-5. a `--init-db` külön folyamatban, config nélkül is működik.
+1. egyetlen gyökér modul sem importálja a `playwright`-ot (sehol a kódban);
+2. az örökölt `api_first`/`playwright` config-értékek `api`-ra válnak;
+3. a szinkron modul importálható és `init_db()` lefut (a `csatolmany_proba` oszloppal);
+4. a `--init-db` külön folyamatban, config nélkül is működik.
 """
 import ast
 import json
@@ -33,40 +32,35 @@ def ok(condition, message):
         _hibak.append(message)
 
 
-def _module_level_playwright_imports(path):
+def _playwright_import_lines(path):
     tree = ast.parse(path.read_text(encoding="utf-8"))
     found = []
-    for node in tree.body:
+    for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             if any(alias.name.split(".")[0] == "playwright" for alias in node.names):
                 found.append(node.lineno)
         elif isinstance(node, ast.ImportFrom):
             if (node.module or "").split(".")[0] == "playwright":
                 found.append(node.lineno)
-    return tree, found
+    return found
 
 
-print("1) Nincs modulszintű playwright import")
+print("1) Nincs playwright import a gyökér modulokban")
 offenders = {}
 for path in sorted(ROOT.glob("*.py")):
-    _tree, found = _module_level_playwright_imports(path)
+    found = _playwright_import_lines(path)
     if found:
         offenders[path.name] = found
-ok(not offenders, f"egyik gyökér modul sem importálja a playwrightot modulszinten: {offenders or 'nincs'}")
+ok(not offenders,
+   f"egyik gyökér modul sem importálja a playwrightot: {offenders or 'nincs'}")
+ok(not (ROOT / "kreta_shadow.py").exists(),
+   "az árnyék-ellenőrző modul (Playwright-függő) törölve")
 
-tree = ast.parse((ROOT / "kreta_playwright.py").read_text(encoding="utf-8"))
-main_node = next((node for node in tree.body
-                  if isinstance(node, ast.AsyncFunctionDef) and node.name == "main"), None)
-lazy_in_main = bool(main_node) and any(
-    isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "playwright"
-    for node in ast.walk(main_node))
-ok(lazy_in_main, "a playwright import a main()-ben van (lazy import)")
-
-work = Path(tempfile.mkdtemp(prefix="kreta_pwoptional_"))
+work = Path(tempfile.mkdtemp(prefix="kreta_apionly_"))
 data = work / "data"
 data.mkdir()
 (data / "config.json").write_text(
-    json.dumps({"HEADLESS": True, "SYNC_MODE": "api_first",
+    json.dumps({"SCRAPE_MESSAGES": True, "SYNC_MODE": "api_first",
                 "STUDENTS": [{"diak_nev": "Teszt", "active": False}]}, ensure_ascii=False),
     encoding="utf-8")
 
@@ -107,20 +101,19 @@ for line in out.splitlines():
         key, value = line.split("=", 1)
         payload[key] = value
 
-print("\n2) Mód-feloldás hiányzó böngészős csomagnál")
+print("\n2) Az örökölt böngészős mód-értékek api-ra váltanak")
 ok(result.returncode == 0 and "INIT_OK" in out,
    f"a modul importálható és init_db() lefut (exit={result.returncode})")
 ok(payload.get("REQUESTED") == "api_first",
-   f"a kért mód az api_first marad: {payload.get('REQUESTED')}")
-available = payload.get("AVAILABLE") == "True"
-expected_mode = "api_first" if available else "api"
+   f"a kért (örökölt) mód megmarad kérésként: {payload.get('REQUESTED')}")
+expected_mode = "api_first" if payload.get("AVAILABLE") == "True" else "api"
 ok(payload.get("MODE") == expected_mode,
-   f"a tényleges mód a csomag meglététől függ: {payload.get('MODE')} (elérhető: {available})")
+   f"a tényleges mód: {payload.get('MODE')} (elérhető: {payload.get('AVAILABLE')})")
 ok(payload.get("EFFECTIVE_API_FIRST") == "api",
-   f"hiányzó csomagnál api_first -> api: {payload.get('EFFECTIVE_API_FIRST')}")
+   f"örökölt api_first böngésző nélkül -> api: {payload.get('EFFECTIVE_API_FIRST')}")
 ok(payload.get("EFFECTIVE_API") == "api", "api mód változatlan")
 ok(payload.get("EFFECTIVE_PLAYWRIGHT") == "playwright",
-   "meglévő csomagnál a playwright mód megmarad")
+   "a mód-feloldás tiszta logikája változatlan")
 
 print("\n3) Séma: a csatolmány-pótlás oszlopa létrejön")
 db = data / "kreta_adatok.db"

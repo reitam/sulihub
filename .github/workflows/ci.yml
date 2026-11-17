@@ -27,8 +27,10 @@ jobs:
         run: python tests/run_all.py --fast
 
   browser:
-    name: Böngészős tesztek (Playwright)
+    name: Böngészős UI tesztek (Playwright — csak a felület teszteléséhez)
     # Csak main pushra, éjszakánként vagy kézi indításra — minden pushra túl drága.
+    # Megjegyzés: a Playwright itt a dashboard UI-t hajtja; a KRÉTA-adatlekérés
+    # a v2.5.0-tól kizárólag mobil API-ból fut (Kaneo #64).
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20

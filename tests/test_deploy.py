@@ -14,8 +14,8 @@ A teszt statikusan ellenőrzi:
    böngészős fallback) lefedi a gyökér modulok harmadik féltől származó importjait;
 3. a `.dockerignore` nem zárja ki a szükséges fájlokat, a `config.json` viszont nem
    kerülhet a képbe;
-4. a Dockerfile multi-stage (runtime + playwright), a compose pedig a targetet és
-   az image taget `.env`-ből választja.
+4. a Dockerfile-ből a böngészős (Playwright/Chromium) réteg kikerült, a compose
+   egyetlen (API-s) image-t épít.
 """
 import ast
 import re
@@ -100,17 +100,16 @@ not_declared = [name for name in third_party
 ok(not not_declared, f"minden import a requirements-ekben (hiányzó: {not_declared or 'nincs'})")
 ok("requests" in requirements, "a requests (kreta_api HTTP) benne van")
 ok("playwright" not in _req_packages(requirements),
-   "a playwright nincs az alap requirements-ben (karcsú image)")
+   "a playwright nincs az alap requirements-ben (a szinkron böngésző nélkül fut)")
 ok("playwright" in requirements_pw and "-r requirements.txt" in requirements_pw,
-   "a playwright a külön requirements-playwright.txt-ben van, az alapot hozza")
-runtime_part = dockerfile.split("FROM runtime AS playwright")[0]
-ok("import playwright" not in runtime_part,
-   "a Dockerfile runtime stage-e nem importál playwrightot")
-ok("AS runtime" in dockerfile and "AS playwright" in dockerfile,
-   "a Dockerfile multi-stage (runtime + playwright target)")
-ok("target: ${KRETA_BUILD_TARGET:-runtime}" in compose
-   and "image: kreta-app:${KRETA_IMAGE_TAG:-runtime}" in compose,
-   "a compose a build targetet és az image taget .env-ből választja")
+   "a playwright a külön requirements-playwright.txt-ben van (csak az UI-tesztekhez)")
+ok("AS playwright" not in dockerfile and "playwright install" not in dockerfile,
+   "a Dockerfile-ből a Chromium/playwright réteg kikerült (Kaneo #64)")
+ok("kreta_shadow" not in dockerfile, "az árnyék-modul nincs a füsttesztben (törölve)")
+ok(re.search(r"COPY\s+requirements-playwright\.txt", dockerfile) is None,
+   "a böngészős requirements nem kerül a képbe (csak a fejlesztői UI-tesztekhez)")
+ok("image: kreta-app:runtime" in compose and "target:" not in compose,
+   "a compose egyetlen (API-s) image-t épít")
 
 print("\n3) .dockerignore: a szükséges fájlok nem esnek ki, a titkok nem mennek be")
 ignored = {line.strip().rstrip("/") for line in dockerignore.splitlines()

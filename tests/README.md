@@ -19,9 +19,8 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_hianyzasok.py` | Hiányzások/igazolások: táblák, mentés + dedupe, új-hiányzás számítás, havi API-összesítő (igazolt/igazolatlan óra, késés), push-szöveg |
 | `test_api_client.py` | Termelési API-kliens (`kreta_api.py`): login/refresh/401-retry/implicit belépés fake HTTP-vel, dátumszeletek, dátum/HTML konverzió, normalizálás, órarend-elem és fogadóóra, üzenetszűrés |
 | `test_api_sync.py` | API-szinkron adatkörök: lekérési ablak (magyar/ISO dátum), órarend-join párhuzamos csoportokkal, táboros téma megőrzése, jegyek (Magatartás/Szorgalom 0 értékkel), házi `kesz` megőrzés, számonkérés, feljegyzés, órarend + fogadóóra, üzenetek (inkrementális, csatolmány-fallback és **pótlás**), stabil ID-k, igazolások |
-| `test_sync_mode.py` | `SYNC_MODE` feloldás (alap: `api`), forrásnapló, API-hiba → Playwright fallback, duplikációvédelem valódi SQLite-on |
-| `test_playwright_optional.py` | **#138:** nincs modulszintű `playwright` import, a lazy import a `main()`-ben van; hiányzó csomagnál `api_first`/`playwright` → `api`; `init_db()` és `--init-db` böngésző nélkül, a `csatolmany_proba` oszloppal |
-| `test_shadow.py` | Árnyék mód: DB-másolat, táblánkénti összehasonlítás (kulcs + mezők), a valódi DB érintetlensége, `NEW_*` visszaállítás |
+| `test_sync_mode.py` | `SYNC_MODE` feloldás (alap: `api`), forrásnapló, hibás adatkör kezelése, duplikációvédelem valódi SQLite-on |
+| `test_api_only.py` | **#64:** egyetlen gyökér modul sem importál `playwright`-ot; az örökölt `api_first`/`playwright` értékek `api`-ra váltanak; `init_db()` és `--init-db` böngésző nélkül, a `csatolmany_proba` oszloppal |
 | `test_digest.py` | Esti digest: adatgyűjtés (jegy súlyozással, házi, dolgozat, feljegyzés, hiányzás, igazolás, üzenet, holnapi határidők), üres nap szövege, küldési idempotencia, manuális küldés (az automata érintetlen), beállítás-API, fake ntfy |
 | `test_tantargy_szuro.py` | Tantárgy-szűrő kis/nagybetű-függetlenül („Angol nyelv" / „angol nyelv"): eseménylista, Excel export, átlagok/trend, jegy-kalkulátor, főoldali választó (Kaneo #127) |
 | `test_data_guard.py` | Adatvédelem: üres API-válasz nem töröl, 50%-os küszöb (`KRETA_SYNC_MIN_RATIO`), órarend csak teljes ürülésnél véd, szolgáltatói hiba fallbackhez |
@@ -68,9 +67,11 @@ A tesztek a futó alkalmazás függőségein (flask, reportlab) túl **opcionál
 - `pypdf` — a PDF szövegének kinyerése (e nélkül a PDF-teszt szövegellenőrzése kimarad),
 - `pymupdf` (`fitz`) — a beágyazott betűk listázása (csak diagnosztika).
 
-A **böngészős tesztekhez** a `requirements-playwright.txt` és a Chromium kell
-(`pip install -r requirements-playwright.txt; playwright install chromium`). A gyors
-tesztek az alap `requirements.txt`-vel futnak, Playwright nélkül is.
+A **böngészős UI-tesztekhez** a `requirements-playwright.txt` és a Chromium kell
+(`pip install -r requirements-playwright.txt; playwright install chromium`). Ez
+**csak a felület teszteléséhez** kell — a KRÉTA-adatlekérés a v2.5.0-tól kizárólag
+mobil API-ból fut (Kaneo #64). A gyors tesztek az alap `requirements.txt`-vel
+futnak, Playwright nélkül is.
 
 ## API-pillanatkép (KRÉ-14)
 
@@ -92,9 +93,9 @@ környezeti változókkal irányítja át.
 ## Futtatás és CI
 
 ```bash
-python tests/run_all.py            # minden teszt (50 csomag, 1488 ell.)
-python tests/run_all.py --fast     # böngésző nélkül (39 csomag, 1120 ell.)
-python tests/run_all.py --browser  # csak Playwright (5 csomag, 152 ell.)
+python tests/run_all.py            # minden teszt
+python tests/run_all.py --fast     # böngésző nélkül (fast csomag)
+python tests/run_all.py --browser  # csak a böngészős UI-tesztek (Playwright)
 ```
 
 A GitHub Actions (`.github/workflows/ci.yml`) a **gyors** csoportot minden pushra/PR-ra,
