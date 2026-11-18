@@ -245,6 +245,14 @@ python app.py
 # http://127.0.0.1:5000
 ```
 
+> **Windows-on figyelj a Pythonra:** ha a PATH-ban más Python van (pl. 3.15 a
+> függőségek nélkül), az `import flask` hibával elszáll. A `KretaApp_Start.bat`
+> automatikusan a projekt venv-jét, majd a `C:\Python314\python.exe`-t választja;
+> kézzel ugyanez: `C:\Python314\python.exe app.py`.
+>
+> A `config.json` helye lokálisan **`data\config.json`** (a KRÉ-14 átszervezés óta),
+> nem a projekt gyökere — a `KretaApp_Start.bat` is ezt ellenőrzi.
+
 Nyomd meg az **„Adatok frissítése a KRÉTA-ból"** gombot az első szinkronhoz.
 
 ---
