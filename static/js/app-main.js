@@ -2356,13 +2356,14 @@ $(document).ready(function() {
               'Napi biztonsági szinkron nincs bekapcsolva</div>';
         box.removeClass('d-none').html(
             '<div class="szunet-icon"><i class="fa-solid fa-circle-pause"></i></div>' +
-            '<div class="flex-grow-1">' +
+            '<div class="szunet-body">' +
+            '<div class="szunet-head">' +
             '<div class="szunet-title"><span class="badge me-1">SZÜNET</span>' +
             'Szüneti szinkron üzemmód</div>' +
-            `<div><b>${escapeHtml(active.nev)}</b> ` +
+            `<div class="szunet-when"><b>${escapeHtml(active.nev)}</b> ` +
             `<span class="szunet-dates">(${huDatum(active.kezdo)} – ${huDatum(active.vege)})</span></div>` +
-            '<div class="szunet-meta">A beállított rendszeres szinkron szüneti üzemmódban működik. ' +
-            'A kézi frissítés bármikor elérhető.</div>' +
+            '</div>' +
+            '<div class="szunet-meta">A beállított rendszeres szinkron szüneti üzemmódban működik.</div>' +
             napi + '</div>');
     }
 

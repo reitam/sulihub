@@ -127,9 +127,8 @@ ok('id="szunetBanner"' in html and "szunet-banner" in html
    and "#8b1e2d" in html,
    "van bordó, hangsúlyos szünet-sáv a felületen")
 ok("renderSzunetBanner" in js and "szunet.active" in js
-   and "A beállított rendszeres szinkron szüneti üzemmódban működik" in js
-   and "A kézi frissítés bármikor elérhető" in js,
-   "a JS a rendszeres szinkron üzemmódját és a kézi frissítést írja")
+   and "A beállított rendszeres szinkron szüneti üzemmódban működik" in js,
+   "a JS a rendszeres szinkron üzemmódját írja")
 ok("szunet-title" in js and "szunet-daily" in js and "SZÜNET" in js
    and "Napi egy biztonsági szinkron bekapcsolva" in js,
    "a sáv címet, jelvényt és a napi biztonsági szinkront is mutatja")

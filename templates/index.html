@@ -64,13 +64,23 @@
         .app-info-icon { color: #94a3b8; }
         /* Szinkron-szünet sáv (Kaneo #145) — bordó, white text, hangsúlyos */
         .szunet-banner {
-            display: flex; align-items: flex-start; gap: .9rem;
+            display: flex; align-items: center; gap: .9rem;
             padding: 1rem 1.15rem; margin-bottom: .9rem;
             border: 1px solid #5c1420; border-left: 8px solid #ffb703;
             border-radius: .7rem;
             background: linear-gradient(100deg, #8b1e2d 0%, #6e1622 55%, #4f0f18 100%);
             box-shadow: 0 8px 22px rgba(80, 12, 22, .35);
             color: #fff; font-size: .98rem; line-height: 1.5;
+        }
+        .szunet-banner .szunet-body {
+            flex: 1 1 auto; min-width: 0;
+            display: grid; grid-template-columns: minmax(0, 1fr) auto;
+            column-gap: 1rem; row-gap: .25rem; align-items: center;
+        }
+        .szunet-banner .szunet-head {
+            grid-column: 1 / -1;
+            display: flex; align-items: baseline; justify-content: space-between;
+            gap: .35rem 1rem; flex-wrap: wrap;
         }
         .szunet-banner .szunet-icon {
             flex: 0 0 auto; width: 2.6rem; height: 2.6rem; border-radius: 50%;
@@ -80,25 +90,37 @@
         }
         .szunet-banner .szunet-title {
             font-weight: 800; font-size: 1.05rem; color: #fff;
-            letter-spacing: .01em; margin-bottom: .2rem;
+            letter-spacing: .01em; margin-bottom: 0;
         }
         .szunet-banner .szunet-title .badge {
             font-size: .65rem; letter-spacing: .08em; vertical-align: .14em;
             background: #fff; color: #8b1e2d; font-weight: 800;
         }
         .szunet-banner .szunet-dates { white-space: nowrap; font-weight: 700; color: #ffe1a8; }
-        .szunet-banner .szunet-meta { color: #f6dde0; font-size: .92rem; }
+        .szunet-banner .szunet-meta { color: #f6dde0; font-size: .92rem; min-width: 0; }
         .szunet-banner .szunet-daily {
             display: inline-flex; align-items: center; gap: .35rem;
-            margin-top: .35rem; padding: .22rem .65rem; border-radius: 999px;
+            justify-self: end; padding: .22rem .65rem; border-radius: 999px;
             background: rgba(255, 255, 255, .15); border: 1px solid rgba(255, 255, 255, .4);
-            font-weight: 700; color: #fff; font-size: .86rem;
+            font-weight: 700; color: #fff; font-size: .86rem; white-space: nowrap;
         }
         .szunet-banner .szunet-daily i { color: #ffd166; }
         [data-bs-theme="dark"] .szunet-banner {
             background: linear-gradient(100deg, #7a1a28 0%, #5c121d 55%, #3d0b12 100%);
             border-color: #3d0b12; border-left-color: #ffb703;
             box-shadow: 0 8px 22px rgba(0, 0, 0, .5);
+        }
+        @media (max-width: 767.98px) {
+            .szunet-banner { align-items: flex-start; padding: .85rem .9rem; gap: .65rem; }
+            .szunet-banner .szunet-body { display: block; }
+            .szunet-banner .szunet-head { display: block; }
+            .szunet-banner .szunet-dates {
+                display: block; margin-top: .15rem; white-space: normal;
+            }
+            .szunet-banner .szunet-meta { margin-top: .25rem; }
+            .szunet-banner .szunet-daily {
+                display: inline-flex; margin-top: .45rem; white-space: normal;
+            }
         }
         .app-controls { display: flex; align-items: center; gap: .5rem; justify-self: end; }
         .app-control-group {
