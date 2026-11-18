@@ -44,10 +44,20 @@ a saját szerveren maradnak.
 - Átfedés-védelem, perzisztált futástörténet, részleges hibakezelés.
 
 ### 🔔 Push értesítések (ntfy)
-- Sikeres futás, részleges hiba, hiba és elavult adat esetén.
-- A sikeres üzenet tartalmazza a **diákonkénti új eseményeket**:
-  `Teszt Elek: 2 jegy, 1 házi` · `Teszt Anna: 1 számonkérés, 2 üzenet, 1 hiányzás (2 igazolatlan óra)`.
-- Diáknevek alapból **nem** mennek ki (csak darabszám); kapcsolható.
+- **Hiba / részleges hiba:** mindig megy, futásonként **egy** üzenet. Ismétlődő
+  hiba vagy token-lejárat esetén a szinkron-egészség riasztása **ugyanebbe az egy**
+  üzenetbe kerül.
+- **Új információ:** futásonként **egy** üzenet, a **napi összefoglalóval azonos
+  részletességgel** (jegyek súlyozással, házik, dolgozatok, feljegyzések,
+  hiányzások, igazolások, üzenetek, holnap esedékes), diákonként csoportosítva.
+- **Sikeres, változás nélküli futás:** **nincs push** — a fejléc státuszsávja és a
+  Rendszernapló mutatja, hogy lefutott.
+- `NTFY.NOTIFY_NEW` (alap: `true`): az új adat push kikapcsolása; a hibariasztás
+  ettől független. A régi `NOTIFY_SUCCESS` kulcsot is elfogadja.
+- Az ntfy üzenettörzs max. ~4 KB; hosszabb tartalomnál a végén
+  „… (a többi részlet a felületen)” áll.
+- Diáknevek alapból **nem** mennek ki; `NTFY.INCLUDE_NAMES` kapcsolja.
+- Elavult adat (12 óránál régebbi) esetén külön riasztás, max. 6 óránként egyszer.
 - **Esti összefoglaló (KRÉ-8):** minden nap a beállított idő után (alap **19:30**)
   **gyermekenként egy üzenet** a nap eseményeivel — jegyek súlyozással, ma feladott
   házik, ma bejelentett dolgozatok, feljegyzések, hiányzások, igazolások, üzenetek —,
@@ -341,12 +351,12 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
   "_comment": "CSA K akkor él, ha a .env-ben nincs NTFY_TOPIC (az env erősebb)",
   "TOPIC": "kreta-3f9c1a7b5e2d4c60",   // üresen nincs értesítés; a név maga a cím
   "URL": "https://ntfy.sh",             // saját ntfy szerver is lehet
-  "NOTIFY_SUCCESS": true,               // sikeres futásról is küldjön
+  "NOTIFY_NEW": true,                   // új információ esetén push (a régi NOTIFY_SUCCESS is elfogadott)
   "INCLUDE_NAMES": false                // diáknevek a push-ban (alapból nem)
 }
 ```
 
-A szerveren ugyanezek `NTFY_TOPIC` / `NTFY_URL` / `NTFY_NOTIFY_SUCCESS` /
+A szerveren ugyanezek `NTFY_TOPIC` / `NTFY_URL` / `NTFY_NOTIFY_NEW` /
 `NTFY_INCLUDE_NAMES` néven a `.env`-ben is megadhatók — **az env érték erősebb**. Az
 ntfy.sh-n nincs regisztráció: a topic nevére kell feliratkozni az appban, ezért használj
 hosszú, véletlen nevet. Ellenőrzés a futó appnál: `POST /api/ntfy/test` (teszt-push,
@@ -370,8 +380,8 @@ Lokálisan nem kötelezők; a Docker-compose állítja be őket.
 | `NTFY_TOPIC` | *(üres)* | ntfy topic **vagy teljes URL**; üresen nincs értesítés |
 | `NTFY_URL` | `https://ntfy.sh` | ntfy szerver címe |
 | `NTFY_TIMEOUT` | `5` | ntfy kérés timeout (mp) |
-| `NTFY_INCLUDE_NAMES` | `0` | `1` = diáknevek a részleges hiba push-ban |
-| `NTFY_NOTIFY_SUCCESS` | `1` | `0` = sikeres futásról ne küldjön push-t |
+| `NTFY_INCLUDE_NAMES` | `0` | `1` = diáknevek a push-ban |
+| `NTFY_NOTIFY_NEW` | `1` | `0` = új adatról ne küldjön push-t (a hiba ettől függetlenül megy); a régi `NTFY_NOTIFY_SUCCESS` is elfogadott |
 | `KRETA_LOG_MAX_BYTES` / `KRETA_LOG_BACKUP_COUNT` | `1000000` / `2` | `sync.log` rotáció |
 | `KRETA_LOG_API_MAX_BYTES` | `300000` | Az `/api/logs` ennyi bájtot ad vissza a napló végéről |
 | `KRETA_SQLITE_WAL` | `0` | `1` = SQLite WAL mód (FUSE köteten nem ajánlott) |
@@ -416,13 +426,15 @@ jelvénnyel és eredménnyel).
 
 | Esemény | Értesítés |
 |---|---|
-| Sikeres szinkron | `KRÉTA szinkron: sikeres` + diákonkénti új események |
-| Részleges hiba | `részleges hiba` + hány diák nem frissült |
-| Hiba | `HIBA`, magas prioritás |
+| Sikeres szinkron **új információval** | `SuliHub – új adatok` + a napi összefoglaló teljes részletessége, diákonként |
+| Sikeres szinkron új információ nélkül | *nincs* (a státuszsáv és a napló mutatja) |
+| Részleges hiba | `részleges hiba` + a hibás diák(ok) és az új adatok részletei — egy üzenet |
+| Hiba | `HIBA`, magas prioritás; token/ismétlődő hiba esetén a health-üzenet ugyanebben az egy üzenetben |
 | Elavult adat (12 óra) | `elavult adatok` |
 | Leállított futás | *nincs* (szándékosan) |
 
-A sikeres push kikapcsolható: `NTFY_NOTIFY_SUCCESS=0`.
+Futásonként legfeljebb egy push megy ki. Az új adat push kikapcsolható:
+`NTFY_NOTIFY_NEW=0` (a hibariasztás ilyenkor is megy).
 
 ---
 
@@ -530,7 +542,7 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
-| v2.6.x | **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül kiemelt sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő |
+| v2.6.x | **#128 értesítési politika:** üres sikeres futás nem küld push-t; új adat esetén futásonként egy üzenet a napi összefoglaló részletességével; hiba mindig, a health-riasztással egy üzenetben; `NOTIFY_NEW`. **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül kiemelt sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő |
 | v2.5.x | **#64 — Playwright teljes kivezetés:** a böngészös scraper, az árnyék-mód (`kreta_shadow.py`) és a `:playwright` Docker target törölve; a szinkron kizárólag a mobil API-ból fut, böngésző nélkül. Az örökölt `api_first`/`playwright` config-értékek figyelmeztetés mellett `api`-ra váltanak. A Playwright csak a **böngészős UI-tesztek** fejlesztői függősége marad. Visszaállás: a `playwright-fallback` git-ág (a v2.4.0 fallbackes kód) |
 | v2.4.x | **Playwright opcionális image (#138):** az alap `runtime` image Chromium és `playwright` csomag nélkül (278 MB), a fallback külön `:playwright` tagben; lazy import + `api` alapmód; **csatolmány-pótlás** `api` módban (max. 3 próba) |
 | v2.3.x | **KRÉ-8 esti digest** (gyermekenként egy push a nap eseményeivel + holnapi határidők, manuális „Összefoglaló most”), **KRÉ-127 tantárgy-szűrő** kis/nagybetű-függetlenül, **KRÉ-126 naptár → tagolt részletek modál**; v2.3.1 fejléc 1200 px fix |

@@ -33,7 +33,8 @@ def make_env(work, extra=None):
         "KRETA_LOG_FILE": str(work / "sync.log"),
         "PYTHONIOENCODING": "utf-8",
     })
-    for key in ("NTFY_TOPIC", "NTFY_URL", "NTFY_NOTIFY_SUCCESS", "NTFY_INCLUDE_NAMES",
+    for key in ("NTFY_TOPIC", "NTFY_URL", "NTFY_NOTIFY_NEW", "NTFY_NOTIFY_SUCCESS",
+                "NTFY_INCLUDE_NAMES",
                 "KRETA_SCHEDULER_STATE_FILE", "KRETA_CSATOLMANYOK_DIR"):
         env.pop(key, None)
     env.update(extra or {})
@@ -64,11 +65,11 @@ work = Path(tempfile.mkdtemp(prefix="kreta_ntfy_"))
 sqlite3.connect(work / "kreta_adatok.db").close()
 write_config(work, {"_comment": "csak akkor él, ha nincs .env",
                     "TOPIC": "kreta-cfg-topic", "URL": "https://ntfy.example",
-                    "NOTIFY_SUCCESS": False, "INCLUDE_NAMES": True})
+                    "NOTIFY_NEW": False, "INCLUDE_NAMES": True})
 result = run_probe(work, {}, (
     "print('TOPIC=' + kreta.NTFY_TOPIC)\n"
     "print('URL=' + kreta.NTFY_URL)\n"
-    "print('SUCCESS=' + str(kreta.NTFY_NOTIFY_SUCCESS))\n"
+    "print('NEW=' + str(kreta.NTFY_NOTIFY_NEW))\n"
     "print('NAMES=' + str(kreta.NTFY_INCLUDE_NAMES))\n"
     "print('TARGET=' + repr(kreta._ntfy_target()))\n"
 ))
@@ -80,11 +81,17 @@ for line in result.stdout.splitlines():
         values[key] = val
 ok(values.get("TOPIC") == "kreta-cfg-topic", f"topic a configból: {values.get('TOPIC')}")
 ok(values.get("URL") == "https://ntfy.example", f"URL a configból: {values.get('URL')}")
-ok(values.get("SUCCESS") == "False", f"NOTIFY_SUCCESS a configból: {values.get('SUCCESS')}")
+ok(values.get("NEW") == "False", f"NOTIFY_NEW a configból: {values.get('NEW')}")
 ok(values.get("NAMES") == "True", f"INCLUDE_NAMES a configból: {values.get('NAMES')}")
 ok("'https://ntfy.example', 'kreta-cfg-topic'"
    in (values.get("TARGET") or "").replace('"', "'"),
    f"_ntfy_target() a config értékeivel: {values.get('TARGET')}")
+
+# A régi NOTIFY_SUCCESS kulcs visszafelé kompatibilis.
+write_config(work, {"TOPIC": "kreta-cfg-topic", "NOTIFY_SUCCESS": False})
+result_legacy = run_probe(work, {}, "print('NEW=' + str(kreta.NTFY_NOTIFY_NEW))\n")
+ok("NEW=False" in result_legacy.stdout,
+   f"a régi NOTIFY_SUCCESS kulcsot is elfogadja: {result_legacy.stdout.strip()}")
 
 print("\n2) Az env változó erősebb a confignál")
 result2 = run_probe(work, {"NTFY_TOPIC": "kreta-env-topic", "NTFY_URL": "https://env.example"},

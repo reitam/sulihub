@@ -145,19 +145,16 @@ time.sleep(0.4)
 ok("A Bácsi" in json.loads(sent[0][1].decode())["message"], "NTFY_INCLUDE_NAMES=1 esetén van név")
 kreta.NTFY_INCLUDE_NAMES = False
 sent.clear()
-kreta.NTFY_NOTIFY_SUCCESS = True
+kreta.NTFY_NOTIFY_NEW = True
 kreta.notify_sync_result("done", [], "manual", 2.0, 3, 3)
 time.sleep(0.4)
-ok(len(sent) == 1, "sikeres futás -> küld (alapból)")
-_succ = json.loads(sent[0][1].decode())
-ok("sikeres" in _succ["title"].lower() and "3/3" in _succ["message"],
-   f"sikeres üzenet: {_succ['title']} / {_succ['message']}")
-sent.clear()
-kreta.NTFY_NOTIFY_SUCCESS = False
-kreta.notify_sync_result("done", [], "manual", 2.0, 3, 3)
+ok(not sent, "sikeres futás új információ nélkül -> nincs push (#128)")
+kreta.NTFY_NOTIFY_NEW = False
+kreta.notify_sync_result("done", [], "manual", 2.0, 3, 3,
+                         {"Teszt Elek": {"Értékelés": 1}}, {})
 time.sleep(0.3)
-ok(not sent, "NTFY_NOTIFY_SUCCESS=0 -> sikeres futásról nem küld")
-kreta.NTFY_NOTIFY_SUCCESS = True
+ok(not sent, "NOTIFY_NEW=0 -> új adatról sem küld")
+kreta.NTFY_NOTIFY_NEW = True
 sent.clear()
 kreta.notify_sync_result("error", [], "manual", 1.0)
 time.sleep(0.4)
@@ -184,18 +181,20 @@ ok(_lines == ["Teszt Elek: 2 jegy, 1 házi", "Teszt Anna: 1 számonkérés, 2 ü
 ok(kreta.format_new_events({}, {}) == [], "nincs új esemény -> üres lista")
 
 sent.clear()
+kreta.NTFY_INCLUDE_NAMES = True
 kreta.notify_sync_result("done", [], "manual", 2.0, 3, 3,
                          {"Teszt Elek": {"Értékelés": 2, "Házi feladat": 1}},
                          {"Teszt Elek": 1})
 time.sleep(0.4)
+ok(len(sent) == 1, "új információ -> egy push")
 _body2 = json.loads(sent[0][1].decode())["message"]
 ok("Teszt Elek: 2 jegy, 1 házi, 1 üzenet" in _body2, f"a push tartalmazza a bontást: {_body2!r}")
+kreta.NTFY_INCLUDE_NAMES = False
 
 sent.clear()
 kreta.notify_sync_result("done", [], "scheduled", 2.0, 3, 3, {}, {})
 time.sleep(0.4)
-_body3 = json.loads(sent[0][1].decode())["message"]
-ok("Nem volt új esemény" in _body3, f"üres eset szövege: {_body3!r}")
+ok(not sent, "új információ nélkül nincs push")
 
 # elavult adat riasztás + throttle
 sent.clear()

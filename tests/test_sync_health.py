@@ -42,9 +42,10 @@ sys.path.insert(0, str(ROOT))
 import app as kreta  # noqa: E402
 
 _hibak = []
-riad = []
+push = []
 kreta.send_notification = lambda title, message, priority=3, tags=None: (
-    riad.append((title, message, priority)) or True)
+    push.append((title, message, priority)) or True)
+kreta.NTFY_TOPIC = "teszt-topic"
 
 
 def ok(condition, message):
@@ -56,42 +57,46 @@ def ok(condition, message):
 print("1) Két hiba még nem riaszt, a harmadik igen")
 for _ in range(2):
     h = kreta._update_sync_health("error", ["HealthDiak"], "kapcsolódási hiba")
-ok(h.get("consecutive_errors") == 2 and not riad,
+ok(h.get("consecutive_errors") == 2 and not h.get("_alert"),
    f"2 hiba -> nincs riasztás ({h.get('consecutive_errors')})")
 h = kreta._update_sync_health("error", ["HealthDiak"], "kapcsolódási hiba")
-ok(h.get("consecutive_errors") == 3 and len(riad) == 1,
-   f"3. hiba -> riasztás ({len(riad)})")
-ok(riad and riad[0][2] == 5 and "ismétlődő" in riad[0][0].lower(),
-   f"magas prioritású üzenet: {riad[0] if riad else None}")
+alert = h.get("_alert")
+ok(h.get("consecutive_errors") == 3 and alert is not None,
+   f"3. hiba -> riasztás jelölve ({alert is not None})")
+ok(alert and alert[2] == 5 and "ismétlődő" in alert[0].lower(),
+   f"magas prioritású üzenet: {alert}")
+ok(not push, "a health-ellenőrzés nem küld külön push-t (egy üzenet/futás, #128)")
 
 print("\n2) Throttle: 6 órán belül nincs újabb riasztás")
 h = kreta._update_sync_health("error", ["HealthDiak"], "kapcsolódási hiba")
-ok(len(riad) == 1, f"4. hiba throttle alatt: {len(riad)} riasztás")
+ok(h.get("_alert") is None, f"4. hiba throttle alatt: {h.get('_alert')}")
 h["last_alert_at"] = (datetime.now() - timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
+h.pop("_alert", None)
 kreta._sync_health_ment(h)
 h = kreta._update_sync_health("error", [], "kapcsolódási hiba")
-ok(len(riad) == 2, f"7 óra után újra riaszt: {len(riad)}")
+ok(h.get("_alert") is not None, "7 óra után újra riaszt")
 
 print("\n3) Token-lejárat külön üzenet")
 kreta.set_meta(kreta.SYNC_HEALTH_META, "{}")
-riad.clear()
 h = kreta._update_sync_health("error", [], "401 token expired / refresh hiba")
-ok(h.get("last_error_type") == "token" and len(riad) == 1,
+alert = h.get("_alert")
+ok(h.get("last_error_type") == "token" and alert is not None,
    f"token hiba -> külön riasztás ({h.get('last_error_type')})")
-ok(riad and "jelentkezni" in riad[0][0].lower(), f"üzenet: {riad[0] if riad else None}")
+ok(alert and "jelentkezni" in alert[0].lower(), f"üzenet: {alert}")
 h = kreta._update_sync_health("error", [], "token hiba")
-ok(len(riad) == 1, "token hiba throttle alatt nem spammel")
+ok(h.get("_alert") is None, "token hiba throttle alatt nem spammel")
 
 print("\n4) Siker után reset")
 h = kreta._update_sync_health("done", [], "minden rendben")
-ok(h.get("consecutive_errors") == 0 and h.get("last_error_type") == "",
-   f"siker -> reset: {h}")
+ok(h.get("consecutive_errors") == 0 and h.get("last_error_type") == ""
+   and h.get("_alert") is None, f"siker -> reset: {h}")
 
 print("\n5) A /api/scheduler/status health mezőt ad")
 client = kreta.app.test_client()
 d = client.get("/api/scheduler/status").get_json()
 ok(isinstance(d.get("health"), dict) and "consecutive_errors" in d["health"],
    f"health a státuszban: {d.get('health')}")
+ok("_alert" not in (d.get("health") or {}), "a belső _alert nem perzisztálódik")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

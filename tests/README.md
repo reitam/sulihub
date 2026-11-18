@@ -12,7 +12,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 |---|---|
 | `test_scheduler.py` | Ütemező: config-parse/clamp, időablak (átforduló is), `next_run` az ablakon belül, perzisztencia, dupla indítás elleni védelem
 | `test_szunet.py` | **#145:** `SYNC_SZUNET` intervallum-parse (dátum/idő normalizálás), aktív/következő szünet, az intervallumok összes napja (`all_days`), napi szinkron esedékessége, ütemező viselkedés szünet alatt (nincs normál futás, napi egyszer), `/api/scheduler/status.szunet`, felületi sáv, **`SZUNET_AKTIV` mesterkapcsoló** |, API végpontok, `interrupted`/`running`, napló-pótlás, memória-fallback |
-| `test_a_package.py` | Részleges hiba (`done_with_errors` + hibás diákok), ntfy payload/throttle, napló-rotáció, `/api/logs` tail; a futás tanéve (`sync_runs.tanev`, `/api/sync/status.tanev`); a tanévváltás utáni **értesítés** (UID-alapú állapot) |
+| `test_a_package.py` | Részleges hiba (`done_with_errors` + hibás diákok), ntfy payload, **#128 push-politika** (új információ → egy üzenet, üres siker → nincs push), napló-rotáció, `/api/logs` tail; a futás tanéve (`sync_runs.tanev`, `/api/sync/status.tanev`); a tanévváltás utáni **értesítés** (UID-alapú állapot) |
 | `test_pdf_fonts.py` | PDF magyar `ő/Ő/ű/Ű` megjelenítés (a kiszolgált PDF szövegkinyerésével) |
 | `test_paths.py` | Adat-/log-/csatolmány-útvonalak feloldása (lokális és Docker-elrendezés) |
 | `test_new_events.py` | Új események kimutatása a szinkron előtti/utáni állapot különbségéből |
@@ -57,7 +57,9 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_riportkartya.py` | **#82:** **aktuális bizonyítvány** PDF **mentés nélkül** (`GET /api/riportkartya/export_pdf`), félév/tanév, a címben a tanév, egyoldalas **dísz-bizonyítvány** (keret/pecsét, „Aktuális bizonyítvány” fejléc), PDF-tartalom (pypdf, ha van): jegyenként összesített Jegyek oszlop dátum nélkül, nincs Db oszlop, magatartás/szorgalom benne, zsebpénz csak engedélyezett modulnál, nincs Feljegyzések szekció, valós hiányzás-óraszám; hibás bemenetek, felületi kártya, nincs mentett előzmény |
 | `test_tanulmanyi_export.py` | **#83:** `/api/esemenyek/export.xlsx` (Jegyek/Feljegyzések/Házi feladatok) és `/api/hianyzasok/export.xlsx` (Hiányzások/Igazolások) — munkalapok, sorok, diák/tanév/időszak szűrés, üres export, felületi gombok |
 | `test_ops_checks.py` | **#90:** restore-teszt (érvényes/sérült/hiányzó/elavult mentés, manifest-egyezés, izolált visszaállítás) + élő füstteszt (`/health`, `/api/sync/status`, utolsó futás kora, auth) fake HTTP-szerverrel; CI workflow |
-| `test_sync_health.py` | **#88:** 3 egymást követő hiba → magas prioritású riasztás, 6 órás throttle, token-lejárat külön üzenet, siker utáni reset, `health` a `/api/scheduler/status`-ban |
+| `test_sync_health.py` | **#88/#128:** 3 egymást követő hiba → magas prioritású riasztás-jelölés, 6 órás throttle, token-lejárat külön üzenet, siker utáni reset, `health` a `/api/scheduler/status`-ban; a health-riasztás **nem küld külön push-t** (a futás egyetlen üzenetébe kerül) |
+| `test_sync_push.py` | **#128:** új információ → egy részletes push (a napi digesttel azonos mezőkkel: jegy+súly+téma, házi, holnap esedékes, üzenet), üres siker → nincs push, `NOTIFY_NEW=false`, részleges hiba + részletek egy üzenetben, health-riasztás ugyanabban, névtelen mód, 4 KB-os korlát |
+| `test_ntfy_config.py` | ntfy config (`TOPIC`, `URL`, `NOTIFY_NEW`, `INCLUDE_NAMES`), env elsőbbség, a régi `NOTIFY_SUCCESS` visszafelé kompatibilitás, `POST /api/ntfy/test` |
 | `test_data_quality.py` | **#89:** adatminőség-riport — tiszta DB, duplikált esemény, hiányzó csatolmány, üres kötelező mező, árva megjegyzés, CLI kilépési kód; csak olvas |
 | `test_performance.py` | **#109:** 5 000 esemény + 500 üzenet fixture; `/api/ma`, `/api/kereses`, `/api/statisztika`, `/api/atlagok` medián ideje 500 ms alatt, FTS index teljes |
 

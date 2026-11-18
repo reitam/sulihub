@@ -484,8 +484,20 @@ NTFY_TIMEOUT = int(os.environ.get("NTFY_TIMEOUT", 5))
 STALE_ALERT_REPEAT_HOURS = 6
 # A diáknevek személyes adatok — a nyilvános ntfy.sh-ra alapból NEM küldjük őket.
 NTFY_INCLUDE_NAMES = _ntfy_flag("NTFY_INCLUDE_NAMES", "INCLUDE_NAMES", False)
-# Sikeres futásról is küldjünk-e push-t (alapból igen, mert ezt kérték).
-NTFY_NOTIFY_SUCCESS = _ntfy_flag("NTFY_NOTIFY_SUCCESS", "NOTIFY_SUCCESS", True)
+# Új információ esetén menjen-e push (a sikeres, változás nélküli futás nem küld).
+# A régi NOTIFY_SUCCESS kulcsot is elfogadjuk visszafelé kompatibilitás miatt.
+_env_notify_new = os.environ.get("NTFY_NOTIFY_NEW")
+if _env_notify_new is None or str(_env_notify_new).strip() == "":
+    _env_notify_new = os.environ.get("NTFY_NOTIFY_SUCCESS")
+if _env_notify_new is not None and str(_env_notify_new).strip() != "":
+    NTFY_NOTIFY_NEW = str(_env_notify_new).strip().lower() in ("1", "true", "yes", "on")
+else:
+    _cfg_notify_new = _ntfy_config("NOTIFY_NEW")
+    if _cfg_notify_new is None:
+        _cfg_notify_new = _ntfy_config("NOTIFY_SUCCESS", True)
+    NTFY_NOTIFY_NEW = str(_cfg_notify_new).strip().lower() in ("1", "true", "yes", "on")
+# Visszafelé kompatibilis név (a régi tesztek/beállítások miatt).
+NTFY_NOTIFY_SUCCESS = NTFY_NOTIFY_NEW
 
 # Ha mindkét helyen van topic, induláskor jelezzük, hogy a config.json értéke
 # nem érvényesül (az env az erősebb) — így nem kell találgatni, miért nem az a
@@ -533,11 +545,12 @@ EVENT_TYPE_LABELS = {
 EVENT_TYPE_ORDER = ["Értékelés", "Házi feladat", "Bejelentett számonkérés", "Feljegyzés"]
 
 
-def format_new_events(new_events, new_messages=None, new_hianyzasok=None):
+def format_new_events(new_events, new_messages=None, new_hianyzasok=None, include_names=True):
     """
     Emberi olvasású bontás a push-üzenethez:
         ["Teszt Elek: 2 jegy, 1 házi", "Teszt Anna: 1 üzenet, 3 hiányzás (2 igazolatlan óra)"]
-    Csak azt a diákot írja ki, akinél történt valami.
+    Csak azt a diákot írja ki, akinél történt valami. `include_names=False`
+    esetén a nevek helyett „1. gyermek", „2. gyermek" áll.
     """
     new_messages = new_messages or {}
     new_hianyzasok = new_hianyzasok or {}
@@ -545,24 +558,111 @@ def format_new_events(new_events, new_messages=None, new_hianyzasok=None):
         list(new_events or {}) + list(new_messages) + list(new_hianyzasok)
     ))
     lines = []
-    for diak in diakok:
-        counts = (new_events or {}).get(diak) or {}
-        parts = []
-        for tipus in EVENT_TYPE_ORDER:
-            n = int((counts or {}).get(tipus, 0) or 0)
-            if n:
-                parts.append(f"{n} {EVENT_TYPE_LABELS.get(tipus, tipus)}")
-        n_msg = int(new_messages.get(diak, 0) or 0)
-        if n_msg:
-            parts.append(f"{n_msg} üzenet")
-        h = new_hianyzasok.get(diak) or {}
-        n_h = int(h.get("db", 0) or 0)
-        if n_h:
-            ora = int(h.get("igazolatlan_ora", 0) or 0)
-            parts.append(f"{n_h} hiányzás" + (f" ({ora} igazolatlan óra)" if ora else ""))
+    for idx, diak in enumerate(diakok, 1):
+        label = diak if include_names else f"{idx}. gyermek"
+        parts = _count_parts((new_events or {}).get(diak) or {},
+                             new_messages.get(diak, 0),
+                             new_hianyzasok.get(diak) or {})
         if parts:
-            lines.append(f"{diak}: {', '.join(parts)}")
+            lines.append(f"{label}: {', '.join(parts)}")
     return lines
+
+
+def _count_parts(counts, n_msg=0, hianyzas=None):
+    """Egy diák új adatainak rövid, emberi bontása (darabszámok)."""
+    parts = []
+    for tipus in EVENT_TYPE_ORDER:
+        n = int((counts or {}).get(tipus, 0) or 0)
+        if n:
+            parts.append(f"{n} {EVENT_TYPE_LABELS.get(tipus, tipus)}")
+    n_msg = int(n_msg or 0)
+    if n_msg:
+        parts.append(f"{n_msg} üzenet")
+    h = hianyzas or {}
+    n_h = int(h.get("db", 0) or 0)
+    if n_h:
+        ora = int(h.get("igazolatlan_ora", 0) or 0)
+        parts.append(f"{n_h} hiányzás" + (f" ({ora} igazolatlan óra)" if ora else ""))
+    return parts
+
+
+def has_new_information(new_events, new_messages=None, new_hianyzasok=None):
+    """Volt-e érdemi új információ a futásban (bármelyik diák bármely adatköre)?"""
+    if any(int(v or 0) for counts in (new_events or {}).values()
+           for v in (counts or {}).values()):
+        return True
+    if any(int(v or 0) for v in (new_messages or {}).values()):
+        return True
+    return any(int((h or {}).get("db", 0) or 0)
+               for h in (new_hianyzasok or {}).values())
+
+
+def _sync_detail_block(new_events, new_messages, new_hianyzasok):
+    """A napi összefoglaló részletességű blokk a push-hoz (diákonként).
+
+    A szinkron csak darabszámokat ad vissza, ezért a részleteket a DB-ből,
+    a napi digesttel azonos formában állítjuk elő. Ha egy diákhoz a mai napon
+    nincs megjeleníthető sor (pl. visszamenőleges rögzítés), a darabszámos
+    összegzés marad.
+    """
+    diakok = list(dict.fromkeys(
+        list(new_events or {}) + list(new_messages or {}) + list(new_hianyzasok or {})
+    ))
+    diakok = [d for d in diakok if _count_parts(
+        (new_events or {}).get(d) or {}, (new_messages or {}).get(d, 0),
+        (new_hianyzasok or {}).get(d) or {})]
+    if not diakok:
+        return ""
+
+    nap = _now().date()
+    blocks = []
+    conn = None
+    try:
+        conn = get_db_connection()
+    except Exception:  # noqa: BLE001 — a push ne akadjon el egy DB-hibán
+        conn = None
+    try:
+        for idx, diak in enumerate(diakok, 1):
+            label = diak if NTFY_INCLUDE_NAMES else f"{idx}. gyermek"
+            adat = {}
+            if conn is not None:
+                try:
+                    adat = kreta_digest.collect_day(conn, diak, nap)
+                except Exception:  # noqa: BLE001
+                    adat = {}
+            if adat and not kreta_digest.is_empty_day(adat):
+                _, torzs = kreta_digest.build_message(
+                    diak, nap, adat, include_names=False)
+                blocks.append(f"{label}\n{torzs}")
+            else:
+                parts = _count_parts((new_events or {}).get(diak) or {},
+                                     (new_messages or {}).get(diak, 0),
+                                     (new_hianyzasok or {}).get(diak) or {})
+                blocks.append(f"{label}: {', '.join(parts)}")
+    finally:
+        if conn is not None:
+            conn.close()
+    return "\n\n".join(blocks)
+
+
+NTFY_MESSAGE_LIMIT = 3900  # bájt; az ntfy üzenettörzsének felső korlátja 4096
+
+
+def _limit_ntfy_message(text, limit=NTFY_MESSAGE_LIMIT):
+    """Az ntfy üzenettörzsét a szolgáltatás korlátja alatt tartja (sorhatáron)."""
+    raw = str(text or "")
+    if len(raw.encode("utf-8")) <= limit:
+        return raw
+    lines = raw.splitlines()
+    out = []
+    used = 0
+    for line in lines:
+        size = len((line + "\n").encode("utf-8"))
+        if used + size > limit - 90:
+            break
+        out.append(line)
+        used += size
+    return "\n".join(out).rstrip() + "\n… (a többi részlet a felületen)"
 
 
 def _ntfy_priority(value):
@@ -613,11 +713,22 @@ def send_notification(title, message, priority=3, tags=None):
 
 
 def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=None, total=None,
-                       new_events=None, new_messages=None, new_hianyzasok=None):
-    """A szinkron eredményéről szóló push (hiba / részleges hiba / sikeres)."""
+                       new_events=None, new_messages=None, new_hianyzasok=None,
+                       health_alert=None):
+    """A szinkron eredményéről szóló push (Kaneo #128).
+
+    - hiba / részleges hiba: **mindig** megy, egy üzenet futásonként;
+    - sikeres futás **új információval**: egy üzenet, a napi összefoglaló
+      részletességével (a DB-ből, diákonként csoportosítva);
+    - sikeres futás új információ nélkül: **nincs** push.
+
+    `health_alert` esetén (token-lejárat / ismétlődő hiba) az adott riasztás
+    lesz az egyetlen üzenet, a részletekkel kiegészítve.
+    """
     failed_txt = ", ".join(failed_students) if failed_students else ""
-    event_lines = format_new_events(new_events, new_messages, new_hianyzasok)
-    events_block = ("\n\n" + "\n".join(event_lines)) if event_lines else ""
+    has_new = has_new_information(new_events, new_messages, new_hianyzasok)
+    details = _sync_detail_block(new_events, new_messages, new_hianyzasok) if has_new else ""
+    details_block = ("\n\n" + details) if details else ""
 
     if status == "done_with_errors":
         if failed_students and NTFY_INCLUDE_NAMES:
@@ -626,34 +737,49 @@ def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=
             detail = f"{len(failed_students)} diák nem frissült (részletek a Rendszernaplóban)"
         else:
             detail = "Részletek a Rendszernaplóban"
+        summary = f"{trigger_label(trigger)} futás · {duration_min:.1f} perc · {detail}"
+        if health_alert:
+            title, message, priority, tags = health_alert
+            return send_notification(
+                title, _limit_ntfy_message(f"{message}\n\n{summary}" + details_block),
+                priority, tags)
         return send_notification(
             "KRÉTA szinkron: részleges hiba",
-            f"{trigger_label(trigger)} futás · {duration_min:.1f} perc · {detail}" + events_block,
+            _limit_ntfy_message(summary + details_block),
             3,
             ["warning"],
         )
+
+    if status == "error":
+        summary = (f"A {trigger_label(trigger)} szinkron hibával ért véget "
+                   f"({duration_min:.1f} perc). Részletek a Rendszernaplóban.")
+        if health_alert:
+            title, message, priority, tags = health_alert
+            return send_notification(
+                title, _limit_ntfy_message(f"{message}\n\n{summary}" + details_block),
+                priority, tags)
+        return send_notification(
+            "KRÉTA szinkron: HIBA",
+            _limit_ntfy_message(summary + details_block),
+            4,
+            ["rotating_light"],
+        )
+
     if status == "done":
-        if not NTFY_NOTIFY_SUCCESS:
+        # Sikeres, de nincs új információ -> nincs push (Kaneo #128).
+        if not has_new or not NTFY_NOTIFY_NEW:
             return False
         if ok_count is not None and total is not None:
             detail = f"{ok_count}/{total} diák frissült."
         else:
             detail = "Minden diák adata frissült."
         return send_notification(
-            "KRÉTA szinkron: sikeres",
-            f"{trigger_label(trigger)} futás · {duration_min:.1f} perc · {detail}"
-            + (events_block or "\n\nNem volt új esemény."),
-            2,
-            ["white_check_mark"],
-        )
-    if status == "error":
-        return send_notification(
-            "KRÉTA szinkron: HIBA",
-            f"A {trigger_label(trigger)} szinkron hibával ért véget ({duration_min:.1f} perc). "
-            f"Részletek a Rendszernaplóban."
-            + events_block,
-            4,
-            ["rotating_light"],
+            "SuliHub – új adatok",
+            _limit_ntfy_message(
+                f"{trigger_label(trigger)} futás · {duration_min:.1f} perc · {detail}"
+                + details_block),
+            3,
+            ["inbox_tray"],
         )
     return False
 
@@ -691,7 +817,11 @@ def _health_throttled(data, kulcs):
 
 
 def _update_sync_health(status, failed_students, logs_text=""):
-    """Egymást követő hibák / token-lejárat riasztása, throttle-lal (Kaneo #88)."""
+    """Egymást követő hibák / token-lejárat állapota (Kaneo #88).
+
+    **Nem küld** külön push-t: a riasztást `_alert` kulcsban adja vissza, és a
+    `notify_sync_result` küldi el a futás egyetlen üzeneteként (Kaneo #128).
+    """
     data = _sync_health()
     hibas = status in ("error", "done_with_errors")
     low = (logs_text or "").lower()
@@ -706,24 +836,31 @@ def _update_sync_health(status, failed_students, logs_text=""):
         data["last_error_type"] = ""
     data["last_status"] = status
 
-    if token_hiba and _health_throttled(data, "last_token_alert_at"):
-        if send_notification(
+    alert = None
+    if NTFY_TOPIC:
+        if token_hiba and _health_throttled(data, "last_token_alert_at"):
+            alert = (
                 "KRÉTA: újra be kell jelentkezni",
                 "A szinkron tokenje lejárt vagy a frissítés hibás. Jelentkezz be újra "
                 "a KRÉTA-fiókkal (a részletek a Rendszernaplóban).",
-                4, ["key"]):
+                4, ["key"],
+            )
             data["last_token_alert_at"] = _now().strftime(SCHEDULER_TS_FMT)
-    elif int(data.get("consecutive_errors") or 0) >= SYNC_HEALTH_ERROR_LIMIT \
-            and _health_throttled(data, "last_alert_at"):
-        n = data["consecutive_errors"]
-        if send_notification(
+        elif int(data.get("consecutive_errors") or 0) >= SYNC_HEALTH_ERROR_LIMIT \
+                and _health_throttled(data, "last_alert_at"):
+            n = data["consecutive_errors"]
+            alert = (
                 "KRÉTA: ismétlődő szinkronhiba",
                 f"{n} egymást követő szinkronhiba. "
                 + (f"Nem frissült: {', '.join(failed_students)}. " if failed_students else "")
                 + "Ellenőrizd a Rendszernaplót.",
-                5, ["rotating_light"]):
+                5, ["rotating_light"],
+            )
             data["last_alert_at"] = _now().strftime(SCHEDULER_TS_FMT)
-    _sync_health_ment(data)
+
+    _sync_health_ment({k: v for k, v in data.items() if not k.startswith("_")})
+    if alert:
+        data["_alert"] = alert
     return data
 
 
@@ -1185,11 +1322,14 @@ def run_scraper_thread(trigger="manual"):
         )
 
         # Szinkron-egészség: egymást követő hibák / token-lejárat (Kaneo #88).
-        _update_sync_health(final_status, final_failed, final_logs)
+        health = _update_sync_health(final_status, final_failed, final_logs)
+        health_alert = health.get("_alert")
 
-        # Push értesítés: hiba / részleges hiba / sikeres (beállítástól függően).
+        # Push értesítés: egy üzenet futásonként — hiba, vagy új információ
+        # (a napi összefoglaló részletességével); változás nélküli siker: nincs.
         notify_sync_result(final_status, final_failed, trigger, duration_min, final_ok, final_total,
-                           final_new_events, final_new_messages, final_new_hianyzasok)
+                           final_new_events, final_new_messages, final_new_hianyzasok,
+                           health_alert=health_alert)
 
         if tanev_changes:
             lezart = sorted({ch.get("lezart_tanev") for ch in tanev_changes if ch.get("lezart_tanev")})
