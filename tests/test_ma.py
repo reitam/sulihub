@@ -247,13 +247,17 @@ ok("#attekintes-pane,\n            #ma-pane { max-width: 1200px" in html,
 ok(client.get("/api/ma?datum=2026-11-06").status_code == 200,
    "a /api/ma végpont él")
 
-print("\n7) Holnap + táska + igazolandó kártyák (#134) és hétvégi napok (#144)")
-ok('id="maHolnapOrak"' in html and 'id="maTaskaWrap"' in html
-   and 'id="maIgazolando"' in html and 'id="maHolnapDatum"' in html,
-   "a Ma fülön ott a Holnap (táska) és az Igazolandó kártya")
-ok("holnapi_orak" in js and "holnapi_taskak" in js and "igazolando" in js
+print("\n7) Holnap + igazolandó kártyák (#134) és hétvégi napok (#144)")
+ok('id="maHolnapOrak"' in html and 'id="maIgazolando"' in html
+   and 'id="maHolnapDatum"' in html,
+   "a Ma fülön ott a Holnap és az Igazolandó kártya")
+ok("holnapi_orak" in js and "igazolando" in js
    and "maHolnapOrak" in js and "maIgazolando" in js,
-   "a JS megjeleníti a holnapi órákat/táskát és az igazolandókat")
+   "a JS megjeleníti a holnapi órákat és az igazolandókat")
+ok('id="maTaskaWrap"' not in html and "maTaska" not in js,
+   "a redundáns Táska sor nincs a felületen (felhasználói visszajelzés)")
+ok('id="maHolnapHataridok"' not in html and "holnapi_hataridok" not in js,
+   "a holnapi határidők nem duplikálódnak a Holnap kártyán (a „Ma és holnap esedékes” kártyán vannak)")
 ok("[5, 6]" in js and "vanHetvege" in js and "kartyak.push" in js,
    "a heti nézet a hétvégét is felveszi, ha van óra/határidő (#144)")
 ok("hétfő–vasárnap" in js and "hétfő–péntek" in js,

@@ -3677,14 +3677,6 @@ $(document).ready(function() {
             $('#maHolnapOrak').html(holnapOrak.length
                 ? holnapOrak.map(function(o) { return maOraSor(o, minden); }).join('')
                 : maUres('Holnap nincs óra.'));
-            const taskak = res.holnapi_taskak || [];
-            $('#maTaska').text(taskak.join(', '));
-            // „Mind” nézetben a táska gyerekek között keveredne — csak szűrt nézetben.
-            $('#maTaskaWrap').toggleClass('d-none', !taskak.length || minden);
-            const holnapHat = res.holnapi_hataridok || [];
-            $('#maHolnapHataridok').html(holnapHat.length
-                ? holnapHat.map(function(h) { return maHataridoSor(h, minden); }).join('')
-                : '');
 
             // Igazolandó hiányzások (Kaneo #134)
             const ig = res.igazolando || [];
