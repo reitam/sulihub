@@ -470,13 +470,19 @@ alapján ellenőrzi, és ha elavult (pl. a triggerek előtti sorok), **rebuildel
 A szinkron befejezésekor az `app_meta` `sync_health` állapota frissül:
 - **3 egymást követő hibás futás** → magas prioritású (5) ntfy riasztás, legfeljebb
   6 óránként egyszer;
-- **token-lejárat / refresh hiba** (a naplóban `token`/`refresh`/`401`/`bejelentkez`)
-  → külön üzenet: „újra be kell jelentkezni” (4-es prioritás, 6 órás throttle);
+- **token-lejárat / refresh hiba** → külön üzenet: „újra be kell jelentkezni”
+  (4-es prioritás, 6 órás throttle). A felismerés **a sikertelen adatkörök okából**
+  történik (`401`/`403`/`invalid_grant`/login hiba); a napló „tárolt tokenből” /
+  „refresh tokennel” info-sorai **nem** számítanak token hibának (Kaneo #145 utáni
+  javítás, 2026-11-18);
 - siker után a számláló nullázódik;
 - a `/api/scheduler/status` `health` mezőt ad (`consecutive_errors`, `last_error_type`,
   `last_run_age_hours`), a fejléc státuszsávja is jelzi („Ismétlődő szinkronhiba” /
-  „Újra be kell jelentkezni”). A régi „elavult adat” riasztás (`STALE_ALERT_HOURS`)
-  változatlanul megmarad.
+  „KRÉTA belépés lejárt”). A státuszsáv tooltipje és a részletek modál elmagyarázza,
+  hogy a következő szinkron **automatikusan** belép a config.json-ban megadott
+  felhasználónévvel/jelszóval. A health-riasztás **nem külön push**, hanem a futás
+  egyetlen üzenetébe kerül (Kaneo #128). A régi „elavult adat” riasztás
+  (`STALE_ALERT_HOURS`) változatlanul megmarad.
 
 ### 2.19. Adatminőség- és integritás-riport (Kaneo #89)
 

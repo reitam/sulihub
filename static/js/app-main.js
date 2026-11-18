@@ -2349,13 +2349,19 @@ $(document).ready(function() {
                    `${String(d.getDate()).padStart(2, '0')}.`;
         };
         const napi = active.napi_sync
-            ? ` A szünet alatt naponta <b>${escapeHtml(active.napi_ido)}</b>-kor automatikus szinkron fut.`
-            : ' A szünet alatt nincs automatikus szinkron.';
+            ? `<div class="szunet-daily"><i class="fa-solid fa-clock"></i> ` +
+              `Napi automatikus szinkron: ${escapeHtml(active.napi_ido)}</div>`
+            : '<div class="szunet-daily"><i class="fa-solid fa-ban"></i> ' +
+              'A szünet alatt nincs automatikus szinkron</div>';
         box.removeClass('d-none').html(
-            '<i class="fa-solid fa-circle-pause fs-5"></i><div>' +
-            `<b>Az automatikus szinkron szünetel:</b> ${escapeHtml(active.nev)} ` +
-            `(${huDatum(active.kezdo)} – ${huDatum(active.vege)}). ` +
-            'A kézi frissítés elérhető.' + napi + '</div>');
+            '<div class="szunet-icon"><i class="fa-solid fa-circle-pause"></i></div>' +
+            '<div class="flex-grow-1">' +
+            '<div class="szunet-title"><span class="badge text-bg-warning me-1">SZÜNET</span>' +
+            'Az automatikus szinkron most szünetel</div>' +
+            `<div><b>${escapeHtml(active.nev)}</b> ` +
+            `<span class="szunet-dates">(${huDatum(active.kezdo)} – ${huDatum(active.vege)})</span></div>` +
+            '<div class="szunet-meta">A kézi frissítés bármikor elérhető.</div>' +
+            napi + '</div>');
     }
 
     function refreshSchedulerInfo(sched) {
@@ -2443,6 +2449,9 @@ $(document).ready(function() {
             .addClass(compact.cls)
             .text(compact.text);
         $('#schedModalState').html(stateHtml + ' &middot; ' + compact.text);
+        const help = schedulerHelpText(sched);
+        $('#schedulerCompact').attr('title', help || 'Szinkronizálás részletei');
+        $('#schedModalHelp').toggleClass('d-none', !help).text(help);
         $('#schedModalWindow').html(
             schedulerWindowHtml(sched)
             + ` <span class="text-secondary">(${sched.interval_minutes} percenként)</span>`);

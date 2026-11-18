@@ -344,9 +344,21 @@ try:
                 const running = schedulerCompactState({running: true, trigger: 'scheduled'});
                 const err = schedulerCompactState({last_run: '2026-11-03 21:34:00', last_status: 'error'});
                 const done = schedulerCompactState({last_run: '2026-11-03 21:33:00', last_status: 'done'});
+                const token = schedulerCompactState({last_run: '2026-11-03 21:33:00',
+                    last_status: 'done_with_errors', health: {last_error_type: 'token'}});
+                const help = schedulerHelpText({last_status: 'done_with_errors',
+                    health: {last_error_type: 'token'}});
+                const partial = schedulerCompactState({last_run: '2026-11-03 21:33:00',
+                    last_status: 'done_with_errors',
+                    health: {last_failed_datasets: ['üzenetek']}});
+                const helpPartial = schedulerHelpText({last_status: 'done_with_errors',
+                    health: {last_failed_datasets: ['üzenetek']}});
                 return {running: running.text, error: err.text, done: done.text,
+                        token: token.text, help: help,
+                        partial: partial.text, helpPartial: helpPartial,
                         spin: running.icon.indexOf('spinner') >= 0,
                         red: err.icon.indexOf('text-danger') >= 0,
+                        tokenRed: token.icon.indexOf('text-danger') >= 0,
                         green: done.icon.indexOf('text-success') >= 0};
             }""")
             ok(states["spin"] and "folyamatban" in states["running"],
@@ -355,6 +367,15 @@ try:
                f"hiba esetén piros állapot ('{states['error']}')")
             ok(states["green"] and "Frissítve" in states["done"],
                f"siker esetén zöld állapot ('{states['done']}')")
+            ok(states["tokenRed"] and "belépés" in states["token"].lower()
+               and "koppints" in states["token"].lower(),
+               f"token-hiba esetén érthető, koppintásra hívó állapot ('{states['token']}')")
+            ok("automatikusan" in states["help"].lower()
+               and "config.json" in states["help"].lower(),
+               "a részletek ablak elmagyarázza az automatikus újrabelépést")
+            ok("üzenetek" in states["partial"].lower()
+               and "üzenetek" in states["helpPartial"].lower(),
+               f"részleges hibánál látszik a sikertelen adatkör ('{states['partial']}')")
 
             # 7b) koppintásra megnyílik a részletek ablak
             await page.click('#schedulerCompact')

@@ -86,6 +86,25 @@ ok(alert and "jelentkezni" in alert[0].lower(), f"üzenet: {alert}")
 h = kreta._update_sync_health("error", [], "token hiba")
 ok(h.get("_alert") is None, "token hiba throttle alatt nem spammel")
 
+print("\n3b) A napló 'tárolt token' info-sora nem token hiba")
+kreta.set_meta(kreta.SYNC_HEALTH_META, "{}")
+h = kreta._update_sync_health(
+    "done_with_errors", ["HealthDiak"],
+    "munkamenet a tárolt tokenből (nincs új belépés) ... KretaResponseError: HTTP 503",
+    sources={"HealthDiak": {"uzenetek": {"ok": False,
+                                         "reason": "KretaResponseError: HTTP 503:"}}})
+ok(h.get("last_error_type") == "sync",
+   f"503 az üzenetek adatkörben -> sync hiba, nem token: {h.get('last_error_type')}")
+ok(h.get("last_failed_datasets") == ["üzenetek"],
+   f"a sikertelen adatkör neve is látszik: {h.get('last_failed_datasets')}")
+ok(h.get("_alert") is None, "első ilyen hibánál nincs azonnali riasztás")
+h = kreta._update_sync_health(
+    "done_with_errors", ["HealthDiak"], "",
+    sources={"HealthDiak": {"jegyek": {"ok": False,
+                                       "reason": "KretaAuthError: HTTP 401"}}})
+ok(h.get("last_error_type") == "token",
+   f"valódi 401 -> token hiba: {h.get('last_error_type')}")
+
 print("\n4) Siker után reset")
 h = kreta._update_sync_health("done", [], "minden rendben")
 ok(h.get("consecutive_errors") == 0 and h.get("last_error_type") == ""

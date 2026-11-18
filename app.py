@@ -788,6 +788,30 @@ SYNC_HEALTH_META = "sync_health"
 SYNC_HEALTH_ERROR_LIMIT = 3
 SYNC_HEALTH_ALERT_REPEAT_HOURS = 6
 
+SYNC_DATASET_LABELS = {
+    "orarend": "órarend",
+    "jegyek": "jegyek",
+    "feljegyzesek": "feljegyzések",
+    "hazi": "házi feladatok",
+    "szamonkeresek": "számonkérések",
+    "hianyzasok": "hiányzások",
+    "igazolasok": "igazolások",
+    "uzenetek": "üzenetek",
+}
+
+
+def _failed_dataset_labels(sources):
+    """A sikertelen adatkörök emberi nevei (pl. ['üzenetek'])."""
+    failed = set()
+    if isinstance(sources, dict):
+        for student_sources in sources.values():
+            if not isinstance(student_sources, dict):
+                continue
+            for key, outcome in student_sources.items():
+                if isinstance(outcome, dict) and not outcome.get("ok", True):
+                    failed.add(SYNC_DATASET_LABELS.get(key, key))
+    return sorted(failed)
+
 
 def _sync_health():
     """A szinkron-egészség állapota (app_meta JSON; Kaneo #88)."""
@@ -804,6 +828,7 @@ def _sync_health():
     data.setdefault("last_error_at", "")
     data.setdefault("last_alert_at", "")
     data.setdefault("last_token_alert_at", "")
+    data.setdefault("last_failed_datasets", [])
     return data
 
 
@@ -816,7 +841,36 @@ def _health_throttled(data, kulcs):
     return not last or (_now() - last).total_seconds() >= SYNC_HEALTH_ALERT_REPEAT_HOURS * 3600
 
 
-def _update_sync_health(status, failed_students, logs_text=""):
+_TOKEN_ERROR_MARKERS = (
+    "http 401", "http 403", "401 unauthorized", "403 forbidden",
+    "token expired", "token lejárt", "invalid_grant", "invalid token",
+    "bejelentkezési hiba", "login failed", "hitelesítési hiba",
+)
+
+
+def _token_failure(sources=None, logs_text=""):
+    """Valódi token/login hiba? (Kaneo #88/#128)
+
+    Elsődlegesen a **sikertelen adatkörök okát** nézi, nem a teljes naplót:
+    a naplóban ugyanis lehetnek „tárolt tokenből", „refresh tokennel" info-sorok,
+    amelyek korábban tévesen „újra be kell jelentkezni" állapotot adtak.
+    """
+    reasons = []
+    if isinstance(sources, dict):
+        for student_sources in sources.values():
+            if not isinstance(student_sources, dict):
+                continue
+            for outcome in student_sources.values():
+                if isinstance(outcome, dict) and not outcome.get("ok", True):
+                    reasons.append(str(outcome.get("reason") or "").lower())
+    if reasons:
+        return any(any(marker in reason for marker in _TOKEN_ERROR_MARKERS)
+                   for reason in reasons)
+    low = (logs_text or "").lower()
+    return any(marker in low for marker in _TOKEN_ERROR_MARKERS)
+
+
+def _update_sync_health(status, failed_students, logs_text="", sources=None):
     """Egymást követő hibák / token-lejárat állapota (Kaneo #88).
 
     **Nem küld** külön push-t: a riasztást `_alert` kulcsban adja vissza, és a
@@ -824,16 +878,16 @@ def _update_sync_health(status, failed_students, logs_text=""):
     """
     data = _sync_health()
     hibas = status in ("error", "done_with_errors")
-    low = (logs_text or "").lower()
-    token_hiba = hibas and any(k in low for k in (
-        "token", "refresh", "401", "bejelentkez", "login"))
+    token_hiba = hibas and _token_failure(sources, logs_text)
     if hibas:
         data["consecutive_errors"] = int(data.get("consecutive_errors") or 0) + 1
         data["last_error_type"] = "token" if token_hiba else "sync"
         data["last_error_at"] = _now().strftime(SCHEDULER_TS_FMT)
+        data["last_failed_datasets"] = _failed_dataset_labels(sources)
     else:
         data["consecutive_errors"] = 0
         data["last_error_type"] = ""
+        data["last_failed_datasets"] = []
     data["last_status"] = status
 
     alert = None
@@ -841,8 +895,10 @@ def _update_sync_health(status, failed_students, logs_text=""):
         if token_hiba and _health_throttled(data, "last_token_alert_at"):
             alert = (
                 "KRÉTA: újra be kell jelentkezni",
-                "A szinkron tokenje lejárt vagy a frissítés hibás. Jelentkezz be újra "
-                "a KRÉTA-fiókkal (a részletek a Rendszernaplóban).",
+                "A KRÉTA munkamenet lejárt. A következő szinkron automatikusan "
+                "megpróbál belépni a config.json-ban megadott felhasználónévvel és "
+                "jelszóval. Ha ez ismétlődik, ellenőrizd a belépési adatokat, majd "
+                "indíts kézi frissítést (a részletek a Rendszernaplóban).",
                 4, ["key"],
             )
             data["last_token_alert_at"] = _now().strftime(SCHEDULER_TS_FMT)
@@ -1322,7 +1378,7 @@ def run_scraper_thread(trigger="manual"):
         )
 
         # Szinkron-egészség: egymást követő hibák / token-lejárat (Kaneo #88).
-        health = _update_sync_health(final_status, final_failed, final_logs)
+        health = _update_sync_health(final_status, final_failed, final_logs, final_sources)
         health_alert = health.get("_alert")
 
         # Push értesítés: egy üzenet futásonként — hiba, vagy új információ

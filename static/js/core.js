@@ -62,6 +62,28 @@ function formatSchedTime(iso) {
     return `${d.toLocaleDateString('hu-HU')} ${hhmm}`;
 }
 
+function schedulerHelpText(sched) {
+    const health = (sched && sched.health) || {};
+    const failed = (health.last_failed_datasets || []).join(', ');
+    if (health.last_error_type === 'token') {
+        return 'A KRÉTA munkamenet lejárt. A következő szinkron automatikusan ' +
+               'megpróbál belépni a config.json-ban megadott felhasználónévvel és ' +
+               'jelszóval. Ha ez ismétlődik, ellenőrizd a belépési adatokat, majd ' +
+               'indíts kézi frissítést.';
+    }
+    if ((health.consecutive_errors || 0) >= 3) {
+        return (failed ? `Nem frissült: ${failed}. ` : '') +
+               'A szinkron több egymást követő alkalommal hibázott. Nézd meg a ' +
+               'Rendszernaplót; átmeneti hiba (pl. 503) esetén a következő futás ' +
+               'újrapróbálja.';
+    }
+    if (sched && sched.last_status === 'done_with_errors') {
+        return (failed ? `Nem frissült: ${failed}. ` : '') +
+               'A többi adat igen. A részletek a Rendszernaplóban láthatók.';
+    }
+    return '';
+}
+
 function schedulerCompactState(sched) {
     if (sched.running) {
         return {
@@ -75,7 +97,7 @@ function schedulerCompactState(sched) {
     const health = sched.health || {};
     if (health.last_error_type === 'token') {
         return {icon: '<i class="fa-solid fa-key text-danger"></i>',
-                text: 'Újra be kell jelentkezni a KRÉTA-ba',
+                text: 'KRÉTA belépés lejárt – koppints a részletekért',
                 cls: 'text-danger fw-semibold'};
     }
     if ((health.consecutive_errors || 0) >= 3) {
@@ -96,8 +118,9 @@ function schedulerCompactState(sched) {
                 cls: 'text-danger fw-semibold'};
     }
     if (st === 'done_with_errors') {
+        const failed = ((sched.health || {}).last_failed_datasets || []).join(', ');
         return {icon: '<i class="fa-solid fa-triangle-exclamation text-warning"></i>',
-                text: `Részben sikerült: ${when}`,
+                text: `Részben sikerült: ${when}` + (failed ? ` – ${failed}` : ''),
                 cls: 'text-warning-emphasis fw-semibold'};
     }
     if (st === 'interrupted' || st === 'stopped') {
