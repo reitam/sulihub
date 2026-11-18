@@ -91,6 +91,14 @@ for i, nap in enumerate(["hétfő", "kedd", "szerda", "csütörtök", "péntek"]
         ("Teszt Elek", f"2026-10-{26 + i:02d}T08:00:00", f"2026-10-{26 + i:02d}T08:45:00",
          nap, "Matematika", "Kovács Anna", "101"),
     )
+# Kaneo #144: munkaszombati óra a heti nézet hétvége-tesztjéhez (aktuális hét)
+SZOMBAT = date.fromisoformat(HETFO) + timedelta(days=5)
+conn.execute(
+    "INSERT INTO orarend (diak_nev, kezdo_idopont, zaro_idopont, nap, tantargy, tanar, terem)"
+    " VALUES (?,?,?,?,?,?,?)",
+    ("Teszt Elek", f"{SZOMBAT}T09:00:00", f"{SZOMBAT}T09:45:00",
+     "szombat", "Matematika", "Kovács Anna", "101"),
+)
 conn.commit()
 conn.close()
 
@@ -239,11 +247,14 @@ try:
             het = await page.evaluate("""() => ({
                 visible: !document.querySelector('#maHetNezet').classList.contains('d-none'),
                 napok: document.querySelectorAll('#maHetNezet .ma-het-kartya').length,
+                cim: (document.querySelector('#maHetNezet .ma-het-cim') || {}).innerText || '',
                 honapGomb: document.querySelectorAll('#maNezetKapcsolo [data-nezet="honap"]').length,
                 tulcsordulas: document.querySelector('#maHetNezet').scrollWidth
                     > document.querySelector('#maHetNezet').clientWidth + 1})""")
-            ok(het["visible"] and het["napok"] == 5,
-               f"a heti nézet 5 napkártyát mutat ({het})")
+            ok(het["visible"] and het["napok"] == 6,
+               f"a heti nézet 6 napkártyát mutat (munkaszombat, #144): {het}")
+            ok("hétfő–vasárnap" in het["cim"],
+               f"a heti fejléc hétvégére vált: {het['cim']!r}")
             ok(het["honapGomb"] == 0, "nincs havi nézet gomb a kapcsolón")
             ok(not het["tulcsordulas"], "a heti nézet nem csordul túl mobilon")
 

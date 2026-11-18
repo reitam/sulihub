@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v2.4.0` (éles, 2026-11-16); a `v2.5.0` kiadásra kész (2026-11-17)
+**Jelenlegi verzió:** `v2.4.0` (éles, 2026-11-16); a `v2.6.0` kiadásra kész (2026-11-18)
 
 ---
 
@@ -34,6 +34,10 @@ a saját szerveren maradnak.
 ### ⏱️ Ütemező (config-vezérelt)
 - Alapból **3 óránként, 6:00–22:00 között** fut (06:00 → 09:00 → 12:00 → 15:00 → 18:00 → 21:00).
 - A kézi frissítés **nem tolja el** az automatikus időzítést.
+- **Szinkron-szünet (Kaneo #145):** a `config.json` `SYNC_SZUNET` intervallumaiban
+  (pl. őszi/téli szünet) az automatikus futás kimarad — a felület tetején kiemelt sáv
+  jelzi; a kézi frissítés mindig elérhető. Opcionálisan a szünet alatt is futhat
+  **napi egy** automatikus szinkron megadott időpontban.
 - Átfedés-védelem, perzisztált futástörténet, részleges hibakezelés.
 
 ### 🔔 Push értesítések (ntfy)
@@ -45,7 +49,10 @@ a saját szerveren maradnak.
   **gyermekenként egy üzenet** a nap eseményeivel — jegyek súlyozással, ma feladott
   házik, ma bejelentett dolgozatok, feljegyzések, hiányzások, igazolások, üzenetek —,
   valamint a **holnap esedékes** házik/dolgozatok. Órarend nincs benne; eseménytelen
-  napon is jön rövid üzenet. A küldés ideje a `config.json` `DIGEST.TIME`-ban (alap
+  napon is jön rövid üzenet — **kivéve hétvégén/tanítási szüneten** (Kaneo #133),
+  ahol üres napon nem megy üzenet (a `DIGEST.SZUNET_NAPOK` és az órarendi
+  szünet-sorok alapján; valódi esemény esetén igen). A küldés ideje a `config.json`
+  `DIGEST.TIME`-ban (alap
   19:30), a felületen is állítható. A fejléc 🔔 ikonjából bármikor kérhető
   **„Összefoglaló most”** az **utolsó automatikus óta** — ez nem írja felül az
   automata időpontját/tartalmát (tesztelési/kérési cél). Naponta max. 1 automata
@@ -253,10 +260,15 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 {
   "SCRAPE_MESSAGES": true,
   "SYNC_MODE": "api",
+  "SYNC_SZUNET": [
+    {"nev": "Őszi szünet", "kezdo": "2026-10-26", "vege": "2026-10-30", "napi_sync": false},
+    {"nev": "Téli szünet", "kezdo": "2026-12-21", "vege": "2027-01-02", "napi_sync": true, "napi_ido": "10:00"}
+  ],
   "DIGEST": {
     "ENABLED": true,
     "TIME": "19:30",
-    "INCLUDE_NAMES": true
+    "INCLUDE_NAMES": true,
+    "SZUNET_NAPOK": []
   },
   "ENABLE_REWARDS": true,
   "SCHEDULER": {
@@ -503,6 +515,7 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
+| v2.6.x | **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül kiemelt sáv. **#133:** hétvégén/szünetnapon az üres napi digest kimarad. **#134:** a Ma fül **Holnap** (órák + táska + határidők) és **Igazolandó** kártyával bővült. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő |
 | v2.5.x | **#64 — Playwright teljes kivezetés:** a böngészös scraper, az árnyék-mód (`kreta_shadow.py`) és a `:playwright` Docker target törölve; a szinkron kizárólag a mobil API-ból fut, böngésző nélkül. Az örökölt `api_first`/`playwright` config-értékek figyelmeztetés mellett `api`-ra váltanak. A Playwright csak a **böngészős UI-tesztek** fejlesztői függősége marad. Visszaállás: a `playwright-fallback` git-ág (a v2.4.0 fallbackes kód) |
 | v2.4.x | **Playwright opcionális image (#138):** az alap `runtime` image Chromium és `playwright` csomag nélkül (278 MB), a fallback külön `:playwright` tagben; lazy import + `api` alapmód; **csatolmány-pótlás** `api` módban (max. 3 próba) |
 | v2.3.x | **KRÉ-8 esti digest** (gyermekenként egy push a nap eseményeivel + holnapi határidők, manuális „Összefoglaló most”), **KRÉ-127 tantárgy-szűrő** kis/nagybetű-függetlenül, **KRÉ-126 naptár → tagolt részletek modál**; v2.3.1 fejléc 1200 px fix |

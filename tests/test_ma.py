@@ -56,6 +56,31 @@ for row in ORAK:
         "INSERT INTO orarend (diak_nev, kezdo_idopont, zaro_idopont, nap, tantargy, tanar, terem)"
         " VALUES (?,?,?,?,?,?,?)", row)
 
+# Holnapi (szombati) órák a #134/#144 teszthez (munkaszombat)
+HOLNAPI_ORAK = [
+    ("MaDiak", "2026-11-07T09:00:00", "2026-11-07T09:45:00", "szombat", "Matematika", "Tanár", "101"),
+    ("MaDiak", "2026-11-07T10:00:00", "2026-11-07T10:45:00", "szombat", "Fizika", "Tanár2", "102"),
+]
+for row in HOLNAPI_ORAK:
+    conn.execute(
+        "INSERT INTO orarend (diak_nev, kezdo_idopont, zaro_idopont, nap, tantargy, tanar, terem)"
+        " VALUES (?,?,?,?,?,?,?)", row)
+
+# Igazolandó hiányzások (#134)
+HIANYZASOK = [
+    ("MaDiak", "H1", "2026-11-04", 2, None, "Matematika", "Hiányzás", 0),
+    ("MaDiak", "H2", "2026-10-20", 3, 5, "Fizika", "Késés", 0),
+    ("MaDiak", "H3", "2026-10-21", 1, None, "Angol", "Hiányzás", 1),
+    ("MasDiak", "H4", "2026-11-05", 1, None, "Más", "Hiányzás", 0),
+]
+for diak, kreta_id, datum, ora, perc, tantargy, tipus, igazolt in HIANYZASOK:
+    conn.execute(
+        "INSERT INTO hianyzasok (diak_nev, kreta_id, mulasztas_datum, ora_sorszam, perc,"
+        " tantargy, tema, tanar, mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus,"
+        " rogzites_datum, tanev) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (diak, kreta_id, datum, ora, perc, tantargy, "", "Tanár", tipus, igazolt, "", "",
+         datum, "2026/2027"))
+
 ESEMENYEK = [
     ("MaDiak", "Házi feladat", "Matematika", "2026. 11. 06.", 0, "Törtek"),
     ("MaDiak", "Bejelentett számonkérés", "Fizika", "2026. 11. 07.", 0, "Erő"),
@@ -122,6 +147,12 @@ ok(d["orak"][0]["kezdes"] == "08:00" and d["orak"][0]["tantargy"] == "Matematika
    f"az első óra 08:00 Matematika: {d['orak'][0]}")
 ok(d["orak"][0]["terem"] == "101" and d["orak"][0]["tanar"] == "Tanár", "terem és tanár megvan")
 
+print("\n1b) Holnapi órák + táska (Kaneo #134)")
+ok(d.get("holnapi_datum") == "2026-11-07", f"holnapi dátum: {d.get('holnapi_datum')}")
+ok(len(d.get("holnapi_orak") or []) == 2, f"2 holnapi óra: {len(d.get('holnapi_orak') or [])}")
+ok(d.get("holnapi_taskak") == ["Matematika", "Fizika"],
+   f"a táska a holnapi tantárgyak sorrendtartó listája: {d.get('holnapi_taskak')}")
+
 print("\n2) Ma / holnap esedékes határidők")
 hat = d.get("hataridok") or []
 ok(len(hat) == 4, f"4 határidő (ma 3 + holnap 1, a későbbi nem): {len(hat)}")
@@ -135,6 +166,19 @@ ok(matek.get("bej_datum") == "2026. 11. 01.", "a részletekhez bejegyzés dátum
 ok(all(kulcs in matek for kulcs in
        ("ertek", "suly_szazalek", "ertekelo", "tipus", "mod", "tema", "cim", "tartalom")),
    "a határidő-sor a részletek modál mezőit is tartalmazza")
+holnap_hat = d.get("holnapi_hataridok") or []
+ok(len(holnap_hat) == 1 and holnap_hat[0]["tantargy"] == "Fizika",
+   f"a külön holnapi lista (1 számonkérés): {holnap_hat}")
+
+print("\n2b) Igazolandó hiányzások (Kaneo #134)")
+ig = d.get("igazolando") or []
+ok(d.get("igazolando_db") == 3, f"3 igazolatlan mulasztás: {d.get('igazolando_db')}")
+ok(len(ig) == 3, f"a lista 3 tétel: {len(ig)}")
+ok(ig[0]["datum"] == "2026-11-05" and ig[0]["diak_nev"] == "MasDiak",
+   f"a legfrissebb elöl: {ig[0] if ig else None}")
+ok(next((e for e in ig if e["datum"] == "2026-11-04"), {}).get("napok") == 2,
+   "a napok száma a mai naphoz képest")
+ok(all(e["tantargy"] and e["tipus"] for e in ig), "tantárgy és típus is jön")
 
 print("\n3) Friss jegyek (7 nap) és olvasatlan üzenetek")
 ok(len(d.get("uj_jegyek") or []) == 1, f"1 friss jegy: {len(d.get('uj_jegyek') or [])}")
@@ -147,6 +191,9 @@ d2 = ma("&diak=MasDiak")
 ok(len(d2.get("orak") or []) == 1 and d2["orak"][0]["tantargy"] == "Angol", "MasDiak órái")
 ok(len(d2.get("hataridok") or []) == 1, "MasDiak határideje")
 ok(d2.get("olvasatlan_db") == 0, "MasDiaknak nincs olvasatlanja")
+ok(len(d2.get("holnapi_orak") or []) == 0, "MasDiaknak nincs holnapi órája")
+ok(d2.get("igazolando_db") == 1 and len(d2.get("igazolando") or []) == 1,
+   f"MasDiak 1 igazolandója: {d2.get('igazolando_db')}")
 
 print("\n5) Más nap / üres adat / hibás dátum")
 ures = ma(datum="2026-12-24")
@@ -199,6 +246,18 @@ ok("#attekintes-pane,\n            #ma-pane { max-width: 1200px" in html,
    "a Ma fül széles kijelzőn ugyanúgy középre igazított, mint az Áttekintés")
 ok(client.get("/api/ma?datum=2026-11-06").status_code == 200,
    "a /api/ma végpont él")
+
+print("\n7) Holnap + táska + igazolandó kártyák (#134) és hétvégi napok (#144)")
+ok('id="maHolnapOrak"' in html and 'id="maTaskaWrap"' in html
+   and 'id="maIgazolando"' in html and 'id="maHolnapDatum"' in html,
+   "a Ma fülön ott a Holnap (táska) és az Igazolandó kártya")
+ok("holnapi_orak" in js and "holnapi_taskak" in js and "igazolando" in js
+   and "maHolnapOrak" in js and "maIgazolando" in js,
+   "a JS megjeleníti a holnapi órákat/táskát és az igazolandókat")
+ok("[5, 6]" in js and "vanHetvege" in js and "kartyak.push" in js,
+   "a heti nézet a hétvégét is felveszi, ha van óra/határidő (#144)")
+ok("hétfő–vasárnap" in js and "hétfő–péntek" in js,
+   "a heti nézet fejléce a megjelenített napokhoz igazodik")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

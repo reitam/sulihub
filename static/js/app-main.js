@@ -2334,12 +2334,37 @@ $(document).ready(function() {
         return st ? `<span class="text-secondary">${st}</span>` : '';
     }
 
+    // Szinkron-szünet sáv (Kaneo #145): felül, kiemelve, ha aktív intervallum van.
+    function renderSzunetBanner(szunet) {
+        const box = $('#szunetBanner');
+        const active = szunet && szunet.active;
+        if (!active) {
+            box.addClass('d-none').empty();
+            return;
+        }
+        const huDatum = function(iso) {
+            const d = new Date(String(iso) + 'T00:00:00');
+            if (isNaN(d.getTime())) return iso;
+            return `${d.getFullYear()}. ${String(d.getMonth() + 1).padStart(2, '0')}. ` +
+                   `${String(d.getDate()).padStart(2, '0')}.`;
+        };
+        const napi = active.napi_sync
+            ? ` A szünet alatt naponta <b>${escapeHtml(active.napi_ido)}</b>-kor automatikus szinkron fut.`
+            : ' A szünet alatt nincs automatikus szinkron.';
+        box.removeClass('d-none').html(
+            '<i class="fa-solid fa-circle-pause fs-5"></i><div>' +
+            `<b>Az automatikus szinkron szünetel:</b> ${escapeHtml(active.nev)} ` +
+            `(${huDatum(active.kezdo)} – ${huDatum(active.vege)}). ` +
+            'A kézi frissítés elérhető.' + napi + '</div>');
+    }
+
     function refreshSchedulerInfo(sched) {
         if (!sched || typeof sched !== 'object') {
             $.getJSON('/api/scheduler/status', function(res) { refreshSchedulerInfo(res); });
             return;
         }
         $('#schedulerInfo').removeClass('d-none');
+        renderSzunetBanner(sched.szunet);
         const badge = $('#schedulerState');
 
         // 1) Be van-e kapcsolva az ütemező?
@@ -2361,6 +2386,14 @@ $(document).ready(function() {
                 : '<span class="text-primary fw-bold">kézi szinkron fut...</span>';
             nextHtml = runTxt + ` <span class="text-secondary">${schedulerIntervalText(sched)}</span>`;
             nextModalHtml = runTxt;
+        } else if (sched.szunet && sched.szunet.active) {
+            const a = sched.szunet.active;
+            const daily = a.napi_sync
+                ? `napi szinkron: <b>${escapeHtml(a.napi_ido)}</b>`
+                : 'nincs automatikus szinkron';
+            nextHtml = nextModalHtml =
+                `<span class="text-warning fw-bold">szünetel: ${escapeHtml(a.nev)}</span> ` +
+                `<span class="text-secondary">${daily}</span>`;
         } else {
             const when = formatSchedTime(sched.next_run_iso);
             if (when) {
@@ -3476,26 +3509,72 @@ $(document).ready(function() {
         return `<div class="list-group-item text-muted">${escapeHtml(text)}</div>`;
     }
 
+    // Határidő-sor a Ma fül mindkét listájához (ma/holnap + holnapi kártya).
+    function maHataridoSor(h, minden) {
+        const kesz = Number(h.kesz) === 1;
+        const rovid = h.esemeny_tipus === 'Házi feladat' ? 'Házi' : 'Számonkérés';
+        const nev = (minden && h.diak_nev)
+            ? `<span class="text-muted ms-auto">${escapeHtml(h.diak_nev)}</span>` : '';
+        maHataridokAdat[Number(h.id)] = h;
+        const ido = h.mikor
+            ? ` <span class="badge bg-${h.mikor === 'ma' ? 'danger' : 'secondary'}">${h.mikor}</span>`
+            : '';
+        return `<div class="list-group-item list-group-item-action py-1 px-2 d-flex align-items-center gap-2 ma-hatarido"
+                         role="button" tabindex="0" data-id="${h.id}">
+            <button class="btn btn-sm btn-link p-0 btn-ma-kesz" data-id="${h.id}"
+                    data-kesz="${kesz ? 0 : 1}"
+                    title="${kesz ? 'Kész jelölés visszavonása' : 'Megjelölés elkészültként'}">
+                <i class="fa-${kesz ? 'solid fa-square-check text-success' : 'regular fa-square'}"></i>
+            </button>${ido}
+            <span class="${kesz ? 'text-decoration-line-through text-muted' : ''}">
+                <b>${escapeHtml(h.tantargy)}</b> — ${escapeHtml(h.megnevezes)}
+            </span>
+            <span class="badge bg-light text-body border">${rovid}</span>${nev}
+        </div>`;
+    }
+
+    // Óra-sor a Ma fülhöz (ma és holnap).
+    function maOraSor(o, minden) {
+        const nev = (minden && o.diak_nev)
+            ? ` <span class="text-muted">${escapeHtml(o.diak_nev)}</span>` : '';
+        const hely = [o.terem, o.tanar].filter(Boolean).join(' · ');
+        return `<div class="list-group-item py-1 px-2">
+            <span class="fw-bold me-2">${escapeHtml(o.kezdes)}–${escapeHtml(o.vege)}</span>
+            <span>${escapeHtml(o.tantargy)}</span>${nev}
+            ${hely ? '<span class="text-muted ms-2">' + escapeHtml(hely) + '</span>' : ''}
+        </div>`;
+    }
+
     function maHetBetolt() {
         const diak = $('#filterDiak').val() || '';
         const alap = maAktualisDatum || maIso(new Date());
         const d = new Date(alap + 'T00:00:00');
         const off = (d.getDay() + 6) % 7;
         const hetfo = new Date(d.getFullYear(), d.getMonth(), d.getDate() - off);
-        const napok = [0, 1, 2, 3, 4].map(function(i) {
+        const napok = [0, 1, 2, 3, 4, 5, 6].map(function(i) {
             return new Date(hetfo.getFullYear(), hetfo.getMonth(), hetfo.getDate() + i);
         });
         const keresek = napok.map(function(n) {
             return $.getJSON(`/api/ma?diak=${encodeURIComponent(diak)}&datum=${maIso(n)}`);
         });
         Promise.all(keresek).then(function(list) {
-            const hetVege = napok[4];
+            // Hétvégén csak akkor jelenik meg kártya, ha van óra vagy határidő
+            // (Kaneo #144: munkaszombat / pótolt tanítás).
+            const kartyak = [0, 1, 2, 3, 4];
+            [5, 6].forEach(function(i) {
+                const res = list[i] || {};
+                const hat = (res.hataridok || []).filter(function(h) { return h.mikor === 'ma'; });
+                if ((res.orak || []).length || hat.length) kartyak.push(i);
+            });
+            const vanHetvege = kartyak.some(function(i) { return i >= 5; });
+            const utolso = napok[kartyak[kartyak.length - 1]];
             const idoszak = `${honapNev(maIso(hetfo).slice(0, 7))} ${hetfo.getDate()}. – ` +
-                            `${honapNev(maIso(hetVege).slice(0, 7))} ${hetVege.getDate()}.`;
+                            `${honapNev(maIso(utolso).slice(0, 7))} ${utolso.getDate()}.`;
             let html = '<div class="ma-het-wrap mx-auto">' +
                 `<div class="ma-het-cim text-center text-muted small mb-2">` +
-                `${escapeHtml(idoszak)} · hétfő–péntek</div><div class="ma-het-grid">`;
-            list.forEach(function(res, i) {
+                `${escapeHtml(idoszak)} · ${vanHetvege ? 'hétfő–vasárnap' : 'hétfő–péntek'}</div><div class="ma-het-grid">`;
+            kartyak.forEach(function(i) {
+                const res = list[i] || {};
                 const nap = napok[i];
                 const iso = maIso(nap);
                 const orak = res.orak || [];
@@ -3582,37 +3661,56 @@ $(document).ready(function() {
             const orak = res.orak || [];
             $('#maOraDb').text(orak.length ? `(${orak.length} óra)` : '');
             $('#maOrak').html(orak.length ? orak.map(function(o) {
-                const nev = (minden && o.diak_nev)
-                    ? ` <span class="text-muted">${escapeHtml(o.diak_nev)}</span>` : '';
-                const hely = [o.terem, o.tanar].filter(Boolean).join(' · ');
-                return `<div class="list-group-item py-1 px-2">
-                    <span class="fw-bold me-2">${escapeHtml(o.kezdes)}–${escapeHtml(o.vege)}</span>
-                    <span>${escapeHtml(o.tantargy)}</span>${nev}
-                    ${hely ? '<span class="text-muted ms-2">' + escapeHtml(hely) + '</span>' : ''}
-                </div>`;
+                return maOraSor(o, minden);
             }).join('') : maUres('Ma nincs óra.'));
 
-            const hat = res.hataridok || [];
-            $('#maHataridok').html(hat.length ? hat.map(function(h) {
-                const kesz = Number(h.kesz) === 1;
-                const rovid = h.esemeny_tipus === 'Házi feladat' ? 'Házi' : 'Számonkérés';
-                const nev = (minden && h.diak_nev)
-                    ? `<span class="text-muted ms-auto">${escapeHtml(h.diak_nev)}</span>` : '';
-                maHataridokAdat[Number(h.id)] = h;
-                return `<div class="list-group-item list-group-item-action py-1 px-2 d-flex align-items-center gap-2 ma-hatarido"
-                                 role="button" tabindex="0" data-id="${h.id}">
-                    <button class="btn btn-sm btn-link p-0 btn-ma-kesz" data-id="${h.id}"
-                            data-kesz="${kesz ? 0 : 1}"
-                            title="${kesz ? 'Kész jelölés visszavonása' : 'Megjelölés elkészültként'}">
-                        <i class="fa-${kesz ? 'solid fa-square-check text-success' : 'regular fa-square'}"></i>
-                    </button>
-                    <span class="badge bg-${h.mikor === 'ma' ? 'danger' : 'secondary'}">${h.mikor}</span>
-                    <span class="${kesz ? 'text-decoration-line-through text-muted' : ''}">
-                        <b>${escapeHtml(h.tantargy)}</b> — ${escapeHtml(h.megnevezes)}
-                    </span>
-                    <span class="badge bg-light text-body border">${rovid}</span>${nev}
+            // Holnap kártya (Kaneo #134): holnapi órák + táska + holnapi határidők
+            const holnapOrak = res.holnapi_orak || [];
+            const hd = res.holnapi_datum;
+            if (hd) {
+                const hdp = new Date(String(hd) + 'T00:00:00');
+                $('#maHolnapDatum').text(isNaN(hdp.getTime()) ? '' :
+                    `${honapNev(String(hd).slice(0, 7))} ${hdp.getDate()}. (${MA_NAPOK[hdp.getDay()]})`);
+            } else {
+                $('#maHolnapDatum').text('');
+            }
+            $('#maHolnapOrak').html(holnapOrak.length
+                ? holnapOrak.map(function(o) { return maOraSor(o, minden); }).join('')
+                : maUres('Holnap nincs óra.'));
+            const taskak = res.holnapi_taskak || [];
+            $('#maTaska').text(taskak.join(', '));
+            // „Mind” nézetben a táska gyerekek között keveredne — csak szűrt nézetben.
+            $('#maTaskaWrap').toggleClass('d-none', !taskak.length || minden);
+            const holnapHat = res.holnapi_hataridok || [];
+            $('#maHolnapHataridok').html(holnapHat.length
+                ? holnapHat.map(function(h) { return maHataridoSor(h, minden); }).join('')
+                : '');
+
+            // Igazolandó hiányzások (Kaneo #134)
+            const ig = res.igazolando || [];
+            const igDb = Number(res.igazolando_db) || 0;
+            $('#maIgazolandoDb').text(igDb).toggleClass('d-none', igDb === 0);
+            let igHtml = ig.map(function(e) {
+                const nev = (minden && e.diak_nev)
+                    ? ` <span class="text-muted">· ${escapeHtml(e.diak_nev)}</span>` : '';
+                const napok = (e.napok !== null && e.napok !== undefined)
+                    ? `<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle">${e.napok} napja</span>` : '';
+                const ora = e.ora ? ` · ${e.ora}. óra` : '';
+                const perc = (e.perc !== null && e.perc !== undefined) ? ` · késés ${e.perc} perc` : '';
+                return `<div class="list-group-item py-1 px-2 d-flex align-items-center gap-2 flex-wrap">
+                    ${napok}<b>${escapeHtml(e.datum)}</b>${ora} · ${escapeHtml(e.tantargy)}${nev}
+                    <span class="text-muted small ms-auto">${escapeHtml(e.tipus || '')}${perc}</span>
                 </div>`;
-            }).join('') : maUres('Ma és holnap nincs esedékes házi vagy számonkérés.'));
+            }).join('');
+            if (igDb > ig.length) {
+                igHtml += `<div class="list-group-item text-muted small">… és további ${igDb - ig.length} tétel.</div>`;
+            }
+            $('#maIgazolando').html(igHtml || maUres('Nincs igazolandó hiányzás.'));
+
+            const hat = res.hataridok || [];
+            $('#maHataridok').html(hat.length
+                ? hat.map(function(h) { return maHataridoSor(h, minden); }).join('')
+                : maUres('Ma és holnap nincs esedékes házi vagy számonkérés.'));
 
             const jegyek = res.uj_jegyek || [];
             $('#maJegyek').html(jegyek.length ? jegyek.map(function(j) {

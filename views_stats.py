@@ -411,34 +411,9 @@ def _trend_szamitas(honap_atlagok):
 # ==============================================================================
 # === „Ma” nézet (Kaneo #9) ===================================================
 # ==============================================================================
-@bp.route("/api/ma")
-def api_ma():
-    """Napi összefoglaló: mai órák, közeli határidők, friss jegyek, olvasatlan üzenetek."""
-    raw_datum = (request.args.get("datum") or "").strip() or date.today().isoformat()
-    try:
-        nap = datetime.strptime(raw_datum, "%Y-%m-%d").date()
-    except ValueError:
-        return jsonify({"error": "A dátum formátuma ÉÉÉÉ-HH-NN legyen."}), 400
-    holnap = nap + timedelta(days=1)
-    datum = nap.isoformat()
-    diak = request.args.get("diak", "")
-
-    valasz = {
-        "datum": datum,
-        "diak": diak,
-        "orak": [],
-        "hataridok": [],
-        "uj_jegyek": [],
-        "olvasatlan_db": 0,
-        "uzenetek": [],
-    }
-    if not os.path.exists(DB_FILE):
-        return jsonify(valasz)
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # 1) Mai órák (a szinkron két hetet is hozhat -> nap+tantárgy szerint dedupe)
+def _ma_orak(cursor, datum, diak):
+    """Egy nap órái a Ma fülhöz (az azonos nap+tantárgy duplikátumok nélkül)."""
+    orak = []
     try:
         query = ("SELECT diak_nev, kezdo_idopont, zaro_idopont, tantargy, tanar, terem"
                  " FROM orarend WHERE substr(kezdo_idopont, 1, 10) = ?")
@@ -453,7 +428,7 @@ def api_ma():
             if kulcs in latott:
                 continue
             latott.add(kulcs)
-            valasz["orak"].append({
+            orak.append({
                 "kezdes": str(row["kezdo_idopont"] or "")[11:16],
                 "vege": str(row["zaro_idopont"] or "")[11:16],
                 "tantargy": row["tantargy"] or "",
@@ -463,6 +438,48 @@ def api_ma():
             })
     except sqlite3.Error as exc:
         print(f"[Ma] órák: {exc}")
+    return orak
+
+
+@bp.route("/api/ma")
+def api_ma():
+    """Napi összefoglaló: mai/holnapi órák, közeli határidők, friss jegyek, olvasatlanok."""
+    raw_datum = (request.args.get("datum") or "").strip() or date.today().isoformat()
+    try:
+        nap = datetime.strptime(raw_datum, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "A dátum formátuma ÉÉÉÉ-HH-NN legyen."}), 400
+    holnap = nap + timedelta(days=1)
+    datum = nap.isoformat()
+    diak = request.args.get("diak", "")
+
+    valasz = {
+        "datum": datum,
+        "holnapi_datum": holnap.isoformat(),
+        "diak": diak,
+        "orak": [],
+        "holnapi_orak": [],
+        "holnapi_taskak": [],
+        "hataridok": [],
+        "holnapi_hataridok": [],
+        "uj_jegyek": [],
+        "olvasatlan_db": 0,
+        "uzenetek": [],
+        "igazolando": [],
+        "igazolando_db": 0,
+    }
+    if not os.path.exists(DB_FILE):
+        return jsonify(valasz)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # 1) Mai és holnapi órák (a szinkron két hetet is hozhat -> nap+tantárgy dedupe)
+    valasz["orak"] = _ma_orak(cursor, datum, diak)
+    valasz["holnapi_orak"] = _ma_orak(cursor, holnap.isoformat(), diak)
+    # A „táska" a holnapi tantárgyak sorrendtartó, duplikátum nélküli listája.
+    valasz["holnapi_taskak"] = list(dict.fromkeys(
+        o["tantargy"] for o in valasz["holnapi_orak"] if o["tantargy"]))
 
     # 2) Ma/holnap esedékes házik és számonkérések (a kész jelzővel).
     # A részletek modálhoz a teljes eseménysor kell (leírás, tanár, dátum stb.).
@@ -501,6 +518,9 @@ def api_ma():
             })
     except sqlite3.Error as exc:
         print(f"[Ma] határidők: {exc}")
+
+    # A „Holnap" kártya külön listája (a ma/holnap listából szűrve).
+    valasz["holnapi_hataridok"] = [h for h in valasz["hataridok"] if h["mikor"] == "holnap"]
 
     # 3) Friss jegyek (az elmúlt 7 nap)
     try:
@@ -548,6 +568,39 @@ def api_ma():
             })
     except sqlite3.Error as exc:
         print(f"[Ma] üzenetek: {exc}")
+
+    # 5) Igazolandó hiányzások (Kaneo #134): a még nem igazolt mulasztások.
+    try:
+        query = ("SELECT id, diak_nev, mulasztas_datum, ora_sorszam, perc, tantargy,"
+                 " mulasztas_tipus, tanorai_celu FROM hianyzasok WHERE igazolt = 0")
+        params = []
+        if diak:
+            query += " AND diak_nev = ?"
+            params.append(diak)
+        cursor.execute("SELECT COUNT(*) FROM (" + query + ")", params)
+        valasz["igazolando_db"] = int(cursor.fetchone()[0] or 0)
+        cursor.execute(query + " ORDER BY mulasztas_datum DESC, ora_sorszam DESC LIMIT 20",
+                       params)
+        for row in cursor.fetchall():
+            mdatum = str(row["mulasztas_datum"] or "")[:10]
+            napok = None
+            try:
+                napok = max(0, (nap - date.fromisoformat(mdatum)).days)
+            except ValueError:
+                pass
+            valasz["igazolando"].append({
+                "id": row["id"],
+                "diak_nev": row["diak_nev"] or "",
+                "datum": mdatum,
+                "ora": int(row["ora_sorszam"] or 0),
+                "perc": int(row["perc"]) if row["perc"] is not None else None,
+                "tantargy": row["tantargy"] or "",
+                "tipus": row["mulasztas_tipus"] or "",
+                "tanorai_celu": row["tanorai_celu"] or "",
+                "napok": napok,
+            })
+    except sqlite3.Error as exc:
+        print(f"[Ma] igazolandó: {exc}")
 
     conn.close()
     return jsonify(valasz)

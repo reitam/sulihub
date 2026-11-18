@@ -309,6 +309,91 @@ data = res.get_json()["settings"]
 ok(data["time"] == "20:15" and data["include_names"] is False,
    f"a mentett beállítás visszaolvasható: {data}")
 
+print("\n6) Szünet/hétvége: üres digest kihagyása (Kaneo #133)")
+app.set_meta(kreta_digest.DIGEST_SETTINGS_META,
+             json.dumps({"enabled": True, "time": "19:30", "include_names": True}))
+
+# Hétvége: a következő utáni szombat (a következő napon már ne legyen
+# véletlenül a teszadatból származó határidő)
+SATURDAY = TODAY + timedelta(days=(((5 - TODAY.weekday()) % 7) or 7) + 7)
+# Szünetnap: egy jövő heti hétköznap, órarendi egész napos eseménnyel
+BREAK_DAY = TODAY + timedelta(days=7)
+
+
+def clear_digest_markers(*napok):
+    for diak in ("Teszt Anna", "Teszt Béla"):
+        app.set_meta(kreta_digest.DIGEST_SENT_PREFIX + diak, "")
+
+
+# 6a) Hétvége, mindenki üres -> nincs üzenet
+clear_digest_markers()
+calls.clear()
+n = app._maybe_send_digests(now=datetime(SATURDAY.year, SATURDAY.month, SATURDAY.day, 19, 30))
+ok(n == 0 and not calls, f"hétvégén üres napon nincs digest: {n} / {len(calls)}")
+ok(app.get_meta(kreta_digest.DIGEST_SENT_PREFIX + "Teszt Anna", "") == iso(SATURDAY),
+   "a hétvégi nap jelölve van (nem próbálja újra)")
+
+# 6b) Hétvége, de van valódi esemény -> megy az üzenet
+conn = sqlite3.connect(db)
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
+    " bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz,"
+    " suly_szazalek, tanev) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    ("Teszt Anna", "Értékelés", "Fizika", "Jeles(5)", 5, hu(SATURDAY), "",
+     "Németh Ildikó", "", "Felelet", "", "", "", 0, 0, "2026/2027"))
+conn.commit()
+conn.close()
+clear_digest_markers()
+calls.clear()
+n = app._maybe_send_digests(now=datetime(SATURDAY.year, SATURDAY.month, SATURDAY.day, 19, 30))
+ok(n == 1 and len(calls) == 1, f"hétvégén valódi eseménnyel megy a digest: {n}")
+ok("Fizika" in (calls[0].get("message") or "") if calls else False,
+   "a hétvégi jegy benne van az üzenetben")
+
+# 6c) Szünetnap (órarendi egész napos esemény), üres -> nincs üzenet
+conn = sqlite3.connect(db)
+for diak in ("Teszt Anna", "Teszt Béla"):
+    conn.execute(
+        "INSERT INTO orarend (diak_nev, kezdo_idopont, zaro_idopont, nap, ora_szam, tantargy)"
+        " VALUES (?,?,?,?,?,?)",
+        (diak, iso(BREAK_DAY), "", "hétfő", 0, "Őszi szünet (Nem órarendi nap)"))
+conn.commit()
+conn.close()
+conn = app.get_db_connection()
+ok(kreta_digest.is_szunet_nap(conn, "Teszt Anna", BREAK_DAY, set()),
+   "az órarendi szünetnap felismerve")
+conn.close()
+clear_digest_markers()
+calls.clear()
+n = app._maybe_send_digests(now=datetime(BREAK_DAY.year, BREAK_DAY.month, BREAK_DAY.day, 19, 30))
+ok(n == 0 and not calls, f"szünetnapon üres digest nincs: {n} / {len(calls)}")
+
+# 6d) Szünetnap, de beírt jegy -> megy az üzenet
+conn = sqlite3.connect(db)
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
+    " bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz,"
+    " suly_szazalek, tanev) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    ("Teszt Anna", "Értékelés", "Kémia", "Jó(4)", 4, hu(BREAK_DAY), "",
+     "Tanár", "", "Felelet", "", "", "", 0, 0, "2026/2027"))
+conn.commit()
+conn.close()
+clear_digest_markers()
+calls.clear()
+n = app._maybe_send_digests(now=datetime(BREAK_DAY.year, BREAK_DAY.month, BREAK_DAY.day, 19, 30))
+ok(n == 1 and "Kémia" in (calls[0].get("message") or "") if calls else False,
+   f"szünetnapon a valódi esemény megy: {n}")
+
+# 6e) Config-lista parse (dátum + tartomány) és a hétvége-detektálás
+napok = kreta_digest.parse_szunet_napok(["2026-10-26", "2026-12-21..2027-01-02"])
+ok(date(2026, 10, 26) in napok, "config: egyedi dátum")
+ok(date(2026, 12, 21) in napok and date(2027, 1, 2) in napok and len(napok) == 14,
+   f"config: tartomány (13 nap) + 1 dátum = 14: {len(napok)}")
+ok(kreta_digest.should_skip_empty_digest(SATURDAY, {}, False),
+   "üres hétvége -> kihagyás")
+ok(not kreta_digest.should_skip_empty_digest(TODAY, {}, False),
+   "üres hétköznap -> nem hétvége (a szünetet külön kezeli)")
+
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

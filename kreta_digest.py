@@ -125,6 +125,85 @@ def should_send(settings: dict, last_sent: str | None, now: datetime) -> bool:
     return (last_sent or "") != now.date().isoformat()
 
 
+# ── Szünetnapok (Kaneo #145/#133) ───────────────────────────────────────────
+# A tanév rendje / szünet napjai az órarendi egész napos eseményekből is
+# felismerhetők (pl. „Őszi szünet (Nem órarendi nap) (Hétfő)"); a config
+# `DIGEST.SZUNET_NAPOK` listája kiegészíti (pl. a 4 hetes órarend-ablakon túl).
+SZUNET_KEYWORDS = (
+    "szünet",
+    "nem órarendi nap",
+    "munkaszüneti",
+    "tanítás nélküli",
+)
+
+
+def parse_szunet_napok(raw) -> set[date]:
+    """`DIGEST.SZUNET_NAPOK`: dátumok és `kezdo..vege` tartományok -> dátumhalmaz."""
+    out: set[date] = set()
+    if not isinstance(raw, list):
+        return out
+    for item in raw:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        parts = re.split(r"\s*(?:\.\.|–|—)\s*", text)
+        kezdo = parse_date(parts[0]) if parts else None
+        if kezdo is None:
+            continue
+        vege = parse_date(parts[1]) if len(parts) > 1 else kezdo
+        if vege is None or vege < kezdo:
+            vege = kezdo
+        nap = kezdo
+        while nap <= vege:
+            out.add(nap)
+            nap += timedelta(days=1)
+    return out
+
+
+def is_szunet_nap(conn: sqlite3.Connection, diak_nev: str, nap: date,
+                  extra: set[date] | None = None) -> bool:
+    """Szünet / tanév rendje nap? Config-lista vagy órarendi egész napos esemény."""
+    if nap in (extra or set()):
+        return True
+    try:
+        rows = conn.execute(
+            "SELECT tantargy FROM orarend WHERE diak_nev = ? "
+            "AND substr(kezdo_idopont, 1, 10) = ? "
+            "AND (zaro_idopont IS NULL OR zaro_idopont = '')",
+            (diak_nev, nap.isoformat()),
+        ).fetchall()
+    except sqlite3.Error:
+        return False
+    for row in rows:
+        text = _text(row["tantargy"]).casefold()
+        if any(keyword in text for keyword in SZUNET_KEYWORDS):
+            return True
+    return False
+
+
+def is_empty_day(adat: dict) -> bool:
+    """Nincs érdemi esemény a napon (a digest „eseménytelen nap" lenne).
+
+    Az olvasatlan üzenetek globális számlálóját szándékosan **nem** vesszük
+    bele: különben egy hétvégi/szünetnapi „1 olvasatlan üzenet" miatt minden
+    nap menne a digest, és a kihagyás sosem érvényesülne.
+    """
+    for key in ("jegyek", "hazi", "dolgozatok", "feljegyzesek", "hianyzasok",
+                "igazolasok", "uzenetek", "holnapi_hataridok"):
+        if adat.get(key):
+            return False
+    return True
+
+
+def should_skip_empty_digest(nap: date, adat: dict, szunet: bool) -> bool:
+    """Hétvégén / szünetnapon az üres napi digest kimarad (Kaneo #133).
+
+    Ha van valódi esemény (pl. hétvégi óra, beírt jegy), a digest megy — csak
+    a „nem történt semmi" üzenetet nem küldjük ilyen napokon.
+    """
+    return (nap.weekday() >= 5 or szunet) and is_empty_day(adat)
+
+
 # ── Adatgyűjtés ─────────────────────────────────────────────────────────────
 def _text(value) -> str:
     return "" if value is None else str(value).strip()

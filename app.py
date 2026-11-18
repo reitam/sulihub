@@ -20,6 +20,7 @@ import kreta_digest
 import kreta_sajat_orarend
 import kreta_naptar
 import kreta_ai
+import kreta_szunet
 
 # ReportLab importok a PDF generáláshoz
 from reportlab.lib.pagesizes import A4, landscape
@@ -197,10 +198,24 @@ _scheduler_boot = datetime.now().replace(microsecond=0)
 # Memória-beli biztonsági háló: ha az állapotfájlt nem sikerül írni (pl. HDD
 # leszakadás), akkor se essen bele végtelen újraindításba az ütemező.
 _last_scheduled_memo = None
+# Szüneti napi szinkron (Kaneo #145): az utolsó ilyen futás napja + a naplózás
+# memoja (ne írjon minden 30 mp-es ticknél új sort).
+SZUNET_DAILY_META = "sync_szunet_napi"
+_last_szunet_log = ""
 
 
 def _now():
     return datetime.now().replace(microsecond=0)
+
+
+def szunet_config():
+    """A config.json SYNC_SZUNET listája, normalizálva (Kaneo #145)."""
+    return kreta_szunet.parse_intervals(load_config().get("SYNC_SZUNET"))
+
+
+def szunet_status(now=None):
+    """Aktív/következő szinkron-szünet a felületi sávhoz (Kaneo #145)."""
+    return kreta_szunet.status(szunet_config(), now or _now())
 
 
 def scheduler_config():
@@ -383,6 +398,8 @@ def scheduler_status():
         "running": running,
         "trigger": trigger,
         "health": health,
+        # Szinkron-szünet (Kaneo #145): aktív/következő intervallum a fejléc-sávhoz.
+        "szunet": szunet_status(),
     }
 
 
@@ -752,7 +769,8 @@ def _maybe_send_digests(now=None):
 
     A napot `app_meta` jelölő zárja le (`digest_sent:<diák>`), az elküldés
     időpontját a `digest_last_at:<diák>` őrzi (a manuális összefoglaló ez óta
-    kérdezi az eseményeket). Üres napon is küld (a felhasználó kérése).
+    kérdezi az eseményeket). Üres napon is küld — kivéve hétvégén/szünetnapon,
+    ahol csak a „nem történt semmi" üzenetet hagyjuk ki (Kaneo #133).
     """
     now = now or _now()
     settings = digest_settings()
@@ -760,6 +778,9 @@ def _maybe_send_digests(now=None):
         return 0
     if sync_state.get("running") or not os.path.exists(DB_FILE):
         return 0
+
+    extra_szunet = kreta_digest.parse_szunet_napok(
+        (load_config().get("DIGEST") or {}).get("SZUNET_NAPOK"))
 
     sent = 0
     for student in _active_students():
@@ -770,7 +791,18 @@ def _maybe_send_digests(now=None):
         if not kreta_digest.should_send(settings, get_meta(key, "") or "", now):
             continue
         try:
-            cim, torzs = build_digest_for(diak, now.date())
+            conn = get_db_connection()
+            try:
+                adat = kreta_digest.collect_day(conn, diak, now.date())
+                szunet = kreta_digest.is_szunet_nap(conn, diak, now.date(), extra_szunet)
+            finally:
+                conn.close()
+            if kreta_digest.should_skip_empty_digest(now.date(), adat, szunet):
+                set_meta(key, now.date().isoformat())
+                _append_sync_log(f"[Digest] {diak}: szünet/hétvége, üres nap — kihagyva")
+                continue
+            cim, torzs = kreta_digest.build_message(
+                diak, now.date(), adat, bool(settings.get("include_names", True)))
         except Exception as exc:  # noqa: BLE001 — egy diák hibája ne állítsa meg a többit
             print(f"[Digest] {diak}: nem sikerült összeállítani ({exc})")
             continue
@@ -868,17 +900,45 @@ def start_sync(trigger="manual"):
     return True
 
 
+def _maybe_log_szunet(interval, now):
+    """Naponta egyszer naplózza, hogy a szinkron szünetel (Kaneo #145)."""
+    global _last_szunet_log
+    key = f"{interval['kezdo'].isoformat()}:{now.date().isoformat()}"
+    if _last_szunet_log == key:
+        return
+    _last_szunet_log = key
+    extra = (f"; napi automatikus szinkron {interval['napi_ido']}-kor"
+             if interval["napi_sync"] else "; nincs napi automatikus szinkron")
+    _append_sync_log(
+        f"[Szünet] {interval['nev']} ({interval['kezdo']}–{interval['vege']}): "
+        f"az automatikus szinkron szünetel{extra}. A kézi frissítés elérhető.")
+
+
 def _scheduler_loop():
     """Háttérszál: 30 másodpercenként dönt, hogy esedékes-e a szinkron."""
     print("[Ütemező] Háttérszál elindult.")
     while True:
         try:
             cfg = scheduler_config()
-            due = scheduler_next_run(config=cfg)
-            if due and _now() >= due and _in_time_window(_now(), cfg["start_hour"], cfg["end_hour"]):
-                # a naplózást a start_sync végzi (egységesen, mindkét triggerre)
-                start_sync("scheduled")
-                # ha épp fut valami, a következő tick újra próbálja (nincs sorban állás)
+            now = _now()
+            szunet = kreta_szunet.active_interval(szunet_config(), now.date())
+            if szunet:
+                # Szünet: a normál intervallum helyett csak az opcionális napi
+                # szinkron fut (ha be van állítva); a kézi gomb mindig megy.
+                _maybe_log_szunet(szunet, now)
+                if (cfg["enabled"] and kreta_szunet.daily_sync_due(
+                        szunet, now, get_meta(SZUNET_DAILY_META, "") or "")):
+                    if start_sync("scheduled"):
+                        set_meta(SZUNET_DAILY_META, now.date().isoformat())
+                        _append_sync_log(
+                            f"[Szünet] {szunet['nev']}: napi automatikus szinkron "
+                            f"({szunet['napi_ido']})")
+            else:
+                due = scheduler_next_run(config=cfg)
+                if due and now >= due and _in_time_window(now, cfg["start_hour"], cfg["end_hour"]):
+                    # a naplózást a start_sync végzi (egységesen, mindkét triggerre)
+                    start_sync("scheduled")
+                    # ha épp fut valami, a következő tick újra próbálja (nincs sorban állás)
             _maybe_notify_stale(cfg)
             _maybe_send_digests()
         except Exception as e:

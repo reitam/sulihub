@@ -10,12 +10,17 @@
   },
   "_comment_sync_mode": "api = az egyetlen futó mod (Kreta mobil API, bongeszo nelkul). A regi api_first/playwright ertekek automatikusan api-ra valtanak.",
   "SYNC_MODE": "api",
-  "SYNC_SHADOW": false,
+  "_comment_sync_szunet": "Automatikus szinkron-szunetek (Kaneo #145): kezdo/vege ISO datum; napi_sync=true eseten a szunet alatt is fut napi egy szinkron a napi_ido-kor. Kezi szinkron mindig megy.",
+  "SYNC_SZUNET": [
+    {"nev": "Oszi szunet", "kezdo": "2026-10-26", "vege": "2026-10-30", "napi_sync": false},
+    {"nev": "Teli szunet", "kezdo": "2026-12-21", "vege": "2027-01-02", "napi_sync": true, "napi_ido": "10:00"}
+  ],
   "DIGEST": {
-    "_comment": "Esti osszefoglalo (KRE-8): gyermekenkent egy push a nap esemenyeivel. A felulet beallitasai felulirjak (app_meta).",
+    "_comment": "Esti osszefoglalo (KRE-8): gyermekenkent egy push a nap esemenyeivel. A felulet beallitasai felulirjak (app_meta). A SZUNET_NAPOK (Kaneo #133): ISO datumok vagy kezdo..vege tartomanyok; ezeken a napokon üres napon nem megy digest (a hetvege automatikus).",
     "ENABLED": true,
     "TIME": "19:30",
-    "INCLUDE_NAMES": true
+    "INCLUDE_NAMES": true,
+    "SZUNET_NAPOK": []
   },
   "ENABLE_REWARDS": true,
   "NTFY": {
