@@ -35,7 +35,7 @@ a saját szerveren maradnak.
 - Alapból **3 óránként, 6:00–22:00 között** fut (06:00 → 09:00 → 12:00 → 15:00 → 18:00 → 21:00).
 - A kézi frissítés **nem tolja el** az automatikus időzítést.
 - **Szinkron-szünet (Kaneo #145):** a `config.json` `SYNC_SZUNET` intervallumaiban
-  (pl. őszi/téli szünet) az automatikus futás kimarad — a felület tetején kiemelt sáv
+  (pl. őszi/téli szünet) az automatikus futás kimarad — a felület tetején bordó sáv
   jelzi; a kézi frissítés mindig elérhető. Opcionálisan a szünet alatt is futhat
   **napi egy** automatikus szinkron megadott időpontban. A `SZUNET_AKTIV` (alap: `true`)
   **mesterkapcsoló**: `false` esetén a szüneteket sem a szinkron, sem a digest nem veszi
@@ -545,7 +545,7 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
-| v2.6.x | **#128 értesítési politika:** üres sikeres futás nem küld push-t; új adat esetén futásonként egy üzenet a napi összefoglaló részletességével; hiba mindig, a health-riasztással egy üzenetben; `NOTIFY_NEW`. **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül kiemelt sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő |
+| v2.6.x | **#128 értesítési politika:** üres sikeres futás nem küld push-t; új adat esetén futásonként egy üzenet a napi összefoglaló részletességével; hiba mindig, a health-riasztással egy üzenetben; `NOTIFY_NEW`. **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül bordó, hangsúlyos sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő |
 | v2.5.x | **#64 — Playwright teljes kivezetés:** a böngészös scraper, az árnyék-mód (`kreta_shadow.py`) és a `:playwright` Docker target törölve; a szinkron kizárólag a mobil API-ból fut, böngésző nélkül. Az örökölt `api_first`/`playwright` config-értékek figyelmeztetés mellett `api`-ra váltanak. A Playwright csak a **böngészős UI-tesztek** fejlesztői függősége marad. Visszaállás: a `playwright-fallback` git-ág (a v2.4.0 fallbackes kód) |
 | v2.4.x | **Playwright opcionális image (#138):** az alap `runtime` image Chromium és `playwright` csomag nélkül (278 MB), a fallback külön `:playwright` tagben; lazy import + `api` alapmód; **csatolmány-pótlás** `api` módban (max. 3 próba) |
 | v2.3.x | **KRÉ-8 esti digest** (gyermekenként egy push a nap eseményeivel + holnapi határidők, manuális „Összefoglaló most”), **KRÉ-127 tantárgy-szűrő** kis/nagybetű-függetlenül, **KRÉ-126 naptár → tagolt részletek modál**; v2.3.1 fejléc 1200 px fix |

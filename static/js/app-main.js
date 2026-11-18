@@ -2349,18 +2349,20 @@ $(document).ready(function() {
                    `${String(d.getDate()).padStart(2, '0')}.`;
         };
         const napi = active.napi_sync
-            ? `<div class="szunet-daily"><i class="fa-solid fa-clock"></i> ` +
-              `Napi automatikus szinkron: ${escapeHtml(active.napi_ido)}</div>`
+            ? `<div class="szunet-daily"><i class="fa-solid fa-shield-halved"></i> ` +
+              `Napi egy biztonsági szinkron bekapcsolva, ekkor: ` +
+              `<b>${escapeHtml(active.napi_ido)}</b></div>`
             : '<div class="szunet-daily"><i class="fa-solid fa-ban"></i> ' +
-              'A szünet alatt nincs automatikus szinkron</div>';
+              'Napi biztonsági szinkron nincs bekapcsolva</div>';
         box.removeClass('d-none').html(
             '<div class="szunet-icon"><i class="fa-solid fa-circle-pause"></i></div>' +
             '<div class="flex-grow-1">' +
-            '<div class="szunet-title"><span class="badge text-bg-warning me-1">SZÜNET</span>' +
-            'Az automatikus szinkron most szünetel</div>' +
+            '<div class="szunet-title"><span class="badge me-1">SZÜNET</span>' +
+            'Szüneti szinkron üzemmód</div>' +
             `<div><b>${escapeHtml(active.nev)}</b> ` +
             `<span class="szunet-dates">(${huDatum(active.kezdo)} – ${huDatum(active.vege)})</span></div>` +
-            '<div class="szunet-meta">A kézi frissítés bármikor elérhető.</div>' +
+            '<div class="szunet-meta">A beállított rendszeres szinkron szüneti üzemmódban működik. ' +
+            'A kézi frissítés bármikor elérhető.</div>' +
             napi + '</div>');
     }
 

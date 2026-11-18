@@ -123,14 +123,18 @@ ok(st_fixed["active"]["napi_sync"] is True and st_fixed["active"]["napi_ido"] ==
    "a napi szinkron beállítása is átjön")
 html = client.get("/").get_data(as_text=True)
 js = client.get("/static/js/app-main.js").get_data(as_text=True)
-ok('id="szunetBanner"' in html and "szunet-banner" in html,
-   "van hangsúlyos szünet-sáv a felületen")
+ok('id="szunetBanner"' in html and "szunet-banner" in html
+   and "#8b1e2d" in html,
+   "van bordó, hangsúlyos szünet-sáv a felületen")
 ok("renderSzunetBanner" in js and "szunet.active" in js
+   and "A beállított rendszeres szinkron szüneti üzemmódban működik" in js
    and "A kézi frissítés bármikor elérhető" in js,
-   "a JS kiemeli a szünetet és a kézi frissítés lehetőségét")
+   "a JS a rendszeres szinkron üzemmódját és a kézi frissítést írja")
 ok("szunet-title" in js and "szunet-daily" in js and "SZÜNET" in js
-   and "Napi automatikus szinkron" in js,
-   "a sáv címet, jelvényt és napi szinkron-időt is mutat")
+   and "Napi egy biztonsági szinkron bekapcsolva" in js,
+   "a sáv címet, jelvényt és a napi biztonsági szinkront is mutatja")
+ok("Az automatikus szinkron most szünetel" not in js,
+   "nincs ellentmondó „most szünetel” szöveg")
 ok("daily_sync_due" in Path(ROOT / "app.py").read_text(encoding="utf-8"),
    "az ütemező a napi szinkron döntést használja")
 
