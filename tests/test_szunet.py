@@ -132,6 +132,9 @@ ok("renderSzunetBanner" in js and "szunet.active" in js
 ok("szunet-title" in js and "szunet-daily" in js and "SZÜNET" in js
    and "Napi egy biztonsági szinkron bekapcsolva" in js,
    "a sáv címet, jelvényt és a napi biztonsági szinkront is mutatja")
+ok("szunet-daily-short" in js and "Biztonsági szinkron:" in js
+   and "szunet-title-text" in js,
+   "mobilon rövid, két soros változat van (név + biztonsági szinkron)")
 ok("Az automatikus szinkron most szünetel" not in js,
    "nincs ellentmondó „most szünetel” szöveg")
 ok("daily_sync_due" in Path(ROOT / "app.py").read_text(encoding="utf-8"),

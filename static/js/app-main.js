@@ -2350,16 +2350,19 @@ $(document).ready(function() {
         };
         const napi = active.napi_sync
             ? `<div class="szunet-daily"><i class="fa-solid fa-shield-halved"></i> ` +
-              `Napi egy biztonsági szinkron bekapcsolva, ekkor: ` +
-              `<b>${escapeHtml(active.napi_ido)}</b></div>`
-            : '<div class="szunet-daily"><i class="fa-solid fa-ban"></i> ' +
-              'Napi biztonsági szinkron nincs bekapcsolva</div>';
+              `<span class="szunet-daily-long">Napi egy biztonsági szinkron bekapcsolva, ekkor: ` +
+              `<b>${escapeHtml(active.napi_ido)}</b></span>` +
+              `<span class="szunet-daily-short">Biztonsági szinkron: ` +
+              `<b>${escapeHtml(active.napi_ido)}</b></span></div>`
+            : '<div class="szunet-daily"><i class="fa-solid fa-ban"></i>' +
+              '<span class="szunet-daily-long">Napi biztonsági szinkron nincs bekapcsolva</span>' +
+              '<span class="szunet-daily-short">Biztonsági szinkron: kikapcsolva</span></div>';
         box.removeClass('d-none').html(
             '<div class="szunet-icon"><i class="fa-solid fa-circle-pause"></i></div>' +
             '<div class="szunet-body">' +
             '<div class="szunet-head">' +
             '<div class="szunet-title"><span class="badge me-1">SZÜNET</span>' +
-            'Szüneti szinkron üzemmód</div>' +
+            '<span class="szunet-title-text">Szüneti szinkron üzemmód</span></div>' +
             `<div class="szunet-when"><b>${escapeHtml(active.nev)}</b> ` +
             `<span class="szunet-dates">(${huDatum(active.kezdo)} – ${huDatum(active.vege)})</span></div>` +
             '</div>' +

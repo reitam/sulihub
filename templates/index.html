@@ -105,22 +105,29 @@
             font-weight: 700; color: #fff; font-size: .86rem; white-space: nowrap;
         }
         .szunet-banner .szunet-daily i { color: #ffd166; }
+        .szunet-banner .szunet-daily-short { display: none; }
         [data-bs-theme="dark"] .szunet-banner {
             background: linear-gradient(100deg, #7a1a28 0%, #5c121d 55%, #3d0b12 100%);
             border-color: #3d0b12; border-left-color: #ffb703;
             box-shadow: 0 8px 22px rgba(0, 0, 0, .5);
         }
         @media (max-width: 767.98px) {
-            .szunet-banner { align-items: flex-start; padding: .85rem .9rem; gap: .65rem; }
+            .szunet-banner { align-items: flex-start; padding: .8rem .9rem; gap: .6rem; }
             .szunet-banner .szunet-body { display: block; }
-            .szunet-banner .szunet-head { display: block; }
-            .szunet-banner .szunet-dates {
-                display: block; margin-top: .15rem; white-space: normal;
+            .szunet-banner .szunet-head {
+                display: flex; align-items: baseline; gap: .4rem; flex-wrap: wrap;
             }
-            .szunet-banner .szunet-meta { margin-top: .25rem; }
+            .szunet-banner .szunet-title { font-size: 1rem; }
+            .szunet-banner .szunet-title-text { display: none; }
+            .szunet-banner .szunet-dates { display: none; }
+            .szunet-banner .szunet-meta { display: none; }
+            .szunet-banner .szunet-when { font-size: 1rem; }
             .szunet-banner .szunet-daily {
-                display: inline-flex; margin-top: .45rem; white-space: normal;
+                display: inline-flex; margin-top: .4rem; white-space: normal;
+                font-size: .9rem;
             }
+            .szunet-banner .szunet-daily-long { display: none; }
+            .szunet-banner .szunet-daily-short { display: inline; }
         }
         .app-controls { display: flex; align-items: center; gap: .5rem; justify-self: end; }
         .app-control-group {
