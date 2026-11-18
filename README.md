@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v2.4.0` (éles, 2026-11-16); a `v2.6.0` kiadásra kész (2026-11-18)
+**Jelenlegi verzió:** `v2.4.0` (éles, 2026-11-16); a `v2.6.0` élesítésre kész (2026-11-19)
 
 ---
 
@@ -507,10 +507,12 @@ Az éles környezet a saját szerver Linux szerveren fut Dockerben, **csak bels�
 ```powershell
 net use h: \\saját szerver\HP_Share /user:reitam     # ha még nincs
 cd c:\ReiTam\AI\Gemini\Kreta
-.\deploy.ps1 -Release v2.5.0
+.\deploy.ps1 -Release v2.6.0
 ```
 
 A script jelszót kér az SSH-hoz. Hibánál **nem** ír „sikeres"-t (nem-nulla kilépési kód).
+> **Fontos:** a **v2.6.0 tartalmazza a v2.5.0 összes változását is** (Playwright-kivezetés,
+> szünet-sáv, értesítési politika, Ma fül). Nem kell külön v2.5.0-t deployolni.
 A v2.5.0-tól nincs böngészős fallback — a szinkron kizárólag a mobil API-ból fut (#64).
 A törlés előtti (v2.4.0, Playwright-fallbackes) kód a **`playwright-fallback`** ágon
 megmarad vész-visszaálláshoz.
@@ -545,7 +547,7 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
-| v2.6.x | **#128 értesítési politika:** üres sikeres futás nem küld push-t; új adat esetén futásonként egy üzenet a napi összefoglaló részletességével; hiba mindig, a health-riasztással egy üzenetben; `NOTIFY_NEW`. **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül bordó, hangsúlyos sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő |
+| v2.6.x | **#128 értesítési politika:** üres sikeres futás nem küld push-t; új adat esetén futásonként egy üzenet a napi összefoglaló részletességével; hiba mindig, a health-riasztással egy üzenetben; `NOTIFY_NEW`. **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül bordó, hangsúlyos sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő. **UI:** bordó szünet-sáv (desktopon két sor, teljes szélesség, mobilon rövid); a token-hiba csak 401/403/login esetén jelenik meg, a sikertelen adatkör neve is látszik. A **v2.5.0 Playwright-kivezetés is benne van** |
 | v2.5.x | **#64 — Playwright teljes kivezetés:** a böngészös scraper, az árnyék-mód (`kreta_shadow.py`) és a `:playwright` Docker target törölve; a szinkron kizárólag a mobil API-ból fut, böngésző nélkül. Az örökölt `api_first`/`playwright` config-értékek figyelmeztetés mellett `api`-ra váltanak. A Playwright csak a **böngészős UI-tesztek** fejlesztői függősége marad. Visszaállás: a `playwright-fallback` git-ág (a v2.4.0 fallbackes kód) |
 | v2.4.x | **Playwright opcionális image (#138):** az alap `runtime` image Chromium és `playwright` csomag nélkül (278 MB), a fallback külön `:playwright` tagben; lazy import + `api` alapmód; **csatolmány-pótlás** `api` módban (max. 3 próba) |
 | v2.3.x | **KRÉ-8 esti digest** (gyermekenként egy push a nap eseményeivel + holnapi határidők, manuális „Összefoglaló most”), **KRÉ-127 tantárgy-szűrő** kis/nagybetű-függetlenül, **KRÉ-126 naptár → tagolt részletek modál**; v2.3.1 fejléc 1200 px fix |
