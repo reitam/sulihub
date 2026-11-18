@@ -656,11 +656,19 @@ nem él.
 ```json
 "SZUNET_AKTIV": true,
 "SYNC_SZUNET": [
-  {"nev": "Őszi szünet", "kezdo": "2026-10-26", "vege": "2026-10-30", "napi_sync": false},
-  {"nev": "Téli szünet", "kezdo": "2026-12-21", "vege": "2027-01-02",
-   "napi_sync": true, "napi_ido": "10:00"}
+  {"nev": "Őszi szünet", "kezdo": "2026-10-23", "vege": "2026-11-01",
+   "napi_sync": true, "napi_ido": "18:00"},
+  {"nev": "Téli szünet", "kezdo": "2026-12-19", "vege": "2027-01-03",
+   "napi_sync": true, "napi_ido": "18:00"},
+  {"nev": "Tavaszi szünet", "kezdo": "2027-03-25", "vege": "2027-04-04",
+   "napi_sync": true, "napi_ido": "18:00"},
+  {"nev": "Nyári szünet", "kezdo": "2027-06-19", "vege": "2027-08-31",
+   "napi_sync": true, "napi_ido": "18:00"}
 ]
 ```
+
+A fenti időszakok a **2026/2027. tanév hivatalos rendje** szerintiek (első tanítási
+nap 2026. szeptember 1., utolsó 2027. június 18.).
 
 - A szünet alatt a **normál intervallumos automata futás kimarad**; a **kézi
   „Adatok frissítése” mindig** működik.
