@@ -16,7 +16,7 @@ A tényleges ütemezést és a felületi sávot az `app.py` végzi.
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 DEFAULT_DAILY_TIME = "10:00"
 
@@ -107,6 +107,17 @@ def next_interval(intervals: list[dict], nap: date) -> dict | None:
 
 def interval_days(interval: dict) -> int:
     return (interval["vege"] - interval["kezdo"]).days + 1
+
+
+def all_days(intervals: list[dict]) -> set[date]:
+    """Az intervallumok összes napja (a digest szünetnap-felismeréséhez)."""
+    out: set[date] = set()
+    for interval in intervals:
+        nap = interval["kezdo"]
+        while nap <= interval["vege"]:
+            out.add(nap)
+            nap += timedelta(days=1)
+    return out
 
 
 def daily_time(interval: dict) -> time:

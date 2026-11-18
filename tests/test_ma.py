@@ -150,8 +150,8 @@ ok(d["orak"][0]["terem"] == "101" and d["orak"][0]["tanar"] == "Tanár", "terem 
 print("\n1b) Holnapi órák + táska (Kaneo #134)")
 ok(d.get("holnapi_datum") == "2026-11-07", f"holnapi dátum: {d.get('holnapi_datum')}")
 ok(len(d.get("holnapi_orak") or []) == 2, f"2 holnapi óra: {len(d.get('holnapi_orak') or [])}")
-ok(d.get("holnapi_taskak") == ["Matematika", "Fizika"],
-   f"a táska a holnapi tantárgyak sorrendtartó listája: {d.get('holnapi_taskak')}")
+ok("holnapi_taskak" not in d and "holnapi_hataridok" not in d,
+   "a Holnap kártyához nem kellő API-mezők kikerültek")
 
 print("\n2) Ma / holnap esedékes határidők")
 hat = d.get("hataridok") or []
@@ -166,9 +166,6 @@ ok(matek.get("bej_datum") == "2026. 11. 01.", "a részletekhez bejegyzés dátum
 ok(all(kulcs in matek for kulcs in
        ("ertek", "suly_szazalek", "ertekelo", "tipus", "mod", "tema", "cim", "tartalom")),
    "a határidő-sor a részletek modál mezőit is tartalmazza")
-holnap_hat = d.get("holnapi_hataridok") or []
-ok(len(holnap_hat) == 1 and holnap_hat[0]["tantargy"] == "Fizika",
-   f"a külön holnapi lista (1 számonkérés): {holnap_hat}")
 
 print("\n2b) Igazolandó hiányzások (Kaneo #134)")
 ig = d.get("igazolando") or []

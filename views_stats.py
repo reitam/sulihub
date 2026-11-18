@@ -459,9 +459,7 @@ def api_ma():
         "diak": diak,
         "orak": [],
         "holnapi_orak": [],
-        "holnapi_taskak": [],
         "hataridok": [],
-        "holnapi_hataridok": [],
         "uj_jegyek": [],
         "olvasatlan_db": 0,
         "uzenetek": [],
@@ -477,9 +475,6 @@ def api_ma():
     # 1) Mai és holnapi órák (a szinkron két hetet is hozhat -> nap+tantárgy dedupe)
     valasz["orak"] = _ma_orak(cursor, datum, diak)
     valasz["holnapi_orak"] = _ma_orak(cursor, holnap.isoformat(), diak)
-    # A „táska" a holnapi tantárgyak sorrendtartó, duplikátum nélküli listája.
-    valasz["holnapi_taskak"] = list(dict.fromkeys(
-        o["tantargy"] for o in valasz["holnapi_orak"] if o["tantargy"]))
 
     # 2) Ma/holnap esedékes házik és számonkérések (a kész jelzővel).
     # A részletek modálhoz a teljes eseménysor kell (leírás, tanár, dátum stb.).
@@ -518,9 +513,6 @@ def api_ma():
             })
     except sqlite3.Error as exc:
         print(f"[Ma] határidők: {exc}")
-
-    # A „Holnap" kártya külön listája (a ma/holnap listából szűrve).
-    valasz["holnapi_hataridok"] = [h for h in valasz["hataridok"] if h["mikor"] == "holnap"]
 
     # 3) Friss jegyek (az elmúlt 7 nap)
     try:

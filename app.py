@@ -208,9 +208,25 @@ def _now():
     return datetime.now().replace(microsecond=0)
 
 
+def szunet_engedelyezve(config=None):
+    """A tanítási szünetek figyelembevétele (SZUNET_AKTIV, alap: be)."""
+    cfg = config if isinstance(config, dict) else load_config()
+    raw = cfg.get("SZUNET_AKTIV", True)
+    if isinstance(raw, str):
+        return raw.strip().lower() in ("1", "true", "yes", "on", "igen")
+    return bool(raw)
+
+
 def szunet_config():
-    """A config.json SYNC_SZUNET listája, normalizálva (Kaneo #145)."""
-    return kreta_szunet.parse_intervals(load_config().get("SYNC_SZUNET"))
+    """A config.json SYNC_SZUNET listája, normalizálva (Kaneo #145).
+
+    Ha a `SZUNET_AKTIV` mesterkapcsoló ki van kapcsolva, üres listát ad — így
+    sem a szinkron-szünet, sem a digest szünetnap-felismerése nem él.
+    """
+    cfg = load_config()
+    if not szunet_engedelyezve(cfg):
+        return []
+    return kreta_szunet.parse_intervals(cfg.get("SYNC_SZUNET"))
 
 
 def szunet_status(now=None):
@@ -779,8 +795,16 @@ def _maybe_send_digests(now=None):
     if sync_state.get("running") or not os.path.exists(DB_FILE):
         return 0
 
-    extra_szunet = kreta_digest.parse_szunet_napok(
-        (load_config().get("DIGEST") or {}).get("SZUNET_NAPOK"))
+    cfg = load_config()
+    szunet_aktiv = szunet_engedelyezve(cfg)
+    extra_szunet: set = set()
+    if szunet_aktiv:
+        # A tanítási szünetek EGY helyen: a SYNC_SZUNET intervallumai. A
+        # DIGEST.SZUNET_NAPOK csak kiegészítés (pl. tanév rendje napok).
+        extra_szunet |= kreta_digest.parse_szunet_napok(
+            (cfg.get("DIGEST") or {}).get("SZUNET_NAPOK"))
+        extra_szunet |= kreta_szunet.all_days(
+            kreta_szunet.parse_intervals(cfg.get("SYNC_SZUNET")))
 
     sent = 0
     for student in _active_students():
@@ -794,7 +818,8 @@ def _maybe_send_digests(now=None):
             conn = get_db_connection()
             try:
                 adat = kreta_digest.collect_day(conn, diak, now.date())
-                szunet = kreta_digest.is_szunet_nap(conn, diak, now.date(), extra_szunet)
+                szunet = (kreta_digest.is_szunet_nap(conn, diak, now.date(), extra_szunet)
+                          if szunet_aktiv else False)
             finally:
                 conn.close()
             if kreta_digest.should_skip_empty_digest(now.date(), adat, szunet):

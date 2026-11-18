@@ -394,6 +394,34 @@ ok(kreta_digest.should_skip_empty_digest(SATURDAY, {}, False),
 ok(not kreta_digest.should_skip_empty_digest(TODAY, {}, False),
    "üres hétköznap -> nem hétvége (a szünetet külön kezeli)")
 
+print("\n7) SYNC_SZUNET intervallum + mesterkapcsoló (Kaneo #145/#133)")
+# A szinkron-szünet intervallumait a digest is automatikusan szünetnapnak veszi.
+SYNC_BREAK_DAY = TODAY + timedelta(days=14)
+cfg_path = work / "config.json"
+cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+cfg["SZUNET_AKTIV"] = True
+cfg["SYNC_SZUNET"] = [{"nev": "Teszt szünet", "kezdo": iso(SYNC_BREAK_DAY),
+                       "vege": iso(SYNC_BREAK_DAY), "napi_sync": False}]
+cfg.setdefault("DIGEST", {})["SZUNET_NAPOK"] = []
+cfg_path.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
+
+clear_digest_markers()
+calls.clear()
+n = app._maybe_send_digests(now=datetime(SYNC_BREAK_DAY.year, SYNC_BREAK_DAY.month,
+                                         SYNC_BREAK_DAY.day, 19, 30))
+ok(n == 0 and not calls,
+   f"a SYNC_SZUNET intervalluma üres napon kihagyja a digestet: {n} / {len(calls)}")
+
+# A mesterkapcsoló kikapcsolása: a szünetet nem veszi figyelembe -> üres digest megy.
+cfg["SZUNET_AKTIV"] = False
+cfg_path.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
+clear_digest_markers()
+calls.clear()
+n = app._maybe_send_digests(now=datetime(SYNC_BREAK_DAY.year, SYNC_BREAK_DAY.month,
+                                         SYNC_BREAK_DAY.day, 19, 30))
+ok(n == 2 and len(calls) == 2,
+   f"SZUNET_AKTIV=false esetén a szünet nincs figyelembe véve (2 üres digest): {n}")
+
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

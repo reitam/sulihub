@@ -37,7 +37,10 @@ a saját szerveren maradnak.
 - **Szinkron-szünet (Kaneo #145):** a `config.json` `SYNC_SZUNET` intervallumaiban
   (pl. őszi/téli szünet) az automatikus futás kimarad — a felület tetején kiemelt sáv
   jelzi; a kézi frissítés mindig elérhető. Opcionálisan a szünet alatt is futhat
-  **napi egy** automatikus szinkron megadott időpontban.
+  **napi egy** automatikus szinkron megadott időpontban. A `SZUNET_AKTIV` (alap: `true`)
+  **mesterkapcsoló**: `false` esetén a szüneteket sem a szinkron, sem a digest nem veszi
+  figyelembe. A szüneteket elég **egy helyen** (`SYNC_SZUNET`) megadni — a digest
+  automatikusan ugyanezeket használja.
 - Átfedés-védelem, perzisztált futástörténet, részleges hibakezelés.
 
 ### 🔔 Push értesítések (ntfy)
@@ -50,8 +53,9 @@ a saját szerveren maradnak.
   házik, ma bejelentett dolgozatok, feljegyzések, hiányzások, igazolások, üzenetek —,
   valamint a **holnap esedékes** házik/dolgozatok. Órarend nincs benne; eseménytelen
   napon is jön rövid üzenet — **kivéve hétvégén/tanítási szüneten** (Kaneo #133),
-  ahol üres napon nem megy üzenet (a `DIGEST.SZUNET_NAPOK` és az órarendi
-  szünet-sorok alapján; valódi esemény esetén igen). A küldés ideje a `config.json`
+  ahol üres napon nem megy üzenet (a `SYNC_SZUNET` intervallumai, a kiegészítő
+  `DIGEST.SZUNET_NAPOK` és az órarendi szünet-sorok alapján; valódi esemény esetén
+  igen). A küldés ideje a `config.json`
   `DIGEST.TIME`-ban (alap
   19:30), a felületen is állítható. A fejléc 🔔 ikonjából bármikor kérhető
   **„Összefoglaló most”** az **utolsó automatikus óta** — ez nem írja felül az
@@ -268,6 +272,7 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 {
   "SCRAPE_MESSAGES": true,
   "SYNC_MODE": "api",
+  "SZUNET_AKTIV": true,
   "SYNC_SZUNET": [
     {"nev": "Őszi szünet", "kezdo": "2026-10-26", "vege": "2026-10-30", "napi_sync": false},
     {"nev": "Téli szünet", "kezdo": "2026-12-21", "vege": "2027-01-02", "napi_sync": true, "napi_ido": "10:00"}
@@ -523,7 +528,7 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
-| v2.6.x | **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül kiemelt sáv. **#133:** hétvégén/szünetnapon az üres napi digest kimarad. **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő |
+| v2.6.x | **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül kiemelt sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő |
 | v2.5.x | **#64 — Playwright teljes kivezetés:** a böngészös scraper, az árnyék-mód (`kreta_shadow.py`) és a `:playwright` Docker target törölve; a szinkron kizárólag a mobil API-ból fut, böngésző nélkül. Az örökölt `api_first`/`playwright` config-értékek figyelmeztetés mellett `api`-ra váltanak. A Playwright csak a **böngészős UI-tesztek** fejlesztői függősége marad. Visszaállás: a `playwright-fallback` git-ág (a v2.4.0 fallbackes kód) |
 | v2.4.x | **Playwright opcionális image (#138):** az alap `runtime` image Chromium és `playwright` csomag nélkül (278 MB), a fallback külön `:playwright` tagben; lazy import + `api` alapmód; **csatolmány-pótlás** `api` módban (max. 3 próba) |
 | v2.3.x | **KRÉ-8 esti digest** (gyermekenként egy push a nap eseményeivel + holnapi határidők, manuális „Összefoglaló most”), **KRÉ-127 tantárgy-szűrő** kis/nagybetű-függetlenül, **KRÉ-126 naptár → tagolt részletek modál**; v2.3.1 fejléc 1200 px fix |

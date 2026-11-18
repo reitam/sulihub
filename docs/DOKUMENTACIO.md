@@ -648,9 +648,13 @@ küszöb átmenetileg csökkenthető (`KRETA_SYNC_MIN_RATIO=0.2`), vagy `0`-ra �
 #### 3.2.3. Szinkron-szünet (Kaneo #145)
 
 A `config.json` `SYNC_SZUNET` listája **intervallumokra** állítja le az automatikus
-szinkront (pl. őszi/téli/tavaszi/nyári szünet, egyéb iskolai szünet):
+szinkront (pl. őszi/téli/tavaszi/nyári szünet, egyéb iskolai szünet). A `SZUNET_AKTIV`
+**mesterkapcsoló** dönti el, hogy a szüneteket a működés egyáltalán figyelembe vegye-e
+(alap: `true`); `false` esetén sem a szinkron-szünet, sem a digest szünetnap-felismerése
+nem él.
 
 ```json
+"SZUNET_AKTIV": true,
 "SYNC_SZUNET": [
   {"nev": "Őszi szünet", "kezdo": "2026-10-26", "vege": "2026-10-30", "napi_sync": false},
   {"nev": "Téli szünet", "kezdo": "2026-12-21", "vege": "2027-01-02",
@@ -665,6 +669,8 @@ szinkront (pl. őszi/téli/tavaszi/nyári szünet, egyéb iskolai szünet):
 - A fejléc alatt **kiemelt sáv** jelzi: „Az automatikus szinkron szünetel: <név>
   (<kezdő> – <vége>)”, a napi lehetőséggel; a fejléc „következő futás” szövege is a
   szünetet mutatja. Az adat a `/api/scheduler/status` `szunet` mezőjében jön.
+- **A `SYNC_SZUNET` intervallumait a digest is automatikusan szünetnapnak veszi** —
+  így elég egy helyen megadni a tanítási szüneteket.
 - Érvénytelen config-elem (rossz dátum) **kihagyva**, a többi intervallum működik.
 - A szünetnaplózás naponta egyszer kerül a `sync.log`-ba (`[Szünet] …`), nem minden
   ütemezői ticknél.
@@ -674,10 +680,14 @@ szinkront (pl. őszi/téli/tavaszi/nyári szünet, egyéb iskolai szünet):
 A napi digest **nem küld „eseménytelen nap” üzenetet** hétvégén és tanítási szünet /
 tanév rendje napokon. A szünetnap forrása:
 
-1. `config.json → DIGEST.SZUNET_NAPOK`: ISO dátumok vagy `kezdo..vege` tartományok
-   (pl. `["2026-10-26..2026-10-30", "2026-12-21..2027-01-02"]`),
-2. az órarendi **egész napos** sorok, amelyeknek a nevében „szünet”, „nem órarendi nap”,
+1. **`SYNC_SZUNET` intervallumai** (elsődleges; a szinkron-szünettel közös),
+2. `config.json → DIGEST.SZUNET_NAPOK`: ISO dátumok vagy `kezdo..vege` tartományok —
+   csak **kiegészítés** a `SYNC_SZUNET`-en kívüli napokra,
+3. az órarendi **egész napos** sorok, amelyeknek a nevében „szünet”, „nem órarendi nap”,
    „munkaszüneti” vagy „tanítás nélküli” szerepel.
+
+A `SZUNET_AKTIV: false` mesterkapcsoló a digest szünetnap-felismerését is kikapcsolja
+(a hétvégi üres digest kihagyása ettől függetlenül érvényben marad).
 
 Ha a napon **van valódi esemény** (pl. hétvégi óra, beírt jegy, üzenet), a digest megy —
 csak az üres „nem történt semmi” üzenet marad el. A kihagyott napot a `digest_sent`
@@ -793,8 +803,9 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 |---|---|
 | `SCRAPE_MESSAGES` | Üzenetek gyűjtése globálisan |
 | `SYNC_MODE` | A szinkron forrása: `api` (alap és egyetlen futó mód); az örökölt `api_first`/`playwright` értékek `api`-ra váltanak - lásd 3.2.1 |
-| `SYNC_SZUNET` | Automatikus szinkron-szünetek (Kaneo #145): `[{nev, kezdo, vege, napi_sync, napi_ido}]`; a kezdő/vége ISO vagy magyar dátum; a kézi szinkron mindig megy - lásd 3.2.3 |
-| `DIGEST` | Esti összefoglaló (KRÉ-8): `ENABLED`, `TIME` (`19:30`), `INCLUDE_NAMES`; a felület beállításai felülírják (`app_meta`); `SZUNET_NAPOK` = szünet/tanév rendje napok (Kaneo #133) - lásd 3.2.4 |
+| `SYNC_SZUNET` | Automatikus szinkron-szünetek (Kaneo #145): `[{nev, kezdo, vege, napi_sync, napi_ido}]`; a kezdő/vége ISO vagy magyar dátum; a kézi szinkron mindig megy; a digest is használja - lásd 3.2.3 |
+| `SZUNET_AKTIV` | Mesterkapcsoló (alap: `true`): `false` esetén a tanítási szüneteket sem a szinkron, sem a digest nem veszi figyelembe |
+| `DIGEST` | Esti összefoglaló (KRÉ-8): `ENABLED`, `TIME` (`19:30`), `INCLUDE_NAMES`; a felület beállításai felülírják (`app_meta`); `SZUNET_NAPOK` = kiegészítő szünet/tanév rendje napok a `SYNC_SZUNET` mellett (Kaneo #133) - lásd 3.2.4 |
 | `ENABLE_REWARDS` | Zsebpénz modul globálisan |
 | `REWARDS` | A 2.5. pont tarifái |
 | `KEYWORDS` | A feljegyzések kategorizálásához használt kulcsszavak |
@@ -1241,7 +1252,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v2.1.2** *(kiadásra kész)* | **2026-11-08** | **#120** az Iskolai események **szűrőpanelje alapból zárva** van, a fejlécére kattintva nyílik (a dashboard-csempéről érkezve is zárva marad; a szűrő továbbra is érvényesül). **#115** (Tailscale/WireGuard távoli elérés) és **#119** (SQLite vs MySQL/PostgreSQL) **elemzés** a jegyekben, kódváltozás nélkül. **1340 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/197) |
 | **v2.1.3** *(kiadásra kész)* | **2026-11-08** | **#121** a szűrőpanel a felső menüsor **alá** került (a menüsor nem ugrál a fülek között). **#82** A4-es **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve (`riportkartyak` tábla + data kötet), visszamenőleges lista/letöltés; a hivatalos félévi jegy hiányát jelzi. **#83** **Excel exportok**: események (Jegyek/Feljegyzések/Házi feladatok) és hiányzások (Hiányzások/Igazolások) a felület szűrőivel. **#90** üzemeltetési ellenőrzések: havi **restore-teszt** (`tools/backup_restore_check.py`, manifest-tel) + éjszakai **élő füstteszt** (`tools/live_smoke.py`, CI job, secret nélkül kimarad). **1411 ellenőrzés / 47 csomag** (fast 42/1212, browser 5/199) |
 | **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** az **aktuális bizonyítvány** (a felületi kártya és a PDF fejléce is ezt a nevet viseli) **mentés/előzmény nélkül**, mindig közvetlenül generálódik (`GET /api/riportkartya/export_pdf`); a fő címe a tanévet és az időszakot mutatja („SuliHub - \<gyerek\> - 2026/2027 1. félév”), **dísz-bizonyítvány** kivitelben (arany keret, pecsét, serif címek), a tantárgyi táblában nincs Db oszlop, a jegyek jegyenként összesítve („Jeles(5) - 3 db ; Jó(4) - 2 db”), a magatartás/szorgalom értékelés benne van, a zsebpénz-egyenleg csak engedélyezett modulnál, a **Feljegyzések** szekció nincs. A félévi/év végi hivatalos jegy beépítése külön backlog (#123/#124). **#125** kódszemle-javítások: riport hiányzás-óraszám, FTS ékezet/kis-nagybetű, adatminőség-typo, csatolmány-rekurzió, órarend arányőr, silent JSON, dupla `.bak`, `/api/esemenyek` limit/offset. **#104** **Ma/Hét** nézet a Ma fülön: a heti nézet **kétoszlopos, középre igazított napkártyák** (az események szerinti színekkel, páratlan darabszámnál középre tett utolsó kártyával), a **havi nézet elhagyva**. **Új SuliHub logó mindenhol:** fejléc (embléma + név), favicon/apple-touch ikon, valamint a PDF-bizonyítvány fejléce (a teljes logó a cím fölött). **1488 ellenőrzés / 50 csomag** (fast 45/1286, browser 5/202) |
-| **v2.6.0** *(kiadásra kész)* | **2026-11-18** | **#145 szinkron-szünet:** config `SYNC_SZUNET` intervallumok (név, kezdő/vége, opcionális napi szinkron időponttal); szünet alatt nincs normál automata futás, a kézi mindig megy, a napi opcionális szinkron egyszer fut; felül kiemelt sáv + fejléc-státusz; `/api/scheduler/status.szunet`. **#133 digest:** hétvégén/szünetnapon az üres napi digest kimarad (config `DIGEST.SZUNET_NAPOK` + órarendi egész napos szünet-sorok), valódi esemény esetén megy. **#134 Ma fül:** holnapi órák (a holnapi határidők a meglévő „Ma és holnap esedékes” kártyán) + igazolandó hiányzások (kártyák, `/api/ma` bővítés; a „táska” sor és a duplikált holnapi határidő-lista a felhasználói visszajelzés után kikerült). **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő. Új teszt: `test_szunet`; fast/browser zöld |
+| **v2.6.0** *(kiadásra kész)* | **2026-11-18** | **#145 szinkron-szünet:** config `SYNC_SZUNET` intervallumok (név, kezdő/vége, opcionális napi szinkron időponttal); szünet alatt nincs normál automata futás, a kézi mindig megy, a napi opcionális szinkron egyszer fut; felül kiemelt sáv + fejléc-státusz; `/api/scheduler/status.szunet`. **#133 digest:** hétvégén/szünetnapon az üres napi digest kimarad (elsődlegesen a `SYNC_SZUNET` intervallumai — a szüneteket elég **egy helyen** megadni —, kiegészítésként a config `DIGEST.SZUNET_NAPOK` + órarendi egész napos szünet-sorok), valódi esemény esetén megy. A `SZUNET_AKTIV` **mesterkapcsoló** (alap: `true`) kikapcsolja a szünetek figyelembevételét. **#134 Ma fül:** holnapi órák (a holnapi határidők a meglévő „Ma és holnap esedékes” kártyán) + igazolandó hiányzások (kártyák, `/api/ma` bővítés; a „táska” sor és a duplikált holnapi határidő-lista a felhasználói visszajelzés után kikerült, a hozzájuk tartozó `holnapi_taskak`/`holnapi_hataridok` API-mezők törölve). **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő. Új teszt: `test_szunet`; fast/browser zöld |
 | **v2.5.0** *(kiadásra kész)* | **2026-11-17** | **Kaneo #64 - Playwright teljes kivezetés:** a böngészős scraper kód, az árnyék-mód (`kreta_shadow.py`, `SYNC_SHADOW`) és a `:playwright` Docker target törölve; a szinkron kizárólag a Kréta mobil API-ból fut, böngésző nélkül. Az örökölt `api_first`/`playwright` config-értékek figyelmeztetés mellett `api`-ra váltanak; `SYNC_MODE` alap és egyetlen mód: `api`. A `kreta_backup.sh` a `browser_user_data`-t már nem menti. A Playwright csak a **böngészős UI-tesztek** fejlesztői függősége marad (`requirements-playwright.txt`). Visszaállás: a `playwright-fallback` git-ág. Előzmény: a v2.4.0 óta élesben **8 futás / 192 adatkör, 0 fallback, 0 hiba**; 2026-11-09 12:01 óta 57 futás, egyetlen Playwright-mentés nélkül |
 | **v2.4.0** *(kiadásra kész)* | **2026-11-15** | **KRÉ-138 — Playwright opcionális image:** az alap `runtime` Docker image **Chromium és playwright csomag nélkül** épül (karcsú), a böngészős fallback külön `:playwright` target/tag (`KRETA_BUILD_TARGET=playwright`, `KRETA_IMAGE_TAG=playwright` a szerver `.env`-jében). A `kreta_playwright.py` playwright-importja **lazy** (a `main()`-ben), az alap image-ben `api` módban fut; ha `api_first`/`playwright` van beállítva, figyelmeztetés mellett `api`-ra vált. A `SYNC_MODE` alapértelmezése **`api`**. Új `requirements-playwright.txt`; a CI böngészős jobja azt telepíti. **Csatolmány-pótlás:** `api` módban a fájl nélkül mentett üzenetek csatolmányát a következő futások pótolják (`csatolmany_proba`, max. 3 próba), így nincs végleges adatrés. Új teszt: `tests/test_playwright_optional.py` |
 | **v2.3.0** *(kiadásra kész)* | **2026-11-11** | **KRÉ-8 – esti összefoglaló:** minden nap a beállított idő után (alap **19:30**, `config.json → DIGEST.TIME`, a felületen is állítható) **gyermekenként egy push** a nap eseményeivel — jegyek (tantárgy, jegy, **súly%**, mód, téma, tanár), ma feladott házik (határidővel), ma bejelentett dolgozatok (dátummal), mai feljegyzések, hiányzások (igazoltan/igazolatlanul), igazolások, mai üzenetek —, valamint a **holnap esedékes** házik/dolgozatok. Órarend nincs benne; eseménytelen napon is jön rövid üzenet. **Manuális „Összefoglaló most"** a felületről: az **utolsó automatikus digest óta** (a kimaradt napokat is hozza), az automata időpontját/tartalmát **nem** befolyásolja (napi jelölő `digest_sent:<diák>`, utolsó automata `digest_last_at:<diák>`). Naponta max. 1 automata/gyerek, 23 óra után nincs pótlás. Beállítás a fejléc **harang** ikonjából (ki/be, időpont, név, összefoglaló most), `app_meta`-ban tárolva; `config.json DIGEST` csak alap. **KRÉ-127:** a **tantárgy-szűrő kis/nagybetű-független** (a KRÉTA írásmódja nem egységes: „Angol nyelv" / „angol nyelv" ugyanarra a tantárgyra) — az eseménylista, az Excel export, a jegy-kalkulátor, az átlagok/trend és a riportkártya is a normalizált kulccsal dolgozik, a tantárgy-választókban tantárgyanként egy tétel. Új: `kreta_digest.py`, `GET/PUT /api/digest/settings`, `POST /api/digest/run`, `tests/test_digest.py`, `tests/test_tantargy_szuro.py` |

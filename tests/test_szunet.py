@@ -65,6 +65,9 @@ ok(kreta_szunet.active_interval(intervals, date(2026, 6, 1)) is None,
 kov = kreta_szunet.next_interval(intervals, date(2026, 6, 1))
 ok(kov and kov["nev"] == "Teszt szünet", "a következő a teszt intervallum")
 ok(kreta_szunet.interval_days(intervals[0]) == 3, "3 napos intervallum")
+napok = kreta_szunet.all_days(intervals)
+ok(TODAY in napok and date(2027, 1, 2) in napok and len(napok) == 16,
+   f"az intervallumok összes napja (3 + 13 = 16): {len(napok)}")
 
 print("\n3) Napi szinkron esedékessége")
 ok(kreta_szunet.daily_sync_due(aktiv, FIXED, ""), "10:01-kor esedékes")
@@ -196,6 +199,22 @@ ok(triggered == [], f"napi szinkron nélkül a szünet alatt nincs futás: {trig
 log = (work / "sync.log").read_text(encoding="utf-8")
 ok("[Szünet] Teszt szünet" in log and "szünetel" in log,
    "a napló jelzi a szünetet")
+
+print("\n6) Mesterkapcsoló (SZUNET_AKTIV)")
+base_cfg = {
+    "SCHEDULER": {"ENABLED": True, "INTERVAL_MINUTES": 180, "START_HOUR": 0, "END_HOUR": 24},
+    "SYNC_SZUNET": [INTERVAL],
+    "STUDENTS": [{"diak_nev": "Teszt", "active": False}],
+}
+write_cfg({**base_cfg, "SZUNET_AKTIV": False})
+ok(app.szunet_engedelyezve() is False, "a kapcsoló false")
+ok(app.szunet_config() == [], "kikapcsolva nincs szünet-intervallum")
+ok(app.szunet_status()["active"] is None, "a banner sem mutat aktív szünetet")
+ok(app.szunet_engedelyezve({"SZUNET_AKTIV": "nem"}) is False, "a string 'nem' is kikapcsol")
+write_cfg({**base_cfg, "SZUNET_AKTIV": True})
+ok(app.szunet_engedelyezve() is True
+   and (app.szunet_status()["active"] or {}).get("nev") == "Teszt szünet",
+   "visszakapcsolva ismét aktív")
 
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")

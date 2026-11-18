@@ -11,7 +11,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | Fájl | Mit ellenőriz |
 |---|---|
 | `test_scheduler.py` | Ütemező: config-parse/clamp, időablak (átforduló is), `next_run` az ablakon belül, perzisztencia, dupla indítás elleni védelem
-| `test_szunet.py` | **#145:** `SYNC_SZUNET` intervallum-parse (dátum/idő normalizálás), aktív/következő szünet, napi szinkron esedékessége, ütemező viselkedés szünet alatt (nincs normál futás, napi egyszer), `/api/scheduler/status.szunet`, felületi sáv |, API végpontok, `interrupted`/`running`, napló-pótlás, memória-fallback |
+| `test_szunet.py` | **#145:** `SYNC_SZUNET` intervallum-parse (dátum/idő normalizálás), aktív/következő szünet, az intervallumok összes napja (`all_days`), napi szinkron esedékessége, ütemező viselkedés szünet alatt (nincs normál futás, napi egyszer), `/api/scheduler/status.szunet`, felületi sáv, **`SZUNET_AKTIV` mesterkapcsoló** |, API végpontok, `interrupted`/`running`, napló-pótlás, memória-fallback |
 | `test_a_package.py` | Részleges hiba (`done_with_errors` + hibás diákok), ntfy payload/throttle, napló-rotáció, `/api/logs` tail; a futás tanéve (`sync_runs.tanev`, `/api/sync/status.tanev`); a tanévváltás utáni **értesítés** (UID-alapú állapot) |
 | `test_pdf_fonts.py` | PDF magyar `ő/Ő/ű/Ű` megjelenítés (a kiszolgált PDF szövegkinyerésével) |
 | `test_paths.py` | Adat-/log-/csatolmány-útvonalak feloldása (lokális és Docker-elrendezés) |
@@ -22,7 +22,7 @@ Kilépési kód: `0` = minden teszt OK, `1` = valamelyik bukott.
 | `test_api_sync.py` | API-szinkron adatkörök: lekérési ablak (magyar/ISO dátum), órarend-join párhuzamos csoportokkal, táboros téma megőrzése, jegyek (Magatartás/Szorgalom 0 értékkel), házi `kesz` megőrzés, számonkérés, feljegyzés, órarend + fogadóóra, üzenetek (inkrementális, csatolmány-fallback és **pótlás**), stabil ID-k, igazolások |
 | `test_sync_mode.py` | `SYNC_MODE` feloldás (alap: `api`), forrásnapló, hibás adatkör kezelése, duplikációvédelem valódi SQLite-on |
 | `test_api_only.py` | **#64:** egyetlen gyökér modul sem importál `playwright`-ot; az örökölt `api_first`/`playwright` értékek `api`-ra váltanak; `init_db()` és `--init-db` böngésző nélkül, a `csatolmany_proba` oszloppal |
-| `test_digest.py` | Esti digest: adatgyűjtés (jegy súlyozással, házi, dolgozat, feljegyzés, hiányzás, igazolás, üzenet, holnapi határidők), üres nap szövege, küldési idempotencia, manuális küldés (az automata érintetlen), beállítás-API, fake ntfy; **hétvége/szünetnap üres digest kihagyása (#133)** |
+| `test_digest.py` | Esti digest: adatgyűjtés (jegy súlyozással, házi, dolgozat, feljegyzés, hiányzás, igazolás, üzenet, holnapi határidők), üres nap szövege, küldési idempotencia, manuális küldés (az automata érintetlen), beállítás-API, fake ntfy; **hétvége/szünetnap üres digest kihagyása (#133), a `SYNC_SZUNET` intervallumai mint szünetnapok, `SZUNET_AKTIV` mesterkapcsoló** |
 | `test_tantargy_szuro.py` | Tantárgy-szűrő kis/nagybetű-függetlenül („Angol nyelv" / „angol nyelv"): eseménylista, Excel export, átlagok/trend, jegy-kalkulátor, főoldali választó (Kaneo #127) |
 | `test_data_guard.py` | Adatvédelem: üres API-válasz nem töröl, 50%-os küszöb (`KRETA_SYNC_MIN_RATIO`), órarend csak teljes ürülésnél véd, szolgáltatói hiba fallbackhez |
 | `test_db_guard.py` | DB-séma őr: zárolt adatbázisnál nincs init-db subprocess, az önjavítás nem kapcsol ki véglegesen, a zárolás után bootstrapol |
