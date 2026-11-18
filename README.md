@@ -211,7 +211,10 @@ a saját szerveren maradnak.
 - **Éjszakai élő füstteszt:** `tools/live_smoke.py` (`/health`, `/api/sync/status`, az
   utolsó futás kora); GitHub Actions job, `KRETA_URL` secret nélkül kimarad.
 - **Szinkron-egészség:** 3 egymást követő hiba → magas prioritású ntfy (6 órás throttle),
-  token-lejáratnál külön „újra be kell jelentkezni” üzenet; a fejléc is jelzi.
+  token-lejáratnál „KRÉTA belépés lejárt” jelzés; a belépés a `config.json` `STUDENTS`
+  adataival **automatikus**, a kézi „Adatok frissítése” azonnal kiváltja, a státuszsáv
+  tooltipje/modalja elmagyarázza. A token-hiba csak valódi 401/403/login hiba esetén
+  jelenik meg — a napló „tárolt tokenből” info-sora nem téveszti meg.
 - **Heti adatminőség-riport:** `tools/data_quality_report.py` (csak olvas; duplikátumok,
   hiányzó csatolmányok, üres mezők, árva megjegyzések, DB-méret, utolsó futás).
 - **Teljesítmény-teszt:** 5 000 eseményes fixture a fast csomagban (`test_performance`,
