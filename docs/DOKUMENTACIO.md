@@ -267,6 +267,9 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
     szolgálja ki — a dátum-szűrő közben működik (kontroll ablakok). Ezért nincs
     visszamenőleges lekérés; a régi tanévek adata **pótolhatatlan**, ezért a napi backup
     és a „korábbi tanévet soha nem törlünk” szabály kritikus.
+  * **Zárt tanév archívuma (Kaneo #139):** a zárás után egyszeri ZIP készül a data
+    köteten (`tanev_archivum/<év>.zip`): táblánként JSON/CSV, Excel, PDF-bizonyítványok,
+    manifest + SHA-256; ismételt zárásnál nem duplikál (lásd 3.2.5).
 - **A kifizetetlen zsebpénz a dashboardon** a **kiválasztott tanév** egyenlege mínusz a
   `kifizetesek` táblában **kifizetettnek jelölt időszakok** összege (a maradék jelenik meg).
   A `POST /api/kifizetes` a kifizetés tanévét az időszak **kezdő dátumából** írja be, így a
@@ -714,6 +717,28 @@ jelölő lezárja (nem próbálja újra), a `digest_last_at` viszont **nem** vá
 manuális „Összefoglaló most” a kimaradt napokat is hozza. A manuális digestre a szabály
 nem vonatkozik.
 
+#### 3.2.5. Tanév-archívum (Kaneo #139)
+
+A tanév **lezárásakor** (a `TanevUid`-váltás után, a `tanev_changes` alapján) egyszeri,
+ellenőrizhető ZIP készül a data köteten:
+
+- `data/tanev_archivum/<év>.zip` (pl. `2025-2026.zip`) + `<év>.zip.sha256`;
+- táblánként JSON és CSV a tanévre szűrve (`esemenyek`, `uzenetek`, `hianyzasok`,
+  `igazolasok`, `kifizetesek`, `sync_runs`, `tanevek`, `tanulo_tanev_uid`, `orarend`,
+  `sajat_orarend`);
+- kombinált Excel (`adatok.xlsx`), diákonkénti PDF-bizonyítvány (`riportok/`),
+  `manifest.json` és `checksums.sha256`;
+- a ZIP külső SHA-256 ellenőrző fájlja a ZIP mellett.
+
+A művelet **idempotens**: ha a ZIP már létezik, nem írja felül; ismételt zárásnál nem
+duplikál. A generálás ideiglenes könyvtárban történik, a kész ZIP atomikusan kerül a
+helyére. Kézi pótlás/ellenőrzés: `python tools/create_tanev_archive.py 2025/2026`.
+
+**Adatvédelem (#33):** a ZIP a tanév **minden diákjának** adatait tartalmazza, ezért
+ugyanúgy bizalmas, mint a DB és a napi backup; a data köteten marad, a napi mentés
+viszi. A régi tanév adata pótolhatatlan, ezért a zárás utáni archívum a végső
+pillanatkép; a `verify_archive()` a belső és külső SHA-256-ot is ellenőrzi.
+
 ### 3.3. Futásállapotok
 
 | Állapot | Jelentés |
@@ -1110,6 +1135,7 @@ Kreta/
 ├── views_stats.py         # tanévek, dashboard, tantárgyi átlagok
 ├── views_rewards.py       # zsebpénz-statisztika, kifizetés, naptár/ICS, üzenet-AI
 ├── kreta_exports.py       # PDF órarend, XLSX/CSV export, zsebpénz-számítási mag
+├── kreta_archive.py       # zárt tanév ZIP-archívuma (JSON/CSV/Excel/PDF + checksum)
 ├── kreta_paths.py         # útvonalak (KRETA_* env, data/ alapértelmezés)
 ├── kreta_db.py            # DB-kapcsolat, séma/migrációk, app_meta, futásnapló
 ├── kreta_settings.py      # config.json, verzió, órarend-színek

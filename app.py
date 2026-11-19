@@ -116,6 +116,7 @@ from views_rewards import bp as _rewards_bp  # noqa: E402
 from views_search import bp as _search_bp  # noqa: E402
 from views_stats import bp as _stats_bp  # noqa: E402
 from kreta_exports import bp as _exports_bp  # noqa: E402
+import kreta_archive  # noqa: E402
 from views_pages import bp as _pages_bp  # noqa: E402
 
 for _bp in (_pages_bp, _events_bp, _orarend_bp, _messages_bp, _absences_bp,
@@ -1390,6 +1391,14 @@ def run_scraper_thread(trigger="manual"):
         if tanev_changes:
             lezart = sorted({ch.get("lezart_tanev") for ch in tanev_changes if ch.get("lezart_tanev")})
             ujak = sorted({ch.get("uj_tanev") for ch in tanev_changes if ch.get("uj_tanev")})
+            # Tanév-archívum (Kaneo #139): a lezárt tanév egyszeri, ellenőrizhető ZIP-je.
+            for tanev in lezart:
+                try:
+                    path = kreta_archive.create_tanev_archive(tanev)
+                    _tanev_state_log(f"[Tanév-archívum] {tanev}: {path}")
+                except Exception as exc:  # noqa: BLE001 — az archívum hibája ne akassza meg a futást
+                    _tanev_state_log(
+                        f"[Tanév-archívum] {tanev}: hiba ({type(exc).__name__}: {exc})")
             send_notification(
                 "KRÉTA: új tanév",
                 f"Tanév lezárva: {', '.join(lezart) or '-'} · megnyitva: {', '.join(ujak) or '-'}. "

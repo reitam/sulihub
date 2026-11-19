@@ -111,6 +111,10 @@ található (minden verzióhoz külön fájl + index).
   a nyitott tanévet technikailag lezárjuk, az újat megnyitjuk (adatlekérés nélkül; a régi
   tanév adata pótolhatatlan, ezért a szinkron soha nem törli). A fejlécben és a
   választóban látszik a tanév állapota (nyitott/lezárt).
+- **Tanév-archívum (#139):** a tanév **lezárásakor** egyszeri ZIP készül a data
+  köteten (`data/tanev_archivum/<év>.zip`): táblánként JSON/CSV, kombinált Excel,
+  diákonkénti PDF-bizonyítvány, `manifest.json` és SHA-256 ellenőrzés. Ismételt
+  zárásnál nem duplikál; kézzel: `python tools/create_tanev_archive.py 2025/2026`.
 
 ### ☀️ „Ma” nézet
 - Önálló fül az Áttekintés után: **mai órák** (időpont, terem, tanár), **ma és holnap
@@ -455,6 +459,7 @@ Futásonként legfeljebb egy push megy ki. Az új adat push kikapcsolható:
 ├── kreta_settings.py       # config.json, verzió, órarend-színek
 ├── views_common.py         # blueprint-építő + közös request-segédek
 ├── kreta_playwright.py     # szinkron futtató: séma + mentők + API-szolgáltatók
+├── kreta_archive.py        # zárt tanév ZIP-archívuma (JSON/CSV/Excel/PDF + checksum)
 ├── templates/index.html    # Dashboard váza (Bootstrap + DataTables + FullCalendar)
 ├── static/js/              # core.js + app-main.js (a felület JS-e)
 ├── static/vendor/          # vendorolt függőségek (offline)
