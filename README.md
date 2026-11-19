@@ -117,6 +117,10 @@ található (minden verzióhoz külön fájl + index).
   zárásnál nem duplikál; kézzel: `python tools/create_tanev_archive.py 2025/2026`.
   Nyitott tanév kézi exportja `<év>_manual_<időbélyeg>.zip` néven készül, hogy ne
   blokkolja a záráskori véglegest; `--final` a kanonikus névhez.
+- **Új adat jelölése (#147):** a jegyek/üzenetek/hiányzások/igazolások a saját
+  DB-be kerülésük (`letrehozva`) alapján számítanak „mainak” — a KRÉTA visszamenőleges
+  bejegyzés-dátuma nem titkolja el a frissen szinkronizált jegyet. A régi sorok
+  migrációs feltöltése a KRÉTA-dátumból történik, így nem lesznek visszamenőleg újak.
 
 ### ☀️ „Ma” nézet
 - Önálló fül az Áttekintés után: **mai órák** (időpont, terem, tanár), **ma és holnap
@@ -558,7 +562,7 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
-| v2.7.0 | **#139 tanév-archívum:** a tanév lezárásakor egyszeri, ellenőrizhető ZIP a data köteten (`data/tanev_archivum/<év>.zip`): táblánként JSON/CSV, kombinált Excel, diákonkénti PDF-bizonyítvány, manifest + SHA-256; ismételt zárásnál nem duplikál; kézi pótlás `tools/create_tanev_archive.py`; a napi backup a `tanev_archivum/` mappát is viszi |
+| v2.7.0 | **#139 tanév-archívum:** a tanév lezárásakor egyszeri, ellenőrizhető ZIP a data köteten (`data/tanev_archivum/<év>.zip`): táblánként JSON/CSV, kombinált Excel, diákonkénti PDF-bizonyítvány, manifest + SHA-256; ismételt zárásnál nem duplikál; kézi pótlás `tools/create_tanev_archive.py`; a napi backup a `tanev_archivum/` mappát is viszi. **#147 first seen:** a `letrehozva` oszlop alapján a visszamenőleges dátumú új jegy is mai; digest, szinkron-push, Ma fül és dashboard-számlálók |
 | v2.6.1 | **#146:** a statisztika gyermek-szűrői betöltéskor üresek; üres állapotban súgó; az Áttekintés fülön a gyermek átlagkártyájáról ugrás a Statisztika fülre, a kiválasztott gyermekre, teljes tanévre, lenyitott havi tantárgyi átlagokkal. **UI:** a bal felső SuliHub logó link az Áttekintésre (újratöltés nélküli fülváltás) |
 | v2.6.x | **#128 értesítési politika:** üres sikeres futás nem küld push-t; új adat esetén futásonként egy üzenet a napi összefoglaló részletességével; hiba mindig, a health-riasztással egy üzenetben; `NOTIFY_NEW`. **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül világos rózsaszínes, bordó kiemelésű szünet-sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő. **UI:** világos rózsaszínes, bordó kiemelésű szünet-sáv (desktopon két sor, teljes szélesség, mobilon rövid); a token-hiba csak 401/403/login esetén jelenik meg, a sikertelen adatkör neve is látszik. A **v2.5.0 Playwright-kivezetés (#64) is benne van** |
 | v2.5.x | **#64 — Playwright teljes kivezetés:** a böngészös scraper, az árnyék-mód (`kreta_shadow.py`) és a `:playwright` Docker target törölve; a szinkron kizárólag a mobil API-ból fut, böngésző nélkül. Az örökölt `api_first`/`playwright` config-értékek figyelmeztetés mellett `api`-ra váltanak. A Playwright csak a **böngészős UI-tesztek** fejlesztői függősége marad. Visszaállás: a `playwright-fallback` git-ág (a v2.4.0 fallbackes kód) |
