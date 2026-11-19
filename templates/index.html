@@ -616,13 +616,21 @@
                 padding: .3rem .35rem !important;
             }
             .mobile-row-extra {
-                display: block;
+                display: flex;
+                align-items: center;
+                gap: .4rem;
                 font-size: .72rem;
                 color: #6c757d;
-                margin-top: .1rem;
+                margin-top: .15rem;
                 line-height: 1.15;
             }
-            .mobile-row-extra .mobile-jegy { font-weight: 700; color: #198754; }
+            .mobile-row-extra .jegy-kor {
+                width: 28px;
+                height: 28px;
+                font-size: .95rem;
+            }
+            .mobile-jegy-szoveg { font-weight: 700; color: #198754; }
+            .mobile-datum { font-size: .76rem; color: #6c757d; }
             .mobile-subject-nev { white-space: normal !important; }
             .resizer { display: none !important; }   /* oszlop-átméretezés csak egéren */
             div.dataTables_wrapper div.dataTables_filter { text-align: left !important; }

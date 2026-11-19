@@ -323,6 +323,9 @@ try:
             }""")
             ok(any("5" in t and "." in t for t in extra),
                f"mobilon a tantárgy alatt ott a jegy és a rövid dátum: {extra[:2]}")
+            ok(await page.evaluate(
+                "() => !!document.querySelector('#esemenyekTable tbody .mobile-row-extra .jegy-kor')"),
+               "mobilon a jegy a dashboardhoz hasonló színes körben látszik")
             # 7) mobil: egyetlen karcsú státuszsáv, a technikai részletek koppintásra
             compact = await page.evaluate("""() => {
                 const e = document.querySelector('#schedulerCompact');
