@@ -531,8 +531,10 @@ hozza létre. Az **első** feltöltéskor a legutóbbi 7 nap sorai a migráció
 időpontját kapják (a szülőnek ezek ténylegesen újak, csak a KRÉTA visszamenőleges
 dátumot adott nekik), a régebbiek a KRÉTA-dátumot — így a hetek/hónapok óta
 meglévő adatok nem lesznek visszamenőleg „újak”. Az `Értékelés`/`Feljegyzés`
-teljes cserés mentése tartalom-kulcs alapján megőrzi a korábbi időpontot. Teszt:
-`tests/test_first_seen.py`.
+teljes cserés mentése tartalom-kulcs alapján megőrzi a korábbi időpontot. A
+felületen az Események táblában a „Részletek / Leírás” után **Bekerült** oszlop
+mutatja az időpontot (mai esetén `MA` jelzéssel), és a részletek modálban is
+megjelenik. Teszt: `tests/test_first_seen.py`.
 
 ---
 

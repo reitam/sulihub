@@ -122,6 +122,8 @@ található (minden verzióhoz külön fájl + index).
   bejegyzés-dátuma nem titkolja el a frissen szinkronizált jegyet. Az első migráció a
   legutóbbi 7 nap sorait a migráció időpontjára állítja (ezek a szülőnek ténylegesen
   újak), a régebbieket a KRÉTA-dátumból tölti fel, így azok nem lesznek visszamenőleg újak.
+  Az Események táblában a leírás után új **Bekerült** oszlop, a részletek modálban is
+  látszik a bekerülés időpontja (mai esetén `MA` jelzéssel).
 
 ### ☀️ „Ma” nézet
 - Önálló fül az Áttekintés után: **mai órák** (időpont, terem, tanár), **ma és holnap
