@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import re
+import sqlite3
 from datetime import date, datetime, timedelta
 
 #: Tanév-kezdő hónap/nap (a KRÉTA-ban szeptember 1.); env: ``KRETA_TANEV_KEZDO=09-01``
@@ -233,6 +234,45 @@ def ensure_tanev_schema(conn, log_fn=print) -> list[str]:
         except Exception:
             pass
     return added
+
+
+def ensure_first_seen_schema(conn, log_fn=print):
+    """`letrehozva` oszlop + backfill a régi sorokra (#147), idempotensen."""
+    cur = conn.cursor()
+    for table, date_col in (
+        ("esemenyek", "bej_datum"),
+        ("uzenetek", "idopont"),
+        ("hianyzasok", "mulasztas_datum"),
+        ("igazolasok", "kezdete"),
+    ):
+        try:
+            cols = [r[1] for r in cur.execute(f"PRAGMA table_info({table})")]
+        except sqlite3.Error:
+            continue
+        if not cols:
+            continue
+        if "letrehozva" not in cols:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN letrehozva TEXT")
+            if log_fn:
+                log_fn(f"[Adatbázis séma frissítve]: '{table}.letrehozva' hozzáadva.")
+        try:
+            rows = cur.execute(
+                f"SELECT id, {date_col} FROM {table}"
+                " WHERE letrehozva IS NULL OR letrehozva = ''").fetchall()
+            for rid, value in rows:
+                day = parse_date(value)
+                stamp = (day.isoformat() + " 00:00:00") if day else "1970-01-01 00:00:00"
+                cur.execute(f"UPDATE {table} SET letrehozva = ? WHERE id = ?", (stamp, rid))
+        except sqlite3.Error as exc:
+            if log_fn:
+                log_fn(f"[Adatbázis séma] {table}.letrehozva backfill kihagyva: {exc}")
+        try:
+            cur.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_{table}_letrehozva"
+                f" ON {table}(letrehozva)")
+        except sqlite3.Error:
+            pass
+    conn.commit()
 
 
 def backfill_tanev(conn, batch: int = 500, log_fn=print) -> dict:

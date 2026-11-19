@@ -24,6 +24,14 @@ from views_common import (
 
 bp = make_bp("stats")
 
+
+def _first_seen_date(value):
+    """A `letrehozva` (ISO dátum vagy dátum-idő) első 10 karaktere, fallback: normalize_date."""
+    text = str(value or "").strip()
+    if len(text) >= 10 and text[:4].isdigit():
+        return text[:10]
+    return normalize_date(text)
+
 @bp.route("/api/tanevek")
 def api_tanevek():
     """A DB-ben előforduló tanévek, az aktuális tanév és a határok (Kaneo #40)."""
@@ -514,19 +522,20 @@ def api_ma():
     except sqlite3.Error as exc:
         print(f"[Ma] határidők: {exc}")
 
-    # 3) Friss jegyek (az elmúlt 7 nap)
+    # 3) Friss jegyek (az elmúlt 7 nap; a #147 szerint a bekerülés dátuma számít)
     try:
-        query = ("SELECT id, diak_nev, tantargy, ertek, szam_ertek, bej_datum"
+        query = ("SELECT id, diak_nev, tantargy, ertek, szam_ertek, bej_datum, letrehozva"
                  " FROM esemenyek WHERE esemeny_tipus = 'Értékelés'")
         params = []
         if diak:
             query += " AND diak_nev = ?"
             params.append(diak)
-        cursor.execute(query + " ORDER BY id DESC LIMIT 40", params)
+        cursor.execute(query + " ORDER BY COALESCE(NULLIF(letrehozva, ''), bej_datum) DESC, id DESC LIMIT 40", params)
         hatar = (nap - timedelta(days=6)).isoformat()
         for row in cursor.fetchall():
             bej = normalize_date(row["bej_datum"])
-            if not bej or not (hatar <= bej <= datum):
+            erkezett = _first_seen_date(row["letrehozva"])
+            if not erkezett or not (hatar <= erkezett <= datum):
                 continue
             valasz["uj_jegyek"].append({
                 "id": row["id"],
@@ -535,6 +544,7 @@ def api_ma():
                 "ertek": row["ertek"] or "-",
                 "szam_ertek": row["szam_ertek"] or 0,
                 "bej_datum": bej,
+                "letrehozva": erkezett,
             })
             if len(valasz["uj_jegyek"]) >= 8:
                 break

@@ -60,6 +60,7 @@ def api_uzenetek():
             "felado": r["felado"] if "felado" in keys else "-",
             "targy": r["targy"] if "targy" in keys else "-",
             "idopont": r["idopont"] if "idopont" in keys else "-",
+            "letrehozva": (r["letrehozva"] if "letrehozva" in keys else "") or "",
             "szoveg": tisztitott_szoveg,
             "csatolmany_nev": cs_nev or "",
             "csatolmany_utvonal": cs_ut or "",

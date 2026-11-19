@@ -209,6 +209,19 @@ def _text(value) -> str:
     return "" if value is None else str(value).strip()
 
 
+def _erkezes(row, fallback):
+    """A saját DB-be kerülés dátuma (#147), fallback a KRÉTA-dátumra."""
+    try:
+        keys = row.keys()
+    except AttributeError:
+        keys = []
+    if "letrehozva" in keys:
+        erkezett = parse_date(row["letrehozva"])
+        if erkezett:
+            return erkezett
+    return fallback
+
+
 def _int(value, default=0) -> int:
     try:
         return int(value)
@@ -237,10 +250,6 @@ def collect_range(conn: sqlite3.Connection, diak_nev: str,
     holnap = vege + timedelta(days=1)
     conn.row_factory = sqlite3.Row
 
-    def _in_range(value) -> bool:
-        nap = parse_date(value)
-        return nap is not None and kezdo <= nap <= vege
-
     try:
         rows = conn.execute(
             "SELECT * FROM esemenyek WHERE diak_nev = ?", (diak_nev,)
@@ -252,10 +261,11 @@ def collect_range(conn: sqlite3.Connection, diak_nev: str,
         keys = row.keys()
         tipus = _text(row["esemeny_tipus"])
         bej = parse_date(row["bej_datum"])
+        erkezett = _erkezes(row, bej)
         hatarido = parse_date(row["hatarido"])
         kesz = _int(row["kesz"]) if "kesz" in keys else 0
 
-        if tipus == "Értékelés" and bej is not None and kezdo <= bej <= vege:
+        if tipus == "Értékelés" and erkezett is not None and kezdo <= erkezett <= vege:
             adat["jegyek"].append({
                 "tantargy": _text(row["tantargy"]),
                 "ertek": _text(row["ertek"]),
@@ -265,21 +275,21 @@ def collect_range(conn: sqlite3.Connection, diak_nev: str,
                 "tema": _text(row["tema"]),
                 "tanar": _text(row["ertekelo"]),
             })
-        elif tipus == "Házi feladat" and bej is not None and kezdo <= bej <= vege:
+        elif tipus == "Házi feladat" and erkezett is not None and kezdo <= erkezett <= vege:
             adat["hazi"].append({
                 "tantargy": _text(row["tantargy"]),
                 "szoveg": _text(row["tartalom"]),
                 "hatarido": hatarido,
                 "kesz": kesz,
             })
-        elif tipus == "Bejelentett számonkérés" and bej is not None and kezdo <= bej <= vege:
+        elif tipus == "Bejelentett számonkérés" and erkezett is not None and kezdo <= erkezett <= vege:
             adat["dolgozatok"].append({
                 "tantargy": _text(row["tantargy"]),
                 "mod": _text(row["mod"]),
                 "tema": _text(row["tema"]),
                 "hatarido": hatarido,
             })
-        elif tipus == "Feljegyzés" and bej is not None and kezdo <= bej <= vege:
+        elif tipus == "Feljegyzés" and erkezett is not None and kezdo <= erkezett <= vege:
             adat["feljegyzesek"].append({
                 "tipus": _text(row["tipus"]),
                 "tartalom": _text(row["tartalom"]),
@@ -304,7 +314,8 @@ def collect_range(conn: sqlite3.Connection, diak_nev: str,
         for row in conn.execute(
             "SELECT * FROM hianyzasok WHERE diak_nev = ?", (diak_nev,)
         ):
-            if not _in_range(row["mulasztas_datum"]):
+            erkezett = _erkezes(row, parse_date(row["mulasztas_datum"]))
+            if erkezett is None or not (kezdo <= erkezett <= vege):
                 continue
             adat["hianyzasok"].append({
                 "ora": _int(row["ora_sorszam"]),
@@ -322,7 +333,8 @@ def collect_range(conn: sqlite3.Connection, diak_nev: str,
         for row in conn.execute(
             "SELECT * FROM igazolasok WHERE diak_nev = ?", (diak_nev,)
         ):
-            if not _in_range(row["kezdete"]):
+            erkezett = _erkezes(row, parse_date(row["kezdete"]))
+            if erkezett is None or not (kezdo <= erkezett <= vege):
                 continue
             adat["igazolasok"].append({
                 "tipus": _text(row["igazolas_tipus"]),
@@ -335,11 +347,12 @@ def collect_range(conn: sqlite3.Connection, diak_nev: str,
 
     try:
         rows = conn.execute(
-            "SELECT felado, targy, idopont, olvasott FROM uzenetek WHERE diak_nev = ?",
+            "SELECT * FROM uzenetek WHERE diak_nev = ?",
             (diak_nev,),
         ).fetchall()
         for row in rows:
-            if not _in_range(row["idopont"]):
+            erkezett = _erkezes(row, parse_date(row["idopont"]))
+            if erkezett is None or not (kezdo <= erkezett <= vege):
                 continue
             adat["uzenetek"].append({
                 "felado": _text(row["felado"]),

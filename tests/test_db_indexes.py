@@ -54,7 +54,8 @@ for table, names in expected.items():
 
 print("\n2) sémaverzió")
 row = conn.execute("SELECT value FROM app_meta WHERE key='schema_version'").fetchone()
-ok(row and row[0] == "4", f"app_meta.schema_version = {row[0] if row else 'nincs'}")
+ok(row and row[0] == str(kreta.SCHEMA_VERSION),
+   f"app_meta.schema_version = {row[0] if row else 'nincs'} (várt: {kreta.SCHEMA_VERSION})")
 
 print("\n3) ismételt init nem hibázik")
 kreta.init_db_extensions()
@@ -70,7 +71,8 @@ ok(bool(backups), f"készült DB-másolat ({[b.name for b in backups]})")
 ok(len(backups) == 1, f"csak egy .bak készül (nincs dupla, Kaneo #125): {len(backups)}")
 conn = sqlite3.connect(kreta.DB_FILE)
 row = conn.execute("SELECT value FROM app_meta WHERE key='schema_version'").fetchone()
-ok(row and row[0] == "4", f"a migráció után schema_version = {row[0] if row else 'nincs'}")
+ok(row and row[0] == str(kreta.SCHEMA_VERSION),
+   f"a migráció után schema_version = {row[0] if row else 'nincs'}")
 conn.close()
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")

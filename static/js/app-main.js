@@ -80,7 +80,7 @@ $(document).ready(function() {
         autoWidth: false,
         createdRow: function(row, data, dataIndex) {
             let todayNum = getTodayNum();
-            let bejNum = dateToNum(data.bej_datum);
+            let bejNum = dateToNum(data.letrehozva || data.bej_datum);
 
             if (data.esemeny_tipus === 'Házi feladat' && data.kesz === 1) {
                 $(row).addClass('completed-hazi-row');
@@ -296,7 +296,7 @@ $(document).ready(function() {
         autoWidth: false,
         createdRow: function(row, data, dataIndex) {
             let todayNum = getTodayNum();
-            let msgNum = dateToNum(data.idopont);
+            let msgNum = dateToNum(data.letrehozva || data.idopont);
             if (msgNum && msgNum === todayNum) {
                 $(row).addClass('today-row');
             }
@@ -2117,14 +2117,14 @@ $(document).ready(function() {
         let ujJegy = 0;
         dashRaw.esemenyek.forEach(function (item) {
             if (item.esemeny_tipus !== 'Értékelés') return;
-            let d = dateToNum(item.bej_datum);
+            let d = dateToNum(item.letrehozva || item.bej_datum);
             if (d && d >= f10Num) ujJegy++;
         });
         setKpiSzam('#tileUjJegyekSzam', ujJegy, 'text-success');
 
         let ujUzenet = 0;
         dashRaw.uzenetek.forEach(function (msg) {
-            let d = dateToNum(msg.idopont);
+            let d = dateToNum(msg.letrehozva || msg.idopont);
             if (d && d >= f10Num) ujUzenet++;
         });
         setKpiSzam('#tileUjUzenetekSzam', ujUzenet, 'text-info');
@@ -2226,7 +2226,10 @@ $(document).ready(function() {
     function renderDashboardFeeds() {
         let feljegyzesek = dashRaw.esemenyek
             .filter(function (x) { return x.esemeny_tipus === 'Feljegyzés'; })
-            .sort(function (a, b) { return dateToNum(b.bej_datum) - dateToNum(a.bej_datum); })
+            .sort(function (a, b) {
+                return (dateToNum(b.letrehozva || b.bej_datum) || 0)
+                     - (dateToNum(a.letrehozva || a.bej_datum) || 0);
+            })
             .slice(0, 10);
         let $f = $('#dashFigyelemLista').empty();
         if (!feljegyzesek.length) {
@@ -2251,7 +2254,10 @@ $(document).ready(function() {
             .filter(function (x) {
                 return x.esemeny_tipus === 'Értékelés' && Number(x.szam_ertek) >= 1;
             })
-            .sort(function (a, b) { return dateToNum(b.bej_datum) - dateToNum(a.bej_datum); })
+            .sort(function (a, b) {
+                return (dateToNum(b.letrehozva || b.bej_datum) || 0)
+                     - (dateToNum(a.letrehozva || a.bej_datum) || 0);
+            })
             .slice(0, 10);
         let $j = $('#dashJegyLista').empty();
         if (!jegyek.length) {

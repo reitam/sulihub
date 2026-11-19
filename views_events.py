@@ -87,6 +87,7 @@ def api_esemenyek():
             "suly_szazalek": (r["suly_szazalek"] or 0) if "suly_szazalek" in keys else 0,
             "tanev": (r["tanev"] or "") if "tanev" in keys else "",
             "bej_datum": r["bej_datum"] or "-",
+            "letrehozva": (r["letrehozva"] if "letrehozva" in keys else "") or "",
             "hatarido": r["hatarido"] or "-",
             "ertekelo": r["ertekelo"] or "-",
             "tipus": r["tipus"] or "-",

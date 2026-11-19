@@ -39,7 +39,7 @@ def get_db_connection():
 # → minden oldal 500-as hibát adott. Ezért a hiányzó sémát itt pótoljuk.
 SCRAPER_TABLES = ("esemenyek", "uzenetek", "orarend", "hianyzasok", "igazolasok")
 APP_OWN_TABLES = ("kifizetesek", "sync_runs", "app_meta", "kommentek")
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 CORE_TABLES = SCRAPER_TABLES + APP_OWN_TABLES
 _schema_lock = threading.Lock()
 _schema_bootstrapping = False
@@ -191,10 +191,20 @@ def _migracio_4(conn):
     ensure_fts_schema(conn)
 
 
+def _migracio_5(conn):
+    """v5: a saját DB-be kerülés időpontja (#147) — idempotens.
+
+    A logika a `kreta_tanev`-ben él, hogy a scraper (`init_db`) és a Flask
+    migrációs lánca ugyanazt használja, körkörös import nélkül.
+    """
+    kreta_tanev.ensure_first_seen_schema(conn)
+
+
 # Verziózott migrációs lánc (Kaneo #91). A meglévő oszlop-hozzáadásokat az
 # idempotens init_db_extensions végzi (base séma), az új változások ide jönnek.
 MIGRATIONS = [
     (4, _migracio_4),
+    (5, _migracio_5),
 ]
 
 

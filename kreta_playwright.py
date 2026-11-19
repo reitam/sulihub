@@ -157,7 +157,8 @@ def init_db():
             tema TEXT,
             cim TEXT,
             tartalom TEXT,
-            kesz INTEGER DEFAULT 0
+            kesz INTEGER DEFAULT 0,
+            letrehozva TEXT
         )
     ''')
     
@@ -174,7 +175,8 @@ def init_db():
             csatolmany_nev TEXT,
             csatolmany_utvonal TEXT,
             csatolmany_proba INTEGER DEFAULT 0,
-            olvasott INTEGER DEFAULT 0
+            olvasott INTEGER DEFAULT 0,
+            letrehozva TEXT
         )
     ''')
 
@@ -196,7 +198,8 @@ def init_db():
             igazolt INTEGER DEFAULT 0,
             tanorai_celu TEXT,
             igazolas_tipus TEXT,
-            rogzites_datum TEXT
+            rogzites_datum TEXT,
+            letrehozva TEXT
         )
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_hianyzasok_diak ON hianyzasok(diak_nev, mulasztas_datum)')
@@ -220,7 +223,8 @@ def init_db():
             kezdete TEXT,
             vege TEXT,
             igazolas_tipus TEXT,
-            megjegyzes TEXT
+            megjegyzes TEXT,
+            letrehozva TEXT
         )
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_igazolasok_diak ON igazolasok(diak_nev, kezdete)')
@@ -292,6 +296,9 @@ def init_db():
     if added:
         log(f"  [Adatbázis séma frissítve]: tanév-oszlopok: {', '.join(added)}")
     kreta_tanev.backfill_tanev(conn, log_fn=log, batch=200)
+
+    # A saját DB-be kerülés időpontja (#147): új oszlop + régi sorok backfillje.
+    kreta_tanev.ensure_first_seen_schema(conn, log_fn=log)
 
     conn.commit()
     conn.close()
@@ -370,9 +377,35 @@ def clear_student_data(diak_nev):
 NEW_EVENT_COUNTS = {}
 NEW_MESSAGE_COUNTS = {}
 
-_EVENT_KEY_COLUMNS = (
-    "esemeny_tipus, tantargy, bej_datum, hatarido, ertek, szam_ertek, tema, cim, tartalom"
+_EVENT_KEY_FIELDS = (
+    "esemeny_tipus", "tantargy", "bej_datum", "hatarido", "ertek",
+    "szam_ertek", "tema", "cim", "tartalom",
 )
+_EVENT_KEY_COLUMNS = ", ".join(_EVENT_KEY_FIELDS)
+
+
+def _event_key_from_mapping(row):
+    return tuple("" if row.get(col) is None else str(row.get(col))
+                 for col in _EVENT_KEY_FIELDS)
+
+
+def get_event_first_seen_map(diak_nev, tipus):
+    """A meglévő események `letrehozva` értékei tartalom-kulcs szerint (#147)."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    out = {}
+    try:
+        cursor.execute(
+            f"SELECT {_EVENT_KEY_COLUMNS}, letrehozva FROM esemenyek"
+            " WHERE diak_nev = ? AND esemeny_tipus = ?", (diak_nev, tipus))
+        for row in cursor.fetchall():
+            key = tuple("" if v is None else str(v) for v in row[:-1])
+            out[key] = row[-1] or ""
+    except Exception as ex:
+        log(f"  [DB hiba - letrehozva kulcsok]: {ex}")
+    finally:
+        conn.close()
+    return out
 
 
 def get_event_key_set(diak_nev):
@@ -512,9 +545,9 @@ def save_hianyzasok_to_db(diak_nev, rows, window=None):
                     INSERT INTO hianyzasok
                     (kreta_id, mulasztas_datum, ora_sorszam, perc, tantargy, tema, tanar,
                      mulasztas_tipus, igazolt, tanorai_celu, igazolas_tipus, rogzites_datum,
-                     tanev, tanev_forras, diak_nev)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', values + (diak_nev,))
+                     tanev, tanev_forras, diak_nev, letrehozva)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', values + (diak_nev, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
         # A KRÉTA-ból eltűnt (törölt/javított) sorok eltávolítása — csak a most
         # letöltött tanévekből és az ablakon belül (Kaneo #40).
@@ -593,12 +626,13 @@ def save_igazolasok_to_db(diak_nev, rows, window=None):
                 cursor.execute('''
                     INSERT INTO igazolasok
                     (diak_nev, kreta_id, kezdete, vege, igazolas_tipus, megjegyzes,
-                     tanev, tanev_forras)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     tanev, tanev_forras, letrehozva)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     diak_nev, kreta_id, r.get("kezdete") or "", r.get("vege") or "",
                     r.get("igazolas_tipus") or "", r.get("megjegyzes") or "",
                     tanev, kreta_tanev.TANEV_FORRAS_SZAMITOTT,
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 ))
         # Az eltűnt sorok törlése — csak a batch tanéveiből, ablakon belül.
         stale_pairs = [(rid, kezd or veg) for key, (rid, kezd, veg) in existing.items()
@@ -1036,7 +1070,8 @@ def _raise_if_blocked(result: dict, label: str) -> None:
     raise RuntimeError(f"{label}: a teljes cserét adatvédelem miatt kihagytam ({detail})")
 
 
-def _insert_esemeny(cursor, diak_nev, e, completed_set, existing_hazi, existing_szamonkeres):
+def _insert_esemeny(cursor, diak_nev, e, completed_set, existing_hazi, existing_szamonkeres,
+                    first_seen_map=None):
     """Egy eseménysor beszúrása; visszaadja, hogy történt-e beszúrás."""
     es_tipus = e.get('esemeny_tipus', '')
     kesz_val = 0
@@ -1053,10 +1088,16 @@ def _insert_esemeny(cursor, diak_nev, e, completed_set, existing_hazi, existing_
         if key in existing_szamonkeres:
             return False
 
+    # A saját DB-be kerülés időpontja (#147): ismételt teljes cserénél a korábbi
+    # érték megmarad, új sornál mostani időpont.
+    first_seen = (first_seen_map or {}).get(_event_key_from_mapping(e))
+    if not first_seen:
+        first_seen = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     cursor.execute('''
         INSERT INTO esemenyek 
-        (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, suly_szazalek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz, tanev, tanev_forras)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, suly_szazalek, bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz, tanev, tanev_forras, letrehozva)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         diak_nev, 
         es_tipus,
@@ -1075,6 +1116,7 @@ def _insert_esemeny(cursor, diak_nev, e, completed_set, existing_hazi, existing_
         kesz_val,
         kreta_tanev.row_tanev("esemenyek", e),
         kreta_tanev.TANEV_FORRAS_SZAMITOTT,
+        first_seen,
     ))
     return True
 
@@ -1170,6 +1212,11 @@ def save_esemenyek_by_type(diak_nev, esemenyek, completed_set, tipusok, window=N
             get_existing_szamonkeres_keys(diak_nev)
             if 'Bejelentett számonkérés' in tipusok else set()
         )
+        # A teljes cserénél is őrizzük meg a „mikor került be” időpontot (#147).
+        first_seen_map = {}
+        for tipus in tipusok:
+            if tipus in VOLATILE_EVENT_TYPES:
+                first_seen_map.update(get_event_first_seen_map(diak_nev, tipus))
 
         for tipus in tipusok:
             rows = rows_by_type.get(tipus, [])
@@ -1206,7 +1253,8 @@ def save_esemenyek_by_type(diak_nev, esemenyek, completed_set, tipusok, window=N
                     skipped += 1
                     continue  # nem törölt tanév: nem is írjuk (duplikáció ellen)
                 if _insert_esemeny(cursor, diak_nev, e, completed_set,
-                                   existing_hazi, existing_szamonkeres):
+                                   existing_hazi, existing_szamonkeres,
+                                   first_seen_map=first_seen_map):
                     result["saved"] += 1
             if skipped:
                 result.setdefault("skipped", {})[tipus] = skipped
@@ -1349,10 +1397,11 @@ def save_uzenet_to_db(diak_nev, felado, targy, idopont, szoveg, csatolmany_nev="
         cursor.execute('''
             INSERT INTO uzenetek 
             (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal,
-             posta_id, olvasott, tanev, tanev_forras)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             posta_id, olvasott, tanev, tanev_forras, letrehozva)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (diak_nev, felado, targy, idopont, szoveg, csatolmany_nev, csatolmany_utvonal,
-              posta_id, 1 if olvasott else 0, tanev, kreta_tanev.TANEV_FORRAS_SZAMITOTT))
+              posta_id, 1 if olvasott else 0, tanev, kreta_tanev.TANEV_FORRAS_SZAMITOTT,
+              datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         conn.commit()
     except Exception as ex:
         log(f"      [Hiba az üzenet mentésekor]: {ex}")
