@@ -119,8 +119,9 @@ található (minden verzióhoz külön fájl + index).
   blokkolja a záráskori véglegest; `--final` a kanonikus névhez.
 - **Új adat jelölése (#147):** a jegyek/üzenetek/hiányzások/igazolások a saját
   DB-be kerülésük (`letrehozva`) alapján számítanak „mainak” — a KRÉTA visszamenőleges
-  bejegyzés-dátuma nem titkolja el a frissen szinkronizált jegyet. A régi sorok
-  migrációs feltöltése a KRÉTA-dátumból történik, így nem lesznek visszamenőleg újak.
+  bejegyzés-dátuma nem titkolja el a frissen szinkronizált jegyet. Az első migráció a
+  legutóbbi 7 nap sorait a migráció időpontjára állítja (ezek a szülőnek ténylegesen
+  újak), a régebbieket a KRÉTA-dátumból tölti fel, így azok nem lesznek visszamenőleg újak.
 
 ### ☀️ „Ma” nézet
 - Önálló fül az Áttekintés után: **mai órák** (időpont, terem, tanár), **ma és holnap

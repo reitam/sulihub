@@ -527,9 +527,11 @@ A KRÉTA gyakran **visszamenőleges bejegyzés-dátummal** adja az új jegyet, e
 napi digest, a „SuliHub – új adatok” push, a `/api/ma` friss jegyei és a felületi
 „mai” jelölés a `letrehozva` oszlopot használja (fallback: a KRÉTA-dátum).
 Az `esemenyek`, `uzenetek`, `hianyzasok` és `igazolasok` táblán a v5 migráció
-hozza létre; a meglévő sorok értéke a KRÉTA-dátumból töltődik fel, így a régi
-adatok nem lesznek visszamenőleg „újak”. Az `Értékelés`/`Feljegyzés` teljes
-cserés mentése tartalom-kulcs alapján megőrzi a korábbi időpontot. Teszt:
+hozza létre. Az **első** feltöltéskor a legutóbbi 7 nap sorai a migráció
+időpontját kapják (a szülőnek ezek ténylegesen újak, csak a KRÉTA visszamenőleges
+dátumot adott nekik), a régebbiek a KRÉTA-dátumot — így a hetek/hónapok óta
+meglévő adatok nem lesznek visszamenőleg „újak”. Az `Értékelés`/`Feljegyzés`
+teljes cserés mentése tartalom-kulcs alapján megőrzi a korábbi időpontot. Teszt:
 `tests/test_first_seen.py`.
 
 ---
