@@ -73,7 +73,10 @@ $(document).ready(function() {
             { targets: 2, responsivePriority: 2 },   // Tantárgy
             { targets: 3, responsivePriority: 3 },   // Érték / Mód (a jegy!)
             { targets: 4, responsivePriority: 4 },   // Bejegyzés dátuma
-            { targets: 1, responsivePriority: 5 }    // Típus (mobilon a legkevésbé fontos)
+            { targets: 7, responsivePriority: 5 },   // Részletek / műveletek (mindig elérhető)
+            { targets: 1, responsivePriority: 6 },   // Típus
+            { targets: 6, responsivePriority: 7 },   // Értékelő / tanár
+            { targets: 8, responsivePriority: 8 }    // Bekerült (a SuliHub first seen)
         ],
         pageLength: 25,
         order: [[4, 'desc']],
@@ -219,6 +222,20 @@ $(document).ready(function() {
                             ${btnDetailsHtml}
                         </div>
                     </div>`;
+                }
+            },
+            {
+                data: 'letrehozva',
+                render: function (data, type) {
+                    if (type !== 'display') return data || '';
+                    if (!data) return '-';
+                    let nap = String(data).slice(0, 10);
+                    let cim = String(data).replace(/"/g, '&quot;');
+                    let num = dateToNum(nap);
+                    if (num && num === getTodayNum()) {
+                        return `<span title="${cim}"><strong class="text-success">${nap}</strong> <span class="badge badge-mai">MA</span></span>`;
+                    }
+                    return `<span title="${cim}">${nap}</span>`;
                 }
             }
         ],
@@ -3277,6 +3294,7 @@ $(document).ready(function() {
         if (Number(e.suly_szazalek) > 0) ertek = (ertek || '') + ' — súly: ' + e.suly_szazalek + '%';
         sor('Érték', ertek);
         sor('Bejegyzés dátuma', e.bej_datum);
+        sor('Bekerült a SuliHubba', e.letrehozva);
         sor('Határidő', e.hatarido);
         sor('Értékelő / tanár', e.ertekelo);
         sor('Téma', e.tema);
