@@ -73,10 +73,11 @@ $(document).ready(function() {
             { targets: 2, responsivePriority: 2 },   // Tantárgy
             { targets: 3, responsivePriority: 3 },   // Érték / Mód (a jegy!)
             { targets: 4, responsivePriority: 4 },   // Bejegyzés dátuma
-            { targets: 7, responsivePriority: 5 },   // Részletek / műveletek (mindig elérhető)
+            { targets: 9, responsivePriority: 5 },   // Műveletek (mindig elérhető)
             { targets: 1, responsivePriority: 6 },   // Típus
-            { targets: 6, responsivePriority: 7 },   // Értékelő / tanár
-            { targets: 8, responsivePriority: 8 }    // Bekerült (a SuliHub first seen)
+            { targets: 7, responsivePriority: 7 },   // Részletek / Leírás
+            { targets: 6, responsivePriority: 8 },   // Értékelő / tanár
+            { targets: 8, responsivePriority: 9 }    // Bekerült (a SuliHub first seen)
         ],
         pageLength: 25,
         order: [[4, 'desc']],
@@ -170,14 +171,43 @@ $(document).ready(function() {
                 }
             },
             { data: 'ertekelo' },
-            { 
+            {
                 data: null,
-                render: function(data) {
+                render: function(data, type) {
                     let reszletek = [];
                     if (data.tema && data.tema !== '-') reszletek.push(`Téma: ${data.tema}`);
                     if (data.cim && data.cim !== '-') reszletek.push(`Cím: ${data.cim}`);
                     if (data.tartalom && data.tartalom !== '-') reszletek.push(`${data.tartalom}`);
-                    
+                    let fullText = reszletek.join(' | ') || '-';
+                    if (type !== 'display') return fullText;
+                    let safeTitle = fullText.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    return `<span class="cell-truncate" title="${safeTitle}">${fullText}</span>`;
+                }
+            },
+            {
+                data: 'letrehozva',
+                render: function (data, type) {
+                    if (type !== 'display') return data || '';
+                    if (!data) return '-';
+                    let nap = String(data).slice(0, 10);
+                    let cim = String(data).replace(/"/g, '&quot;');
+                    let num = dateToNum(nap);
+                    if (num && num === getTodayNum()) {
+                        return `<span title="${cim}"><strong class="text-success">${nap}</strong> <span class="badge badge-mai">MA</span></span>`;
+                    }
+                    return `<span title="${cim}">${nap}</span>`;
+                }
+            },
+            {
+                data: null,
+                orderable: false,
+                searchable: false,
+                render: function(data, type) {
+                    if (type !== 'display') return '';
+                    let reszletek = [];
+                    if (data.tema && data.tema !== '-') reszletek.push(`Téma: ${data.tema}`);
+                    if (data.cim && data.cim !== '-') reszletek.push(`Cím: ${data.cim}`);
+                    if (data.tartalom && data.tartalom !== '-') reszletek.push(`${data.tartalom}`);
                     let fullText = reszletek.join(' | ') || '-';
                     let safeTitle = fullText.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
@@ -213,29 +243,12 @@ $(document).ready(function() {
                         <i class="${kedvenc ? 'fa-solid' : 'fa-regular'} fa-star"></i>
                     </button>`;
 
-                    return `<div class="d-flex align-items-center justify-content-between">
-                        <span class="cell-truncate me-1" title="${safeTitle}">${fullText}</span>
-                        <div class="d-flex align-items-center gap-1 ms-auto">
-                            ${btnKeszHtml}
-                            ${btnKedvencHtml}
-                            ${btnKommentHtml}
-                            ${btnDetailsHtml}
-                        </div>
+                    return `<div class="d-flex align-items-center gap-1 justify-content-end">
+                        ${btnKeszHtml}
+                        ${btnKedvencHtml}
+                        ${btnKommentHtml}
+                        ${btnDetailsHtml}
                     </div>`;
-                }
-            },
-            {
-                data: 'letrehozva',
-                render: function (data, type) {
-                    if (type !== 'display') return data || '';
-                    if (!data) return '-';
-                    let nap = String(data).slice(0, 10);
-                    let cim = String(data).replace(/"/g, '&quot;');
-                    let num = dateToNum(nap);
-                    if (num && num === getTodayNum()) {
-                        return `<span title="${cim}"><strong class="text-success">${nap}</strong> <span class="badge badge-mai">MA</span></span>`;
-                    }
-                    return `<span title="${cim}">${nap}</span>`;
                 }
             }
         ],
