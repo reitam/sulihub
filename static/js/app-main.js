@@ -72,6 +72,18 @@ $(document).ready(function() {
         return ev === String(new Date().getFullYear()) ? `${ho}.${nap}.` : `${ev}.${ho}.${nap}.`;
     }
 
+    // Mobilon a típus rövidítése (a külön Típus oszlop helyett).
+    function tipusRovid(tipus) {
+        switch (tipus) {
+            case 'Értékelés': return ['É', 'badge-ertekeles', 'Értékelés'];
+            case 'Feljegyzés': return ['F', 'badge-feljegyzes', 'Feljegyzés'];
+            case 'Házi feladat': return ['HF', 'badge-hazi', 'Házi feladat'];
+            case 'Bejelentett számonkérés':
+                return ['SZK', 'badge-szamonkeres', 'Bejelentett számonkérés'];
+            default: return null;
+        }
+    }
+
     let dataTable = $('#esemenyekTable').DataTable({
         responsive: true,
         language: HU_DT_LANG,
@@ -121,7 +133,12 @@ $(document).ready(function() {
                 data: 'tantargy',
                 render: function(data, type, row) {
                     if (type !== 'display') return data;
-                    let html = `<span class="mobile-subject-line"><span class="mobile-subject-nev">${escapeHtml(data || '-')}</span>`;
+                    let html = `<span class="mobile-subject-line">`;
+                    let rovid = tipusRovid(row.esemeny_tipus);
+                    if (rovid) {
+                        html += `<span class="mobile-tipus-rovid badge ${rovid[1]}" title="${escapeHtml(rovid[2])}">${rovid[0]}</span>`;
+                    }
+                    html += `<span class="mobile-subject-nev">${escapeHtml(data || '-')}</span>`;
                     if (row.bej_datum && row.bej_datum !== '-') {
                         html += `<span class="mobile-datum">${escapeHtml(rovidDatum(row.bej_datum))}</span>`;
                     }

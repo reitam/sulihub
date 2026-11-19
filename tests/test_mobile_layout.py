@@ -342,7 +342,28 @@ try:
                f"mobilon a tantárgy mellett ott a rövid dátum: {extra[:2]}")
             ok(egy == "5", f"mobilon a jegy a jobb szélen, színes körben: {egy!r}")
             ok(diak_w <= 60, f"a diák-oszlop a monogramnyi szélességre szűkült ({diak_w:.0f} px)")
-            ok(egy_sor, "a tantárgy, a dátum és a jegy egy sorban van")
+            one_line = await page.evaluate("""() => {
+                const line = document.querySelector('#esemenyekTable tbody .mobile-subject-line');
+                if (!line) return null;
+                const td = line.closest('td');
+                const k = line.querySelector('.jegy-kor');
+                const tr = td.getBoundingClientRect();
+                const lr = line.getBoundingClientRect();
+                const kr = k ? k.getBoundingClientRect() : null;
+                return {tdRight: Math.round(tr.right), lineRight: Math.round(lr.right),
+                        lineWidth: Math.round(lr.width), tdWidth: Math.round(tr.width),
+                        kRight: kr ? Math.round(kr.right) : null,
+                        display: getComputedStyle(line).display};
+            }""")
+            ok(one_line and one_line["kRight"] is not None and
+               (one_line["tdRight"] - one_line["kRight"]) < 12,
+               f"a jegy a cella jobb szélén van: {one_line}")
+            rovid = await page.evaluate("""() => {
+                return [...document.querySelectorAll('#esemenyekTable tbody .mobile-tipus-rovid')]
+                    .map(x => x.innerText.trim()).filter(Boolean);
+            }""")
+            ok(any(t in ("É", "F", "HF", "SZK") for t in rovid),
+               f"mobilon a típus rövidítése is látszik: {rovid[:3]}")
             # 7) mobil: egyetlen karcsú státuszsáv, a technikai részletek koppintásra
             compact = await page.evaluate("""() => {
                 const e = document.querySelector('#schedulerCompact');
