@@ -37,6 +37,28 @@ def load_config():
     return {}
 
 
+class ConfigError(RuntimeError):
+    """A config.json hiányzik, olvashatatlan vagy érvénytelen (fail-closed auth)."""
+
+
+def load_config_strict():
+    """A config betöltése **hibát dobva**, ha az nem olvasható/érvénytelen.
+
+    Az auth guard ezt használja: egy hibás config ne kapcsolja ki csendben a
+    védelmet, hanem 503-at adjon a védett végpontokon (#137).
+    """
+    if not os.path.exists(CONFIG_FILE):
+        raise ConfigError(f"hiányzó konfiguráció: {CONFIG_FILE}")
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except (OSError, ValueError) as exc:
+        raise ConfigError(f"a konfiguráció nem olvasható: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError("a konfiguráció gyökere JSON-objektum kell legyen")
+    return data
+
+
 # ── Órarend-színek (Kaneo #56) ────────────────────────────────────────────
 _HEX_SZIN = re.compile(r"^#[0-9a-fA-F]{6}$")
 

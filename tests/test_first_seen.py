@@ -76,6 +76,10 @@ def letrehozva_ertek(tantargy):
 
 MA = date(2026, 11, 19)
 TEGNAP = MA - timedelta(days=1)
+FRISS_NAP = date.today() - timedelta(days=1)
+FRISS_HU = f"{FRISS_NAP.year}. {FRISS_NAP.month:02d}. {FRISS_NAP.day:02d}."
+HARMADNAP = date.today() - timedelta(days=3)
+HARMADNAP_HU = f"{HARMADNAP.year}. {HARMADNAP.month:02d}. {HARMADNAP.day:02d}."
 
 print("1) Migráció: az első feltöltés a friss sorokat a mostani időpontra állítja")
 legacy = work / "legacy.db"
@@ -86,7 +90,10 @@ lc.execute(
     " hatarido TEXT, tartalom TEXT, kesz INTEGER, tanev TEXT)")
 lc.execute(
     "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum)"
-    " VALUES ('Teszt', 'Értékelés', 'Friss', '2026. 11. 18.')")
+    " VALUES ('Teszt', 'Értékelés', 'Friss', ?)", (FRISS_HU,))
+lc.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum)"
+    " VALUES ('Teszt', 'Értékelés', 'Közepes', ?)", (HARMADNAP_HU,))
 lc.execute(
     "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum)"
     " VALUES ('Teszt', 'Értékelés', 'Régi', '2025. 03. 04.')")
@@ -94,14 +101,37 @@ lc.commit()
 kreta_tanev.ensure_first_seen_schema(lc, log_fn=None)
 friss = lc.execute(
     "SELECT letrehozva FROM esemenyek WHERE tantargy = 'Friss'").fetchone()[0]
+kozepes = lc.execute(
+    "SELECT letrehozva FROM esemenyek WHERE tantargy = 'Közepes'").fetchone()[0]
 regi = lc.execute(
     "SELECT letrehozva FROM esemenyek WHERE tantargy = 'Régi'").fetchone()[0]
 lc.close()
 ok(bool(friss) and friss.startswith(date.today().isoformat()),
-   f"a 7 napon belüli sor a migráció időpontját kapja: {friss}")
+   f"a 2 napon belüli sor a migráció időpontját kapja: {friss}")
+ok(kozepes == HARMADNAP.isoformat() + " 00:00:00",
+   f"a 3 napos sor már a KRÉTA-dátumot kapja: {kozepes}")
 ok(regi == "2025-03-04 00:00:00", f"a régi sor a KRÉTA-dátumot kapja: {regi}")
 
-print("\n1b) A nagyon régi sor `letrehozva` értéke a KRÉTA-dátumból jön")
+print("\n1b) A KRETA_TODAY felülírja a migráció napját")
+today_legacy = work / "legacy_today.db"
+tc = sqlite3.connect(str(today_legacy))
+tc.execute(
+    "CREATE TABLE esemenyek (id INTEGER PRIMARY KEY AUTOINCREMENT, diak_nev TEXT,"
+    " esemeny_tipus TEXT, tantargy TEXT, bej_datum TEXT)")
+tc.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum)"
+    " VALUES ('Teszt', 'Értékelés', 'TesztNap', '2030. 01. 14.')")
+tc.commit()
+os.environ["KRETA_TODAY"] = "2030-01-15"
+kreta_tanev.ensure_first_seen_schema(tc, log_fn=None)
+teszt_nap = tc.execute(
+    "SELECT letrehozva FROM esemenyek WHERE tantargy = 'TesztNap'").fetchone()[0]
+os.environ.pop("KRETA_TODAY", None)
+tc.close()
+ok(bool(teszt_nap) and teszt_nap.startswith("2030-01-15"),
+   f"a KRETA_TODAY napját használja: {teszt_nap}")
+
+print("\n1c) A nagyon régi sor `letrehozva` értéke a KRÉTA-dátumból jön")
 conn = sqlite3.connect(str(k.DB_FILE))
 conn.execute(
     "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
@@ -117,21 +147,54 @@ conn.close()
 ok(row and row[0] == "2025-03-04 00:00:00",
    f"a backfill a bej_datum napja: {row[0] if row else None}")
 
-print("\n1c) Nem első feltöltésnél (részleges NULL) a KRÉTA-dátum marad")
+print("\n1d) Nem első feltöltésnél (részleges NULL) a KRÉTA-dátum marad")
 conn = sqlite3.connect(str(k.DB_FILE))
 conn.execute(
     "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
     " bej_datum, hatarido, tartalom, kesz, tanev, letrehozva)"
-    " VALUES ('Teszt', 'Értékelés', 'Német', '4', 4, '2026. 11. 18.', '', '', 0,"
-    " '2026/2027', NULL)")
+    " VALUES ('Teszt', 'Értékelés', 'Német', '4', 4, ?, '', '', 0,"
+    " '2026/2027', NULL)", (FRISS_HU,))
 conn.commit()
 kreta_tanev.ensure_first_seen_schema(conn, log_fn=None)
 row = conn.execute(
     "SELECT letrehozva FROM esemenyek WHERE diak_nev = 'Teszt' AND tantargy = 'Német'"
 ).fetchone()
 conn.close()
-ok(row and row[0] == "2026-11-18 00:00:00",
+ok(row and row[0] == FRISS_NAP.isoformat() + " 00:00:00",
    f"a későbbi pótlás a KRÉTA-dátumot használja: {row[0] if row else None}")
+
+print("\n1e) v6: a régi éjféli friss sorokat újrapecsételi, a valódi időbélyegeket nem")
+v6_db = work / "v6.db"
+vc = sqlite3.connect(str(v6_db))
+vc.execute(
+    "CREATE TABLE esemenyek (id INTEGER PRIMARY KEY AUTOINCREMENT, diak_nev TEXT,"
+    " esemeny_tipus TEXT, tantargy TEXT, bej_datum TEXT, letrehozva TEXT)")
+vc.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum, letrehozva)"
+    " VALUES ('Teszt', 'Értékelés', 'Éjfél', ?, ?)",
+    (FRISS_HU, FRISS_NAP.isoformat() + " 00:00:00"))
+vc.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum, letrehozva)"
+    " VALUES ('Teszt', 'Értékelés', 'Valodi', ?, ?)",
+    (FRISS_HU, FRISS_NAP.isoformat() + " 09:00:00"))
+vc.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum, letrehozva)"
+    " VALUES ('Teszt', 'Értékelés', 'Régi', '2025. 03. 04.',"
+    " '2025-03-04 00:00:00')")
+vc.commit()
+kreta_tanev.restamp_first_seen_recent(vc, log_fn=None)
+ejfel = vc.execute(
+    "SELECT letrehozva FROM esemenyek WHERE tantargy = 'Éjfél'").fetchone()[0]
+valodi = vc.execute(
+    "SELECT letrehozva FROM esemenyek WHERE tantargy = 'Valodi'").fetchone()[0]
+v6_regi = vc.execute(
+    "SELECT letrehozva FROM esemenyek WHERE tantargy = 'Régi'").fetchone()[0]
+vc.close()
+ok(bool(ejfel) and ejfel.startswith(date.today().isoformat()),
+   f"a v6 az éjféli friss sort átpecsételi: {ejfel}")
+ok(valodi == FRISS_NAP.isoformat() + " 09:00:00",
+   f"a valódi időbélyeget nem bántja: {valodi}")
+ok(v6_regi == "2025-03-04 00:00:00", f"a régi sort nem bántja: {v6_regi}")
 
 print("\n2) Régi bej_datum + mai letrehozva -> mai új jegy")
 conn = sqlite3.connect(str(k.DB_FILE))

@@ -90,5 +90,19 @@ for path in api_checks:
 res = client.post("/api/sync/start")
 ok(res.status_code == 401, f"POST /api/sync/start auth nélkül 401 ({res.status_code})")
 
+print("\n5) Fail-closed: hiányzó vagy érvénytelen config (#137)")
+os.remove(config_path)
+ok(client.get("/").status_code == 503, "hiányzó config -> 503 a védett végponton")
+ok(client.get("/health").status_code == 200, "hiányzó config mellett a /health nyitott")
+with open(config_path, "w", encoding="utf-8") as f:
+    f.write("{nem json")
+ok(client.get("/").status_code == 503, "érvénytelen JSON -> 503")
+ok(client.get("/health").status_code == 200, "érvénytelen JSON mellett a /health nyitott")
+with open(config_path, "w", encoding="utf-8") as f:
+    f.write('["nem", "objektum"]')
+ok(client.get("/").status_code == 503, "nem objektum gyökér -> 503")
+write_config(False)
+ok(client.get("/").status_code == 200, "helyreállított config után újra nyitott")
+
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

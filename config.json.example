@@ -2,7 +2,7 @@
   "HEADLESS": true,
   "SCRAPE_MESSAGES": true,
   "AUTH": {
-    "_comment": "Opcionalis basic auth (Kaneo #16). Elesben PASSWORD_HASH (werkzeug generate_password_hash); a PASSWORD csak teszthez. /health kivetel.",
+    "_comment": "Opcionalis basic auth (Kaneo #16). Elesben PASSWORD_HASH (werkzeug generate_password_hash); a PASSWORD csak teszthez. /health kivetel. #137: hianyzo vagy ervenytelen config eseten a vedett vegpontok 503-at adnak (fail-closed).",
     "ENABLED": false,
     "USERNAME": "",
     "PASSWORD_HASH": "",

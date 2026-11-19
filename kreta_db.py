@@ -39,7 +39,7 @@ def get_db_connection():
 # → minden oldal 500-as hibát adott. Ezért a hiányzó sémát itt pótoljuk.
 SCRAPER_TABLES = ("esemenyek", "uzenetek", "orarend", "hianyzasok", "igazolasok")
 APP_OWN_TABLES = ("kifizetesek", "sync_runs", "app_meta", "kommentek")
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 CORE_TABLES = SCRAPER_TABLES + APP_OWN_TABLES
 _schema_lock = threading.Lock()
 _schema_bootstrapping = False
@@ -200,11 +200,17 @@ def _migracio_5(conn):
     kreta_tanev.ensure_first_seen_schema(conn)
 
 
+def _migracio_6(conn):
+    """v6: a már v5-ös DB-knél a régi éjféli friss sorok újrapecsételése (#149)."""
+    kreta_tanev.restamp_first_seen_recent(conn)
+
+
 # Verziózott migrációs lánc (Kaneo #91). A meglévő oszlop-hozzáadásokat az
 # idempotens init_db_extensions végzi (base séma), az új változások ide jönnek.
 MIGRATIONS = [
     (4, _migracio_4),
     (5, _migracio_5),
+    (6, _migracio_6),
 ]
 
 

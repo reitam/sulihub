@@ -41,13 +41,20 @@ app = Flask(__name__)
 
 @app.before_request
 def _basic_auth_guard():
-    """Opcionális basic auth (Kaneo #16); a /health végpont kivétel."""
+    """Opcionális basic auth (Kaneo #16); a /health végpont kivétel.
+
+    #137: ha a config hiányzik/olvashatatlan/érvénytelen, **fail-closed**:
+    a védett végpontok 503-at adnak, nem kapcsolja ki csendben az authot.
+    """
     if request.path == "/health":
         return None
     try:
-        cfg = (load_config() or {}).get("AUTH") or {}
-    except Exception:
-        cfg = {}
+        config = load_config_strict()
+    except ConfigError as exc:
+        return Response(f"Beállítási hiba: {exc}", 503)
+    cfg = config.get("AUTH") or {}
+    if not isinstance(cfg, dict):
+        return Response("Beállítási hiba: az AUTH blokk nem JSON-objektum.", 503)
     if not cfg.get("ENABLED"):
         return None
     auth = request.authorization
@@ -95,7 +102,10 @@ from kreta_db import (  # noqa: E402
 )
 
 # Beállítások (KRÉ-14 #94) — config, verzió, órarend-színek.
-from kreta_settings import _HEX_SZIN, _orarend_szinek, get_app_version, load_config  # noqa: E402
+from kreta_settings import (  # noqa: E402
+    ConfigError, _HEX_SZIN, _orarend_szinek, get_app_version, load_config,
+    load_config_strict,
+)
 
 # Közös nézet-segédek (KRÉ-14 #94) — a blueprintek és a még itt maradó route-ok közösen.
 from views_common import (  # noqa: E402

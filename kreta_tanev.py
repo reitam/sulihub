@@ -236,7 +236,28 @@ def ensure_tanev_schema(conn, log_fn=print) -> list[str]:
     return added
 
 
-def ensure_first_seen_schema(conn, log_fn=print, recent_days: int = 7):
+FIRST_SEEN_TABLES = (
+    ("esemenyek", "bej_datum"),
+    ("uzenetek", "idopont"),
+    ("hianyzasok", "mulasztas_datum"),
+    ("igazolasok", "kezdete"),
+)
+FIRST_SEEN_RECENT_DAYS = 2
+FIRST_SEEN_MAX_RECENT_DAYS = 31
+
+
+def _first_seen_recent_days(value=None) -> int:
+    """A first-seen ablak napjai (alap 2, env: KRETA_FIRST_SEEN_RECENT_DAYS)."""
+    raw = value if value is not None else os.environ.get(
+        "KRETA_FIRST_SEEN_RECENT_DAYS", FIRST_SEEN_RECENT_DAYS)
+    try:
+        days = int(raw)
+    except (TypeError, ValueError):
+        days = FIRST_SEEN_RECENT_DAYS
+    return max(1, min(days, FIRST_SEEN_MAX_RECENT_DAYS))
+
+
+def ensure_first_seen_schema(conn, log_fn=print, recent_days=None):
     """`letrehozva` oszlop + backfill a régi sorokra (#147), idempotensen.
 
     A valódi „mikor került be” időpont a bevezetés előtti soroknál nem ismert.
@@ -246,17 +267,18 @@ def ensure_first_seen_schema(conn, log_fn=print, recent_days: int = 7):
     KRÉTA visszamenőleges dátumot adott nekik. A régebbi sorok a KRÉTA-dátumot
     kapják, így nem jelennek meg visszamenőleg „újként”. Későbbi pótlásnál
     (részleges NULL-ok) már csak a KRÉTA-dátum a fallback.
+
+    A ``recent_days`` alapértéke 2 (a tegnap+ma), felülírható a
+    ``KRETA_FIRST_SEEN_RECENT_DAYS`` env-vel vagy paraméterrel. A ``KRETA_TODAY``
+    env (a modul :func:`today` helperje) a tesztelést szolgálja.
     """
     cur = conn.cursor()
+    ref = today()
     now = datetime.now()
-    now_stamp = now.strftime("%Y-%m-%d %H:%M:%S")
-    recent_cutoff = now.date() - timedelta(days=max(0, int(recent_days)))
-    for table, date_col in (
-        ("esemenyek", "bej_datum"),
-        ("uzenetek", "idopont"),
-        ("hianyzasok", "mulasztas_datum"),
-        ("igazolasok", "kezdete"),
-    ):
+    now_stamp = f"{ref.isoformat()} {now.strftime('%H:%M:%S')}"
+    days = _first_seen_recent_days(recent_days)
+    recent_cutoff = ref - timedelta(days=days - 1)
+    for table, date_col in FIRST_SEEN_TABLES:
         try:
             cols = [r[1] for r in cur.execute(f"PRAGMA table_info({table})")]
         except sqlite3.Error:
@@ -265,9 +287,16 @@ def ensure_first_seen_schema(conn, log_fn=print, recent_days: int = 7):
             continue
         created = "letrehozva" not in cols
         if created:
-            cur.execute(f"ALTER TABLE {table} ADD COLUMN letrehozva TEXT")
-            if log_fn:
-                log_fn(f"[Adatbázis séma frissítve]: '{table}.letrehozva' hozzáadva.")
+            try:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN letrehozva TEXT")
+                if log_fn:
+                    log_fn(f"[Adatbázis séma frissítve]: '{table}.letrehozva' hozzáadva.")
+            except sqlite3.Error as exc:
+                # Párhuzamos init_db: a másik folyamat már hozzáadhatta.
+                if "duplicate column" not in str(exc).lower():
+                    if log_fn:
+                        log_fn(f"[Adatbázis séma] {table}.letrehozva hozzáadása kihagyva: {exc}")
+                    continue
         try:
             rows = cur.execute(
                 f"SELECT id, {date_col} FROM {table}"
@@ -297,6 +326,42 @@ def ensure_first_seen_schema(conn, log_fn=print, recent_days: int = 7):
                 f" ON {table}(letrehozva)")
         except sqlite3.Error:
             pass
+    conn.commit()
+
+
+def restamp_first_seen_recent(conn, log_fn=print, recent_days=None):
+    """A már v5-ös DB-knél a régi, éjfélre backfillt friss sorok átpecsételése (#149).
+
+    Csak azokat a sorokat érinti, amelyek ``letrehozva`` értéke pontosan a
+    KRÉTA-dátum ``00:00:00``-ja, és a KRÉTA-dátum a legutóbbi ``recent_days``
+    napban van. A v5 utáni, valódi időbélyeges sorokat nem bántja, így az éles
+    DB-n (ahol a 7 napos pecsét már megtörtént) ez a lépés no-op.
+    """
+    cur = conn.cursor()
+    ref = today()
+    now = datetime.now()
+    stamp = f"{ref.isoformat()} {now.strftime('%H:%M:%S')}"
+    days = _first_seen_recent_days(recent_days)
+    cutoff = ref - timedelta(days=days - 1)
+    for table, date_col in FIRST_SEEN_TABLES:
+        try:
+            rows = cur.execute(
+                f"SELECT id, {date_col}, letrehozva FROM {table}").fetchall()
+        except sqlite3.Error:
+            continue
+        friss = 0
+        for rid, value, lh in rows:
+            if not lh:
+                continue
+            day = parse_date(value)
+            if day is None or day < cutoff:
+                continue
+            if not str(lh).endswith("00:00:00") or str(lh)[:10] != day.isoformat():
+                continue
+            cur.execute(f"UPDATE {table} SET letrehozva = ? WHERE id = ?", (stamp, rid))
+            friss += 1
+        if friss and log_fn:
+            log_fn(f"[Adatbázis séma] {table}: {friss} régi friss sor újrapecsételve (v6).")
     conn.commit()
 
 
