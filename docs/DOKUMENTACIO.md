@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Dokumentum verziója** | 1.24 (#153 Műveletek oszlop + kedvencek eltávolítás) |
-| **A rendszer verziója** | v2.7.3 (éles, 2026-11-19) |
+| **Dokumentum verziója** | 1.25 (#137 auth fail-closed + #147 code review fixek) |
+| **A rendszer verziója** | v2.7.3 (éles, 2026-11-19); a v2.7.4 kiadásra kész |
 | **Utolsó frissítés** | 2026-11-19 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
@@ -504,7 +504,8 @@ a kimenetben látszanak; a küszöb túllépése piros tesztet ad.
 A `kreta_db`-ben **`MIGRATIONS = [(4, fn), …]`** verziózott lánc fut a
 `schema_version` alapján, idempotensen; 0-nál újabb verzióról **`.bak` mentés** készül.
 A v4 a FTS5 indexet hozza létre, a **v5** a `letrehozva` (first seen) oszlopokat
-(2.23). A scraper alap-DDL továbbra
+(2.23), a **v6** a már v5-ös DB-knél a régi, éjfélre backfillt friss sorok
+újrapecsételését végzi (#149). A scraper alap-DDL továbbra
 is a bootstrap (a táblák első létrehozása), a **minden további séma-változás a
 MIGRATIONS-ba** kerül. Új migrációnál a verziót léptetni kell (`SCHEMA_VERSION`), és a
 `test_db_indexes` ellenőrzi a láncot.
@@ -525,10 +526,13 @@ A KRÉTA gyakran **visszamenőleges bejegyzés-dátummal** adja az új jegyet, e
 napi digest, a „SuliHub – új adatok” push, a `/api/ma` friss jegyei és a felületi
 „mai” jelölés a `letrehozva` oszlopot használja (fallback: a KRÉTA-dátum).
 Az `esemenyek`, `uzenetek`, `hianyzasok` és `igazolasok` táblán a v5 migráció
-hozza létre. Az **első** feltöltéskor a legutóbbi 7 nap sorai a migráció
+hozza létre. Az **első** feltöltéskor a legutóbbi **2 nap** sorai a migráció
 időpontját kapják (a szülőnek ezek ténylegesen újak, csak a KRÉTA visszamenőleges
 dátumot adott nekik), a régebbiek a KRÉTA-dátumot — így a hetek/hónapok óta
-meglévő adatok nem lesznek visszamenőleg „újak”. Az `Értékelés`/`Feljegyzés`
+meglévő adatok nem lesznek visszamenőleg „újak”. Az ablak a
+`KRETA_FIRST_SEEN_RECENT_DAYS` env-vel növelhető (max. 31). A **v6** migráció
+a már v5-ös DB-knél a régi, éjfélre backfillt friss sorokat pecsételi át; a
+valódi időbélyeges sorokat nem bántja. Az `Értékelés`/`Feljegyzés`
 teljes cserés mentése tartalom-kulcs alapján megőrzi a korábbi időpontot. A
 felületen az Események táblában a „Részletek / Leírás” után **közvetlenül**
 **Bekerült** oszlop mutatja az időpontot (mai esetén `MA` jelzéssel), a
@@ -1169,7 +1173,8 @@ A felület a fejléc választójában **mindig explicit** értéket küld. A `/a
 - **Hitelesítés (Kaneo #16):** opcionális **basic auth** a `config.json` `AUTH` blokkjával
   (`ENABLED`, `USERNAME`, `PASSWORD_HASH`; a `/health` kivétel). Kikapcsolva a belső hálózat
   a védelmi vonal. Élesben **HTTPS/reverse proxy** javasolt, mert a basic auth önmagában
-  nem titkosít.
+  nem titkosít. **#137:** ha a config hiányzik/olvashatatlan/érvénytelen, a védett
+  végpontok **503**-at adnak (fail-closed), nem kapcsolja ki csendben az authot.
 - **Személyes adatok:** gyermeknevek, jegyek, üzenetek. Ezek a saját szerveren maradnak.
 - **AI (Kaneo #61):** alapból **helyi Ollama**; `ALLOW_CLOUD=false` mellett csak
   magánhálózati AI-URL engedett. Az elemzés gombnyomásra fut, a naplóba nem kerül a
@@ -1414,6 +1419,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v2.1.2** *(kiadásra kész)* | **2026-11-08** | **#120** az Iskolai események **szűrőpanelje alapból zárva** van, a fejlécére kattintva nyílik (a dashboard-csempéről érkezve is zárva marad; a szűrő továbbra is érvényesül). **#115** (Tailscale/WireGuard távoli elérés) és **#119** (SQLite vs MySQL/PostgreSQL) **elemzés** a jegyekben, kódváltozás nélkül. **1340 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/197) |
 | **v2.1.3** *(kiadásra kész)* | **2026-11-08** | **#121** a szűrőpanel a felső menüsor **alá** került (a menüsor nem ugrál a fülek között). **#82** A4-es **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve (`riportkartyak` tábla + data kötet), visszamenőleges lista/letöltés; a hivatalos félévi jegy hiányát jelzi. **#83** **Excel exportok**: események (Jegyek/Feljegyzések/Házi feladatok) és hiányzások (Hiányzások/Igazolások) a felület szűrőivel. **#90** üzemeltetési ellenőrzések: havi **restore-teszt** (`tools/backup_restore_check.py`, manifest-tel) + éjszakai **élő füstteszt** (`tools/live_smoke.py`, CI job, secret nélkül kimarad). **1411 ellenőrzés / 47 csomag** (fast 42/1212, browser 5/199) |
 | **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** az **aktuális bizonyítvány** (a felületi kártya és a PDF fejléce is ezt a nevet viseli) **mentés/előzmény nélkül**, mindig közvetlenül generálódik (`GET /api/riportkartya/export_pdf`); a fő címe a tanévet és az időszakot mutatja („SuliHub - \<gyerek\> - 2026/2027 1. félév”), **dísz-bizonyítvány** kivitelben (arany keret, pecsét, serif címek), a tantárgyi táblában nincs Db oszlop, a jegyek jegyenként összesítve („Jeles(5) - 3 db ; Jó(4) - 2 db”), a magatartás/szorgalom értékelés benne van, a zsebpénz-egyenleg csak engedélyezett modulnál, a **Feljegyzések** szekció nincs. A félévi/év végi hivatalos jegy beépítése külön backlog (#123/#124). **#125** kódszemle-javítások: riport hiányzás-óraszám, FTS ékezet/kis-nagybetű, adatminőség-typo, csatolmány-rekurzió, órarend arányőr, silent JSON, dupla `.bak`, `/api/esemenyek` limit/offset. **#104** **Ma/Hét** nézet a Ma fülön: a heti nézet **kétoszlopos, középre igazított napkártyák** (az események szerinti színekkel, páratlan darabszámnál középre tett utolsó kártyával), a **havi nézet elhagyva**. **Új SuliHub logó mindenhol:** fejléc (embléma + név), favicon/apple-touch ikon, valamint a PDF-bizonyítvány fejléce (a teljes logó a cím fölött). **1488 ellenőrzés / 50 csomag** (fast 45/1286, browser 5/202) |
+| **v2.7.4** *(kiadásra kész)* | **2026-11-20** | **#137 auth fail-closed:** hiányzó/olvashatatlan/érvénytelen config → 503 a védett végpontokon, `/health` nyitott; `load_config_strict` + teszt. **#149/#150/#151 first seen:** séma v6 (a már v5-ös DB-k régi éjféli friss sorainak újrapecsételése), 2 napos ablak (env: `KRETA_FIRST_SEEN_RECENT_DAYS`), `KRETA_TODAY`, int/clamp és ALTER try/except. **#152:** dátumfüggetlen `test_first_seen`. **#148:** a code review pontjai lezárva |
 | **v2.7.3** *(éles 2026-11-19)* | **2026-11-19** | **#153 mobil:** a **Műveletek** oszlop mindig látszik (a responsive nem rejti el), a házi feladat Elkészült/Újra aktív gombja mobilon csak ikon; a megjegyzés/részletek gomb minden sornál elérhető. **UI takarítás:** a nem használt kedvencek/csillag gomb, a Kitűzött események panel és a `/api/kedvencek` végpont eltávolítva |
 | **v2.7.2** *(éles 2026-11-19)* | **2026-11-19** | **#153 mobil nézet finomítása:** 44 px diák-oszlop, a sor elején a típus rövidítése (`É`/`F`/`HF`/`SZK`), egy sorban a tantárgy + rövid dátum + jegy a jobb szélen színes körben; a **jegy helye fixen foglalt**, ezért a dátum nem csúszik; a külön Érték/Dátum/Típus oszlop mobilon rejtve; a részletek lenyitva változatlanok |
 | **v2.7.1** *(éles 2026-11-19)* | **2026-11-19** | **#147 Bekerült oszlop:** az Események táblában a „Részletek / Leírás” után **közvetlenül** új **Bekerült** oszlop mutatja, mikor került az adat a SuliHubba (mai esetén `MA` jelzéssel); a műveletgombok külön **Műveletek** oszlopban vannak; a részletek modálban is. **#153 mobil nézet:** a jegy és a rövid dátum a tantárgy alatt |
