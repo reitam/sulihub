@@ -188,6 +188,8 @@
             line-height: 1;
         }
         .avatar-cell { white-space: nowrap; }
+        /* Csak mobilon: a tantárgy alatt jegy + rövid dátum (Kaneo #153). */
+        .mobile-row-extra { display: none; }
         .table-container { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         /* A 9 oszlopos esemény-tábla ne préselje össze a „Részletek” művelet-oszlopot. */
         @media (min-width: 1200px) {
@@ -613,6 +615,15 @@
                 text-overflow: ellipsis !important;
                 padding: .3rem .35rem !important;
             }
+            .mobile-row-extra {
+                display: block;
+                font-size: .72rem;
+                color: #6c757d;
+                margin-top: .1rem;
+                line-height: 1.15;
+            }
+            .mobile-row-extra .mobile-jegy { font-weight: 700; color: #198754; }
+            .mobile-subject-nev { white-space: normal !important; }
             .resizer { display: none !important; }   /* oszlop-átméretezés csak egéren */
             div.dataTables_wrapper div.dataTables_filter { text-align: left !important; }
             div.dataTables_wrapper div.dataTables_filter input { width: 100% !important; margin-left: 0 !important; }

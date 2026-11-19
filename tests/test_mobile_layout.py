@@ -316,6 +316,13 @@ try:
             ok(len(av["text"]) in (2, 3), f"a monogram 2-3 betűs ('{av['text']}')")
             ok(av["dateVisible"], "a bejegyzés dátuma oszlop látszik mobilon")
             ok(av["ertekVisible"], "a jegy (Érték oszlop) alapból látszik mobilon")
+            # 6b) a tantárgy alatt a jegy + rövid dátum is látszik (Kaneo #153)
+            extra = await page.evaluate("""() => {
+                return [...document.querySelectorAll('#esemenyekTable tbody .mobile-row-extra')]
+                    .map(x => x.innerText.trim()).filter(Boolean);
+            }""")
+            ok(any("5" in t and "." in t for t in extra),
+               f"mobilon a tantárgy alatt ott a jegy és a rövid dátum: {extra[:2]}")
             # 7) mobil: egyetlen karcsú státuszsáv, a technikai részletek koppintásra
             compact = await page.evaluate("""() => {
                 const e = document.querySelector('#schedulerCompact');

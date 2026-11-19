@@ -62,6 +62,16 @@ $(document).ready(function() {
         return parseInt(clean.substring(0, 8), 10);
     }
 
+    // Mobilon a tantárgy alatti második sorhoz: 2026. 11. 18. -> 11.18.
+    function rovidDatum(dStr) {
+        let clean = String(dStr || '').replace(/[^0-9]/g, '');
+        if (clean.length < 8) return dStr || '';
+        let ev = clean.slice(0, 4);
+        let ho = clean.slice(4, 6);
+        let nap = clean.slice(6, 8);
+        return ev === String(new Date().getFullYear()) ? `${ho}.${nap}.` : `${ev}.${ho}.${nap}.`;
+    }
+
     let dataTable = $('#esemenyekTable').DataTable({
         responsive: true,
         language: HU_DT_LANG,
@@ -107,7 +117,27 @@ $(document).ready(function() {
                         : data}</span>`;
                 }
             },
-            { data: 'tantargy' },
+            {
+                data: 'tantargy',
+                render: function(data, type, row) {
+                    if (type !== 'display') return data;
+                    let html = `<span class="mobile-subject-nev">${escapeHtml(data || '-')}</span>`;
+                    let extra = [];
+                    if (row.esemeny_tipus === 'Értékelés') {
+                        let jegy = Number(row.szam_ertek) > 0
+                            ? String(row.szam_ertek)
+                            : (row.ertek && row.ertek !== '-' ? String(row.ertek) : '');
+                        if (jegy) extra.push(`<span class="mobile-jegy">${escapeHtml(jegy)}</span>`);
+                    }
+                    if (row.bej_datum && row.bej_datum !== '-') {
+                        extra.push(`<span class="mobile-datum">${escapeHtml(rovidDatum(row.bej_datum))}</span>`);
+                    }
+                    if (extra.length) {
+                        html += `<span class="mobile-row-extra">${extra.join(' · ')}</span>`;
+                    }
+                    return html;
+                }
+            },
             { 
                 data: null,
                 render: function(data) {
@@ -356,7 +386,11 @@ $(document).ready(function() {
                     if (type !== 'display') return data || '';
                     let safeText = (data || '').replace(/"/g, '&quot;');
                     let dot = row.olvasott ? '' : '<span class="uzenet-status-dot me-1" title="Olvasatlan"></span>';
-                    return `${dot}<span class="cell-truncate" title="${safeText}">${data || '-'}</span>`;
+                    let extra = '';
+                    if (row.idopont && row.idopont !== '-') {
+                        extra = `<span class="mobile-row-extra"><span class="mobile-datum">${escapeHtml(rovidDatum(row.idopont))}</span></span>`;
+                    }
+                    return `${dot}<span class="cell-truncate" title="${safeText}">${data || '-'}</span>${extra}`;
                 }
             },
             { 
