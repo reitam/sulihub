@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v2.7.1` (éles, 2026-11-19); a `v2.7.2` kiadásra kész (mobil finomítás)
+**Jelenlegi verzió:** `v2.7.2` (éles, 2026-11-19); a `v2.7.3` kiadásra kész (Műveletek oszlop + kedvencek eltávolítása)
 
 A verziönkénti release notes a [`docs/releasenotes/`](docs/releasenotes/) mappában
 található (minden verzióhoz külön fájl + index).
@@ -566,7 +566,8 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
-| v2.7.2 | **#153 mobil nézet finomítása:** 44 px diák-oszlop, típus-rövidítés (É/F/HF/SZK), egy sorban tantárgy + rövid dátum + jegy a jobb szélen színes körben; a jegy helye fixen foglalt, ezért a dátum nem csúszik; a külön Érték/Dátum/Típus oszlop mobilon rejtve, a **Műveletek** oszlop mindig látszik (az Elkészült/Újra aktív ikon csak). **UI takarítás:** a nem használt kedvencek/csillag gomb, a Kitűzött események panel és a `/api/kedvencek` végpont eltávolítva |
+| v2.7.3 | **#153 mobil:** a **Műveletek** oszlop mindig látszik (a responsive nem rejti el), a házi feladat Elkészült/Újra aktív gombja mobilon csak ikon; a megjegyzés/részletek gomb minden sornál elérhető. **UI takarítás:** a nem használt kedvencek/csillag gomb, a Kitűzött események panel és a `/api/kedvencek` végpont eltávolítva |
+| v2.7.2 | **#153 mobil nézet finomítása:** 44 px diák-oszlop, típus-rövidítés (É/F/HF/SZK), egy sorban tantárgy + rövid dátum + jegy a jobb szélen színes körben; a jegy helye fixen foglalt, ezért a dátum nem csúszik; a külön Érték/Dátum/Típus oszlop mobilon rejtve |
 | v2.7.1 | **#147 „Bekerült” oszlop:** az Események táblában a leírás után látszik, mikor került az adat a SuliHubba (mai esetén `MA` jelzéssel), a részletek modálban is; a műveletgombok külön **Műveletek** oszlopban. **#153 mobil nézet:** a jegy és a rövid dátum a tantárgy alatt |
 | v2.7.0 | **#139 tanév-archívum:** a tanév lezárásakor egyszeri, ellenőrizhető ZIP a data köteten (`data/tanev_archivum/<év>.zip`): táblánként JSON/CSV, kombinált Excel, diákonkénti PDF-bizonyítvány, manifest + SHA-256; ismételt zárásnál nem duplikál; kézi pótlás `tools/create_tanev_archive.py`; a napi backup a `tanev_archivum/` mappát is viszi. **#147 first seen:** a `letrehozva` oszlop alapján a visszamenőleges dátumú új jegy is mai; digest, szinkron-push, Ma fül és dashboard-számlálók |
 | v2.6.1 | **#146:** a statisztika gyermek-szűrői betöltéskor üresek; üres állapotban súgó; az Áttekintés fülön a gyermek átlagkártyájáról ugrás a Statisztika fülre, a kiválasztott gyermekre, teljes tanévre, lenyitott havi tantárgyi átlagokkal. **UI:** a bal felső SuliHub logó link az Áttekintésre (újratöltés nélküli fülváltás) |
