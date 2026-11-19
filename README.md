@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v2.4.0` (éles, 2026-11-16); a `v2.6.0` élesítésre kész (2026-11-19)
+**Jelenlegi verzió:** `v2.6.0` (éles, 2026-11-19); a `v2.6.1` élesítésre kész (2026-11-19)
 
 A verziönkénti release notes a [`docs/releasenotes/`](docs/releasenotes/) mappában
 található (minden verzióhoz külön fájl + index).
@@ -550,6 +550,7 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
+| v2.6.1 | **#146:** a statisztika gyermek-szűrői betöltéskor üresek; üres állapotban súgó; az Áttekintés fülön a gyermek átlagkártyájáról ugrás a Statisztika fülre, a kiválasztott gyermekre, teljes tanévre, lenyitott havi tantárgyi átlagokkal. **UI:** a bal felső SuliHub logó link az Áttekintésre (újratöltés nélküli fülváltás) |
 | v2.6.x | **#128 értesítési politika:** üres sikeres futás nem küld push-t; új adat esetén futásonként egy üzenet a napi összefoglaló részletességével; hiba mindig, a health-riasztással egy üzenetben; `NOTIFY_NEW`. **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül világos rózsaszínes, bordó kiemelésű szünet-sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő. **UI:** világos rózsaszínes, bordó kiemelésű szünet-sáv (desktopon két sor, teljes szélesség, mobilon rövid); a token-hiba csak 401/403/login esetén jelenik meg, a sikertelen adatkör neve is látszik. A **v2.5.0 Playwright-kivezetés (#64) is benne van** |
 | v2.5.x | **#64 — Playwright teljes kivezetés:** a böngészös scraper, az árnyék-mód (`kreta_shadow.py`) és a `:playwright` Docker target törölve; a szinkron kizárólag a mobil API-ból fut, böngésző nélkül. Az örökölt `api_first`/`playwright` config-értékek figyelmeztetés mellett `api`-ra váltanak. A Playwright csak a **böngészős UI-tesztek** fejlesztői függősége marad. Visszaállás: a `playwright-fallback` git-ág (a v2.4.0 fallbackes kód) |
 | v2.4.x | **Playwright opcionális image (#138):** az alap `runtime` image Chromium és `playwright` csomag nélkül (278 MB), a fallback külön `:playwright` tagben; lazy import + `api` alapmód; **csatolmány-pótlás** `api` módban (max. 3 próba) |
