@@ -3,7 +3,6 @@
 $(document).ready(function() {
     let rawData = [];
     let rawUzenetek = [];
-    let kedvencKulcsok = new Set();
     let syncInterval = null;
     let currentVegosszeg = 0;
     let calendar = null;
@@ -285,16 +284,8 @@ $(document).ready(function() {
                         <i class="fa-solid fa-comment-dots"></i>${data.komment_db ? ' ' + data.komment_db : ''}
                     </button>`;
 
-                    let kedvenc = kedvencKulcsok.has(data.komment_kulcs);
-                    let btnKedvencHtml = `<button class="btn btn-xs btn-outline-warning py-0 px-1 btn-kedvenc"
-                        data-kulcs="${data.komment_kulcs || ''}"
-                        title="${kedvenc ? 'Kitűzés levétele' : 'Kitűzés a dashboardra'}">
-                        <i class="${kedvenc ? 'fa-solid' : 'fa-regular'} fa-star"></i>
-                    </button>`;
-
                     return `<div class="d-flex align-items-center gap-1 justify-content-end">
                         ${btnKeszHtml}
-                        ${btnKedvencHtml}
                         ${btnKommentHtml}
                         ${btnDetailsHtml}
                     </div>`;
@@ -4294,145 +4285,4 @@ $(document).ready(function() {
 
     $('#btnOrarendNyomtat').on('click', nyomtatasiOrarend);
 
-    // ── Kitűzött események (Kaneo #86) ────────────────────────────────────
-    function frissitKedvencIkonok() {
-        $('.btn-kedvenc').each(function() {
-            const kulcs = $(this).data('kulcs');
-            const benne = kulcs && kedvencKulcsok.has(kulcs);
-            $(this).find('i').toggleClass('fa-solid', !!benne).toggleClass('fa-regular', !benne);
-            $(this).attr('title', benne ? 'Kitűzés levétele' : 'Kitűzés a dashboardra');
-        });
-    }
-
-    function renderKedvencek(list) {
-        const $lista = $('#kedvencLista').empty();
-        if (!list || !list.length) {
-            $('#kedvencPanel').addClass('d-none');
-            return;
-        }
-        $('#kedvencPanel').removeClass('d-none');
-        list.forEach(function(e) {
-            const cim = [e.tantargy, e.tema || e.cim].filter(Boolean).join(' – ') || e.esemeny_tipus;
-            const datum = e.hatarido || e.bej_datum;
-            const jegyzet = e.megjegyzes
-                ? `<span class="kedvenc-jegyzet small text-muted ms-2">${escapeHtml(e.megjegyzes)}</span>`
-                : '';
-            $lista.append(`<div class="list-group-item d-flex align-items-center justify-content-between py-1 px-2 kedvenc-sor"
-                    draggable="true" data-kulcs="${escapeHtml(e.kulcs)}">
-                <span class="kedvenc-fogantyú me-2" title="Húzd a sorrendezéshez">☰</span>
-                <button type="button" class="btn btn-link p-0 text-start text-decoration-none flex-grow-1 kedvenc-ugras"
-                        data-diak="${escapeHtml(e.diak_nev)}" data-tipus="${escapeHtml(e.esemeny_tipus)}"
-                        data-tantargy="${escapeHtml(e.tantargy)}">
-                    <span class="badge bg-warning text-dark me-1">${escapeHtml(e.esemeny_tipus)}</span>
-                    <span class="fw-semibold">${escapeHtml(cim)}</span>
-                    <span class="text-muted small ms-1">${escapeHtml(e.diak_nev)}</span>
-                    ${datum ? `<span class="text-muted small ms-2">${escapeHtml(datum)}</span>` : ''}
-                </button>
-                ${jegyzet}
-                <button type="button" class="btn btn-sm btn-link text-secondary p-0 ms-2 kedvenc-jegyzet-szerk"
-                        data-kulcs="${escapeHtml(e.kulcs)}" data-jegyzet="${escapeHtml(e.megjegyzes || '')}"
-                        title="Megjegyzés szerkesztése">
-                    <i class="fa-regular fa-pen-to-square"></i>
-                </button>
-                <button type="button" class="btn btn-sm btn-link text-warning p-0 ms-2 kedvenc-torol"
-                        data-kulcs="${escapeHtml(e.kulcs)}" title="Kitűzés levétele">
-                    <i class="fa-solid fa-star"></i>
-                </button>
-            </div>`);
-        });
-    }
-
-    function betoltKedvencek() {
-        $.getJSON('/api/kedvencek', function(res) {
-            kedvencKulcsok = new Set(res.kulcsok || []);
-            renderKedvencek(res.esemenyek || []);
-            frissitKedvencIkonok();
-        });
-    }
-
-    function kedvencValtas(kulcs) {
-        if (!kulcs) return;
-        const akcio = kedvencKulcsok.has(kulcs) ? 'remove' : 'add';
-        $.ajax({
-            url: '/api/kedvencek',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({kulcs: kulcs, akcio: akcio})
-        }).done(function(res) {
-            kedvencKulcsok = new Set(res.kulcsok || []);
-            renderKedvencek(res.esemenyek || []);
-            frissitKedvencIkonok();
-        });
-    }
-
-    $('#esemenyekTable').on('click', '.btn-kedvenc', function(e) {
-        e.stopPropagation();
-        kedvencValtas($(this).data('kulcs'));
-    });
-
-    $('#kedvencLista').on('click', '.kedvenc-ugras', function() {
-        goToEvents({
-            diak: $(this).data('diak') || '', tipus: $(this).data('tipus') || '',
-            tantargy: $(this).data('tantargy') || '',
-            status: '', kezdo: '', zaro: '', hatKezdo: '', hatZaro: ''
-        });
-    });
-
-    $('#kedvencLista').on('click', '.kedvenc-torol', function(e) {
-        e.stopPropagation();
-        kedvencValtas($(this).data('kulcs'));
-    });
-
-    // Megjegyzés a kitűzött tételhez (Kaneo #108).
-    $('#kedvencLista').on('click', '.kedvenc-jegyzet-szerk', function(e) {
-        e.stopPropagation();
-        const kulcs = $(this).data('kulcs');
-        const jelenlegi = $(this).data('jegyzet') || '';
-        const uj = window.prompt('Megjegyzés a kitűzött tételhez (max. 200 karakter):', jelenlegi);
-        if (uj === null) return;
-        $.ajax({
-            url: '/api/kedvencek',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({akcio: 'note', kulcs: kulcs, megjegyzes: uj})
-        }).done(function(res) {
-            renderKedvencek(res.esemenyek || []);
-        });
-    });
-
-    // Húzásos sorrendezés (Kaneo #108) — a sorrend app_meta-ba mentve.
-    $('#kedvencLista').on('dragstart', '.kedvenc-sor', function(e) {
-        $(this).addClass('kedvenc-drag');
-        try {
-            e.originalEvent.dataTransfer.effectAllowed = 'move';
-            e.originalEvent.dataTransfer.setData('text/plain', $(this).data('kulcs') || '');
-        } catch (err) { /* régi böngésző */ }
-    });
-    $('#kedvencLista').on('dragover', '.kedvenc-sor', function(e) {
-        e.preventDefault();
-        const $sor = $(this);
-        const $drag = $('.kedvenc-sor.kedvenc-drag');
-        if (!$drag.length || $drag[0] === $sor[0]) return;
-        const y = e.originalEvent.clientY - $sor[0].getBoundingClientRect().top;
-        if (y > $sor.outerHeight() / 2) $drag.insertAfter($sor);
-        else $drag.insertBefore($sor);
-    });
-    $('#kedvencLista').on('drop', '.kedvenc-sor', function(e) { e.preventDefault(); });
-    $('#kedvencLista').on('dragend', '.kedvenc-sor', function() {
-        $(this).removeClass('kedvenc-drag');
-        const kulcsok = $('#kedvencLista .kedvenc-sor').map(function() {
-            return $(this).data('kulcs');
-        }).get();
-        $.ajax({
-            url: '/api/kedvencek',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({akcio: 'order', kulcsok: kulcsok})
-        }).done(function(res) {
-            kedvencKulcsok = new Set(res.kulcsok || []);
-            renderKedvencek(res.esemenyek || []);
-        });
-    });
-
-    betoltKedvencek();
 });

@@ -324,9 +324,6 @@
         .dash-tile .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
         .dash-tile .kpi-title { font-size: 1.05rem; font-weight: 700; color: #343a40; }
         .dash-tile .kpi-caption { font-size: .72rem; line-height: 1.15; }
-        .kedvenc-fogantyú { cursor: grab; color: #adb5bd; user-select: none; }
-        .kedvenc-drag { opacity: .5; }
-        .kedvenc-jegyzet { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         /* Ma / Hét nézet (Kaneo #104): kétsávos, középre igazított napkártyák */
         .ma-het-wrap { max-width: 780px; }
         .ma-het-grid {
@@ -1239,13 +1236,6 @@
                 <span id="diakOsszesitoInfo" class="small fw-normal text-muted"></span>
             </div>
             <div class="row g-2 row-cols-1 row-cols-md-2 row-cols-xl-3" id="dashboardDiakCards"></div>
-
-            <div class="card dash-panel bg-white mt-2 d-none" id="kedvencPanel">
-                <div class="card-header bg-white py-1 px-2 fw-bold small">
-                    <i class="fa-solid fa-star text-warning me-1"></i>Kitűzött események
-                </div>
-                <div class="list-group list-group-flush" id="kedvencLista"></div>
-            </div>
 
             <div class="row g-2 mt-2">
                 <div class="col-12 col-lg-6">

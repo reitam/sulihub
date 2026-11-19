@@ -5,14 +5,13 @@ Események (KRÉ-14 #95): eseménylista, kész-jelölés, naptár-események.
 Az `app.py`-ból kiemelve, viselkedésváltozás nélkül. Prefix nélküli blueprint —
 az URL-ek változatlanok.
 """
-import json
 import os
 from datetime import datetime
 
 from flask import jsonify, request
 
 from kreta_db import (
-    get_db_connection, get_meta, komment_kulcs_esemeny, komment_szamok, set_meta,
+    get_db_connection, komment_kulcs_esemeny, komment_szamok,
 )
 from kreta_paths import DB_FILE
 from views_common import _tanev_from_request, contrast_text, make_bp, normalize_date, tantargy_kulcs
@@ -216,118 +215,3 @@ def api_esemeny_statusz():
 
 
 # ==============================================================================
-# === KITŰZÖTT ESEMÉNYEK (Kaneo #86) ===========================================
-# ==============================================================================
-KEDVENC_META = "kedvencek"
-
-
-def _kedvencek_bejegyzesek():
-    """A kitűzött tételek sorrendben: `[{kulcs, megjegyzes}, ...]` (Kaneo #108).
-
-    Régi formátum (puszta kulcslista) is olvasható.
-    """
-    raw = get_meta(KEDVENC_META, "") or ""
-    try:
-        data = json.loads(raw)
-    except (TypeError, ValueError):
-        return []
-    if not isinstance(data, list):
-        return []
-    out = []
-    for item in data:
-        if isinstance(item, str) and item.strip():
-            out.append({"kulcs": item.strip(), "megjegyzes": ""})
-        elif isinstance(item, dict) and str(item.get("kulcs") or "").strip():
-            out.append({"kulcs": str(item["kulcs"]).strip(),
-                        "megjegyzes": str(item.get("megjegyzes") or "")})
-    return out
-
-
-def _kedvencek_ment(bejegyzesek):
-    set_meta(KEDVENC_META, json.dumps(bejegyzesek, ensure_ascii=False))
-
-
-def _kedvencek_lista():
-    return [x["kulcs"] for x in _kedvencek_bejegyzesek()]
-
-
-def _kedvencek_valasz(bejegyzesek):
-    """A kitűzött tételekhez tartozó események, a mentett sorrendben."""
-    kulcsok = [x["kulcs"] for x in bejegyzesek]
-    jegyzet = {x["kulcs"]: x["megjegyzes"] for x in bejegyzesek}
-    talalt = {}
-    if kulcsok and os.path.exists(DB_FILE):
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM esemenyek ORDER BY id DESC")
-        for row in cursor.fetchall():
-            kulcs = komment_kulcs_esemeny(row)
-            if kulcs not in kulcsok or kulcs in talalt:
-                continue
-            keys = row.keys()
-            talalt[kulcs] = {
-                "kulcs": kulcs,
-                "id": row["id"],
-                "diak_nev": row["diak_nev"] or "",
-                "esemeny_tipus": row["esemeny_tipus"] or "",
-                "tantargy": (row["tantargy"] if "tantargy" in keys else "") or "-",
-                "tema": (row["tema"] if "tema" in keys else "") or "",
-                "cim": (row["cim"] if "cim" in keys else "") or "",
-                "hatarido": (row["hatarido"] if "hatarido" in keys else "") or "",
-                "bej_datum": (row["bej_datum"] if "bej_datum" in keys else "") or "",
-            }
-        conn.close()
-    esemenyek = []
-    for kulcs in kulcsok:
-        if kulcs in talalt:
-            e = dict(talalt[kulcs])
-            e["megjegyzes"] = jegyzet.get(kulcs, "")
-            esemenyek.append(e)
-    return {"kulcsok": kulcsok, "esemenyek": esemenyek}
-
-
-@bp.route("/api/kedvencek", methods=["GET", "POST"])
-def api_kedvencek():
-    """Dashboardra kitűzött események (Kaneo #86).
-
-    GET: `{kulcsok: [...], esemenyek: [...]}`.
-    POST: `{kulcs, akcio: "add"|"remove"|"toggle"}` — a válasz a friss lista.
-    A kulcs a stabil tartalom-kulcs (`komment_kulcs`), ezért a szinkron nem töri el.
-    """
-    bejegyzesek = _kedvencek_bejegyzesek()
-    if request.method == "POST":
-        data = request.get_json(silent=True) or {}
-        kulcs = str(data.get("kulcs") or "").strip()
-        akcio = str(data.get("akcio") or "toggle").lower()
-
-        if akcio == "order":
-            # Húzásos sorrend mentése (Kaneo #108): a meglévő tételek közül
-            # a megadott sorrend, a kimaradók a végére kerülnek.
-            kert = [str(k).strip() for k in (data.get("kulcsok") or []) if str(k).strip()]
-            meglevo = {x["kulcs"]: x for x in bejegyzesek}
-            uj = [meglevo[k] for k in kert if k in meglevo]
-            uj += [x for x in bejegyzesek if x["kulcs"] not in set(kert)]
-            _kedvencek_ment(uj)
-            return jsonify(_kedvencek_valasz(uj))
-
-        if not kulcs:
-            return jsonify({"status": "error", "message": "Hiányzó kulcs"}), 400
-
-        if akcio == "note":
-            megjegyzes = str(data.get("megjegyzes") or "").strip()[:200]
-            for x in bejegyzesek:
-                if x["kulcs"] == kulcs:
-                    x["megjegyzes"] = megjegyzes
-                    break
-            else:
-                bejegyzesek.append({"kulcs": kulcs, "megjegyzes": megjegyzes})
-            _kedvencek_ment(bejegyzesek)
-            return jsonify(_kedvencek_valasz(bejegyzesek))
-
-        benne = kulcs in [x["kulcs"] for x in bejegyzesek]
-        if akcio in ("add", "toggle") and not benne:
-            bejegyzesek.append({"kulcs": kulcs, "megjegyzes": ""})
-        elif akcio in ("remove", "toggle") and benne:
-            bejegyzesek = [x for x in bejegyzesek if x["kulcs"] != kulcs]
-        _kedvencek_ment(bejegyzesek)
-    return jsonify(_kedvencek_valasz(bejegyzesek))
