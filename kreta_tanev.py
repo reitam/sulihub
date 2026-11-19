@@ -236,9 +236,21 @@ def ensure_tanev_schema(conn, log_fn=print) -> list[str]:
     return added
 
 
-def ensure_first_seen_schema(conn, log_fn=print):
-    """`letrehozva` oszlop + backfill a régi sorokra (#147), idempotensen."""
+def ensure_first_seen_schema(conn, log_fn=print, recent_days: int = 7):
+    """`letrehozva` oszlop + backfill a régi sorokra (#147), idempotensen.
+
+    A valódi „mikor került be” időpont a bevezetés előtti soroknál nem ismert.
+    Ezért az **első** feltöltésnél (amikor az oszlop most jön létre, vagy még
+    minden értéke üres) a legutóbbi ``recent_days`` nap sorai a mostani
+    időpontot kapják — ezek a felhasználó számára ténylegesen újak, csak a
+    KRÉTA visszamenőleges dátumot adott nekik. A régebbi sorok a KRÉTA-dátumot
+    kapják, így nem jelennek meg visszamenőleg „újként”. Későbbi pótlásnál
+    (részleges NULL-ok) már csak a KRÉTA-dátum a fallback.
+    """
     cur = conn.cursor()
+    now = datetime.now()
+    now_stamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    recent_cutoff = now.date() - timedelta(days=max(0, int(recent_days)))
     for table, date_col in (
         ("esemenyek", "bej_datum"),
         ("uzenetek", "idopont"),
@@ -251,7 +263,8 @@ def ensure_first_seen_schema(conn, log_fn=print):
             continue
         if not cols:
             continue
-        if "letrehozva" not in cols:
+        created = "letrehozva" not in cols
+        if created:
             cur.execute(f"ALTER TABLE {table} ADD COLUMN letrehozva TEXT")
             if log_fn:
                 log_fn(f"[Adatbázis séma frissítve]: '{table}.letrehozva' hozzáadva.")
@@ -259,10 +272,22 @@ def ensure_first_seen_schema(conn, log_fn=print):
             rows = cur.execute(
                 f"SELECT id, {date_col} FROM {table}"
                 " WHERE letrehozva IS NULL OR letrehozva = ''").fetchall()
+            total = cur.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            # Ha a teljes oszlop üres, ez az első feltöltés (pl. megszakadt
+            # migráció után is), ilyenkor a friss sorok „most” értéket kapnak.
+            initial = created or (total > 0 and len(rows) == total)
+            friss = 0
             for rid, value in rows:
                 day = parse_date(value)
-                stamp = (day.isoformat() + " 00:00:00") if day else "1970-01-01 00:00:00"
+                if initial and day is not None and day >= recent_cutoff:
+                    stamp = now_stamp
+                    friss += 1
+                else:
+                    stamp = (day.isoformat() + " 00:00:00") if day else "1970-01-01 00:00:00"
                 cur.execute(f"UPDATE {table} SET letrehozva = ? WHERE id = ?", (stamp, rid))
+            if friss and log_fn:
+                log_fn(f"[Adatbázis séma] {table}: {friss} friss sor a mostani időpontra állítva."
+                       " (A KRÉTA visszamenőleges dátumot adott ezekre.)")
         except sqlite3.Error as exc:
             if log_fn:
                 log_fn(f"[Adatbázis séma] {table}.letrehozva backfill kihagyva: {exc}")

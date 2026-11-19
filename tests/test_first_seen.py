@@ -5,7 +5,8 @@ A „mikor került be a saját DB-be” időpont (Kaneo #147) tesztjei.
 A KRÉTA gyakran visszamenőleges bejegyzés-dátummal adja az új jegyet, ezért a
 digest / „új” jelölés a `letrehozva` (first seen) időpontot használja:
 
-1) a migráció a régi sorokat a KRÉTA-dátumból tölti fel (nem lesznek „újak”),
+1) az első migráció a 7 napon belüli sorokat a mostani időpontra állítja
+   (ezek a szülőnek ténylegesen újak), a régebbieket a KRÉTA-dátumból tölti fel,
 2) a mai `letrehozva` + régi `bej_datum` jegy megjelenik a digestben és a
    `/api/ma` friss jegyei közt,
 3) a régi beszúrású sor nem jelenik meg mai újként,
@@ -76,7 +77,31 @@ def letrehozva_ertek(tantargy):
 MA = date(2026, 11, 19)
 TEGNAP = MA - timedelta(days=1)
 
-print("1) Migráció: a régi sor `letrehozva` értéke a KRÉTA-dátumból jön")
+print("1) Migráció: az első feltöltés a friss sorokat a mostani időpontra állítja")
+legacy = work / "legacy.db"
+lc = sqlite3.connect(str(legacy))
+lc.execute(
+    "CREATE TABLE esemenyek (id INTEGER PRIMARY KEY AUTOINCREMENT, diak_nev TEXT,"
+    " esemeny_tipus TEXT, tantargy TEXT, ertek TEXT, szam_ertek INTEGER, bej_datum TEXT,"
+    " hatarido TEXT, tartalom TEXT, kesz INTEGER, tanev TEXT)")
+lc.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum)"
+    " VALUES ('Teszt', 'Értékelés', 'Friss', '2026. 11. 18.')")
+lc.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum)"
+    " VALUES ('Teszt', 'Értékelés', 'Régi', '2025. 03. 04.')")
+lc.commit()
+kreta_tanev.ensure_first_seen_schema(lc, log_fn=None)
+friss = lc.execute(
+    "SELECT letrehozva FROM esemenyek WHERE tantargy = 'Friss'").fetchone()[0]
+regi = lc.execute(
+    "SELECT letrehozva FROM esemenyek WHERE tantargy = 'Régi'").fetchone()[0]
+lc.close()
+ok(bool(friss) and friss.startswith(date.today().isoformat()),
+   f"a 7 napon belüli sor a migráció időpontját kapja: {friss}")
+ok(regi == "2025-03-04 00:00:00", f"a régi sor a KRÉTA-dátumot kapja: {regi}")
+
+print("\n1b) A nagyon régi sor `letrehozva` értéke a KRÉTA-dátumból jön")
 conn = sqlite3.connect(str(k.DB_FILE))
 conn.execute(
     "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
@@ -91,6 +116,22 @@ row = conn.execute(
 conn.close()
 ok(row and row[0] == "2025-03-04 00:00:00",
    f"a backfill a bej_datum napja: {row[0] if row else None}")
+
+print("\n1c) Nem első feltöltésnél (részleges NULL) a KRÉTA-dátum marad")
+conn = sqlite3.connect(str(k.DB_FILE))
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
+    " bej_datum, hatarido, tartalom, kesz, tanev, letrehozva)"
+    " VALUES ('Teszt', 'Értékelés', 'Német', '4', 4, '2026. 11. 18.', '', '', 0,"
+    " '2026/2027', NULL)")
+conn.commit()
+kreta_tanev.ensure_first_seen_schema(conn, log_fn=None)
+row = conn.execute(
+    "SELECT letrehozva FROM esemenyek WHERE diak_nev = 'Teszt' AND tantargy = 'Német'"
+).fetchone()
+conn.close()
+ok(row and row[0] == "2026-11-18 00:00:00",
+   f"a későbbi pótlás a KRÉTA-dátumot használja: {row[0] if row else None}")
 
 print("\n2) Régi bej_datum + mai letrehozva -> mai új jegy")
 conn = sqlite3.connect(str(k.DB_FILE))
@@ -137,6 +178,13 @@ ok(angol.get("letrehozva") == "2026-11-19", f"a letrehozva mező is jön: {angol
 ok(angol.get("bej_datum") == "2026-09-15", f"a bej_datum megmarad: {angol}")
 
 print("\n5) Teljes cserés mentés megőrzi a letrehozva értéket")
+# A korábbi szakaszok teszt-sorai ne zavarják az arányőrt (1 Kémia / 1 Angol).
+conn = sqlite3.connect(str(k.DB_FILE))
+conn.execute(
+    "DELETE FROM esemenyek WHERE diak_nev = 'Teszt' AND esemeny_tipus = 'Értékelés'"
+    " AND tantargy IN ('Fizika', 'Német')")
+conn.commit()
+conn.close()
 jegy = {"esemeny_tipus": "Értékelés", "tantargy": "Kémia", "ertek": "5",
         "szam_ertek": 5, "bej_datum": "2026. 09. 01."}
 k.save_esemenyek_by_type("Teszt", [jegy], set(), ["Értékelés"])
