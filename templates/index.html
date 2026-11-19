@@ -62,15 +62,15 @@
             background: #ffffff; border-color: #c7d7ee; box-shadow: 0 2px 8px rgba(13, 110, 253, .10);
         }
         .app-info-icon { color: #94a3b8; }
-        /* Szinkron-szünet sáv (Kaneo #145) — bordó, white text, hangsúlyos */
+        /* Szinkron-szünet sáv (Kaneo #145) — finom, rózsaszínes háttér, bordó kiemelés */
         .szunet-banner {
             display: flex; align-items: center; gap: .9rem;
             padding: 1rem 1.15rem; margin-bottom: .9rem;
-            border: 1px solid #5c1420; border-left: 8px solid #ffb703;
+            border: 1px solid #f0d3d7; border-left: 6px solid #8b1e2d;
             border-radius: .7rem;
-            background: linear-gradient(100deg, #8b1e2d 0%, #6e1622 55%, #4f0f18 100%);
-            box-shadow: 0 8px 22px rgba(80, 12, 22, .35);
-            color: #fff; font-size: .98rem; line-height: 1.5;
+            background: linear-gradient(100deg, #fff6f6 0%, #fffafa 55%, #ffffff 100%);
+            box-shadow: 0 4px 14px rgba(139, 30, 45, .08);
+            color: #5b1a24; font-size: .98rem; line-height: 1.5;
         }
         .szunet-banner .szunet-body {
             flex: 1 1 auto; min-width: 0;
@@ -85,32 +85,46 @@
         .szunet-banner .szunet-icon {
             flex: 0 0 auto; width: 2.6rem; height: 2.6rem; border-radius: 50%;
             display: inline-flex; align-items: center; justify-content: center;
-            background: rgba(255, 255, 255, .16); color: #fff;
-            border: 1px solid rgba(255, 255, 255, .4); font-size: 1.2rem;
+            background: #8b1e2d; color: #fff;
+            border: 1px solid #8b1e2d; font-size: 1.2rem;
         }
         .szunet-banner .szunet-title {
-            font-weight: 800; font-size: 1.05rem; color: #fff;
+            font-weight: 800; font-size: 1.05rem; color: #6e1622;
             letter-spacing: .01em; margin-bottom: 0;
         }
         .szunet-banner .szunet-title .badge {
             font-size: .65rem; letter-spacing: .08em; vertical-align: .14em;
-            background: #fff; color: #8b1e2d; font-weight: 800;
+            background: #8b1e2d; color: #fff; font-weight: 800;
         }
-        .szunet-banner .szunet-dates { white-space: nowrap; font-weight: 700; color: #ffe1a8; }
-        .szunet-banner .szunet-meta { color: #f6dde0; font-size: .92rem; min-width: 0; }
+        .szunet-banner .szunet-dates { white-space: nowrap; font-weight: 700; color: #8b1e2d; }
+        .szunet-banner .szunet-meta { color: #6b4a4f; font-size: .92rem; min-width: 0; }
         .szunet-banner .szunet-daily {
             display: inline-flex; align-items: center; gap: .35rem;
             justify-self: end; padding: .22rem .65rem; border-radius: 999px;
-            background: rgba(255, 255, 255, .15); border: 1px solid rgba(255, 255, 255, .4);
-            font-weight: 700; color: #fff; font-size: .86rem; white-space: nowrap;
+            background: #fff; border: 1px solid #e8c9cd;
+            font-weight: 700; color: #6e1622; font-size: .86rem; white-space: nowrap;
         }
-        .szunet-banner .szunet-daily i { color: #ffd166; }
+        .szunet-banner .szunet-daily i { color: #b8860b; }
         .szunet-banner .szunet-daily-short { display: none; }
         [data-bs-theme="dark"] .szunet-banner {
-            background: linear-gradient(100deg, #7a1a28 0%, #5c121d 55%, #3d0b12 100%);
-            border-color: #3d0b12; border-left-color: #ffb703;
-            box-shadow: 0 8px 22px rgba(0, 0, 0, .5);
+            background: linear-gradient(100deg, #2b171a 0%, #241316 55%, #1d0f11 100%);
+            border-color: #4a1c24; border-left-color: #c24152;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
+            color: #f3dde0;
         }
+        [data-bs-theme="dark"] .szunet-banner .szunet-icon {
+            background: #a83244; border-color: #a83244;
+        }
+        [data-bs-theme="dark"] .szunet-banner .szunet-title { color: #ffd7dc; }
+        [data-bs-theme="dark"] .szunet-banner .szunet-title .badge {
+            background: #a83244; color: #fff;
+        }
+        [data-bs-theme="dark"] .szunet-banner .szunet-dates { color: #ffb3bd; }
+        [data-bs-theme="dark"] .szunet-banner .szunet-meta { color: #d9bfc3; }
+        [data-bs-theme="dark"] .szunet-banner .szunet-daily {
+            background: #3a1d22; border-color: #6b2a35; color: #ffd7dc;
+        }
+        [data-bs-theme="dark"] .szunet-banner .szunet-daily i { color: #ffd166; }
         @media (max-width: 767.98px) {
             .szunet-banner { align-items: flex-start; padding: .8rem .9rem; gap: .6rem; }
             .szunet-banner .szunet-body { display: block; }
