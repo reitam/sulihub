@@ -121,21 +121,18 @@ $(document).ready(function() {
                 data: 'tantargy',
                 render: function(data, type, row) {
                     if (type !== 'display') return data;
-                    let html = `<span class="mobile-subject-nev">${escapeHtml(data || '-')}</span>`;
-                    let extra = '';
+                    let html = `<span class="mobile-subject-line"><span class="mobile-subject-nev">${escapeHtml(data || '-')}</span>`;
                     if (row.esemeny_tipus === 'Értékelés') {
                         let jegy = Number(row.szam_ertek) > 0 ? Number(row.szam_ertek) : 0;
                         if (jegy) {
-                            extra += `<span class="jegy-kor ${jegySzin(jegy)}">${jegy}</span>`;
+                            html += `<span class="jegy-kor ${jegySzin(jegy)}">${jegy}</span>`;
                         } else if (row.ertek && row.ertek !== '-') {
-                            extra += `<span class="mobile-jegy-szoveg">${escapeHtml(String(row.ertek))}</span>`;
+                            html += `<span class="mobile-jegy-szoveg">${escapeHtml(String(row.ertek))}</span>`;
                         }
                     }
+                    html += `</span>`;
                     if (row.bej_datum && row.bej_datum !== '-') {
-                        extra += `<span class="mobile-datum">${escapeHtml(rovidDatum(row.bej_datum))}</span>`;
-                    }
-                    if (extra) {
-                        html += `<span class="mobile-row-extra">${extra}</span>`;
+                        html += `<span class="mobile-row-extra"><span class="mobile-datum">${escapeHtml(rovidDatum(row.bej_datum))}</span></span>`;
                     }
                     return html;
                 }
