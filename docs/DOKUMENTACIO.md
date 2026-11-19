@@ -368,7 +368,7 @@ az eseménylista időszak-szűrője nem befolyásolja. A tételes válasz a
 `/api/jegy_kalkulator` végponton is elérhető (`tobb`, `sulyok`, `szukseges_atlag`,
 `szimulalt_atlag`, `felevi_*`, `jegyek`).
 
-### 2.12. UX csomag: sötét mód, nyomtatás, kedvencek (Kaneo #86)
+### 2.12. UX csomag: sötét mód, nyomtatás (Kaneo #86)
 
 - **Sötét mód:** fejléc-gomb, Bootstrap 5.3 `data-bs-theme`; a választás `localStorage`-ban marad.
   A körvonalas vezérlők (gyermek-chipek, Nyomtatás) sötét módban is olvasható színt kapnak;
@@ -379,11 +379,9 @@ az eseménylista időszak-szűrője nem befolyásolja. A tételes válasz a
 - **Nyomtatásbarát heti órarend:** a Heti órarend fülön **„Nyomtatás”** — A4 fekvő, nagy
   betűs, színes táblázat (diákonként, nap × időpont), böngésző-nyomtatással. A nyomtatási
   fejléc (a dokumentum címe) **„SuliHub – Órarend – gyermek – hétfő–vasárnap”** formátumú.
-- **Kitűzött események:** az eseménysorban a **csillag** gomb az Áttekintésre tűzi a tételt
-  (stabil tartalom-kulccsal, `app_meta`); a dashboardon megjelenő panelről egy kattintással
-  a szűrt listára lehet ugrani vagy le lehet venni. **Kaneo #108:** a tételek **húzással
-  sorrendezhetők** (a sorrend `app_meta`-ban marad), és mindegyikhez **rövid megjegyzés**
-  fűzhető (ceruza ikon).
+- **Kedvencek (eltávolítva, 2026-11-19, v2.7.2):** a nem használt csillag gomb, a
+  „Kitűzött események” dashboard-panel és a `/api/kedvencek` végpont kikerült; a
+  helyet a mobil/asztali táblázat művelet-oszlopa és a tömörebb sorok kapják.
 
 ### 2.13. Tantárgyi trend és hiányzás-mintázat (Kaneo #80)
 
@@ -1087,7 +1085,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
    - a részletek modálban „Bekerült a SuliHubba” sor;
    - mobilon a tantárgy alatt a jegy + rövid dátum (a v2.7.1 első mobil köre);
    - `Ctrl+F5` után a böngésző a friss JS-t/HTML-t mutatja;
-   - a művelet-oszlop (részletek/kedvenc/megjegyzés) nem préselődik össze.
+   - a művelet-oszlop (részletek/megjegyzés) nem préselődik össze.
 3. **Visszaállás:** az előző v2.7.0 tag/image.
 
 #### 7.3.8. v2.7.2 (mobil finomítás, #153) élesítési ellenőrzőlista
@@ -1405,7 +1403,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v2.1.2** *(kiadásra kész)* | **2026-11-08** | **#120** az Iskolai események **szűrőpanelje alapból zárva** van, a fejlécére kattintva nyílik (a dashboard-csempéről érkezve is zárva marad; a szűrő továbbra is érvényesül). **#115** (Tailscale/WireGuard távoli elérés) és **#119** (SQLite vs MySQL/PostgreSQL) **elemzés** a jegyekben, kódváltozás nélkül. **1340 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/197) |
 | **v2.1.3** *(kiadásra kész)* | **2026-11-08** | **#121** a szűrőpanel a felső menüsor **alá** került (a menüsor nem ugrál a fülek között). **#82** A4-es **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve (`riportkartyak` tábla + data kötet), visszamenőleges lista/letöltés; a hivatalos félévi jegy hiányát jelzi. **#83** **Excel exportok**: események (Jegyek/Feljegyzések/Házi feladatok) és hiányzások (Hiányzások/Igazolások) a felület szűrőivel. **#90** üzemeltetési ellenőrzések: havi **restore-teszt** (`tools/backup_restore_check.py`, manifest-tel) + éjszakai **élő füstteszt** (`tools/live_smoke.py`, CI job, secret nélkül kimarad). **1411 ellenőrzés / 47 csomag** (fast 42/1212, browser 5/199) |
 | **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** az **aktuális bizonyítvány** (a felületi kártya és a PDF fejléce is ezt a nevet viseli) **mentés/előzmény nélkül**, mindig közvetlenül generálódik (`GET /api/riportkartya/export_pdf`); a fő címe a tanévet és az időszakot mutatja („SuliHub - \<gyerek\> - 2026/2027 1. félév”), **dísz-bizonyítvány** kivitelben (arany keret, pecsét, serif címek), a tantárgyi táblában nincs Db oszlop, a jegyek jegyenként összesítve („Jeles(5) - 3 db ; Jó(4) - 2 db”), a magatartás/szorgalom értékelés benne van, a zsebpénz-egyenleg csak engedélyezett modulnál, a **Feljegyzések** szekció nincs. A félévi/év végi hivatalos jegy beépítése külön backlog (#123/#124). **#125** kódszemle-javítások: riport hiányzás-óraszám, FTS ékezet/kis-nagybetű, adatminőség-typo, csatolmány-rekurzió, órarend arányőr, silent JSON, dupla `.bak`, `/api/esemenyek` limit/offset. **#104** **Ma/Hét** nézet a Ma fülön: a heti nézet **kétoszlopos, középre igazított napkártyák** (az események szerinti színekkel, páratlan darabszámnál középre tett utolsó kártyával), a **havi nézet elhagyva**. **Új SuliHub logó mindenhol:** fejléc (embléma + név), favicon/apple-touch ikon, valamint a PDF-bizonyítvány fejléce (a teljes logó a cím fölött). **1488 ellenőrzés / 50 csomag** (fast 45/1286, browser 5/202) |
-| **v2.7.2** *(kiadásra kész)* | **2026-11-19** | **#153 mobil nézet finomítása:** 44 px diák-oszlop, a sor elején a típus rövidítése (`É`/`F`/`HF`/`SZK`), egy sorban a tantárgy + rövid dátum + jegy a jobb szélen színes körben; a **jegy helye fixen foglalt**, ezért a dátum nem csúszik; a külön Érték/Dátum/Típus oszlop mobilon rejtve; a részletek lenyitva változatlanok |
+| **v2.7.2** *(kiadásra kész)* | **2026-11-19** | **#153 mobil nézet finomítása:** 44 px diák-oszlop, a sor elején a típus rövidítése (`É`/`F`/`HF`/`SZK`), egy sorban a tantárgy + rövid dátum + jegy a jobb szélen színes körben; a **jegy helye fixen foglalt**, ezért a dátum nem csúszik; a külön Érték/Dátum/Típus oszlop mobilon rejtve; a részletek lenyitva változatlanok. **UI takarítás:** a nem használt kedvencek/csillag gomb, a Kitűzött események panel és a `/api/kedvencek` végpont eltávolítva |
 | **v2.7.1** *(éles 2026-11-19)* | **2026-11-19** | **#147 Bekerült oszlop:** az Események táblában a „Részletek / Leírás” után **közvetlenül** új **Bekerült** oszlop mutatja, mikor került az adat a SuliHubba (mai esetén `MA` jelzéssel); a műveletgombok külön **Műveletek** oszlopban vannak; a részletek modálban is. **#153 mobil nézet:** a jegy és a rövid dátum a tantárgy alatt |
 | **v2.7.0** *(éles 2026-11-19)* | **2026-11-19** | **#139 Tanév-archívum:** a tanév lezárásakor egyszeri, ellenőrizhető ZIP a data köteten (`data/tanev_archivum/<év>.zip`): táblánként JSON/CSV a tanévre szűrve, kombinált Excel, diákonkénti PDF-bizonyítvány, `manifest.json` + belső/külső SHA-256; idempotens (ismételt zárásnál nem duplikál); kézi pótlás `tools/create_tanev_archive.py`; a napi backup a `tanev_archivum/` mappát is viszi. Adatvédelmi megjegyzés a 3.2.5-ben. **#147 First seen:** a `letrehozva` oszlop (séma v5) az `esemenyek`/`uzenetek`/`hianyzasok`/`igazolasok` táblán; a digest, a szinkron-push, a `/api/ma` és a felületi „mai” jelölés a saját DB-be kerülés idejét használja, így a visszamenőleges dátumú új jegyek is megjelennek; az első migráció a 7 napon belüli sorokat mostani időpontra állítja, a régebbieket a KRÉTA-dátumból tölti fel; a teljes cserés mentés megőrzi az időpontot; új teszt: `test_first_seen` |
 | **v2.6.1** *(éles 2026-11-19)* | **2026-11-19** | **#146 Statisztika UX:** a gyermek-szűrők (`#rewardFilterDiak`, `#riportDiak`) betöltéskor **üresek**, nincs auto-kiválasztás; üres állapotban súgó, a statisztika/bizonyítvány rejtve. Az Áttekintés fülön a gyermek **átlagkártyája** kattintható: Statisztika fül, kiválasztott gyermek, **teljes tanév** (`tanevHatarok`), lenyitott **havi tantárgyi átlagok**, odagörgetés. **UI:** a bal felső SuliHub logó link az Áttekintésre (újratöltés nélküli fülváltás, Ctrl/Cmd/Shift új lap). Tesztek: `test_dashboard`, `test_mobile_layout`; teljes csomag zöld |
