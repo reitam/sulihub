@@ -23,7 +23,15 @@
     <script src="{{ url_for('static', filename='vendor/fullcalendar/6.1.8/locales/hu.global.min.js') }}"></script>
 
     <style>
-        body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 0.9rem; }
+        body {
+            min-height: 100vh;
+            background-color: #f6f8fc;
+            background-image:
+                radial-gradient(1100px 520px at 100% 0%, rgba(64, 110, 255, .06), transparent 62%),
+                linear-gradient(225deg, #fcfdff 0%, #f5f8ff 55%, #f8f4ff 100%);
+            background-repeat: no-repeat;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 0.9rem;
+        }
         .card-stat { border-radius: 8px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 
         /* Fejléc: egysoros, kompakt navbar (Kaneo #62/#63) */
@@ -678,7 +686,12 @@
             }
         }
         /* ── Sötét mód (Kaneo #86) — Bootstrap 5.3 data-bs-theme + saját felületek ── */
-        [data-bs-theme="dark"] body { background-color: #121517; }
+        [data-bs-theme="dark"] body {
+            background-color: #0f131a;
+            background-image:
+                radial-gradient(1100px 520px at 100% 0%, rgba(70, 110, 255, .10), transparent 62%),
+                linear-gradient(225deg, #11161f 0%, #121722 55%, #151226 100%);
+        }
         [data-bs-theme="dark"] .bg-white,
         [data-bs-theme="dark"] .card-stat,
         [data-bs-theme="dark"] .navbar,
