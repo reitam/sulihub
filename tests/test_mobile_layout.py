@@ -364,6 +364,12 @@ try:
             }""")
             ok(any(t in ("É", "F", "HF", "SZK") for t in rovid),
                f"mobilon a típus rövidítése is látszik: {rovid[:3]}")
+            date_rights = await page.evaluate("""() => {
+                return [...document.querySelectorAll('#esemenyekTable tbody .mobile-subject-line .mobile-datum')]
+                    .map(x => Math.round(x.getBoundingClientRect().right));
+            }""")
+            ok(len(set(date_rights)) <= 1,
+               f"a dátum minden sorban fix helyen van: {sorted(set(date_rights))[:4]}")
             # 7) mobil: egyetlen karcsú státuszsáv, a technikai részletek koppintásra
             compact = await page.evaluate("""() => {
                 const e = document.querySelector('#schedulerCompact');

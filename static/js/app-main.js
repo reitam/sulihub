@@ -142,14 +142,17 @@ $(document).ready(function() {
                     if (row.bej_datum && row.bej_datum !== '-') {
                         html += `<span class="mobile-datum">${escapeHtml(rovidDatum(row.bej_datum))}</span>`;
                     }
+                    // Fix hely a jegynek: üres sorban is ott marad, így a dátum nem csúszik.
+                    let jegyHtml = '';
                     if (row.esemeny_tipus === 'Értékelés') {
                         let jegy = Number(row.szam_ertek) > 0 ? Number(row.szam_ertek) : 0;
                         if (jegy) {
-                            html += `<span class="jegy-kor ${jegySzin(jegy)}">${jegy}</span>`;
+                            jegyHtml = `<span class="jegy-kor ${jegySzin(jegy)}">${jegy}</span>`;
                         } else if (row.ertek && row.ertek !== '-') {
-                            html += `<span class="mobile-jegy-szoveg">${escapeHtml(String(row.ertek))}</span>`;
+                            jegyHtml = `<span class="mobile-jegy-szoveg">${escapeHtml(String(row.ertek))}</span>`;
                         }
                     }
+                    html += `<span class="mobile-jegy-hely">${jegyHtml}</span>`;
                     html += `</span>`;
                     return html;
                 }
