@@ -203,6 +203,10 @@ try:
            "az Áttekintés tab 'active'")
         ok(not page.is_visible("#accordionFilterBlock"),
            "a szűrőpanel a dashboardon nem látszik")
+        ok(page.input_value("#rewardFilterDiak") == "",
+           "a statisztika gyermek-szűrője betöltéskor üres")
+        ok(page.input_value("#riportDiak") == "",
+           "a bizonyítvány gyermek-választója betöltéskor üres")
 
         print("\n2) Csempék számai")
         hazi = page.inner_text("#tileHaziSzam").strip()
@@ -229,6 +233,22 @@ try:
         ok(kartya and "200" in kartya[0], "a kifizetetlen egyenleg a kártyán")
         page.screenshot(path=str(work / "attekintes.png"))
         print("SCREENSHOT (áttekintés):", work / "attekintes.png")
+
+        print("\n2b/2) Átlagkártyáról a statisztika havi bontására")
+        page.click("#dashboardDiakCards .diak-atlag-kartya")
+        page.wait_for_timeout(1800)
+        ok(page.is_visible("#rewards-pane"), "a Statisztika fül megnyílt")
+        ok(page.input_value("#rewardFilterDiak") == "Teszt Elek",
+           f"a kiválasztott gyermek: {page.input_value('#rewardFilterDiak')}")
+        ok(page.is_visible("#atlagokBody"), "a tantárgyi átlagok lenyíltak")
+        idoszak_kartya = " ".join(page.inner_text("#atlagokIdoszak").split())
+        ok("időszak" in idoszak_kartya and "2026. 09. 01." in idoszak_kartya
+           and "2027. 08. 31." in idoszak_kartya,
+           f"a teljes tanév időszaka látszik: {idoszak_kartya}")
+        page.click('#atlagokCard button[data-bs-target="#atlagokCollapse"]')
+        page.wait_for_timeout(300)
+        page.click("#attekintes-tab")
+        page.wait_for_timeout(900)
 
         print("\n2c) Alsó feed: figyelmet igénylő bejegyzés + legutóbbi jegyek")
         figy = " ".join(page.inner_text("#dashFigyelemLista").split())
@@ -289,6 +309,14 @@ try:
         print("\n5) Tantárgyi átlagok a Statisztika fülön (#39)")
         page.click("#rewards-tab")
         page.wait_for_timeout(1500)
+        # Új: a statisztika fülön betöltéskor nincs gyermek kiválasztva.
+        page.select_option("#rewardFilterDiak", "")
+        page.wait_for_timeout(400)
+        ok(page.is_visible("#rewardNoDiakAlert") and not page.is_visible("#rewardContainer"),
+           "üres gyermekválasztónál súgó látszik, a statisztika rejtve")
+        page.select_option("#rewardFilterDiak", "Teszt Elek")
+        page.wait_for_timeout(1500)
+        ok(not page.is_visible("#rewardNoDiakAlert"), "kiválasztás után a súgó eltűnik")
         # Az átlagok kártya alapból zárt accordion: kinyitjuk.
         ok(not page.is_visible("#atlagokBody"), "az átlagok táblázat alapból zárva")
         page.click('#atlagokCard button[data-bs-target="#atlagokCollapse"]')
@@ -346,6 +374,10 @@ try:
         mp.clock.install(time=datetime(today.year, today.month, today.day, 12, 0))
         mp.goto(base, wait_until="networkidle")
         mp.click("#rewards-tab")
+        mp.wait_for_timeout(1500)
+        ok(mp.input_value("#rewardFilterDiak") == "",
+           "mobilon a statisztika gyermek-szűrője betöltéskor üres")
+        mp.select_option("#rewardFilterDiak", "Teszt Elek")
         mp.wait_for_timeout(1500)
         mp.click('#atlagokCard button[data-bs-target="#atlagokCollapse"]')
         mp.wait_for_timeout(600)

@@ -388,6 +388,16 @@
             box-shadow: 0 6px 16px rgba(13, 110, 253, .22);
             outline: none;
         }
+        .diak-atlag-kartya {
+            cursor: pointer;
+            transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+        }
+        .diak-atlag-kartya:hover, .diak-atlag-kartya:focus {
+            transform: translateY(-2px);
+            border-color: #8ab4f8;
+            box-shadow: 0 6px 16px rgba(13, 110, 253, .18);
+            outline: none;
+        }
         .chip-diak.active { background-color: #0d6efd; border-color: #0d6efd; color: #fff; }
 
         /* Dashboard és Ma fül: széles kijelzőn középre igazított, tömörebb
@@ -1547,6 +1557,7 @@
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-light"><i class="fa-solid fa-user-graduate text-success"></i></span>
                             <select id="rewardFilterDiak" class="form-select fw-bold">
+                                <option value="">-- Válassz gyermeket --</option>
                                 {% for d in diakok %}
                                 <option value="{{ d }}">{{ d }}</option>
                                 {% endfor %}
@@ -1596,6 +1607,11 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div id="rewardNoDiakAlert" class="alert alert-info py-2 px-3 small mb-3">
+                <i class="fa-solid fa-circle-info me-1"></i>
+                Válassz gyermeket a statisztikához és a bizonyítványhoz.
             </div>
 
             <div id="rewardContainer">
@@ -1779,6 +1795,7 @@
                             <div class="col-12 col-md-4">
                                 <label class="form-label small mb-1" for="riportDiak">Gyermek</label>
                                 <select id="riportDiak" class="form-select form-select-sm">
+                                    <option value="">-- Válassz gyermeket --</option>
                                     {% for d in diakok %}
                                     <option value="{{ d }}">{{ d }}</option>
                                     {% endfor %}

@@ -1655,16 +1655,11 @@ $(document).ready(function() {
         let zaro = $('#rewardZaroDatum').val();
 
         if (!diak) {
-            diak = $('#rewardFilterDiak option:first').val();
-            if (diak) {
-                $('#rewardFilterDiak').val(diak);
-            }
-        }
-
-        if (!diak) {
             $('#rewardContainer').addClass('d-none');
+            $('#rewardNoDiakAlert').removeClass('d-none');
             return;
         }
+        $('#rewardNoDiakAlert').addClass('d-none');
 
         let url = `/api/statisztika?diak=${encodeURIComponent(diak)}&kezdo_datum=${encodeURIComponent(kezdo)}&zaro_datum=${encodeURIComponent(zaro)}${tanevQueryParam()}`;
 
@@ -2154,6 +2149,12 @@ $(document).ready(function() {
             let c = avatarColor(d.diak);
             let monogram = avatarInitials(d.diak);
             let nev = escapeHtml(d.diak);
+            let kattinthato = vanAtlag;
+            let kartyaAttr = kattinthato
+                ? ` role="button" tabindex="0" data-diak="${nev}"` +
+                  ` title="Ugrás a statisztikára – havi tantárgyi átlagok"` +
+                  ` aria-label="Ugrás a statisztikára: ${nev}"`
+                : '';
             let penz;
             if (d.rewards_enabled) {
                 penz = `<span class="small text-nowrap">Kifizetetlen: <strong>${fmtFtShort(d.hatralevo)}</strong>` +
@@ -2165,7 +2166,7 @@ $(document).ready(function() {
                 penz = '<i class="fa-solid fa-ban text-secondary" title="zsebpénz modul kikapcsolva"></i>';
             }
             $c.append(`<div class="col">
-                <div class="card card-stat bg-white p-2 h-100">
+                <div class="card card-stat bg-white p-2 h-100${kattinthato ? ' diak-atlag-kartya' : ''}"${kartyaAttr}>
                     <div class="d-flex align-items-center gap-2">
                         <span class="avatar" style="background:${c[0]};color:${c[1]}" title="${nev}">${monogram}</span>
                         <div class="fw-bold text-truncate">${nev}</div>
@@ -2174,11 +2175,33 @@ $(document).ready(function() {
                     </div>
                     <div class="d-flex align-items-baseline gap-2 flex-wrap mt-1">
                         <div class="fs-3 fw-bold lh-1 ${vanAtlag ? 'text-primary' : 'text-secondary'}">${atlag}</div>
+                        ${kattinthato ? '<i class="fa-solid fa-chart-line text-primary small" aria-hidden="true"></i>' : ''}
                         ${penz}
                     </div>
                 </div>
             </div>`);
         });
+    }
+
+    function openStatisztikaForDiak(diak) {
+        diak = String(diak || '');
+        if (!diak) return;
+        const h = aktualisTanevHatar();
+        $('#rewardFilterDiak').val(diak);
+        if (h) {
+            $('#rewardKezdoDatum').val(h.kezdo);
+            $('#rewardZaroDatum').val(h.zaro);
+        }
+        $('#riportDiak').val(diak);
+        showMainTab('rewards-tab');
+        setTimeout(function() {
+            const collapse = document.getElementById('atlagokCollapse');
+            if (collapse && !collapse.classList.contains('show')) {
+                bootstrap.Collapse.getOrCreateInstance(collapse, {toggle: false}).show();
+            }
+            const card = document.getElementById('atlagokCard');
+            if (card) card.scrollIntoView({behavior: 'smooth', block: 'start'});
+        }, 300);
     }
 
     function bejegyzesKategoria(tipus) {
@@ -2588,7 +2611,8 @@ $(document).ready(function() {
             }
         } else if (e.target.id === 'rewards-tab') {
             loadRewardsData();
-            if ($('#filterDiak').val()) $('#riportDiak').val($('#filterDiak').val());
+            const statDiak = $('#rewardFilterDiak').val();
+            if (statDiak) $('#riportDiak').val(statDiak);
         } else if (e.target.id === 'naptar-tab') {
             if (!calendar) {
                 initCalendar();
@@ -2740,6 +2764,10 @@ $(document).ready(function() {
     });
 
     $('#rewardFilterDiak, #rewardKezdoDatum, #rewardZaroDatum').change(function() {
+        if (this.id === 'rewardFilterDiak') {
+            const d = $(this).val();
+            if (d) $('#riportDiak').val(d);
+        }
         loadRewardsData();
     });
 
@@ -2781,6 +2809,14 @@ $(document).ready(function() {
         let to = new Date(today.getFullYear(), today.getMonth(), today.getDate() + days);
         return { kezdo: fmtDate(today), zaro: fmtDate(to) };
     }
+
+    $('#dashboardDiakCards').on('click', '.diak-atlag-kartya', function() {
+        openStatisztikaForDiak($(this).data('diak'));
+    }).on('keydown', '.diak-atlag-kartya', function(e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        openStatisztikaForDiak($(this).data('diak'));
+    });
 
     $('#tileHazi').on('click keydown', function(e) {
         if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
