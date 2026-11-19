@@ -319,6 +319,12 @@ try:
                 return [3, 4].every(i => !ths[i] || ths[i].getBoundingClientRect().width === 0);
             }""")
             ok(hidden, "mobilon a külön Érték/Dátum oszlop rejtve (a jegy+dátum a tantárgy mellett)")
+            muvelet = await page.evaluate("""() => {
+                const ths = [...document.querySelectorAll('#esemenyekTable thead th')];
+                const idx = ths.findIndex(th => /Műveletek/i.test(th.textContent));
+                return idx >= 0 && ths[idx].getBoundingClientRect().width > 0;
+            }""")
+            ok(muvelet, "a Műveletek oszlop mobilon is látszik")
             # 6b) a tantárgy mellett a jegy, egy sorban a dátummal (Kaneo #153)
             extra = await page.evaluate("""() => {
                 return [...document.querySelectorAll('#esemenyekTable tbody .mobile-subject-line .mobile-datum')]

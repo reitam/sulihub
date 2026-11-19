@@ -634,6 +634,13 @@
             #esemenyekTable tbody td:nth-child(4),
             #esemenyekTable thead th:nth-child(5),
             #esemenyekTable tbody td:nth-child(5) { display: none !important; }
+            /* A Műveletek oszlop mobilon mindig látszik (a responsive se rejtse el). */
+            #esemenyekTable thead th:last-child,
+            #esemenyekTable tbody td:last-child,
+            #esemenyekTable thead th:last-child.dtr-hidden,
+            #esemenyekTable tbody td:last-child.dtr-hidden {
+                display: table-cell !important;
+            }
             .mobile-subject-line {
                 display: flex;
                 align-items: center;

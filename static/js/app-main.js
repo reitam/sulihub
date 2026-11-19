@@ -92,9 +92,9 @@ $(document).ready(function() {
         columnDefs: [
             { targets: 0, responsivePriority: 1 },   // Diák (avatar)
             { targets: 2, responsivePriority: 2 },   // Tantárgy
-            { targets: 3, responsivePriority: 3 },   // Érték / Mód (a jegy!)
-            { targets: 4, responsivePriority: 4 },   // Bejegyzés dátuma
-            { targets: 9, responsivePriority: 5 },   // Műveletek (mindig elérhető)
+            { targets: 9, responsivePriority: 3 },   // Műveletek (mindig látszik mobilon)
+            { targets: 3, responsivePriority: 4 },   // Érték / Mód (mobilon rejtve)
+            { targets: 4, responsivePriority: 5 },   // Bejegyzés dátuma (mobilon rejtve)
             { targets: 1, responsivePriority: 6 },   // Típus
             { targets: 7, responsivePriority: 7 },   // Részletek / Leírás
             { targets: 6, responsivePriority: 8 },   // Értékelő / tanár
@@ -263,11 +263,11 @@ $(document).ready(function() {
                     if (data.esemeny_tipus === 'Házi feladat') {
                         if (data.kesz === 1) {
                             btnKeszHtml = `<button class="btn btn-xs btn-outline-secondary py-0 px-1 btn-toggle-kesz" data-id="${data.id}" data-kesz="0" title="Visszaállítás elkészítendőre">
-                                <i class="fa-solid fa-rotate-left me-1"></i>Újra aktív
+                                <i class="fa-solid fa-rotate-left me-1"></i><span class="d-none d-md-inline">Újra aktív</span>
                             </button>`;
                         } else {
                             btnKeszHtml = `<button class="btn btn-xs btn-success text-white py-0 px-1 btn-toggle-kesz" data-id="${data.id}" data-kesz="1" title="Megjelölés elkészültként">
-                                <i class="fa-solid fa-check me-1"></i>Elkészült
+                                <i class="fa-solid fa-check me-1"></i><span class="d-none d-md-inline">Elkészült</span>
                             </button>`;
                         }
                     }
