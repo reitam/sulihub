@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v2.6.1` (éles, 2026-11-19); a `v2.7.0` élesítésre kész (2026-11-19)
+**Jelenlegi verzió:** `v2.7.0` (éles, 2026-11-19); a `v2.7.1` kiadásra kész (Bekerült oszlop)
 
 A verziönkénti release notes a [`docs/releasenotes/`](docs/releasenotes/) mappában
 található (minden verzióhoz külön fájl + index).
@@ -565,6 +565,7 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
+| v2.7.1 | **#147 „Bekerült” oszlop:** az Események táblában a leírás után látszik, mikor került az adat a SuliHubba (mai esetén `MA` jelzéssel), a részletek modálban is; a művelet-oszlop nem préselődik össze |
 | v2.7.0 | **#139 tanév-archívum:** a tanév lezárásakor egyszeri, ellenőrizhető ZIP a data köteten (`data/tanev_archivum/<év>.zip`): táblánként JSON/CSV, kombinált Excel, diákonkénti PDF-bizonyítvány, manifest + SHA-256; ismételt zárásnál nem duplikál; kézi pótlás `tools/create_tanev_archive.py`; a napi backup a `tanev_archivum/` mappát is viszi. **#147 first seen:** a `letrehozva` oszlop alapján a visszamenőleges dátumú új jegy is mai; digest, szinkron-push, Ma fül és dashboard-számlálók |
 | v2.6.1 | **#146:** a statisztika gyermek-szűrői betöltéskor üresek; üres állapotban súgó; az Áttekintés fülön a gyermek átlagkártyájáról ugrás a Statisztika fülre, a kiválasztott gyermekre, teljes tanévre, lenyitott havi tantárgyi átlagokkal. **UI:** a bal felső SuliHub logó link az Áttekintésre (újratöltés nélküli fülváltás) |
 | v2.6.x | **#128 értesítési politika:** üres sikeres futás nem küld push-t; új adat esetén futásonként egy üzenet a napi összefoglaló részletességével; hiba mindig, a health-riasztással egy üzenetben; `NOTIFY_NEW`. **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül világos rózsaszínes, bordó kiemelésű szünet-sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő. **UI:** világos rózsaszínes, bordó kiemelésű szünet-sáv (desktopon két sor, teljes szélesség, mobilon rövid); a token-hiba csak 401/403/login esetén jelenik meg, a sikertelen adatkör neve is látszik. A **v2.5.0 Playwright-kivezetés (#64) is benne van** |
