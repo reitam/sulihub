@@ -248,6 +248,9 @@ n = app._maybe_send_digests(now=datetime(TODAY.year, TODAY.month, TODAY.day, 21,
 ok(n == 0 and len(calls) == 2, "ugyanazon a napon nem megy ki újra")
 
 MASNAP = TODAY + timedelta(days=1)
+# A hétvégi üres digest kihagyása (#133) miatt a „másnap” teszt ne essen hétvégére.
+while MASNAP.weekday() >= 5:
+    MASNAP += timedelta(days=1)
 n = app._maybe_send_digests(now=datetime(MASNAP.year, MASNAP.month, MASNAP.day, 19, 30))
 ok(n == 2 and len(calls) == 4, f"másnap újra 2 üzenet: {n}")
 

@@ -90,9 +90,9 @@ for path in api_checks:
 res = client.post("/api/sync/start")
 ok(res.status_code == 401, f"POST /api/sync/start auth nélkül 401 ({res.status_code})")
 
-print("\n5) Fail-closed: hiányzó vagy érvénytelen config (#137)")
+print("\n5) Fail-closed: meglévő, de érvénytelen config (#137)")
 os.remove(config_path)
-ok(client.get("/").status_code == 503, "hiányzó config -> 503 a védett végponton")
+ok(client.get("/").status_code == 200, "hiányzó config -> auth nélkül (nincs beállítva)")
 ok(client.get("/health").status_code == 200, "hiányzó config mellett a /health nyitott")
 with open(config_path, "w", encoding="utf-8") as f:
     f.write("{nem json")

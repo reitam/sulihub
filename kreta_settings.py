@@ -38,17 +38,19 @@ def load_config():
 
 
 class ConfigError(RuntimeError):
-    """A config.json hiányzik, olvashatatlan vagy érvénytelen (fail-closed auth)."""
+    """A meglévő config.json olvashatatlan vagy érvénytelen (fail-closed auth)."""
 
 
 def load_config_strict():
-    """A config betöltése **hibát dobva**, ha az nem olvasható/érvénytelen.
+    """A config betöltése **hibát dobva**, ha az meglévő, de nem olvasható/érvénytelen.
 
     Az auth guard ezt használja: egy hibás config ne kapcsolja ki csendben a
-    védelmet, hanem 503-at adjon a védett végpontokon (#137).
+    védelmet, hanem 503-at adjon a védett végpontokon (#137). A **hiányzó**
+    config (első indítás, auth nincs beállítva) továbbra is üres dict — ilyenkor
+    az auth kikapcsolt.
     """
     if not os.path.exists(CONFIG_FILE):
-        raise ConfigError(f"hiányzó konfiguráció: {CONFIG_FILE}")
+        return {}
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
