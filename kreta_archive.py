@@ -10,6 +10,10 @@ ezért a tanév lezárásakor készül egy ZIP:
 - `manifest.json` (darabszámok, fájlméretek, SHA-256),
 - `checksums.sha256` és a ZIP mellé írt `.sha256` ellenőrző fájl.
 
+A záráskor a kanonikus `<év>.zip` készül. A **kézi export** nyitott tanévnél
+`<év>_manual_<időbélyeg>.zip` néven jön létre, hogy ne blokkolja a záráskori
+végleges archívumot; `--final` a kanonikus név kényszerítéséhez.
+
 A művelet **idempotens**: ha a ZIP már létezik, nem írja felül. A generálás
 ideiglenes könyvtárban történik, a kész ZIP atomikusan kerül a helyére.
 """
@@ -54,9 +58,25 @@ def archive_dir() -> Path:
     return Path(DATA_DIR) / ARCHIVE_DIR_NAME
 
 
-def archive_path(tanev: str) -> Path:
+def archive_path(tanev: str, manual: bool = False, stamp: str | None = None) -> Path:
     slug = re.sub(r"[^0-9A-Za-z]+", "-", str(tanev or "")).strip("-") or "ismeretlen"
+    if manual:
+        stamp = stamp or datetime.now().strftime("%Y%m%d-%H%M%S")
+        return archive_dir() / (slug + "_manual_" + stamp + ".zip")
     return archive_dir() / (slug + ".zip")
+
+
+def _year_is_closed(tanev: str) -> bool:
+    try:
+        conn = get_db_connection()
+        try:
+            row = conn.execute(
+                "SELECT allapot FROM tanevek WHERE tanev = ?", (tanev,)).fetchone()
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return False
+    return bool(row and str(row[0]) == "lezart")
 
 
 def checksum_path(zip_path: Path) -> Path:
@@ -270,8 +290,15 @@ def _build_archive(out_dir: Path, tanev: str, kezdo, zaro):
     return manifest
 
 
-def create_tanev_archive(tanev: str, force: bool = False) -> Path:
-    """A zárt tanév ZIP-jének elkészítése (ha már van, változatlanul hagyja)."""
+def create_tanev_archive(tanev: str, force: bool = False, manual: bool = False,
+                         output: str | Path | None = None) -> Path:
+    """A tanév ZIP-jének elkészítése.
+
+    - `manual=False`: a kanonikus `<év>.zip` (automatikus zárásnál);
+    - `manual=True`: külön `<év>_manual_<időbélyeg>.zip`, hogy egy nyitott tanév
+      teszt-exportja ne blokkolja a záráskori végleges archívumot.
+    Ha a célfájl már létezik és nincs `force`, változatlanul hagyja.
+    """
     tanev = str(tanev or "").strip()
     if not re.fullmatch(r"\d{4}/\d{4}", tanev):
         raise ValueError("Érvénytelen tanév: %r" % tanev)
@@ -279,7 +306,17 @@ def create_tanev_archive(tanev: str, force: bool = False) -> Path:
     if not kezdo or not zaro:
         raise ValueError("A tanév határai nem számíthatók: %s" % tanev)
 
-    target = archive_path(tanev)
+    if output:
+        target = Path(output)
+    elif manual:
+        target = archive_path(tanev, manual=True)
+        base = target
+        counter = 1
+        while target.exists():
+            target = base.with_name(base.stem + "-%d" % counter + base.suffix)
+            counter += 1
+    else:
+        target = archive_path(tanev)
     with ARCHIVE_LOCK:
         if target.exists() and not force:
             return target
@@ -331,11 +368,19 @@ def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description="SuliHub tanév-archívum készítése")
     parser.add_argument("tanev", nargs="+", help="pl. 2025/2026")
-    parser.add_argument("--force", action="store_true", help="meglévő ZIP felülírása")
+    parser.add_argument("--force", action="store_true", help="a kanonikus ZIP felülírása")
+    parser.add_argument("--manual", action="store_true",
+                        help="külön _manual_ ZIP (nyitott tanév tesztjéhez)")
+    parser.add_argument("--final", action="store_true",
+                        help="a kanonikus ZIP kényszerítése akkor is, ha a tanév nyitott")
     args = parser.parse_args(argv)
     for tanev in args.tanev:
-        path = create_tanev_archive(tanev, force=args.force)
-        print("%s -> %s (%s)" % (tanev, path, "OK" if verify_archive(path) else "ELLENŐRZÉS HIBA"))
+        closed = _year_is_closed(tanev)
+        manual = args.manual or (not args.final and not closed)
+        path = create_tanev_archive(tanev, force=args.force, manual=manual)
+        print("%s -> %s (%s%s)" % (
+            tanev, path, "OK" if verify_archive(path) else "ELLENŐRZÉS HIBA",
+            ", manual" if manual else ""))
 
 
 if __name__ == "__main__":

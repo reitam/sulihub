@@ -115,6 +115,8 @@ található (minden verzióhoz külön fájl + index).
   köteten (`data/tanev_archivum/<év>.zip`): táblánként JSON/CSV, kombinált Excel,
   diákonkénti PDF-bizonyítvány, `manifest.json` és SHA-256 ellenőrzés. Ismételt
   zárásnál nem duplikál; kézzel: `python tools/create_tanev_archive.py 2025/2026`.
+  Nyitott tanév kézi exportja `<év>_manual_<időbélyeg>.zip` néven készül, hogy ne
+  blokkolja a záráskori véglegest; `--final` a kanonikus névhez.
 
 ### ☀️ „Ma” nézet
 - Önálló fül az Áttekintés után: **mai órák** (időpont, terem, tanár), **ma és holnap

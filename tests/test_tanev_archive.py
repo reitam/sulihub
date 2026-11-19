@@ -129,6 +129,14 @@ path2 = kreta_archive.create_tanev_archive("2025/2026")
 ok(path2 == path, "ugyanazt a ZIP-et adja vissza")
 ok(path.stat().st_mtime_ns == mtime, "ismételt híváskor nem írja felül")
 
+print("\n4b) Manuális export külön fájlba")
+manual_path = kreta_archive.create_tanev_archive("2025/2026", manual=True)
+ok(manual_path != path and "_manual_" in manual_path.name,
+   f"a manuális export külön fájl: {manual_path.name}")
+ok(manual_path.exists() and kreta_archive.verify_archive(manual_path),
+   "a manuális ZIP is ellenőrizhető")
+ok(path.exists(), "a kanonikus ZIP érintetlen maradt")
+
 print("\n5) Hibás tanév")
 try:
     kreta_archive.create_tanev_archive("2025-2026")

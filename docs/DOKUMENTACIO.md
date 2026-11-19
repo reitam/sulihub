@@ -723,6 +723,9 @@ A tanév **lezárásakor** (a `TanevUid`-váltás után, a `tanev_changes` alapj
 ellenőrizhető ZIP készül a data köteten:
 
 - `data/tanev_archivum/<év>.zip` (pl. `2025-2026.zip`) + `<év>.zip.sha256`;
+- a **záráskor** a kanonikus `<év>.zip` készül; a **kézi export** nyitott tanévnél
+  `<év>_manual_<időbélyeg>.zip` néven jön létre, hogy ne blokkolja a záráskori
+  végleges archívumot; `--final` a kanonikus név kényszerítéséhez;
 - táblánként JSON és CSV a tanévre szűrve (`esemenyek`, `uzenetek`, `hianyzasok`,
   `igazolasok`, `kifizetesek`, `sync_runs`, `tanevek`, `tanulo_tanev_uid`, `orarend`,
   `sajat_orarend`);
@@ -1045,10 +1048,11 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 1. `cd c:\ReiTam\AI\Gemini\Kreta; .\deploy.ps1 -Release v2.7.0`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.7.0`, a konténer `healthy`;
-   - kézi próba egy létező lezárt tanévre:
-     `docker exec kreta-app python -m kreta_archive 2025/2026`
-     (vagy a következő tanévzárásnál a naplóban `[Tanév-archívum]`);
-   - a ZIP a data köteten: `data/tanev_archivum/2025-2026.zip` + `.sha256`;
+   - kézi próba egy létező tanévre:
+     `docker exec kreta-app python -m kreta_archive 2026/2027`
+     (nyitott tanévnél `2026-2027_manual_<időbélyeg>.zip`; a záráskor a kanonikus
+     `2026-2027.zip` készül; a naplóban `[Tanév-archívum]`);
+   - a ZIP a data köteten: `data/tanev_archivum/...zip` + `.sha256`;
    - a CLI „OK” ellenőrzést ír (külső + belső SHA-256);
    - ismételt futtatásnál nem írja felül a ZIP-et;
    - a napi backup tarban benne van a `tanev_archivum/`.
