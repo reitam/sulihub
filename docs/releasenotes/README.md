@@ -6,7 +6,7 @@ visszamenőleg készültek; a részletes rendszerleírás a
 
 | Verzió | Dátum | Státusz | Git tag |
 |---|---|---|---|
-| [v2.7.3](v2.7.3.md) | 2026-11-19 | kiadásra kész | `v2.7.3` (a deploy hozza létre) |
+| [v2.7.3](v2.7.3.md) | 2026-11-19 | éles | `v2.7.3` |
 | [v2.7.2](v2.7.2.md) | 2026-11-19 | éles | `v2.7.2` |
 | [v2.7.1](v2.7.1.md) | 2026-11-19 | éles | `v2.7.1` |
 | [v2.7.0](v2.7.0.md) | 2026-11-19 | éles | `v2.7.0` |

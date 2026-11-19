@@ -14,7 +14,7 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v2.7.2` (éles, 2026-11-19); a `v2.7.3` kiadásra kész (Műveletek oszlop + kedvencek eltávolítása)
+**Jelenlegi verzió:** `v2.7.3` (éles, 2026-11-19)
 
 A verziönkénti release notes a [`docs/releasenotes/`](docs/releasenotes/) mappában
 található (minden verzióhoz külön fájl + index).
