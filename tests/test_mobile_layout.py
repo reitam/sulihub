@@ -314,20 +314,35 @@ try:
             }""")
             ok(av["n"] > 0, f"a diák oszlopban avatar van ({av['n']} db, pl. '{av['text']}')")
             ok(len(av["text"]) in (2, 3), f"a monogram 2-3 betűs ('{av['text']}')")
-            ok(av["dateVisible"], "a bejegyzés dátuma oszlop látszik mobilon")
-            ok(av["ertekVisible"], "a jegy (Érték oszlop) alapból látszik mobilon")
-            # 6b) a tantárgy mellett a jegy, alatta a rövid dátum (Kaneo #153)
+            hidden = await page.evaluate("""() => {
+                const ths = [...document.querySelectorAll('#esemenyekTable thead th')];
+                return [3, 4].every(i => !ths[i] || ths[i].getBoundingClientRect().width === 0);
+            }""")
+            ok(hidden, "mobilon a külön Érték/Dátum oszlop rejtve (a jegy+dátum a tantárgy mellett)")
+            # 6b) a tantárgy mellett a jegy, egy sorban a dátummal (Kaneo #153)
             extra = await page.evaluate("""() => {
-                return [...document.querySelectorAll('#esemenyekTable tbody .mobile-row-extra')]
+                return [...document.querySelectorAll('#esemenyekTable tbody .mobile-subject-line .mobile-datum')]
                     .map(x => x.innerText.trim()).filter(Boolean);
             }""")
             egy = await page.evaluate("""() => {
                 const k = document.querySelector('#esemenyekTable tbody .mobile-subject-line .jegy-kor');
                 return k ? k.innerText.trim() : '';
             }""")
+            diak_w = await page.evaluate(
+                "() => document.querySelector('#esemenyekTable thead th').getBoundingClientRect().width")
+            egy_sor = await page.evaluate("""() => {
+                const line = document.querySelector('#esemenyekTable tbody .mobile-subject-line');
+                if (!line) return false;
+                const nev = line.querySelector('.mobile-subject-nev');
+                const datum = line.querySelector('.mobile-datum');
+                return !!nev && !!datum
+                    && Math.abs(nev.getBoundingClientRect().top - datum.getBoundingClientRect().top) < 4;
+            }""")
             ok(any("." in t for t in extra),
-               f"mobilon a tantárgy alatt ott a rövid dátum: {extra[:2]}")
-            ok(egy == "5", f"mobilon a jegy a tantárgy mellett, színes körben: {egy!r}")
+               f"mobilon a tantárgy mellett ott a rövid dátum: {extra[:2]}")
+            ok(egy == "5", f"mobilon a jegy a jobb szélen, színes körben: {egy!r}")
+            ok(diak_w <= 60, f"a diák-oszlop a monogramnyi szélességre szűkült ({diak_w:.0f} px)")
+            ok(egy_sor, "a tantárgy, a dátum és a jegy egy sorban van")
             # 7) mobil: egyetlen karcsú státuszsáv, a technikai részletek koppintásra
             compact = await page.evaluate("""() => {
                 const e = document.querySelector('#schedulerCompact');

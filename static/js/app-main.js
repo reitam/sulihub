@@ -122,6 +122,9 @@ $(document).ready(function() {
                 render: function(data, type, row) {
                     if (type !== 'display') return data;
                     let html = `<span class="mobile-subject-line"><span class="mobile-subject-nev">${escapeHtml(data || '-')}</span>`;
+                    if (row.bej_datum && row.bej_datum !== '-') {
+                        html += `<span class="mobile-datum">${escapeHtml(rovidDatum(row.bej_datum))}</span>`;
+                    }
                     if (row.esemeny_tipus === 'Értékelés') {
                         let jegy = Number(row.szam_ertek) > 0 ? Number(row.szam_ertek) : 0;
                         if (jegy) {
@@ -131,9 +134,6 @@ $(document).ready(function() {
                         }
                     }
                     html += `</span>`;
-                    if (row.bej_datum && row.bej_datum !== '-') {
-                        html += `<span class="mobile-row-extra"><span class="mobile-datum">${escapeHtml(rovidDatum(row.bej_datum))}</span></span>`;
-                    }
                     return html;
                 }
             },
@@ -385,11 +385,7 @@ $(document).ready(function() {
                     if (type !== 'display') return data || '';
                     let safeText = (data || '').replace(/"/g, '&quot;');
                     let dot = row.olvasott ? '' : '<span class="uzenet-status-dot me-1" title="Olvasatlan"></span>';
-                    let extra = '';
-                    if (row.idopont && row.idopont !== '-') {
-                        extra = `<span class="mobile-row-extra"><span class="mobile-datum">${escapeHtml(rovidDatum(row.idopont))}</span></span>`;
-                    }
-                    return `${dot}<span class="cell-truncate" title="${safeText}">${data || '-'}</span>${extra}`;
+                    return `${dot}<span class="cell-truncate" title="${safeText}">${data || '-'}</span>`;
                 }
             },
             { 
