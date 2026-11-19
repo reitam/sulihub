@@ -559,7 +559,8 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 - Az ntfy-re csak állapotinformáció megy; diáknév alapból nem. A topic neve „jelszóként"
   működik — használj hosszú, véletlen nevet.
 - Ha a hálózat kiterjed: basic auth vagy reverse proxy javasolt. A #137 óta
-  hibás/hiányzó config esetén a védett végpontok 503-at adnak (fail-closed).
+  a meglévő, de hibás/olvashatatlan config esetén a védett végpontok 503-at adnak
+  (fail-closed); hiányzó confignál az auth nincs beállítva.
 
 ---
 
@@ -567,7 +568,7 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
-| v2.7.4 | **#137 auth fail-closed:** hiányzó/olvashatatlan/érvénytelen config → 503 a védett végpontokon, `/health` nyitott; `load_config_strict` + teszt. **#149/#150/#151 first seen:** séma v6, 2 napos ablak (`KRETA_FIRST_SEEN_RECENT_DAYS`), `KRETA_TODAY`, int/clamp, ALTER try/except. **#152:** dátumfüggetlen first seen teszt. **#148:** code review pontok lezárva |
+| v2.7.4 | **#137 auth fail-closed:** meglévő, de olvashatatlan/érvénytelen config → 503 a védett végpontokon, `/health` nyitott; `load_config_strict` + teszt. **#149/#150/#151 first seen:** séma v6, 2 napos ablak (`KRETA_FIRST_SEEN_RECENT_DAYS`), `KRETA_TODAY`, int/clamp, ALTER try/except. **#152:** dátumfüggetlen first seen teszt. **#148:** code review pontok lezárva |
 | v2.7.3 | **#153 mobil:** a **Műveletek** oszlop mindig látszik (a responsive nem rejti el), a házi feladat Elkészült/Újra aktív gombja mobilon csak ikon; a megjegyzés/részletek gomb minden sornál elérhető. **UI takarítás:** a nem használt kedvencek/csillag gomb, a Kitűzött események panel és a `/api/kedvencek` végpont eltávolítva |
 | v2.7.2 | **#153 mobil nézet finomítása:** 44 px diák-oszlop, típus-rövidítés (É/F/HF/SZK), egy sorban tantárgy + rövid dátum + jegy a jobb szélen színes körben; a jegy helye fixen foglalt, ezért a dátum nem csúszik; a külön Érték/Dátum/Típus oszlop mobilon rejtve |
 | v2.7.1 | **#147 „Bekerült” oszlop:** az Események táblában a leírás után látszik, mikor került az adat a SuliHubba (mai esetén `MA` jelzéssel), a részletek modálban is; a műveletgombok külön **Műveletek** oszlopban. **#153 mobil nézet:** a jegy és a rövid dátum a tantárgy alatt |
