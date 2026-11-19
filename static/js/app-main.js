@@ -2857,6 +2857,15 @@ $(document).ready(function() {
         showMainTab('rewards-tab');
     });
 
+    $('.app-brand').on('click', function(e) {
+        // A logó valódi link (href="/"), de ne töltse újra az oldalt:
+        // váltson az Áttekintés fülre. Új lapon nyitást engedjük.
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        e.preventDefault();
+        showMainTab('attekintes-tab');
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    });
+
     $('.btn-back-dashboard, #btnDashboardToList').on('click', function() {
         showMainTab($(this).hasClass('btn-back-dashboard') ? 'attekintes-tab' : 'esemenyek-tab');
     });

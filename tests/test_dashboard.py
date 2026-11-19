@@ -207,6 +207,8 @@ try:
            "a statisztika gyermek-szűrője betöltéskor üres")
         ok(page.input_value("#riportDiak") == "",
            "a bizonyítvány gyermek-választója betöltéskor üres")
+        ok(page.get_attribute(".app-brand", "href") == "/",
+           "a SuliHub logó linkként az Áttekintésre mutat")
 
         print("\n2) Csempék számai")
         hazi = page.inner_text("#tileHaziSzam").strip()
@@ -276,8 +278,10 @@ try:
             return f.top >= t.bottom - 1;
         }""")
         ok(below, "a szűrőpanel a felső menüsor ALATT van")
-        page.click('#attekintes-tab')
+        page.click('.app-brand')
         page.wait_for_timeout(700)
+        ok(page.is_visible('#attekintes-pane'),
+           "a logó kattintása visszavisz az Áttekintés fülre")
         tab_top_dash = page.evaluate(
             "() => Math.round(document.querySelector('#mainTab').getBoundingClientRect().top)")
         ok(abs(tab_top_esemenyek - tab_top_dash) <= 1,

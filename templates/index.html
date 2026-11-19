@@ -39,7 +39,14 @@
             border-radius: 14px;
             box-shadow: 0 6px 18px rgba(13, 110, 253, .07);
         }
-        .app-brand { display: flex; align-items: center; gap: .8rem; min-width: 0; flex: 0 0 auto; }
+        .app-brand {
+            display: flex; align-items: center; gap: .8rem; min-width: 0; flex: 0 0 auto;
+            color: inherit; text-decoration: none; border-radius: 10px;
+        }
+        .app-brand:hover .app-title { filter: brightness(1.08); }
+        .app-brand:focus-visible {
+            outline: 3px solid rgba(13, 110, 253, .35); outline-offset: 4px;
+        }
         .app-logo { width: 112px; height: 52px; object-fit: contain; flex: 0 0 auto;
                     mix-blend-mode: multiply; }
         .app-title {
@@ -817,11 +824,12 @@
 
     <!-- FEJLÉC ÉS SZINKRONIZÁLÓ GOMB (Kaneo #62/#63: egysoros, kompakt navbar) -->
     <div class="app-header mb-3">
-        <div class="app-brand">
+        <a class="app-brand" href="/" title="Vissza az Áttekintésre"
+           aria-label="SuliHub – Áttekintés">
             <img src="{{ url_for('static', filename='img/sulihub-ikon.png') }}" alt="SuliHub" width="112" height="52" class="app-logo">
             <span class="app-title fw-bold">SuliHub</span>
             <span class="app-version" title="Telepített verzió">{{ app_version }}</span>
-        </div>
+        </a>
 
         <div class="app-right">
             <div class="app-control-group app-left">
