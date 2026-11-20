@@ -835,7 +835,7 @@ futás tanévét.
 | **e-Ügyintézés** (`eugyintezes.e-kreta.hu`) | Üzenetek + csatolmányok | API-ból (mobil token), `X-Uzenet-Lokalizacio` illesztő |
 | **ntfy** (`ntfy.sh`) | Push értesítések | Csak állapotinformáció; diáknév alapból nem megy ki |
 | **Docker / Docker Compose** | Futtatás a szerveren | Konténer: `kreta-app`, port **8085** |
-| **Samba + SSH** | Deploy Windowsról a szerverre | `deploy.ps1` (staging másolás + SSH parancsok) |
+| **Samba + SSH** | Deploy Windowsról a szerverre | A karbantartói `deploy.ps1` a privát `uzemeltetesi-repo` repóban (staging másolás + SSH) |
 | **cron (host)** | Napi mentés 03:00-kor | `kreta_backup.sh` |
 
 ### 5.1. Mentés és üzemeltetési ellenőrzések (Kaneo #90)
@@ -918,13 +918,22 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 
 ### 7.3. Élesítés (deploy)
 
+A karbantartói deploy script a privát **`uzemeltetesi-repo`** repóban van
+(`https://github.com/reitam/uzemeltetesi-repo`), mert a saját szerver/Samba/SSH
+infrastruktúrára épül. A publikus telepítéshez a Docker Compose-t használd
+(lásd a README „Docker élesítés” szakaszát).
+
 ```powershell
-cd c:\ReiTam\AI\Gemini\Kreta
+cd C:\uzemeltetesi-repo
 .\deploy.ps1 -Release vX.Y.Z
 ```
 
-A folyamat: git tag létrehozása/push → szerveri mentés → staging másolás (Samba) →
-SSH: **előellenőrzés** → munkakönyvtár frissítése → `docker compose up -d --build` → healthcheck.
+A folyamat: **tiszta munkakönyvtár** → tag-ellenőrzés (ha létezik és más
+commitra mutat: stop; ha ugyanarra: kérdés) → szerveri mentés → staging másolás
+(Samba) → SSH: előellenőrzés → munkakönyvtár frissítése →
+`docker compose up -d --build` → **`/health` = a kiadás verziója** → **tag
+létrehozás/push** → a GitHub Actions **Release** workflow létrehozza a GitHub
+Release-t a `docs/releasenotes/<tag>.md`-ből.
 
 **Előellenőrzés a szerveren (a másolás előtt):** a script SSH-n ellenőrzi, hogy
 a Docker daemon fut, a munkakönyvtár olvasható (nincs I/O hiba), a data köteten
@@ -1222,17 +1231,17 @@ Kreta/
 ├── static/js/core.js      # globális frontend-segédek (avatar, státuszsáv, formázás)
 ├── static/js/app-main.js  # a felület fő JS-e ($(document).ready blokk)
 ├── static/vendor/         # vendorolt frontend-függőségek (offline)
-├── backup/kreta_backup.sh # napi mentés
 ├── tests/                 # automatikus tesztek + futtató
 ├── tools/                 # kaneo_ticket, api_snapshot, migrate_local_data, mobile_shot
 ├── data/                  # futásidejű adatok (NEM verziózott): DB, config.json, sync.log,
 │                          #   api_tokens.json, scheduler_state.json, version.txt,
 │                          #   csatolmanyok/
 ├── Dockerfile, docker-compose.yml, entrypoint.sh
-├── deploy.ps1             # élesítő script
-├── docs/                  # dokumentáció (DOKUMENTACIO, rendszerterv, AI-terv, összefoglalók)
 └── README.md
 ```
+
+> A karbantartói `deploy.ps1` és a napi mentő `backup/kreta_backup.sh` a privát
+> [`uzemeltetesi-repo`](https://github.com/reitam/uzemeltetesi-repo) repóban van.
 
 A `data/` a v2.0.0-tól az alapértelmezett hely; a korábbi (projektgyökér) elrendezés
 egy kiadásig még működik, figyelmeztetéssel. Átköltöztetés (az app álljon le):
@@ -1285,7 +1294,9 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 
 1. Fejlesztés + `python tests/run_all.py` (minden zöld).
 2. Commit + push a `main` ágra.
-3. `.\deploy.ps1 -Release vX.Y.Z` (a script taget is készít).
+3. A karbantartói deploy (privát `uzemeltetesi-repo`):
+   `cd C:\uzemeltetesi-repo; .\deploy.ps1 -Release vX.Y.Z`
+   (tiszta tree; tag csak sikeres `/health` után; a tag push indítja a Release workflow-t).
 4. Ellenőrzés: `/health` verzió, fejléc, szinkron, értesítés.
 5. **Dokumentáció frissítése** (lásd 15. pont).
 

@@ -495,19 +495,21 @@ Futásonként legfeljebb egy push megy ki. Az új adat push kikapcsolható:
 ├── templates/index.html    # Dashboard váza (Bootstrap + DataTables + FullCalendar)
 ├── static/js/              # core.js + app-main.js (a felület JS-e)
 ├── static/vendor/          # vendorolt függőségek (offline)
-├── backup/kreta_backup.sh  # napi mentés (szerver)
 ├── tests/                  # automatikus tesztek + run_all.py
 ├── tools/                  # kaneo_ticket, api_snapshot, migrate_local_data, mobile_shot
 ├── data/                   # futásidejű adatok (NEM verziózott): DB, config.json,
 │                           #   sync.log, api_tokens.json, böngészőprofil, csatolmányok
 ├── Dockerfile, docker-compose.yml, entrypoint.sh
-├── deploy.ps1              # élesítő script (Samba + SSH)
 ├── docs/
 │   ├── DOKUMENTACIO.md     # teljes rendszerdokumentáció
 │   ├── rendszerterv.md     # eredeti követelményjegyzék (történeti)
 │   └── osszefoglalo/       # munkamenet-összefoglalók
 └── README.md
 ```
+
+> A karbantartói deploy (`deploy.ps1`) és a szerveroldali mentő script a
+> **privát [`uzemeltetesi-repo`](https://github.com/reitam/uzemeltetesi-repo)** repóban
+> van; a publikus telepítéshez nem kell.
 
 ---
 
@@ -528,48 +530,31 @@ Részletek: [`tests/README.md`](tests/README.md).
 
 ---
 
-## 🐳 Docker élesítés (saját szerver szerver)
+## 🐳 Docker élesítés
 
-Az éles környezet a saját szerver Linux szerveren fut Dockerben, **csak belső hálózaton**:
-`http://saját szerver:8085`. A lokális (Windows) példány csak tesztelésre való.
+Az alkalmazás Docker Compose-szal futtatható. A karbantartói (saját szerver-os, Samba/SSH)
+deploy a privát [`uzemeltetesi-repo`](https://github.com/reitam/uzemeltetesi-repo) repóban van;
+a publikus telepítéshez nem kell.
 
 | Fájl | Szerep |
 |---|---|
 | `Dockerfile` | **Egyetlen image** (`kreta-app:runtime`): Python 3.12, Chromium/playwright nélkül; nem-root futás, `fonts-liberation` a PDF-hez |
 | `docker-compose.yml` | 8085-es port, data + mentés kötetek, `KRETA_SERVER=waitress`, healthcheck |
 | `entrypoint.sh` | DB-guard: HDD-leszakadásnál nem hoz létre üres DB-t, mentésből visszaállít |
-| `deploy.ps1` | Élesítő script Windowsról (Samba staging + SSH, tag, mentés) |
-| `backup/kreta_backup.sh` | Napi cron-mentés (DB snapshot + fájlok + rotáció + ntfy riasztás) |
+| `.env.example` | A szerveroldali env mintája |
+| `config.json.example` | A diákok/tarifák mintája (a valódi a data köteten) |
 
-**Élesítés:**
-
-```powershell
-net use h: \\saját szerver\HP_Share /user:reitam     # ha még nincs
-cd c:\ReiTam\AI\Gemini\Kreta
-.\deploy.ps1 -Release v2.7.0
+```bash
+cp .env.example .env
+# a data/config.json-t a DATA_DIR kötetre kell tenni
+docker compose up -d --build
+curl http://127.0.0.1:8085/health
 ```
 
-A script jelszót kér az SSH-hoz. Hibánál **nem** ír „sikeres"-t (nem-nulla kilépési kód).
-> **Fontos:** a **v2.7.0 tartalmazza a v2.6.x és a v2.5.0 összes változását is**
-> (Playwright-kivezetés, szünet-sáv, értesítési politika, Ma fül, statisztika-szűrők,
-> logó-link, tanév-archívum). Nem kell külön v2.5.0/v2.6.0-t deployolni.
-A v2.5.0-tól nincs böngészős fallback — a szinkron kizárólag a mobil API-ból fut (#64).
-A törlés előtti (v2.4.0, Playwright-fallbackes) kód a **`playwright-fallback`** ágon
-megmarad vész-visszaálláshoz.
-
-**Első telepítés** (egyszeri): `-MigrateLocalData -InstallBackup` kapcsolókkal — ez viszi
-fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a mentő-cront.
-
-**A szerveren:**
-
-- Munka: `/opt/sulihub` — konténer: `kreta-app` — port: 8085
-- Adatkötet (HDD): `./data` — DB, `config.json`, csatolmányok,
-  `sync.log` (a régi `browser_user_data/` a v2.5.0 után törölhető)
-- Mentések: `./backup` (cron 3:00, 7 napi + 4 heti DB,
-  fájlok 14 nap, konfig 30 nap)
-- ⚠ A szerver `.env`-jébe **TILOS** `DATA_DIR` / `BACKUP_DIR` / `KRETA_DATA_DIR` sort írni
-  (a RabbitApp 2026-10-27-i „üres db" incidensét okozta)
-- ⚠ A `config.json`-t a deploy **nem** másolja — a data köteten kell lennie
+- A `DATA_DIR` / `BACKUP_DIR` env (vagy a compose defaultjai) adják a köteteket.
+- A `config.json`-t a deploy **nem** másolja — a data köteten kell lennie.
+- A v2.5.0-tól nincs böngészős fallback — a szinkron kizárólag a mobil API-ból fut (#64).
+  A régi (Playwright-fallbackes) kód a **`playwright-fallback`** ágon marad meg.
 
 ---
 

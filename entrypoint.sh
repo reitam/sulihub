@@ -93,9 +93,8 @@ else
     done
     if ! config_ok; then
         log "NINCS config.json a data kötetben (/app/data/config.json)." >&2
-        log "Egyszeri beállítás: másold a lokális config.json-t a szerverre," >&2
-        log "vagy futtasd a deploy.ps1 -MigrateLocalData kapcsolóját:" >&2
-        log "  copy c:\\ReiTam\\AI\\Gemini\\Kreta\\config.json h:\\app\\Kreta\\data\\config.json" >&2
+        log "Egyszeri beállítás: másold a config.json-t a data kötetre," >&2
+        log "vagy futtasd a karbantartói deploy script -MigrateLocalData kapcsolóját." >&2
         log "Kilépek." >&2
         exit 1
     fi

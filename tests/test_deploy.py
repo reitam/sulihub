@@ -127,18 +127,22 @@ ok({".opencode", "poc", "tools"} <= ignored,
    "a fejlesztői mappák (.opencode, poc, tools) ki vannak zárva a képből")
 
 print("\n3b) deploy.ps1: csak a futásidejű fájlok mennek fel")
-deploy_src = (ROOT / "deploy.ps1").read_text(encoding="utf-8", errors="replace")
-ok('"api_tokens.json"' in deploy_src or "api_tokens.json" in deploy_src,
-   "a deploy kizárja az api_tokens.json-t")
-ok('"OSSZEFOGLALO-*.md"' in deploy_src, "a deploy kizárja az összefoglaló markdownokat")
-ok('"docs"' in deploy_src and "REMOTE_DIR_PLACEHOLDER/docs" in deploy_src,
-   "a docs/ mappa nem kerül a szerverre, és a szerveroldali tisztítás eltávolítja")
-ok('"data"' in deploy_src, "a deploy kizárja a data/ (futásidejű adatok) mappát")
-ok('"$SourceDir\\static\\csatolmanyok"' in deploy_src,
-   "a csatolmányok kizárása abszolút úttal történik (robocopy /XD)")
-ok("REMOTE_DIR_PLACEHOLDER/tools" in deploy_src
-   and "REMOTE_DIR_PLACEHOLDER/poc" in deploy_src,
-   "a szerveroldali tisztítás eltávolítja a fejlesztői mappákat")
+deploy_path = ROOT / "deploy.ps1"
+if not deploy_path.exists():
+    print("  (deploy.ps1 nincs a repóban — privát uzemeltetesi-repo; az ellenőrzés kimarad)")
+else:
+    deploy_src = deploy_path.read_text(encoding="utf-8", errors="replace")
+    ok('"api_tokens.json"' in deploy_src or "api_tokens.json" in deploy_src,
+       "a deploy kizárja az api_tokens.json-t")
+    ok('"OSSZEFOGLALO-*.md"' in deploy_src, "a deploy kizárja az összefoglaló markdownokat")
+    ok('"docs"' in deploy_src and "REMOTE_DIR_PLACEHOLDER/docs" in deploy_src,
+       "a docs/ mappa nem kerül a szerverre, és a szerveroldali tisztítás eltávolítja")
+    ok('"data"' in deploy_src, "a deploy kizárja a data/ (futásidejű adatok) mappát")
+    ok('"$SourceDir\\static\\csatolmanyok"' in deploy_src,
+       "a csatolmányok kizárása abszolút úttal történik (robocopy /XD)")
+    ok("REMOTE_DIR_PLACEHOLDER/tools" in deploy_src
+       and "REMOTE_DIR_PLACEHOLDER/poc" in deploy_src,
+       "a szerveroldali tisztítás eltávolítja a fejlesztői mappákat")
 
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

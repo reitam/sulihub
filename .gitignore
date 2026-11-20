@@ -34,3 +34,6 @@ poc/
 
 # API-pillanatkep (KRÉ-14): a valódi DB-ből készül, személyes adatot tartalmaz
 tools/snapshots/
+# Karbantartoi deploy (privat: uzemeltetesi-repo)
+deploy.ps1
+backup/

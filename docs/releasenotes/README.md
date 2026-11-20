@@ -78,4 +78,5 @@ visszamenőleg készültek; a részletes rendszerleírás a
 ## Új release note készítése
 
 Másold a [`_TEMPLATE.md`](_TEMPLATE.md) fájlt, töltsd ki, majd vedd fel az
-indexbe. A deploy után a `deploy.ps1` által létrehozott tag nevével egyezzen.
+indexbe. A karbantartói deploy (privát `uzemeltetesi-repo`) a sikeres `/health`
+ellenőrzés után hozza létre a taget; a tag push indítja a Release workflow-t.
