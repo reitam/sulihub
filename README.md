@@ -508,8 +508,7 @@ Futásonként legfeljebb egy push megy ki. Az új adat push kikapcsolható:
 ```
 
 > A karbantartói deploy (`deploy.ps1`) és a szerveroldali mentő script a
-> **privát [`uzemeltetesi-repo`](https://github.com/reitam/uzemeltetesi-repo)** repóban
-> van; a publikus telepítéshez nem kell.
+> **privát `uzemeltetesi-repo` repóban** van; a publikus telepítéshez nem kell.
 
 ---
 
@@ -533,8 +532,7 @@ Részletek: [`tests/README.md`](tests/README.md).
 ## 🐳 Docker élesítés
 
 Az alkalmazás Docker Compose-szal futtatható. A karbantartói (saját szerver-os, Samba/SSH)
-deploy a privát [`uzemeltetesi-repo`](https://github.com/reitam/uzemeltetesi-repo) repóban van;
-a publikus telepítéshez nem kell.
+deploy a privát `uzemeltetesi-repo` repóban van; a publikus telepítéshez nem kell.
 
 | Fájl | Szerep |
 |---|---|

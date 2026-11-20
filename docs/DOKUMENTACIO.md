@@ -919,9 +919,8 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 ### 7.3. Élesítés (deploy)
 
 A karbantartói deploy script a privát **`uzemeltetesi-repo`** repóban van
-(`https://github.com/reitam/uzemeltetesi-repo`), mert a saját szerver/Samba/SSH
-infrastruktúrára épül. A publikus telepítéshez a Docker Compose-t használd
-(lásd a README „Docker élesítés” szakaszát).
+(mert a saját szerver/Samba/SSH infrastruktúrára épül). A publikus telepítéshez a
+Docker Compose-t használd (lásd a README „Docker élesítés” szakaszát).
 
 ```powershell
 cd C:\uzemeltetesi-repo
@@ -1241,7 +1240,7 @@ Kreta/
 ```
 
 > A karbantartói `deploy.ps1` és a napi mentő `backup/kreta_backup.sh` a privát
-> [`uzemeltetesi-repo`](https://github.com/reitam/uzemeltetesi-repo) repóban van.
+> `uzemeltetesi-repo` repóban van.
 
 A `data/` a v2.0.0-tól az alapértelmezett hely; a korábbi (projektgyökér) elrendezés
 egy kiadásig még működik, figyelmeztetéssel. Átköltöztetés (az app álljon le):
