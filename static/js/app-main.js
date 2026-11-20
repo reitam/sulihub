@@ -3967,6 +3967,7 @@ $(document).ready(function() {
 
     function trendPanelFeltolt($panel, lista, irany, mindenDiak) {
         if (!lista.length) {
+            if ($panel.hasClass('trend-nyitva')) trendBezar();
             $panel.addClass('d-none');
             $panel.find('.trend-torzs-inner').empty();
             return false;
