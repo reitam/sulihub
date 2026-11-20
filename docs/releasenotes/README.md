@@ -4,6 +4,11 @@ Minden verzióhoz külön release note. A bejegyzések a projekt changelogjábó
 visszamenőleg készültek; a részletes rendszerleírás a
 [`docs/DOKUMENTACIO.md`](../DOKUMENTACIO.md).
 
+> **2026-11-20:** a git history privacy okból **újraírva** (régi jelszó,
+> gyermeknevek és munkahelyi e-mail eltávolítása). A korábbi bejegyzésekben
+> szereplő commit SHA-k történeti értékűek, már nem az aktuális objektumokra
+> mutatnak; a kiadásokat a **tagok** azonosítják.
+
 | Verzió | Dátum | Státusz | Git tag |
 |---|---|---|---|
 | [v2.7.5](v2.7.5.md) | 2026-11-20 | kiadásra kész | `v2.7.5` |
