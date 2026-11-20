@@ -267,6 +267,28 @@ masodik = letrehozva_ertek("Kémia")
 ok(masodik == "2026-01-02 03:04:05",
    f"a teljes csere után megmarad: {masodik}")
 
+print("\n5b) Feljegyzés teljes cseréje is megőrzi a letrehozva-t")
+feljegyzes = {"esemeny_tipus": "Feljegyzés", "bej_datum": "2026. 10. 08.",
+              "tipus": "Dicséret", "ertekelo": "Teszt Tanár",
+              "cim": "", "tartalom": "Teszt feljegyzés"}
+k.save_esemenyek_by_type("Teszt", [feljegyzes], set(), ["Feljegyzés"])
+sor = egy_sor("SELECT id, letrehozva FROM esemenyek WHERE diak_nev = 'Teszt'"
+              " AND esemeny_tipus = 'Feljegyzés'")
+ok(bool(sor) and sor["letrehozva"][:10] == date.today().isoformat(),
+   f"a feljegyzés mostani letrehozva-t kap: {sor['letrehozva'] if sor else None}")
+
+conn = sqlite3.connect(str(k.DB_FILE))
+conn.execute("UPDATE esemenyek SET letrehozva = '2026-01-02 03:04:05' WHERE id = ?",
+             (sor["id"],))
+conn.commit()
+conn.close()
+
+k.save_esemenyek_by_type("Teszt", [dict(feljegyzes)], set(), ["Feljegyzés"])
+sor2 = egy_sor("SELECT letrehozva FROM esemenyek WHERE diak_nev = 'Teszt'"
+               " AND esemeny_tipus = 'Feljegyzés'")
+ok(sor2 and sor2["letrehozva"] == "2026-01-02 03:04:05",
+   f"a feljegyzés letrehozva megmarad: {sor2['letrehozva'] if sor2 else None}")
+
 print("\n6) Új üzenet / hiányzás / igazolás is kap letrehozva-t")
 k.save_uzenet_to_db("Teszt", "Osztályfőnök", "Teszt üzenet", "2026. 09. 10.", "Szöveg")
 k.save_hianyzasok_to_db("Teszt", [{

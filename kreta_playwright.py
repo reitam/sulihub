@@ -385,8 +385,17 @@ _EVENT_KEY_COLUMNS = ", ".join(_EVENT_KEY_FIELDS)
 
 
 def _event_key_from_mapping(row):
-    return tuple("" if row.get(col) is None else str(row.get(col))
-                 for col in _EVENT_KEY_FIELDS)
+    """Tartalom-kulcs a first-seen megőrzéshez (a DB és a bemenő dict azonosan)."""
+    out = []
+    for col in _EVENT_KEY_FIELDS:
+        val = row.get(col)
+        # A feljegyzés/házi normalizáló nem ad `szam_ertek`-et, a DB viszont
+        # 0-t tárol — enélkül a kulcs nem egyezne, és minden futás újrapecsételné
+        # a `letrehozva`-t (#156).
+        if col == "szam_ertek" and (val is None or val == ""):
+            val = 0
+        out.append("" if val is None else str(val))
+    return tuple(out)
 
 
 def get_event_first_seen_map(diak_nev, tipus):
@@ -399,7 +408,7 @@ def get_event_first_seen_map(diak_nev, tipus):
             f"SELECT {_EVENT_KEY_COLUMNS}, letrehozva FROM esemenyek"
             " WHERE diak_nev = ? AND esemeny_tipus = ?", (diak_nev, tipus))
         for row in cursor.fetchall():
-            key = tuple("" if v is None else str(v) for v in row[:-1])
+            key = _event_key_from_mapping(dict(zip(_EVENT_KEY_FIELDS, row[:-1])))
             out[key] = row[-1] or ""
     except Exception as ex:
         log(f"  [DB hiba - letrehozva kulcsok]: {ex}")
