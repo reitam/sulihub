@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag, amelyhez a release készül (pl. v2.7.6)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: GitHub Release a release note-ból
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Release note keresése
+        id: note
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          NOTE="docs/releasenotes/$TAG.md"
+          if [ -f "$NOTE" ]; then
+            echo "path=$NOTE" >> "$GITHUB_OUTPUT"
+            echo "Release note: $NOTE"
+          else
+            echo "path=" >> "$GITHUB_OUTPUT"
+            echo "FIGYELEM: nincs release note: $NOTE"
+          fi
+
+      - name: GitHub Release létrehozása vagy frissítése
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="${{ steps.note.outputs.tag }}"
+          NOTE="${{ steps.note.outputs.path }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            if [ -n "$NOTE" ]; then
+              gh release edit "$TAG" --title "SuliHub $TAG" --notes-file "$NOTE"
+            else
+              gh release edit "$TAG" --title "SuliHub $TAG"
+            fi
+          else
+            if [ -n "$NOTE" ]; then
+              gh release create "$TAG" --title "SuliHub $TAG" --notes-file "$NOTE" --latest --verify-tag
+            else
+              gh release create "$TAG" --title "SuliHub $TAG" --notes "Release note nem készült ehhez a verzióhoz." --latest --verify-tag
+            fi
+          fi

@@ -34,9 +34,10 @@ A verziönkénti release notes a [`docs/releasenotes/`](docs/releasenotes/) mapp
 található (minden verzióhoz külön fájl + index).
 
 > **GitHub Releases:** ugyanezek a jegyzetek megjelennek a
-> [Releases](https://github.com/reitam/sulihub/releases) oldalon is; a sikeres
-> `deploy.ps1` után a [`tools/github_release.py`](tools/github_release.py)
-> automatikusan létrehozza/frissíti a release-t a release note Markdownból.
+> [Releases](https://github.com/reitam/sulihub/releases) oldalon is. A **tag
+> push** után a GitHub Actions **Release** workflow hozza létre/frissíti őket a
+> release note Markdownból; a [`tools/github_release.py`](tools/github_release.py)
+> kézi pótláshoz/backfillhez való.
 
 ---
 

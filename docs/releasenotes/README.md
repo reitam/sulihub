@@ -5,10 +5,10 @@ visszamenőleg készültek; a részletes rendszerleírás a
 [`docs/DOKUMENTACIO.md`](../DOKUMENTACIO.md).
 
 > **GitHub Releases:** a `docs/releasenotes/vX.Y.Z.md` tartalma megjelenik a
-> [Releases](https://github.com/reitam/sulihub/releases) oldalon is. A sikeres
-> `deploy.ps1` után a `tools/github_release.py` automatikusan létrehozza vagy
-> frissíti a release-t (a tokent a `GITHUB_TOKEN`/`GH_TOKEN` vagy a git
-> credential manager adja).
+> [Releases](https://github.com/reitam/sulihub/releases) oldalon is. A **tag
+> push** után a GitHub Actions **Release** workflow hozza létre vagy frissíti a
+> release-t; a `tools/github_release.py` kézi pótláshoz/backfillhez való (a
+> tokent a `GITHUB_TOKEN`/`GH_TOKEN` vagy a git credential manager adja).
 
 > **2026-11-20:** a git history privacy okból **újraírva** (régi jelszó,
 > gyermeknevek és munkahelyi e-mail eltávolítása). A korábbi bejegyzésekben
