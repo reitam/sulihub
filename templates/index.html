@@ -326,7 +326,7 @@
         .dash-tile .kpi-caption { font-size: .72rem; line-height: 1.15; }
         /* Áttekintés: tantárgyi trend (romló/javuló) — lenyitható; mobilon teljes képernyős */
         .trend-sav {
-            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            display: grid; grid-template-columns: 1fr;
             gap: .5rem; margin-bottom: .5rem;
         }
         .trend-panel {
@@ -378,7 +378,6 @@
         }
         .trend-sor-reszlet { margin-top: .15rem; font-size: .78rem; color: #6c757d; }
         @media (max-width: 767.98px) {
-            .trend-sav { grid-template-columns: 1fr; }
             /* Mobilon a kinyitott panel teljes képernyős. */
             .trend-panel.trend-nyitva {
                 position: fixed; inset: 0; z-index: 1080;
