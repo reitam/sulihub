@@ -4,6 +4,12 @@ Minden verzióhoz külön release note. A bejegyzések a projekt changelogjábó
 visszamenőleg készültek; a részletes rendszerleírás a
 [`docs/DOKUMENTACIO.md`](../DOKUMENTACIO.md).
 
+> **GitHub Releases:** a `docs/releasenotes/vX.Y.Z.md` tartalma megjelenik a
+> [Releases](https://github.com/reitam/sulihub/releases) oldalon is. A sikeres
+> `deploy.ps1` után a `tools/github_release.py` automatikusan létrehozza vagy
+> frissíti a release-t (a tokent a `GITHUB_TOKEN`/`GH_TOKEN` vagy a git
+> credential manager adja).
+
 > **2026-11-20:** a git history privacy okból **újraírva** (régi jelszó,
 > gyermeknevek és munkahelyi e-mail eltávolítása). A korábbi bejegyzésekben
 > szereplő commit SHA-k történeti értékűek, már nem az aktuális objektumokra

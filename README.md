@@ -33,6 +33,11 @@ a saját szerveren maradnak.
 A verziönkénti release notes a [`docs/releasenotes/`](docs/releasenotes/) mappában
 található (minden verzióhoz külön fájl + index).
 
+> **GitHub Releases:** ugyanezek a jegyzetek megjelennek a
+> [Releases](https://github.com/reitam/sulihub/releases) oldalon is; a sikeres
+> `deploy.ps1` után a [`tools/github_release.py`](tools/github_release.py)
+> automatikusan létrehozza/frissíti a release-t a release note Markdownból.
+
 ---
 
 ## 🌟 Főbb funkciók
