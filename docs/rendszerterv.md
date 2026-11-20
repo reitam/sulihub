@@ -10,7 +10,7 @@
 * **Adatbázis-kezelő:** Központi, helyi **SQLite** adatbázis (`kreta_adatok.db`) használata az adatok tartós tárolására.
 * **Scraper keretrendszer:** **Playwright** (Python `async_playwright`) használata a böngésző-automatizációhoz és a Kendo Grid felületek kezeléséhez.
 * **Webes keretrendszer:** **Flask** (Python) háttérszerver a REST API-k és a webes felület kiszolgálásához.
-* **Verziókövetés:** Git használata **GitHub** tárhellyel (`reitam/kreta_adatlekero`), szigorú `.gitignore` szűréssel (adatbázis, jelszavak és letöltött csatolmányok kizárása).
+* **Verziókövetés:** Git használata **GitHub** tárhellyel (`reitam/sulihub`, korábban `kreta_adatlekero`), szigorú `.gitignore` szűréssel (adatbázis, jelszavak és letöltött csatolmányok kizárása).
 * **Konfigurációkezelés:** Központi `config.json` fájl használata az érzékeny adatok, diákfiókok, egyéni tarifák és beállítások kezelésére.
 * **Python Függőségek és Telepítési Követelmények:**
   * **Python verzió:** Python 3.10+ (a projekt Python 3.14 környezetben lett tesztelve).

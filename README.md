@@ -1,4 +1,4 @@
-﻿# 🎓 KRÉTA Adatbázis Áttekintő & Zsebpénz Menedzser
+﻿# 🎓 SuliHub – KRÉTA Adatbázis Áttekintő & Zsebpénz Menedzser
 
 > **Teljes rendszerdokumentáció:** [`docs/DOKUMENTACIO.md`](docs/DOKUMENTACIO.md) — üzleti áttekintés,
 > architektúra, adatmodell, üzemeltetés, hibaelhárítás, verziótörténet.
@@ -25,6 +25,10 @@ a saját szerveren maradnak.
 > alatt áll: [`LICENSE`](LICENSE).
 
 **Jelenlegi verzió:** `v2.7.5` (éles, 2026-11-20)
+
+> **Átnevezés (2026-11-20):** a GitHub-repó új neve **`reitam/sulihub`**
+> (korábban `kreta_adatlekero`); a régi URL átirányít. A helyi klónban:
+> `git remote set-url origin https://github.com/reitam/sulihub.git`
 
 A verziönkénti release notes a [`docs/releasenotes/`](docs/releasenotes/) mappában
 található (minden verzióhoz külön fájl + index).
@@ -266,8 +270,8 @@ található (minden verzióhoz külön fájl + index).
 ## 🚀 Gyors indítás (lokális)
 
 ```bash
-git clone https://github.com/reitam/kreta_adatlekero.git
-cd kreta_adatlekero
+git clone https://github.com/reitam/sulihub.git
+cd sulihub
 
 python -m venv venv
 # Windows: venv\Scripts\activate
