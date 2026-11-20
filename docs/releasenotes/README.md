@@ -11,7 +11,7 @@ visszamenőleg készültek; a részletes rendszerleírás a
 
 | Verzió | Dátum | Státusz | Git tag |
 |---|---|---|---|
-| [v2.7.5](v2.7.5.md) | 2026-11-20 | kiadásra kész | `v2.7.5` |
+| [v2.7.5](v2.7.5.md) | 2026-11-20 | éles | `v2.7.5` |
 | [v2.7.4](v2.7.4.md) | 2026-11-20 | éles | `v2.7.4` |
 | [v2.7.3](v2.7.3.md) | 2026-11-19 | éles | `v2.7.3` |
 | [v2.7.2](v2.7.2.md) | 2026-11-19 | éles | `v2.7.2` |
