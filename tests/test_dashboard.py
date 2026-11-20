@@ -292,6 +292,15 @@ try:
         rows = page.eval_on_selector_all("#esemenyekTable tbody tr",
                                          "rows => rows.filter(r => r.querySelectorAll('td').length > 1).length")
         ok(rows == new_grades, f"a listában {rows} jegy (várt {new_grades}, a régi kimaradt)")
+        # Desktopon a mobilra szánt rövid dátum/jegykör nem szivároghat a Tantárgy cellába.
+        mobil_datum = page.eval_on_selector(
+            "#esemenyekTable tbody td:nth-child(3) .mobile-datum",
+            "el => getComputedStyle(el).display")
+        mobil_jegy = page.eval_on_selector(
+            "#esemenyekTable tbody td:nth-child(3) .mobile-jegy-hely",
+            "el => getComputedStyle(el).display")
+        ok(mobil_datum == "none" and mobil_jegy == "none",
+           f"desktopon a mobil dátum/jegy rejtve (dátum={mobil_datum}, jegy={mobil_jegy})")
 
         print("\n4) Vissza az áttekintésre — az adatok F5 nélkül is visszatérnek (Kaneo #76)")
         page.click(".btn-back-dashboard")
