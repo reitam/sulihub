@@ -3,8 +3,14 @@ data/
 *.db
 kreta_adatok.db
 config.json
+*.log
 sync.log
 scheduler_state.json
+# Kornyezeti valtozok / titkok
+.env
+.env.*
+!.env.example
+
 # API munkamenet-tár (access/refresh token — SOHA ne kerüljön a repóba)
 api_tokens.json
 api_tokens.json.tmp

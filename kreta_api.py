@@ -12,6 +12,12 @@ A modul két réteget ad:
   sorok (hianyzasok, igazolasok, esemenyek, uzenetek).
 
 Titok (jelszó/token) soha nem kerül naplóba.
+
+Forrásmegjelölés: a böngésző nélküli login-flow a hun0r/e-kreta-hun0r-2.0
+projekt (`src/kreta/idp/login.py`, MIT, Copyright (c) 2025 hun0r) alapján
+újraírva; a mobil v3 `apiKey` fejléc a blazsmaster/kreta.js (MIT,
+Copyright (c) 2023 blazsmaster) mintáját követi. Részletek:
+`THIRD_PARTY_NOTICES.md`.
 """
 from __future__ import annotations
 

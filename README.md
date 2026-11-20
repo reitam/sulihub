@@ -14,7 +14,17 @@ SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből szárm
 Nem kereskedelmi termék: saját üzemeltetésű, belső hálózaton futó rendszer, az adatok
 a saját szerveren maradnak.
 
-**Jelenlegi verzió:** `v2.7.4` (éles, 2026-11-20)
+> **Jogi / adatvédelmi megjegyzés:** Ez egy **nem hivatalos** kliens, amely **nem áll
+> kapcsolatban** a KRÉTA/KIFÜ rendszerrel vagy annak üzemeltetőivel. Csak a **saját
+> fiókodhoz** és a **saját gyermekeid adataihoz** használd, a KRÉTA használati
+> feltételeit betartva. A szoftver **garancia nélkül** („AS IS”) kerül átadásra; az
+> üzemeltetésért és az adatokért a felhasználó felel. Kérjük, **ne tegyél közzé
+> személyes adatot** (gyermeknév, iskola, KRÉTA-azonosító) issue-ban, képernyőképen
+> vagy commitban. A harmadik féltől származó kódok licencei:
+> [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). A saját kód **MIT licenc**
+> alatt áll: [`LICENSE`](LICENSE).
+
+**Jelenlegi verzió:** `v2.7.5` (kiadásra kész; éles: `v2.7.4`, 2026-11-20)
 
 A verziönkénti release notes a [`docs/releasenotes/`](docs/releasenotes/) mappában
 található (minden verzióhoz külön fájl + index).

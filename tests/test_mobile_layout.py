@@ -669,7 +669,7 @@ try:
             ok(nyomtat["called"], "a Nyomtatás gomb meghívja a böngésző nyomtatását")
             ok(nyomtat["tablak"] >= 1 and nyomtat["sorok"] >= 1,
                f"a nyomtatási nézet felépül ({nyomtat['tablak']} tábla, {nyomtat['sorok']} sor)")
-            ok("Reiner" in nyomtat["diak"], f"a nyomtatási nézetben ott a diák neve ('{nyomtat['diak']}')")
+            ok("Teszt" in nyomtat["diak"], f"a nyomtatási nézetben ott a diák neve ('{nyomtat['diak']}')")
             cim = await page.evaluate("() => document.title")
             ok(cim.startswith("SuliHub - Órarend -") and cim.count(" - ") >= 3,
                f"a nyomtatási fejléc a dokumentum címe: gyerek + időszak ('{cim}')")

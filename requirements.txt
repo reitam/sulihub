@@ -12,7 +12,7 @@ waitress>=3.0,<4
 requests>=2.32,<3
 # A naptár .ics időzóna-konverziójához (Windows-on nincs rendszer tz-adatbázis).
 tzdata>=2024.1
-# AI-elemzéshez a PDF csatolmányok szövegének kinyerése (#61).
+# A tesztek PDF-szövegkinyeréséhez (test_pdf_fonts, test_riportkartya).
 pypdf>=5,<7
 # Zsebpénz valódi Excel (.xlsx) exporthoz (#11).
 openpyxl>=3.1,<4

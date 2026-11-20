@@ -7,13 +7,13 @@ fizikai / DPR 3), így a valódi túlcsordulás látszik (nem "kicsinyít" a bö
 
 Használat: python tools/mobile_shot.py [címke]   (az app a 5080-as porton fusson)
 """
-import asyncio, os, sys, json
+import asyncio, os, sys, json, tempfile
 from pathlib import Path
 from playwright.async_api import async_playwright
 
 BASE = os.environ.get("SHOT_URL", "http://127.0.0.1:5080")
 LABEL = sys.argv[1] if len(sys.argv) > 1 else "shot"
-OUT = Path(r"C:\Users\tamas.reiner\AppData\Local\Temp\opencode\shots")
+OUT = Path(os.environ.get("SHOT_DIR") or (Path(tempfile.gettempdir()) / "opencode" / "shots"))
 OUT.mkdir(parents=True, exist_ok=True)
 
 TABS = [

@@ -276,8 +276,8 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
   frissen kifizetett összeg azonnal levonódik. A `GET /api/dashboard` ezt diákonként és
   összesen is visszaadja, a diákonkénti tanulmányi átlaggal és az igazolatlan órák számával együtt.
 - A kifizetés ténye rögzíthető („KIFIZETVE"), így az elszámolás nyomon követhető.
-- A modul **gyermekenként** ki-/bekapcsolható. Jelenleg: Elek és Anna aktív,
-  **Bori esetében kikapcsolva**. Kikapcsolt diáknál a **statisztika akkor is működik**
+- A modul **gyermekenként** ki-/bekapcsolható. A példában két gyermek aktív,
+  a harmadiknál kikapcsolva. Kikapcsolt diáknál a **statisztika akkor is működik**
   (jegyeloszlás, átlag, viselkedési mutatók), csak a **pénz-kártya rejtve** van, és helyette
   egy figyelmeztető sáv jelzi, hogy a zsebpénz modul nincs engedélyezve.
 
@@ -988,7 +988,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 4. **Statisztika fül:** alapból zárt „Tantárgyi átlagok" accordion — asztalon mátrix
    (tantárgy × hónap + „Összes") és „Hónapok átlaga" lábléc; mobilon kapcsoló
    (Havi bontás / Tantárgy szerint), mindkettő tetején a „Teljes átlag".
-5. **Kikapcsolt zsebpénzű diáknál** (pl. Bori): a statisztika látszik, a pénz-kártya
+5. **Kikapcsolt zsebpénzű diáknál** (pl. a harmadik gyermek): a statisztika látszik, a pénz-kártya
    rejtve, helyette figyelmeztető sáv.
 6. **Oszlopszélesség:** az átméretezés/húzás nem rendezi át a táblát; a Hiányzások fülön is
    van fogantyú.
