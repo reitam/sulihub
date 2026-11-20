@@ -324,14 +324,14 @@
         .dash-tile .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
         .dash-tile .kpi-title { font-size: 1.05rem; font-weight: 700; color: #343a40; }
         .dash-tile .kpi-caption { font-size: .72rem; line-height: 1.15; }
-        /* Áttekintés: tantárgyi trend (romló/javuló) — lenyitható, teljes képernyős */
+        /* Áttekintés: tantárgyi trend (romló/javuló) — lenyitható; mobilon teljes képernyős */
         .trend-sav {
             display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: .5rem; margin-bottom: .5rem;
         }
         .trend-panel {
             border: 1px solid #e6cf9a; border-radius: .55rem;
-            background: #fff8e6; overflow: hidden;
+            background: #fff8e6; overflow: hidden; align-self: start;
         }
         .trend-panel--javulo { border-color: #b7dfc4; background: #eefaf1; }
         .trend-fej {
@@ -352,17 +352,15 @@
         }
         .trend-torzs { display: none; }
         .trend-panel.trend-nyitva {
-            position: fixed; inset: 0; z-index: 1080;
-            display: flex; flex-direction: column;
-            border: 0; border-radius: 0;
+            border-color: #adb5bd;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
         }
         .trend-panel.trend-nyitva .trend-fej {
-            flex: 0 0 auto; padding: .75rem 1rem; font-size: 1rem;
             border-bottom: 1px solid rgba(0, 0, 0, .08);
         }
         .trend-panel.trend-nyitva .trend-osszefoglalo { display: none; }
         .trend-panel.trend-nyitva .trend-torzs {
-            display: block; flex: 1 1 auto; overflow-y: auto;
+            display: block; max-height: 320px; overflow-y: auto;
             padding: .8rem; background: #fff;
         }
         .trend-torzs-inner { max-width: 720px; margin: 0 auto; }
@@ -379,8 +377,23 @@
             font-variant-numeric: tabular-nums;
         }
         .trend-sor-reszlet { margin-top: .15rem; font-size: .78rem; color: #6c757d; }
-        body.trend-open { overflow: hidden; }
-        @media (max-width: 767.98px) { .trend-sav { grid-template-columns: 1fr; } }
+        @media (max-width: 767.98px) {
+            .trend-sav { grid-template-columns: 1fr; }
+            /* Mobilon a kinyitott panel teljes képernyős. */
+            .trend-panel.trend-nyitva {
+                position: fixed; inset: 0; z-index: 1080;
+                width: 100%; height: 100%; align-self: stretch;
+                display: flex; flex-direction: column;
+                border: 0; border-radius: 0;
+            }
+            .trend-panel.trend-nyitva .trend-fej {
+                flex: 0 0 auto; padding: .75rem 1rem; font-size: 1rem;
+            }
+            .trend-panel.trend-nyitva .trend-torzs {
+                flex: 1 1 auto; max-height: none;
+            }
+            body.trend-open { overflow: hidden; }
+        }
         /* Ma / Hét nézet (Kaneo #104): kétsávos, középre igazított napkártyák */
         .ma-het-wrap { max-width: 780px; }
         .ma-het-grid {

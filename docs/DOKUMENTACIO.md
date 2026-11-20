@@ -383,8 +383,8 @@ két hónap különbségét mutatja (zöld/javul, piros/romlik). Az Áttekintés
 **két lenyitható sáv** jelzi a **romló** tantárgyakat (≤ -0,5) és a **javulókat** (≥ +0,5)
 **gyermeknévenként és az érintett időszakkal** (pl. „Teszt Elek – Irodalom
 (2026. szeptember → 2026. október, -2)”). Összecsukva csak a darabszám és a tantárgynevek
-látszanak; a sáv fejlécére kattintva **teljes képernyős, görgethető listává** nyílik
-(mobilon és asztalon is), a fejre kattintva vagy `Esc`-cel záródik. A `/api/atlagok`
+látszanak; a sáv fejlécére kattintva **görgethető lista** nyílik: asztalon **helyben**,
+mobilon **teljes képernyőn**; a fejre kattintva vagy `Esc`-cel záródik. A `/api/atlagok`
 válasza tantárgyanként `trend`-et, valamint gyermekenkénti `figyelmeztetesek` és
 `javulasok` listát ad (a `diak` és a két hónap mezőjével). A Hiányzások fülön a
 **Hiányzás-mintázat** kártya (a táblázatok **alatt, alapból csukva**) bontja a

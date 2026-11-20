@@ -144,8 +144,10 @@ ok('id="trendFigyelmeztetes"' in html and 'id="trendJavulas"' in html
 ok('class="trend-fej"' in html and 'aria-expanded="false"' in html
    and 'trend-torzs' in html and 'trend-nyitva' in html,
    "a trend-sáv lenyitható (gomb + lenyíló törzs)")
-ok('position: fixed; inset: 0' in html,
-   "kinyitva a trend-panel teljes képernyős")
+ok('position: fixed; inset: 0' in html and '@media (max-width: 767.98px)' in html,
+   "mobilon kinyitva a trend-panel teljes képernyős")
+ok('max-height: 320px' in html and '.trend-panel.trend-nyitva .trend-torzs' in html,
+   "asztalon a trend-panel helyben, gordithetően nyilik")
 ok('id="mintazatCollapse"' in html and 'collapse' in html.split('id="mintazatCollapse"')[0][-80:],
    "a mintázat alapból csukott (nem kezdésként jelenik meg)")
 ok(html.index('id="mintazatCard"') > html.index('id="hianyzasokTable"'),

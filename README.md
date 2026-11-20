@@ -194,8 +194,9 @@ található (minden verzióhoz külön fájl + index).
   (teljes időszak), mindkettő tetején a **teljes átlag**.
 - **Trend oszlop** (sparkline + utolsó két hónap különbsége) és **romlás-figyelmeztetés**
   az Áttekintésen (≤ -0,5), **gyermeknévvel és az érintett időszakkal**; alatta zöld sáv a
-  **javuló** tantárgyakról (≥ +0,5). A két sáv **lenyitható**: a fejlécére kattintva
-  **teljes képernyős, görgethető listává** nyílik (mobilon és asztalon is), `Esc`-cel záródik.
+  **javuló** tantárgyakról (≥ +0,5). A két sáv **lenyitható**: asztalon **helyben**,
+  görgethető listává nyílik; mobilon **teljes képernyős**; `Esc`-cel vagy a fejre
+  kattintva záródik.
 - **„Milyen jegy kell?” kalkulátor:** tantárgy (alapból üres) + célátlag + **várható
   jegyek** (súly + opcionális jegy, akár több, eltérő súllyal) → hányas/os hány ötös kell,
   illetve mennyi a várható átlag; **félévi céljegy** esetén a küszöbhöz szükséges átlag.
