@@ -301,19 +301,12 @@ Naptárba külön fejlesztés; a mostani megoldás API-kulcs nélkül működik.
 végpont programozottan továbbra is elérhető.) A viselkedés a `CALENDAR` config-blokkból
 állítható (időzóna, emlékeztető, üzenet hossza).
 
-### 2.8. Üzenetek AI-elemzése (Kaneo #61) — **API-only**
+### 2.8. Üzenetek AI-elemzése (Kaneo #61) — **eltávolítva**
 
-A **felületi „AI elemzés” gombot a felhasználó kérésére 2026-11-04-én kivettük**; a
-háttér megmaradt és API-ból hívható. Az endpoint az üzenet szövegét és a csatolmány
-szövegét (txt/md/csv/pdf, max. ~20 ezer karakter) elküldi egy **OpenAI-kompatibilis**
-AI-végpontnak (alapból helyi **Ollama**), a válaszból **validált eseménylista** készül:
-
-- `POST /api/uzenet/<id>/ai` → `{"items":[{cim, datum, ido, helyszin, leiras, google_url}]}`
-- `POST /api/naptar/ai/ics` → a kiválasztott elemekből **több VEVENT-es `.ics`**
-
-Adatvédelem: `ALLOW_CLOUD=false` mellett csak magánhálózati AI-URL engedett; a naplóba
-nem kerül a gyerek szövege. **Megjegyzés:** a nagyon kicsi modellek (pl. 0.6b) gyengébb
-minőséget adnak — API-használatnál érdemes a `AI.MODEL`-ben 3–8B modellt beállítani.
+A teljes funkciót (felületi gomb, `kreta_ai.py`, `POST /api/uzenet/<id>/ai`,
+`POST /api/naptar/ai/ics`, `AI` config-blokk, teszt és terv) a felhasználó
+kérésére **2026-11-20-án eltávolítottuk**. A naptárbejegyzés/ICS a #47/#73
+szerinti meglévő úton továbbra is elérhető.
 
 ### 2.9. Órarend ICS export (Kaneo #73)
 
@@ -387,13 +380,16 @@ az eseménylista időszak-szűrője nem befolyásolja. A tételes válasz a
 
 A tantárgyi átlagok táblázat **Trend** oszlopa a havi átlagok **sparkline-ját** és az utolsó
 két hónap különbségét mutatja (zöld/javul, piros/romlik). Az Áttekintés tetején
-**figyelmeztető sáv** jelzi a **romló** tantárgyakat (≤ -0,5) **gyermeknévenként és az
-érintett időszakkal** (pl. „Teszt Elek – Irodalom (2026. szeptember → 2026. október,
--2)”), alatta zöld sáv a **javulókat** (≥ +0,5). A `/api/atlagok` válasza tantárgyanként
-`trend`-et, valamint gyermekenkénti `figyelmeztetesek` és `javulasok` listát ad (a `diak` és
-a két hónap mezőjével). A Hiányzások fülön a **Hiányzás-mintázat**
-kártya (a táblázatok **alatt, alapból csukva**) bontja a hiányzásokat **nap, órasorszám
-és tantárgy** szerint (`/api/hianyzas-mintazat`), a tanév- és diák-szűrőt követve.
+**két lenyitható sáv** jelzi a **romló** tantárgyakat (≤ -0,5) és a **javulókat** (≥ +0,5)
+**gyermeknévenként és az érintett időszakkal** (pl. „Teszt Elek – Irodalom
+(2026. szeptember → 2026. október, -2)”). Összecsukva csak a darabszám és a tantárgynevek
+látszanak; a sáv fejlécére kattintva **teljes képernyős, görgethető listává** nyílik
+(mobilon és asztalon is), a fejre kattintva vagy `Esc`-cel záródik. A `/api/atlagok`
+válasza tantárgyanként `trend`-et, valamint gyermekenkénti `figyelmeztetesek` és
+`javulasok` listát ad (a `diak` és a két hónap mezőjével). A Hiányzások fülön a
+**Hiányzás-mintázat** kártya (a táblázatok **alatt, alapból csukva**) bontja a
+hiányzásokat **nap, órasorszám és tantárgy** szerint (`/api/hianyzas-mintazat`), a
+tanév- és diák-szűrőt követve.
 
 ### 2.14. „Ma” önálló nézet (Kaneo #9)
 
@@ -879,7 +875,6 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 | `STUDENTS[]` | Gyermekenként: név, iskolai azonosító, belépési adatok, aktív, üzenetek, zsebpénz |
 | `CALENDAR` | Naptárbejegyzés (Kaneo #47): `TIMEZONE` (Europe/Budapest), `REMINDER_MINUTES` (30, 0 = nincs), `MESSAGE_DURATION_MINUTES` (30) |
 | `ORAREND_SZINEK` | Gyermekenkénti órarend-szín (Kaneo #56), pl. `{"Teszt Elek": "#0d6efd"}`; a felület „Színek” ablaka felülírja (app_meta) |
-| `AI` | Üzenet-AI (Kaneo #61): `ENABLED`, `URL` (OpenAI-kompatibilis, pl. `http://127.0.0.1:11434`), `MODEL`, `API_KEY`, `TIMEOUT_SECONDS`, `MAX_INPUT_CHARS`, `ALLOW_CLOUD` (false = csak magánhálózat) |
 | `AUTH` | Opcionális basic auth (Kaneo #16): `ENABLED`, `USERNAME`, `PASSWORD_HASH` (werkzeug `generate_password_hash`); a `PASSWORD` csak teszt/átmeneti |
 
 ### 6.2. Környezeti változók (üzemeltetés)
@@ -1176,9 +1171,7 @@ A felület a fejléc választójában **mindig explicit** értéket küld. A `/a
   nem titkosít. **#137:** ha a config **meglévő, de olvashatatlan/érvénytelen**, a védett
   végpontok **503**-at adnak (fail-closed); hiányzó confignál az auth nincs beállítva.
 - **Személyes adatok:** gyermeknevek, jegyek, üzenetek. Ezek a saját szerveren maradnak.
-- **AI (Kaneo #61):** alapból **helyi Ollama**; `ALLOW_CLOUD=false` mellett csak
-  magánhálózati AI-URL engedett. Az elemzés gombnyomásra fut, a naplóba nem kerül a
-  gyerek szövege.
+- **AI (Kaneo #61):** a teljes üzenet-AI funkció **eltávolítva** (2026-11-20); a naptárbejegyzés/ICS a meglévő #47/#73 úton működik.
 - **Belépési adatok:** a `config.json`-ban; a fájl a data köteten van,
   a konténerben nem olvasható kívülről, és nem kerül verziókövetésbe.
 - **ntfy:** a nyilvános `ntfy.sh`-ra csak állapotinformáció megy; diáknév alapból nem.
@@ -1210,7 +1203,7 @@ Kreta/
 ├── views_messages.py      # üzenetek, olvasottság, saját megjegyzések
 ├── views_absences.py      # hiányzások / igazolások
 ├── views_stats.py         # tanévek, dashboard, tantárgyi átlagok
-├── views_rewards.py       # zsebpénz-statisztika, kifizetés, naptár/ICS, üzenet-AI
+├── views_rewards.py       # zsebpénz-statisztika, kifizetés, naptár/ICS
 ├── kreta_exports.py       # PDF órarend, XLSX/CSV export, zsebpénz-számítási mag
 ├── kreta_archive.py       # zárt tanév ZIP-archívuma (JSON/CSV/Excel/PDF + checksum)
 ├── kreta_paths.py         # útvonalak (KRETA_* env, data/ alapértelmezés)
@@ -1224,7 +1217,7 @@ Kreta/
 ├── kreta_tanev.py         # tanév-számítás + séma-migráció (Kaneo #40)
 ├── kreta_sajat_orarend.py # kézi órarendi sorozatok + kivételek (Kaneo #55)
 ├── kreta_naptar.py        # Google Naptár-link + .ics generálás (Kaneo #47)
-├── kreta_ai.py            # üzenet-AI kliens + JSON-validáció (Kaneo #61)
+├── docs/                  # dokumentáció (DOKUMENTACIO, rendszerterv, összefoglalók)
 ├── templates/index.html   # dashboard váza (modálok, fülek) — inline JS nélkül
 ├── static/js/core.js      # globális frontend-segédek (avatar, státuszsáv, formázás)
 ├── static/js/app-main.js  # a felület fő JS-e ($(document).ready blokk)
@@ -1283,8 +1276,7 @@ hiányzásokon is), **dashboard** (valódi böngészőben: csempeszámok, csempe
 visszalépés, gyermekkártyák, zárt accordion), **mobil elrendezés** (valódi böngészőben, 393 px;
 a saját óra rögzítése és a naptárgombok is), **kézi órarend** (`sajat_orarend`: tanév/hét/egyedi
 érvényesség, heti ismétlődés, kivétel, sorozat-törlés/módosítás, diák-szűrés), **naptárbejegyzés**
-(Google-link + `.ics`, időzóna/emlékeztető, API 200/404), **üzenet-AI** (JSON-validáció,
-fake HTTP-szerver, magánhálózati őr, 502/503, több VEVENT-es `.ics`), **auth** (basic auth
+(Google-link + `.ics`, időzóna/emlékeztető, API 200/404), **auth** (basic auth
 401/200, `/health` kivétel, statikus védelem), **DB-indexek** (indexlétezés, sémaverzió,
 migráció előtti másolat), **zsebpénz CSV** (BOM, fejléc, szűrés). A tesztek izolált temp
 könyvtárban futnak, a valódi adatokat nem érintik.
@@ -1444,7 +1436,7 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 |---|---|
 | `README.md` | Rövid üzemeltetői útmutató, telepítés, konfiguráció |
 | `docs/rendszerterv.md` | Eredeti követelményjegyzék és rendszerterv (történeti) |
-| `docs/AI-ELEMZES-TERV.md` | Üzenet-AI (LLM) integráció terve |
+| `docs/DOKUMENTACIO.md` | A rendszer teljes leírása |
 | `docs/osszefoglalo/` | Munkamenet-összefoglalók (dátumozott) — pl. a KRÉ-14 refaktoré |
 | `tests/README.md` | A tesztek leírása és futtatása |
 | `docs/DOKUMENTACIO.md` | **Ez a dokumentum** — teljes rendszerleírás |

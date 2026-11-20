@@ -3157,10 +3157,6 @@ $(document).ready(function() {
         });
     });
 
-    // ── Üzenet AI-elemzése (Kaneo #61) ─────────────────────────────────────
-    // A felületi gombot a felhasználó kérésére kivettük (2026-11-04): a háttér
-    // (/api/uzenet/<id>/ai, /api/naptar/ai/ics) megmaradt, API-ból hívható.
-
     $('#btnUzenetKommentMent').click(function() {
         let szoveg = $('#uzenetKommentUj').val().trim();
         if (!szoveg || !uzenetKommentCel.kulcs) return;
@@ -3950,43 +3946,75 @@ $(document).ready(function() {
                    : '');
     }
 
+    function trendSor(f, mindenDiak, irany) {
+        const nev = (mindenDiak && f.diak)
+            ? `<span class="trend-sor-diak">${escapeHtml(f.diak)}</span>` : '';
+        const idoszak = (f.honapok || []).map(honapNev).join(' → ');
+        const atlagok = (f.atlagok || []).map(function(a) {
+            return Number(a).toFixed(2);
+        }).join(' → ');
+        const jel = Number(f.valtozas) > 0 ? '+' : '';
+        const szin = irany === 'romlo' ? 'text-danger' : 'text-success';
+        const reszlet = [idoszak, atlagok].filter(Boolean).join(' · ');
+        return `<div class="trend-sor">
+            <div class="trend-sor-fej">
+                <span class="trend-sor-tantargy">${escapeHtml(f.tantargy)}</span>${nev}
+                <span class="trend-sor-valtozas ${szin}">${jel}${f.valtozas}</span>
+            </div>
+            <div class="trend-sor-reszlet">${escapeHtml(reszlet)}</div>
+        </div>`;
+    }
+
+    function trendPanelFeltolt($panel, lista, irany, mindenDiak) {
+        if (!lista.length) {
+            $panel.addClass('d-none');
+            $panel.find('.trend-torzs-inner').empty();
+            return false;
+        }
+        $panel.removeClass('d-none');
+        $panel.find('.trend-db').text(lista.length);
+        $panel.find('.trend-osszefoglalo').text(
+            lista.map(function(f) { return f.tantargy; }).join(', '));
+        $panel.find('.trend-torzs-inner').html(
+            lista.map(function(f) { return trendSor(f, mindenDiak, irany); }).join(''));
+        return true;
+    }
+
+    function trendBezar() {
+        $('.trend-panel.trend-nyitva')
+            .removeClass('trend-nyitva')
+            .find('.trend-fej').attr('aria-expanded', 'false');
+        $('body').removeClass('trend-open');
+    }
+
     function loadTrendFigyelmeztetes() {
         const diak = $('#filterDiak').val() || '';
         $.getJSON(`/api/atlagok?diak=${encodeURIComponent(diak)}${tanevQueryParam()}`, function(res) {
             const figy = res.figyelmeztetesek || [];
             const jav = res.javulasok || [];
             const mindenDiak = !diak;   // „Mind” nézetben a gyermek nevét is kiírjuk
-
-            function trendLista(lista) {
-                return lista.map(function(f) {
-                    const nev = (mindenDiak && f.diak) ? `${escapeHtml(f.diak)} – ` : '';
-                    const idoszak = (f.honapok || []).map(honapNev).join(' → ');
-                    const jel = Number(f.valtozas) > 0 ? '+' : '';
-                    return `${nev}<b>${escapeHtml(f.tantargy)}</b> ` +
-                           `<span class="text-nowrap">(${idoszak}${idoszak ? ', ' : ''}` +
-                           `${jel}${f.valtozas})</span>`;
-                }).join(', ');
-            }
-
-            const $box = $('#trendFigyelmeztetes');
-            if (!figy.length) {
-                $box.addClass('d-none').empty();
-            } else {
-                $box.removeClass('d-none').html(
-                    '<i class="fa-solid fa-arrow-trend-down me-1"></i><b>Romló tantárgy:</b> ' +
-                    trendLista(figy));
-            }
-
-            const $jav = $('#trendJavulas');
-            if (!jav.length) {
-                $jav.addClass('d-none').empty();
-            } else {
-                $jav.removeClass('d-none').html(
-                    '<i class="fa-solid fa-arrow-trend-up me-1"></i><b>Javuló tantárgy:</b> ' +
-                    trendLista(jav));
-            }
+            const vanFigy = trendPanelFeltolt($('#trendFigyelmeztetes'), figy, 'romlo', mindenDiak);
+            const vanJav = trendPanelFeltolt($('#trendJavulas'), jav, 'javulo', mindenDiak);
+            $('#trendSav').toggleClass('d-none', !vanFigy && !vanJav);
+            if (!vanFigy && !vanJav) trendBezar();
         });
     }
+
+    // A trend-sáv lenyitása: mobilon és asztalon is teljes képernyős panel.
+    $('#trendSav').on('click', '.trend-fej', function() {
+        const $panel = $(this).closest('.trend-panel');
+        const nyitva = !$panel.hasClass('trend-nyitva');
+        trendBezar();
+        if (nyitva) {
+            $panel.addClass('trend-nyitva');
+            $(this).attr('aria-expanded', 'true');
+            $('body').addClass('trend-open');
+            $panel.find('.trend-torzs').scrollTop(0);
+        }
+    });
+    $(document).on('keydown.trendSav', function(e) {
+        if (e.key === 'Escape') trendBezar();
+    });
 
     function mintazatSav(db, max) {
         const szazalek = max ? Math.round(db / max * 100) : 0;

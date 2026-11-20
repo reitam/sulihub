@@ -53,16 +53,6 @@
     "Teszt Elemér": "#0d6efd",
     "Esti Tesztike": "#198754"
   },
-  "AI": {
-    "_comment": "Uzenet-AI (Kaneo #61): OpenAI-kompatibilis vegpont, alapbol helyi Ollama. ALLOW_CLOUD=false mellett csak maganhalozati URL engedett.",
-    "ENABLED": true,
-    "URL": "http://127.0.0.1:11434",
-    "MODEL": "qwen3:0.6b",
-    "API_KEY": "",
-    "TIMEOUT_SECONDS": 60,
-    "MAX_INPUT_CHARS": 6000,
-    "ALLOW_CLOUD": false
-  },
   "REWARDS": {
     "jegy_5": 500,
     "jegy_4": 200,

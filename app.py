@@ -19,7 +19,6 @@ import kreta_api
 import kreta_digest
 import kreta_sajat_orarend
 import kreta_naptar
-import kreta_ai
 import kreta_szunet
 
 # ReportLab importok a PDF generáláshoz
@@ -1427,9 +1426,6 @@ def run_scraper_thread(trigger="manual"):
 # ==============================================================================
 # === NAPTÁRBEJEGYZÉS GENERÁLÁS (Kaneo #47) ===================================
 # ==============================================================================
-
-
-# ── Üzenet AI-elemzés (Kaneo #61) ─────────────────────────────────────────
 
 
 # ==============================================================================

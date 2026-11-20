@@ -141,13 +141,19 @@ js = client.get("/static/js/app-main.js").get_data(as_text=True)
 ok('id="trendFigyelmeztetes"' in html and 'id="trendJavulas"' in html
    and 'id="mintazatCard"' in html
    and 'id="mintazatNapok"' in html, "a figyelmeztető/javuló sáv és a mintázat-kártya a sablonban")
+ok('class="trend-fej"' in html and 'aria-expanded="false"' in html
+   and 'trend-torzs' in html and 'trend-nyitva' in html,
+   "a trend-sáv lenyitható (gomb + lenyíló törzs)")
+ok('position: fixed; inset: 0' in html,
+   "kinyitva a trend-panel teljes képernyős")
 ok('id="mintazatCollapse"' in html and 'collapse' in html.split('id="mintazatCollapse"')[0][-80:],
    "a mintázat alapból csukott (nem kezdésként jelenik meg)")
 ok(html.index('id="mintazatCard"') > html.index('id="hianyzasokTable"'),
    "a mintázat-kártya a hiányzás-táblázat UTÁN van")
 ok("sparklineSvg" in js and "trendCella" in js and "figyelmeztetesek" in js
-   and "javulasok" in js and "Javuló tantárgy" in js,
-   "a trend-sparkline és a figyelmeztetés/javulás a JS-ben")
+   and "javulasok" in js and "trendSor" in js and "trendPanelFeltolt" in js
+   and "trend-nyitva" in js,
+   "a trend-sparkline és a lenyitható figyelmeztetés/javulás a JS-ben")
 ok("loadHianyzasMintazat" in js and "/api/hianyzas-mintazat" in js,
    "a mintázat betöltése a JS-ben")
 

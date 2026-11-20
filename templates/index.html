@@ -324,6 +324,63 @@
         .dash-tile .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1; }
         .dash-tile .kpi-title { font-size: 1.05rem; font-weight: 700; color: #343a40; }
         .dash-tile .kpi-caption { font-size: .72rem; line-height: 1.15; }
+        /* Áttekintés: tantárgyi trend (romló/javuló) — lenyitható, teljes képernyős */
+        .trend-sav {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .5rem; margin-bottom: .5rem;
+        }
+        .trend-panel {
+            border: 1px solid #e6cf9a; border-radius: .55rem;
+            background: #fff8e6; overflow: hidden;
+        }
+        .trend-panel--javulo { border-color: #b7dfc4; background: #eefaf1; }
+        .trend-fej {
+            display: flex; align-items: center; gap: .45rem; width: 100%;
+            padding: .45rem .65rem; border: 0; background: transparent;
+            font-size: .86rem; font-weight: 700; text-align: left; color: #7a5200;
+        }
+        .trend-panel--javulo .trend-fej { color: #146c43; }
+        .trend-fej:focus-visible { outline: 2px solid #0d6efd; outline-offset: -2px; }
+        .trend-cim { white-space: nowrap; }
+        .trend-chevron { transition: transform .15s ease; }
+        .trend-panel.trend-nyitva .trend-chevron { transform: rotate(180deg); }
+        .trend-db { background: #dc3545; color: #fff; }
+        .trend-panel--javulo .trend-db { background: #198754; }
+        .trend-osszefoglalo {
+            min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-size: .76rem; font-weight: 400; color: #6c757d;
+        }
+        .trend-torzs { display: none; }
+        .trend-panel.trend-nyitva {
+            position: fixed; inset: 0; z-index: 1080;
+            display: flex; flex-direction: column;
+            border: 0; border-radius: 0;
+        }
+        .trend-panel.trend-nyitva .trend-fej {
+            flex: 0 0 auto; padding: .75rem 1rem; font-size: 1rem;
+            border-bottom: 1px solid rgba(0, 0, 0, .08);
+        }
+        .trend-panel.trend-nyitva .trend-osszefoglalo { display: none; }
+        .trend-panel.trend-nyitva .trend-torzs {
+            display: block; flex: 1 1 auto; overflow-y: auto;
+            padding: .8rem; background: #fff;
+        }
+        .trend-torzs-inner { max-width: 720px; margin: 0 auto; }
+        .trend-sor {
+            padding: .55rem .65rem; margin-bottom: .45rem;
+            border: 1px solid #e9ecef; border-radius: .5rem; background: #fff;
+        }
+        .trend-sor:last-child { margin-bottom: 0; }
+        .trend-sor-fej { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+        .trend-sor-tantargy { font-size: .95rem; font-weight: 700; }
+        .trend-sor-diak { font-size: .78rem; color: #6c757d; }
+        .trend-sor-valtozas {
+            margin-left: auto; font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+        .trend-sor-reszlet { margin-top: .15rem; font-size: .78rem; color: #6c757d; }
+        body.trend-open { overflow: hidden; }
+        @media (max-width: 767.98px) { .trend-sav { grid-template-columns: 1fr; } }
         /* Ma / Hét nézet (Kaneo #104): kétsávos, középre igazított napkártyák */
         .ma-het-wrap { max-width: 780px; }
         .ma-het-grid {
@@ -793,6 +850,17 @@
             color: var(--bs-body-color) !important;
         }
         [data-bs-theme="dark"] .dash-tile .kpi-title { color: var(--bs-body-color); }
+        /* Tantárgyi trend sáv (romló/javuló) sötét módban */
+        [data-bs-theme="dark"] .trend-panel { background: #3a2f1a; border-color: #6b5426; }
+        [data-bs-theme="dark"] .trend-panel--javulo { background: #16301f; border-color: #2c5a3c; }
+        [data-bs-theme="dark"] .trend-fej { color: #ffd88a; }
+        [data-bs-theme="dark"] .trend-panel--javulo .trend-fej { color: #8fd6a8; }
+        [data-bs-theme="dark"] .trend-panel.trend-nyitva .trend-fej { border-bottom-color: #343a40; }
+        [data-bs-theme="dark"] .trend-panel.trend-nyitva .trend-torzs { background: #121517; }
+        [data-bs-theme="dark"] .trend-sor { background: #1c2126; border-color: #343a40; }
+        [data-bs-theme="dark"] .trend-sor-diak,
+        [data-bs-theme="dark"] .trend-sor-reszlet,
+        [data-bs-theme="dark"] .trend-osszefoglalo { color: #adb5bd; }
         /* A ciánkék modálfejlécen maradjon sötét a szöveg (a text-dark felülírást kivéve). */
         [data-bs-theme="dark"] .modal-header.bg-info.text-dark,
         [data-bs-theme="dark"] .modal-header.bg-info.text-dark .modal-title {
@@ -1148,8 +1216,32 @@
     <div class="tab-content" id="mainTabContent">
         <!-- 0. FÜL: ÁTTEKINTÉS (DASHBOARD, Kaneo #38) -->
         <div class="tab-pane fade show active" id="attekintes-pane" role="tabpanel">
-            <div id="trendFigyelmeztetes" class="alert alert-warning py-1 px-2 small d-none mb-2"></div>
-            <div id="trendJavulas" class="alert alert-success py-1 px-2 small d-none mb-2"></div>
+            <div id="trendSav" class="trend-sav d-none">
+                <div class="trend-panel" id="trendFigyelmeztetes">
+                    <button type="button" class="trend-fej" aria-expanded="false" aria-controls="trendRomloTorzs">
+                        <i class="fa-solid fa-arrow-trend-down"></i>
+                        <span class="trend-cim">Romló tantárgy</span>
+                        <span class="badge rounded-pill trend-db">0</span>
+                        <span class="trend-osszefoglalo"></span>
+                        <i class="fa-solid fa-chevron-down trend-chevron ms-auto"></i>
+                    </button>
+                    <div class="trend-torzs" id="trendRomloTorzs">
+                        <div class="trend-torzs-inner"></div>
+                    </div>
+                </div>
+                <div class="trend-panel trend-panel--javulo" id="trendJavulas">
+                    <button type="button" class="trend-fej" aria-expanded="false" aria-controls="trendJavuloTorzs">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                        <span class="trend-cim">Javuló tantárgy</span>
+                        <span class="badge rounded-pill trend-db">0</span>
+                        <span class="trend-osszefoglalo"></span>
+                        <i class="fa-solid fa-chevron-down trend-chevron ms-auto"></i>
+                    </button>
+                    <div class="trend-torzs" id="trendJavuloTorzs">
+                        <div class="trend-torzs-inner"></div>
+                    </div>
+                </div>
+            </div>
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap" id="dashboardDiakChips">
                     <span class="text-muted small fw-bold"><i class="fa-solid fa-users me-1"></i>Gyermek:</span>

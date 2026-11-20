@@ -184,7 +184,8 @@ található (minden verzióhoz külön fájl + index).
   (teljes időszak), mindkettő tetején a **teljes átlag**.
 - **Trend oszlop** (sparkline + utolsó két hónap különbsége) és **romlás-figyelmeztetés**
   az Áttekintésen (≤ -0,5), **gyermeknévvel és az érintett időszakkal**; alatta zöld sáv a
-  **javuló** tantárgyakról (≥ +0,5).
+  **javuló** tantárgyakról (≥ +0,5). A két sáv **lenyitható**: a fejlécére kattintva
+  **teljes képernyős, görgethető listává** nyílik (mobilon és asztalon is), `Esc`-cel záródik.
 - **„Milyen jegy kell?” kalkulátor:** tantárgy (alapból üres) + célátlag + **várható
   jegyek** (súly + opcionális jegy, akár több, eltérő súllyal) → hányas/os hány ötös kell,
   illetve mennyi a várható átlag; **félévi céljegy** esetén a küszöbhöz szükséges átlag.
@@ -483,7 +484,6 @@ Futásonként legfeljebb egy push megy ki. Az új adat push kikapcsolható:
 ├── docs/
 │   ├── DOKUMENTACIO.md     # teljes rendszerdokumentáció
 │   ├── rendszerterv.md     # eredeti követelményjegyzék (történeti)
-│   ├── AI-ELEMZES-TERV.md  # üzenet-AI integráció terve
 │   └── osszefoglalo/       # munkamenet-összefoglalók
 └── README.md
 ```
@@ -602,6 +602,5 @@ A teljes lista: [`DOKUMENTACIO.md` 13. fejezet](docs/DOKUMENTACIO.md).
 |---|---|
 | [`docs/DOKUMENTACIO.md`](docs/DOKUMENTACIO.md) | Teljes rendszerdokumentáció (üzleti + technikai) |
 | [`docs/rendszerterv.md`](docs/rendszerterv.md) | Eredeti követelményjegyzék (történeti) |
-| [`docs/AI-ELEMZES-TERV.md`](docs/AI-ELEMZES-TERV.md) | Üzenet-AI (LLM) integráció terve |
 | [`docs/osszefoglalo/`](docs/osszefoglalo/) | Munkamenet-összefoglalók (naptárazott) |
 | [`tests/README.md`](tests/README.md) | A tesztek leírása |
