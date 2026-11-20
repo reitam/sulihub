@@ -364,7 +364,16 @@ try:
         ok(any("100%" in s for s in kalk_suly), f"a súly is megjelenik: {kalk_suly}")
         page.click("#btnKalkVarhatoAdd")
         page.select_option("#kalkFelevi", "5")
-        page.wait_for_timeout(900)
+        # A kalkulátor eredménye aszinkron jön; CI alatt a 900 ms kevés volt
+        # (a teszt „Számolás…”-t látott). Megvárjuk a tényleges választ.
+        try:
+            page.wait_for_function(
+                "() => { const el = document.querySelector('#kalkEredmeny');"
+                " return el && el.innerText.trim() && !el.innerText.includes('Számolás'); }",
+                timeout=10000,
+            )
+        except Exception:
+            pass
         kalk_eredmeny = " ".join(page.inner_text("#kalkEredmeny").split())
         ok("félévi" in kalk_eredmeny.lower(),
            f"a félévi cél eredménye is megjelenik: {kalk_eredmeny[:160]}")
