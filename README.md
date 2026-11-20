@@ -568,6 +568,7 @@ fel a lokális DB-t, csatolmányokat és a `config.json`-t, valamint telepíti a
 
 | Verzió | Tartalom |
 |---|---|
+| v2.7.5 | **#154 üzenet-AI teljes eltávolítása:** `kreta_ai.py`, a két AI-végpont, a hozzájuk tartozó segédfüggvények, az `AI` config-blokk, a teszt és a terv törölve; a naptárbejegyzés/ICS a meglévő úton marad. **#155 Áttekintés trend sáv:** a romló/javuló tantárgy sáv lenyitható, kinyitva teljes képernyős, görgethető lista (gyermek, tantárgy, időszak, havi átlagok, változás); `Esc`-cel záródik, sötét módban is |
 | v2.7.4 | **#137 auth fail-closed:** meglévő, de olvashatatlan/érvénytelen config → 503 a védett végpontokon, `/health` nyitott; `load_config_strict` + teszt. **#149/#150/#151 first seen:** séma v6, 2 napos ablak (`KRETA_FIRST_SEEN_RECENT_DAYS`), `KRETA_TODAY`, int/clamp, ALTER try/except. **#152:** dátumfüggetlen first seen teszt. **#148:** code review pontok lezárva |
 | v2.7.3 | **#153 mobil:** a **Műveletek** oszlop mindig látszik (a responsive nem rejti el), a házi feladat Elkészült/Újra aktív gombja mobilon csak ikon; a megjegyzés/részletek gomb minden sornál elérhető. **UI takarítás:** a nem használt kedvencek/csillag gomb, a Kitűzött események panel és a `/api/kedvencek` végpont eltávolítva |
 | v2.7.2 | **#153 mobil nézet finomítása:** 44 px diák-oszlop, típus-rövidítés (É/F/HF/SZK), egy sorban tantárgy + rövid dátum + jegy a jobb szélen színes körben; a jegy helye fixen foglalt, ezért a dátum nem csúszik; a külön Érték/Dátum/Típus oszlop mobilon rejtve |
