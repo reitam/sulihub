@@ -234,6 +234,50 @@ def collect_day(conn: sqlite3.Connection, diak_nev: str, nap: date) -> dict:
     return collect_range(conn, diak_nev, nap, nap)
 
 
+def _event_section(row):
+    """Egy eseménysor digest-szekciója és mezői (a típus szerint).
+
+    Visszatérés: ``(szekció neve, payload)`` vagy ``(None, None)``, ha a sor
+    típusa nem szerepel a digestben (pl. órarendi elem).
+    """
+    keys = row.keys()
+    tipus = _text(row["esemeny_tipus"])
+    hatarido = parse_date(row["hatarido"])
+    kesz = _int(row["kesz"]) if "kesz" in keys else 0
+    if tipus == "Értékelés":
+        return "jegyek", {
+            "tantargy": _text(row["tantargy"]),
+            "ertek": _text(row["ertek"]),
+            "szam_ertek": _int(row["szam_ertek"]) if "szam_ertek" in keys else 0,
+            "suly": _int(row["suly_szazalek"]) if "suly_szazalek" in keys else 0,
+            "mod": _text(row["mod"]),
+            "tema": _text(row["tema"]),
+            "tanar": _text(row["ertekelo"]),
+        }
+    if tipus == "Házi feladat":
+        return "hazi", {
+            "tantargy": _text(row["tantargy"]),
+            "szoveg": _text(row["tartalom"]),
+            "hatarido": hatarido,
+            "kesz": kesz,
+        }
+    if tipus == "Bejelentett számonkérés":
+        return "dolgozatok", {
+            "tantargy": _text(row["tantargy"]),
+            "mod": _text(row["mod"]),
+            "tema": _text(row["tema"]),
+            "hatarido": hatarido,
+        }
+    if tipus == "Feljegyzés":
+        return "feljegyzesek", {
+            "tipus": _text(row["tipus"]),
+            "tartalom": _text(row["tartalom"]),
+            "cim": _text(row["cim"]),
+            "tanar": _text(row["ertekelo"]),
+        }
+    return None, None
+
+
 def collect_range(conn: sqlite3.Connection, diak_nev: str,
                   kezdo: date, vege: date) -> dict:
     """Egy diák eseményei a [kezdo, vege] napokon + a holnapi határidők.
@@ -260,42 +304,14 @@ def collect_range(conn: sqlite3.Connection, diak_nev: str,
     for row in rows:
         keys = row.keys()
         tipus = _text(row["esemeny_tipus"])
-        bej = parse_date(row["bej_datum"])
-        erkezett = _erkezes(row, bej)
+        erkezett = _erkezes(row, parse_date(row["bej_datum"]))
         hatarido = parse_date(row["hatarido"])
         kesz = _int(row["kesz"]) if "kesz" in keys else 0
 
-        if tipus == "Értékelés" and erkezett is not None and kezdo <= erkezett <= vege:
-            adat["jegyek"].append({
-                "tantargy": _text(row["tantargy"]),
-                "ertek": _text(row["ertek"]),
-                "szam_ertek": _int(row["szam_ertek"]) if "szam_ertek" in keys else 0,
-                "suly": _int(row["suly_szazalek"]) if "suly_szazalek" in keys else 0,
-                "mod": _text(row["mod"]),
-                "tema": _text(row["tema"]),
-                "tanar": _text(row["ertekelo"]),
-            })
-        elif tipus == "Házi feladat" and erkezett is not None and kezdo <= erkezett <= vege:
-            adat["hazi"].append({
-                "tantargy": _text(row["tantargy"]),
-                "szoveg": _text(row["tartalom"]),
-                "hatarido": hatarido,
-                "kesz": kesz,
-            })
-        elif tipus == "Bejelentett számonkérés" and erkezett is not None and kezdo <= erkezett <= vege:
-            adat["dolgozatok"].append({
-                "tantargy": _text(row["tantargy"]),
-                "mod": _text(row["mod"]),
-                "tema": _text(row["tema"]),
-                "hatarido": hatarido,
-            })
-        elif tipus == "Feljegyzés" and erkezett is not None and kezdo <= erkezett <= vege:
-            adat["feljegyzesek"].append({
-                "tipus": _text(row["tipus"]),
-                "tartalom": _text(row["tartalom"]),
-                "cim": _text(row["cim"]),
-                "tanar": _text(row["ertekelo"]),
-            })
+        if erkezett is not None and kezdo <= erkezett <= vege:
+            szekcio, payload = _event_section(row)
+            if szekcio:
+                adat[szekcio].append(payload)
 
         # Holnap esedékes házik / dolgozatok (a kész házi nem érdekes).
         if tipus == "Házi feladat" and hatarido == holnap and not kesz:
@@ -370,6 +386,97 @@ def collect_range(conn: sqlite3.Connection, diak_nev: str,
     adat["jegyek"].sort(key=lambda e: e["tantargy"].casefold())
     adat["hazi"].sort(key=lambda e: (e["hatarido"] or date.max, e["tantargy"].casefold()))
     adat["holnapi_hataridok"].sort(key=lambda e: (e["tipus"], e["tantargy"].casefold()))
+    return adat
+
+
+def _since_stamp(since) -> str:
+    """A `since` időpont a `letrehozva` oszlop formátumában (másodperc)."""
+    if isinstance(since, datetime):
+        return since.strftime("%Y-%m-%d %H:%M:%S")
+    text = str(since or "").strip()
+    if not text:
+        return ""
+    return text[:19].replace("T", " ")
+
+
+def collect_since(conn: sqlite3.Connection, diak_nev: str, since) -> dict:
+    """Csak a `since` óta **először látott** sorok (szinkron-push deltához).
+
+    A napi digesttel azonos mezőket ad, de **nincs** benne a nap korábbi
+    eseménye és a „Holnap esedékes" blokk: a push csak az adott futásban
+    beérkezett tételeket mutassa. A szűrés a `letrehozva` (first seen)
+    időbélyegen alapul, ezért a korábban már ismert sor nem ismétlődik.
+    """
+    adat = {
+        "jegyek": [], "hazi": [], "dolgozatok": [], "feljegyzesek": [],
+        "hianyzasok": [], "igazolasok": [], "uzenetek": [],
+        "holnapi_hataridok": [], "olvasatlan_db": 0,
+        "kezdo": None, "vege": None,
+    }
+    stamp = _since_stamp(since)
+    if not stamp:
+        return adat
+    conn.row_factory = sqlite3.Row
+
+    try:
+        rows = conn.execute(
+            "SELECT * FROM esemenyek WHERE diak_nev = ? AND letrehozva >= ?",
+            (diak_nev, stamp),
+        ).fetchall()
+    except sqlite3.Error:
+        rows = []
+    for row in rows:
+        szekcio, payload = _event_section(row)
+        if szekcio:
+            adat[szekcio].append(payload)
+
+    try:
+        for row in conn.execute(
+            "SELECT * FROM hianyzasok WHERE diak_nev = ? AND letrehozva >= ?",
+            (diak_nev, stamp),
+        ):
+            adat["hianyzasok"].append({
+                "ora": _int(row["ora_sorszam"]),
+                "tantargy": _text(row["tantargy"]),
+                "tipus": _text(row["mulasztas_tipus"]),
+                "perc": _int(row["perc"]) if row["perc"] is not None else None,
+                "igazolt": _int(row["igazolt"]),
+                "igazolas_tipus": _text(row["igazolas_tipus"]),
+                "datum": parse_date(row["mulasztas_datum"]),
+            })
+    except sqlite3.Error:
+        pass
+
+    try:
+        for row in conn.execute(
+            "SELECT * FROM igazolasok WHERE diak_nev = ? AND letrehozva >= ?",
+            (diak_nev, stamp),
+        ):
+            adat["igazolasok"].append({
+                "tipus": _text(row["igazolas_tipus"]),
+                "kezdete": parse_date(row["kezdete"]),
+                "vege": parse_date(row["vege"]),
+                "megjegyzes": _text(row["megjegyzes"]),
+            })
+    except sqlite3.Error:
+        pass
+
+    try:
+        for row in conn.execute(
+            "SELECT * FROM uzenetek WHERE diak_nev = ? AND letrehozva >= ?",
+            (diak_nev, stamp),
+        ):
+            adat["uzenetek"].append({
+                "felado": _text(row["felado"]),
+                "targy": _text(row["targy"]),
+                "olvasott": bool(row["olvasott"]) if "olvasott" in row.keys() else False,
+                "idopont": parse_date(row["idopont"]),
+            })
+    except sqlite3.Error:
+        pass
+
+    adat["jegyek"].sort(key=lambda e: e["tantargy"].casefold())
+    adat["hazi"].sort(key=lambda e: (e["hatarido"] or date.max, e["tantargy"].casefold()))
     return adat
 
 

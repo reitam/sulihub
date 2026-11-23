@@ -468,7 +468,7 @@ jelvénnyel és eredménnyel).
 
 | Esemény | Értesítés |
 |---|---|
-| Sikeres szinkron **új információval** | `SuliHub – új adatok` + a napi összefoglaló teljes részletessége, diákonként |
+| Sikeres szinkron **új információval** | `SuliHub – új adatok` + a futás **deltája**: csak a most beérkezett tételek, a napi digesttel azonos formában, diákonként (a nap korábbi tételei és a „Holnap esedékes" nem ismétlődik) |
 | Sikeres szinkron új információ nélkül | *nincs* (a státuszsáv és a napló mutatja) |
 | Részleges hiba | `részleges hiba` + a hibás diák(ok) és az új adatok részletei — egy üzenet |
 | Hiba | `HIBA`, magas prioritás; token/ismétlődő hiba esetén a health-üzenet ugyanebben az egy üzenetben |
@@ -572,6 +572,7 @@ curl http://127.0.0.1:8085/health
 
 | Verzió | Tartalom |
 |---|---|
+| v2.7.7 | **Szinkron-push csak delta:** a sikeres, új információt hozó futás pusha csak az adott futásban beérkezett tételeket listázza (a `letrehozva` first-seen időbélyeg és a futás kezdete alapján), a napi digesttel azonos formában; a nap korábbi eseményei és a „Holnap esedékes” nem ismétlődnek. A digest tartalma és ütemezése változatlan. Új `kreta_digest.collect_since()`; fallback darabszámos összegzés |
 | v2.7.6 | **#158 desktop esemény-tábla:** a mobilra szánt rövid dátum/jegykör nem szivárog a Tantárgy cellába (alapból `display: none`, mobilon jelenik meg); a dátum és a jegy a saját oszlopában marad. **CI:** a kalkulátor aszinkron eredményére váró teszt (flaky scheduled futás). **#157:** GitHub-repó `reitam/sulihub` (a régi URL átirányít) |
 | v2.7.5 | **#154 üzenet-AI teljes eltávolítása:** `kreta_ai.py`, a két AI-végpont, a hozzájuk tartozó segédfüggvények, az `AI` config-blokk, a teszt és a terv törölve; a naptárbejegyzés/ICS a meglévő úton marad. **#155 Áttekintés trend sáv:** a romló/javuló tantárgy sáv lenyitható, kinyitva teljes képernyős, görgethető lista (gyermek, tantárgy, időszak, havi átlagok, változás); `Esc`-cel záródik, sötét módban is **#156:** a feljegyzések first-seen (`letrehozva`) ideje megmarad a teljes cserés mentésnél; a hiányzó `szam_ertek` kulcsnormalizálás javítva, a meglévő 14 feljegyzés a KRÉTA-dátumára állítva — nincs több téves „új adatok” push |
 | v2.7.4 | **#137 auth fail-closed:** meglévő, de olvashatatlan/érvénytelen config → 503 a védett végpontokon, `/health` nyitott; `load_config_strict` + teszt. **#149/#150/#151 first seen:** séma v6, 2 napos ablak (`KRETA_FIRST_SEEN_RECENT_DAYS`), `KRETA_TODAY`, int/clamp, ALTER try/except. **#152:** dátumfüggetlen first seen teszt. **#148:** code review pontok lezárva |

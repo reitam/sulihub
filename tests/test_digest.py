@@ -425,6 +425,63 @@ n = app._maybe_send_digests(now=datetime(SYNC_BREAK_DAY.year, SYNC_BREAK_DAY.mon
 ok(n == 2 and len(calls) == 2,
    f"SZUNET_AKTIV=false esetén a szünet nincs figyelembe véve (2 üres digest): {n}")
 
+print("\n8) Szinkron-push delta (collect_since): csak a futás új sorai")
+DELTA_SINCE = datetime.now().replace(microsecond=0)
+DELTA_NEW = (DELTA_SINCE + timedelta(seconds=5)).strftime("%Y-%m-%d %H:%M:%S")
+DELTA_OLD = (DELTA_SINCE - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+conn = sqlite3.connect(db)
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum, hatarido,"
+    " tartalom, tanev, letrehozva) VALUES (?,?,?,?,?,?,?,?)",
+    ("Teszt Anna", "Értékelés", "Informatika", hu(TODAY), "", "", "2026/2027", DELTA_NEW))
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum, hatarido,"
+    " tartalom, tanev, letrehozva) VALUES (?,?,?,?,?,?,?,?)",
+    ("Teszt Anna", "Értékelés", "Nyelvtan", hu(TODAY), "", "", "2026/2027", DELTA_OLD))
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum, hatarido,"
+    " tartalom, tanev, letrehozva) VALUES (?,?,?,?,?,?,?,?)",
+    ("Teszt Anna", "Házi feladat", "Földrajz", hu(TODAY), hu(HOLNAP),
+     "Térképfeladat", "2026/2027", DELTA_NEW))
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, bej_datum, hatarido,"
+    " tartalom, tanev, letrehozva) VALUES (?,?,?,?,?,?,?,?)",
+    ("Teszt Anna", "Házi feladat", "Rajz", hu(TODAY), hu(HOLNAP),
+     "Régi házi", "2026/2027", DELTA_OLD))
+conn.execute(
+    "INSERT INTO uzenetek (diak_nev, felado, targy, idopont, szoveg, olvasott, tanev,"
+    " letrehozva) VALUES (?,?,?,?,?,?,?,?)",
+    ("Teszt Anna", "Tanár", "Új delta üzenet", hu(TODAY), "Szöveg", 0, "2026/2027",
+     DELTA_NEW))
+conn.execute(
+    "INSERT INTO uzenetek (diak_nev, felado, targy, idopont, szoveg, olvasott, tanev,"
+    " letrehozva) VALUES (?,?,?,?,?,?,?,?)",
+    ("Teszt Anna", "Tanár", "Régi delta üzenet", hu(TODAY), "Szöveg", 0, "2026/2027",
+     DELTA_OLD))
+conn.commit()
+conn.close()
+
+conn = app.get_db_connection()
+delta = kreta_digest.collect_since(conn, "Teszt Anna", DELTA_SINCE)
+conn.close()
+ok([e["tantargy"] for e in delta["jegyek"]] == ["Informatika"],
+   f"csak a since utáni jegy: {[e['tantargy'] for e in delta['jegyek']]}")
+ok([e["tantargy"] for e in delta["hazi"]] == ["Földrajz"],
+   f"csak a since utáni házi: {[e['tantargy'] for e in delta['hazi']]}")
+ok(not delta["holnapi_hataridok"],
+   "a deltában nincs „Holnap esedékes” (azt az esti digest adja)")
+ok([e["targy"] for e in delta["uzenetek"]] == ["Új delta üzenet"],
+   f"csak a since utáni üzenet: {[e['targy'] for e in delta['uzenetek']]}")
+ok(not delta["hianyzasok"] and not delta["igazolasok"],
+   "a régi (letrehozva nélküli) hiányzás/igazolás nem kerül a deltába")
+_, torzs_delta = kreta_digest.build_message("Teszt Anna", TODAY, delta, False)
+ok("Informatika" in torzs_delta and "Nyelvtan" not in torzs_delta,
+   "a szövegben csak az új jegy szerepel")
+ok("Holnap esedékes" not in torzs_delta,
+   "a delta szövegében nincs holnapi blokk")
+ok("Matematika" not in torzs_delta,
+   "a nap korábbi (nem ebben a futásban beérkezett) jegye nem ismétlődik")
+
 shutil.rmtree(work, ignore_errors=True)
 print("\nKÉSZ" if not _hibak else f"\nKÉSZ — {len(_hibak)} HIBA")
 sys.exit(1 if _hibak else 0)

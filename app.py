@@ -607,13 +607,14 @@ def has_new_information(new_events, new_messages=None, new_hianyzasok=None):
                for h in (new_hianyzasok or {}).values())
 
 
-def _sync_detail_block(new_events, new_messages, new_hianyzasok):
-    """A napi összefoglaló részletességű blokk a push-hoz (diákonként).
+def _sync_detail_block(new_events, new_messages, new_hianyzasok, since=None):
+    """A futás **delta** blokkja a push-hoz (diákonként).
 
-    A szinkron csak darabszámokat ad vissza, ezért a részleteket a DB-ből,
-    a napi digesttel azonos formában állítjuk elő. Ha egy diákhoz a mai napon
-    nincs megjeleníthető sor (pl. visszamenőleges rögzítés), a darabszámos
-    összegzés marad.
+    Csak az adott futásban beérkezett tételeket listázza — a `letrehozva`
+    (first seen) időbélyeg és a futás kezdete (`since`) alapján —, a napi
+    digesttel azonos formában. A nap korábbi eseményei és a „Holnap esedékes"
+    blokk **nem** ismétlődnek: azok az esti digestben vannak. Ha a diáknál a
+    DB-ből nem található megjeleníthető új sor, a darabszámos összegzés marad.
     """
     diakok = list(dict.fromkeys(
         list(new_events or {}) + list(new_messages or {}) + list(new_hianyzasok or {})
@@ -635,9 +636,9 @@ def _sync_detail_block(new_events, new_messages, new_hianyzasok):
         for idx, diak in enumerate(diakok, 1):
             label = diak if NTFY_INCLUDE_NAMES else f"{idx}. gyermek"
             adat = {}
-            if conn is not None:
+            if conn is not None and since is not None:
                 try:
-                    adat = kreta_digest.collect_day(conn, diak, nap)
+                    adat = kreta_digest.collect_since(conn, diak, since)
                 except Exception:  # noqa: BLE001
                     adat = {}
             if adat and not kreta_digest.is_empty_day(adat):
@@ -724,12 +725,13 @@ def send_notification(title, message, priority=3, tags=None):
 
 def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=None, total=None,
                        new_events=None, new_messages=None, new_hianyzasok=None,
-                       health_alert=None):
+                       health_alert=None, since=None):
     """A szinkron eredményéről szóló push (Kaneo #128).
 
     - hiba / részleges hiba: **mindig** megy, egy üzenet futásonként;
-    - sikeres futás **új információval**: egy üzenet, a napi összefoglaló
-      részletességével (a DB-ből, diákonként csoportosítva);
+    - sikeres futás **új információval**: egy üzenet, a futás **delta**
+      tételeivel (a napi digesttel azonos formában, de csak a most beérkezett
+      sorok; `since` = a futás kezdete);
     - sikeres futás új információ nélkül: **nincs** push.
 
     `health_alert` esetén (token-lejárat / ismétlődő hiba) az adott riasztás
@@ -737,7 +739,8 @@ def notify_sync_result(status, failed_students, trigger, duration_min, ok_count=
     """
     failed_txt = ", ".join(failed_students) if failed_students else ""
     has_new = has_new_information(new_events, new_messages, new_hianyzasok)
-    details = _sync_detail_block(new_events, new_messages, new_hianyzasok) if has_new else ""
+    details = (_sync_detail_block(new_events, new_messages, new_hianyzasok, since)
+               if has_new else "")
     details_block = ("\n\n" + details) if details else ""
 
     if status == "done_with_errors":
@@ -1392,10 +1395,10 @@ def run_scraper_thread(trigger="manual"):
         health_alert = health.get("_alert")
 
         # Push értesítés: egy üzenet futásonként — hiba, vagy új információ
-        # (a napi összefoglaló részletességével); változás nélküli siker: nincs.
+        # (csak a futás **delta** tételei; változás nélküli siker: nincs).
         notify_sync_result(final_status, final_failed, trigger, duration_min, final_ok, final_total,
                            final_new_events, final_new_messages, final_new_hianyzasok,
-                           health_alert=health_alert)
+                           health_alert=health_alert, since=started_at)
 
         if tanev_changes:
             lezart = sorted({ch.get("lezart_tanev") for ch in tanev_changes if ch.get("lezart_tanev")})

@@ -3,7 +3,10 @@
 #128: szinkron-push politika.
 
 - hiba / részleges hiba: mindig egy üzenet;
-- új információ: egy üzenet, a napi összefoglaló részletességével;
+- új információ: egy üzenet, **csak a futás deltájával** (a `letrehozva`
+  first-seen időbélyeg és a futás kezdete alapján), a napi digest formájában;
+- a nap korábbi tételei és a „Holnap esedékes" blokk **nem** ismétlődnek
+  (azok az esti digestben vannak);
 - sikeres, változás nélküli futás: nincs üzenet;
 - a health-riasztás (token / ismétlődő hiba) ugyanabba az egy üzenetbe kerül.
 """
@@ -14,7 +17,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,6 +62,11 @@ def ok(condition, message):
 TODAY = date.today()
 HOLNAP = TODAY + timedelta(days=1)
 
+# A futás kezdete (a „since” cutoff) és a hozzá képest új / korábbi sorok.
+RUNTIME = datetime.now().replace(microsecond=0)
+STAMP_NEW = (RUNTIME + timedelta(seconds=1)).strftime("%Y-%m-%d %H:%M:%S")
+STAMP_OLD = (RUNTIME - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+
 
 def hu(d):
     return f"{d.year}. {d.month:02d}. {d.day:02d}."
@@ -72,53 +80,74 @@ kreta.NTFY_TOPIC = "teszt-topic"
 kreta.NTFY_NOTIFY_NEW = True
 kreta.NTFY_INCLUDE_NAMES = True
 
-# ── Minta adatok a mai napra ────────────────────────────────────────────────
+# ── Minta adatok: egy új és egy korábbi sor minden adatkörből ────────────────
 conn = sqlite3.connect(db)
 conn.execute(
     "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
     " bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz,"
-    " suly_szazalek, tanev) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    " suly_szazalek, tanev, letrehozva) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     ("Teszt Anna", "Értékelés", "Matematika", "Jeles(5)", 5, hu(TODAY), "",
      "Kovács Anna", "Évközi jegy/értékelés", "Írásbeli", "Törtek", "", "", 0,
-     100, "2026/2027"))
+     100, "2026/2027", STAMP_NEW))
 conn.execute(
     "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
     " bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz,"
-    " suly_szazalek, tanev) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    " suly_szazalek, tanev, letrehozva) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    ("Teszt Anna", "Értékelés", "Történelem", "Jó(4)", 4, hu(TODAY), "",
+     "Kovács Anna", "Évközi jegy/értékelés", "Felelet", "Ókori Egyiptom", "", "", 0,
+     50, "2026/2027", STAMP_OLD))
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek,"
+    " bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz,"
+    " suly_szazalek, tanev, letrehozva) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     ("Teszt Anna", "Házi feladat", "Magyar nyelv", "", 0, hu(TODAY), hu(HOLNAP),
      "Kovács Anna", "", "", "", "",
-     "5 ige meghatározása a tanult módon.", 0, 0, "2026/2027"))
+     "5 ige meghatározása a tanult módon.", 0, 0, "2026/2027", STAMP_NEW))
 conn.execute(
     "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg,"
-    " csatolmany_nev, csatolmany_utvonal, olvasott, tanev)"
-    " VALUES (?,?,?,?,?,?,?,?,?,?)",
+    " csatolmany_nev, csatolmany_utvonal, olvasott, tanev, letrehozva)"
+    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
     ("Teszt Anna", "20", "Szülő", "Tankönyv", f"{hu(TODAY)} 8:05",
-     "Szöveg", "", "", 0, "2026/2027"))
+     "Szöveg", "", "", 0, "2026/2027", STAMP_NEW))
+conn.execute(
+    "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg,"
+    " csatolmany_nev, csatolmany_utvonal, olvasott, tanev, letrehozva)"
+    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    ("Teszt Anna", "19", "Szülő", "Régi üzenet", f"{hu(TODAY)} 7:05",
+     "Szöveg", "", "", 0, "2026/2027", STAMP_OLD))
 conn.commit()
 conn.close()
 
-print("1) Új információ -> egy részletes push")
+print("1) Új információ -> egy push, csak a futás deltájával")
 PUSH.clear()
 sent = kreta.notify_sync_result(
-    "done", [], "manual", 1.2, 3, 3,
-    {"Teszt Anna": {"Értékelés": 1}}, {"Teszt Anna": 1}, {})
+    "done", [], "scheduled", 1.2, 3, 3,
+    {"Teszt Anna": {"Értékelés": 1, "Házi feladat": 1}}, {"Teszt Anna": 1}, {},
+    since=RUNTIME)
 ok(sent is True and len(PUSH) == 1, f"egy üzenet ment el ({len(PUSH)})")
 if PUSH:
     u = PUSH[0]
     ok("új adatok" in u["title"].lower(), f"cím: {u['title']}")
+    ok("ütemezett futás" in u["message"] and "3/3 diák frissült" in u["message"],
+       "a futás összegzése benne van")
     ok("Matematika" in u["message"] and "100%" in u["message"]
        and "Törtek" in u["message"],
-       "a jegy minden részlete benne van (tantárgy, súly, téma)")
+       "az új jegy minden részlete benne van (tantárgy, súly, téma)")
+    ok("Történelem" not in u["message"],
+       "a korábbi (nem ebben a futásban beérkezett) jegy NEM ismétlődik")
     ok("Házi feladat" in u["message"] and "Magyar nyelv" in u["message"],
-       "a házi is benne van")
-    ok("Holnap esedékes" in u["message"], "a holnapi határidők is benne vannak")
-    ok("Tankönyv" in u["message"], "az üzenet is benne van")
-    ok("Nem volt új esemény" not in u["message"],
-       "az üres napi szöveg nem kerül a részletes push-ba")
+       "az új házi is benne van")
+    ok("Holnap esedékes" not in u["message"],
+       "a holnapi határidők NEM kerülnek a szinkron-pushba (az esti digesté)")
+    ok("Tankönyv" in u["message"], "az új üzenet is benne van")
+    ok("Régi üzenet" not in u["message"],
+       "a korábbi üzenet nem ismétlődik")
+    ok("Ma nem történt esemény" not in u["message"],
+       "az üres napi szöveg nem kerül a delta push-ba")
 
 print("\n2) Sikeres futás új információ nélkül -> nincs push")
 PUSH.clear()
-sent = kreta.notify_sync_result("done", [], "manual", 1.2, 3, 3, {}, {}, {})
+sent = kreta.notify_sync_result("done", [], "manual", 1.2, 3, 3, {}, {}, {}, since=RUNTIME)
 ok(sent is False and not PUSH, "nincs üzenet")
 
 print("\n3) NOTIFY_NEW=false -> új adatról sem küld")
@@ -126,21 +155,21 @@ kreta.NTFY_NOTIFY_NEW = False
 PUSH.clear()
 sent = kreta.notify_sync_result(
     "done", [], "manual", 1.2, 3, 3,
-    {"Teszt Anna": {"Értékelés": 1}}, {}, {})
+    {"Teszt Anna": {"Értékelés": 1}}, {}, {}, since=RUNTIME)
 ok(sent is False and not PUSH, "nincs üzenet")
 kreta.NTFY_NOTIFY_NEW = True
 
-print("\n4) Részleges hiba új adattal -> egy üzenet, a részletekkel")
+print("\n4) Részleges hiba új adattal -> egy üzenet, a delta részletekkel")
 PUSH.clear()
 sent = kreta.notify_sync_result(
     "done_with_errors", ["Teszt Anna"], "scheduled", 2.3, 2, 3,
-    {"Teszt Anna": {"Értékelés": 1}}, {}, {})
+    {"Teszt Anna": {"Értékelés": 1}}, {}, {}, since=RUNTIME)
 ok(sent is True and len(PUSH) == 1, f"egy üzenet ment el ({len(PUSH)})")
 if PUSH:
     u = PUSH[0]
     ok("részleges hiba" in u["title"].lower(), f"cím: {u['title']}")
     ok("Nem frissült: Teszt Anna" in u["message"], "a hibás diák benne van")
-    ok("Matematika" in u["message"], "a részletes adat is benne van")
+    ok("Matematika" in u["message"], "az új adat részlete is benne van")
 
 print("\n5) Végzetes hiba -> egy magas prioritású üzenet")
 PUSH.clear()
@@ -167,13 +196,21 @@ kreta.NTFY_INCLUDE_NAMES = False
 PUSH.clear()
 kreta.notify_sync_result(
     "done", [], "manual", 1.2, 1, 1,
-    {"Teszt Anna": {"Értékelés": 1}}, {}, {})
+    {"Teszt Anna": {"Értékelés": 1}}, {}, {}, since=RUNTIME)
 ok(len(PUSH) == 1 and "1. gyermek" in PUSH[0]["message"]
    and "Teszt Anna" not in PUSH[0]["message"],
-   "diáknév nélkül is érthető a részletes üzenet")
+   "diáknév nélkül is érthető a delta üzenet")
 kreta.NTFY_INCLUDE_NAMES = True
 
-print("\n8) Hosszú üzenet a korlát alatt marad")
+print("\n8) Ha a DB-ből nincs megjeleníthető új sor, a darabszámos összegzés marad")
+PUSH.clear()
+kreta.notify_sync_result(
+    "done", [], "manual", 1.2, 1, 1,
+    {"Teszt Béla": {"Értékelés": 1}}, {}, {}, since=RUNTIME)
+ok(len(PUSH) == 1 and "Teszt Béla: 1 jegy" in PUSH[0]["message"],
+   f"a darabszámos fallback látszik: {PUSH[0]['message'] if PUSH else ''!r}")
+
+print("\n9) Hosszú üzenet a korlát alatt marad")
 hosszu = "\n".join("• sor %d" % i for i in range(1000))
 limited = kreta._limit_ntfy_message(hosszu)
 ok(len(limited.encode("utf-8")) <= kreta.NTFY_MESSAGE_LIMIT
