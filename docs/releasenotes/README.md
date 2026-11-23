@@ -9,6 +9,10 @@ visszamenőleg készültek; a részletes rendszerleírás a
 > push** után a GitHub Actions **Release** workflow hozza létre vagy frissíti a
 > release-t; a `tools/github_release.py` kézi pótláshoz/backfillhez való (a
 > tokent a `GITHUB_TOKEN`/`GH_TOKEN` vagy a git credential manager adja).
+>
+> **Lapozás:** a GitHub Releases oldal alapból **10 release-t** mutat. A régebbiek
+> (a v2.6.1-nél korábbiak) az oldal alján az **„Older”** gombbal érhetők el —
+> a v2.6.1 azért tűnik az első oldal végének, mert épp a 10. release.
 
 > **2026-11-20:** a git history privacy okból **újraírva** (régi jelszó,
 > gyermeknevek és munkahelyi e-mail eltávolítása). A korábbi bejegyzésekben
@@ -17,7 +21,7 @@ visszamenőleg készültek; a részletes rendszerleírás a
 
 | Verzió | Dátum | Státusz | Git tag |
 |---|---|---|---|
-| [v2.7.8](v2.7.8.md) | 2026-11-23 | kiadásra kész | nincs (deploy után) |
+| [v2.7.8](v2.7.8.md) | 2026-11-23 | éles | `v2.7.8` |
 | [v2.7.7](v2.7.7.md) | 2026-11-23 | éles | `v2.7.7` |
 | [v2.7.6](v2.7.6.md) | 2026-11-20 | éles | `v2.7.6` |
 | [v2.7.5](v2.7.5.md) | 2026-11-20 | éles | `v2.7.5` |

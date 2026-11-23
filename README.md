@@ -24,7 +24,7 @@ a saját szerveren maradnak.
 > [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). A saját kód **MIT licenc**
 > alatt áll: [`LICENSE`](LICENSE).
 
-**Jelenlegi verzió:** `v2.7.7` (éles, 2026-11-23)
+**Jelenlegi verzió:** `v2.7.8` (éles, 2026-11-23)
 
 > **Átnevezés (2026-11-20):** a GitHub-repó új neve **`reitam/sulihub`**
 > (korábban `kreta_adatlekero`); a régi URL átirányít. A helyi klónban:
