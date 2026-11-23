@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Dokumentum verziója** | 1.28 (v2.7.7 szinkron-push delta) |
-| **A rendszer verziója** | v2.7.7 (kiadásra kész, 2026-11-23) |
+| **Dokumentum verziója** | 1.29 (v2.7.8 mobil/üzenet javítások) |
+| **A rendszer verziója** | v2.7.8 (kiadásra kész, 2026-11-23) |
 | **Utolsó frissítés** | 2026-11-23 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
@@ -905,7 +905,7 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 | Környezet | Hely | Cél |
 |---|---|---|
 | **Éles** | saját szerver szerver, Docker, `http://saját szerver:8085` | napi használat |
-| **Fejlesztői** | Windows, `c:\ReiTam\AI\Gemini\sulihub`, `python app.py` | tesztelés, fejlesztés |
+| **Fejlesztői** | Windows, `C:\sulihub`, `python app.py` | tesztelés, fejlesztés |
 
 ### 7.2. Szerver felépítés
 
@@ -980,7 +980,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 7. 1–2 hét után a `SYNC_SHADOW` kikapcsolható; a Playwright csak fallback marad.
 
 > **Lokális (DEV) ntfy:** a repóban nincs `.env`, ezért lokálisan nincs push. Ha kell,
-> hozz létre `c:\ReiTam\AI\Gemini\sulihub\.env` fájlt az `.env.example` alapján — de
+> hozz létre `C:\sulihub\.env` fájlt az `.env.example` alapján — de
 > **más topic névvel**, mint az éles (`kreta-dev-…`), különben a két futás ugyanoda
 > küld, és nem tudod megkülönböztetni őket. Az env erősebb a `config.json` `NTFY`
 > blokkjánál.
@@ -1007,7 +1007,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 > A v2.5.0 önállóan is deployolható, de a **v2.6.0 tartalmazza**; a mostani
 > élesítéshez a **7.3.4.** checklistet használd.
 
-1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.5.0` — egyetlen
+1. `cd C:\sulihub; .\deploy.ps1 -Release v2.5.0` — egyetlen
    (API-s, böngésző nélküli) image épül; a deploy és a healthcheck változatlan.
 2. Ellenőrzés:
    - `/health` = `v2.5.0`, a konténer `healthy`;
@@ -1029,7 +1029,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.4. v2.6.0 (szünet, értesítési politika, Ma fül) élesítési ellenőrzőlista
 
-1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.6.0` — a **v2.5.0
+1. `cd C:\sulihub; .\deploy.ps1 -Release v2.6.0` — a **v2.5.0
    (Playwright teljes kivezetés)** is benne van, külön v2.5.0 deploy nem kell.
 2. A data köteten a `config.json`-ban legyen:
    - `SZUNET_AKTIV: true` (mesterkapcsoló),
@@ -1053,7 +1053,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.5. v2.6.1 (statisztika szűrők, logó-link) élesítési ellenőrzőlista *(éles 2026-11-19)*
 
-1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.6.1`
+1. `cd C:\sulihub; .\deploy.ps1 -Release v2.6.1`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.6.1`, a konténer `healthy`;
    - a **Statisztika & Zsebpénz** fülön a gyermek-szűrők betöltéskor **üresek**,
@@ -1067,7 +1067,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.6. v2.7.0 (tanév-archívum #139 + first seen #147) élesítési ellenőrzőlista
 
-1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.7.0`
+1. `cd C:\sulihub; .\deploy.ps1 -Release v2.7.0`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.7.0`, a konténer `healthy`;
    - kézi próba egy létező tanévre:
@@ -1085,7 +1085,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.7. v2.7.1 (Bekerült oszlop #147 + mobil első kör) — éles 2026-11-19
 
-1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.7.1`
+1. `cd C:\sulihub; .\deploy.ps1 -Release v2.7.1`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.7.1`, a konténer `healthy`;
    - az Események táblában a „Részletek / Leírás” után ott a **Bekerült** oszlop;
@@ -1097,7 +1097,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.8. v2.7.2 (mobil finomítás, #153) — éles 2026-11-19
 
-1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.7.2`
+1. `cd C:\sulihub; .\deploy.ps1 -Release v2.7.2`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.7.2`, a konténer `healthy`;
    - mobilon a diák-oszlop keskeny (44 px), a sor elején a típus rövidítése
@@ -1110,7 +1110,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.9. v2.7.3 (Műveletek oszlop + kedvencek eltávolítása) — éles 2026-11-19
 
-1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.7.3`
+1. `cd C:\sulihub; .\deploy.ps1 -Release v2.7.3`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.7.3`, a konténer `healthy`;
    - mobilon a **Műveletek** oszlop mindig látszik (megjegyzés + részletek gomb);
@@ -1119,7 +1119,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
    - `Ctrl+F5` után a friss JS/HTML látszik.
 3. **Visszaállás:** az előző v2.7.2 tag/image.
 
-#### 7.3.10. v2.7.7 (szinkron-push delta) — kiadásra kész 2026-11-23
+#### 7.3.10. v2.7.7 (szinkron-push delta) — éles 2026-11-23
 
 1. `cd C:\uzemeltetesi-repo; .\deploy.ps1 -Release v2.7.7`
 2. Ellenőrzés deploy után:
@@ -1129,6 +1129,21 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
    - az esti digest (20:00) tartalma változatlan: a nap eseményei + „Holnap esedékes”;
    - a hiba/részleges hiba push és a health-riasztás változatlan (egy üzenet).
 3. **Visszaállás:** az előző v2.7.6 tag/image.
+
+#### 7.3.11. v2.7.8 (mobil üzenet/esemény + üzenet gyermek-szűrő) — kiadásra kész 2026-11-23
+
+1. `cd C:\uzemeltetesi-repo; .\deploy.ps1 -Release v2.7.8`
+2. Ellenőrzés deploy után:
+   - `/health` = `v2.7.8`, a konténer `healthy`;
+   - mobilon egy olvasatlan, hosszú tárgyú üzenetnél a **tárgy látszik** (nem csak „…”),
+     a sor elején a kék pötty marad;
+   - az Események fülön a **házi feladat / bejelentett számonkérés** sorában a
+     tantárgy mellett a **határidő** látszik; a részletekben továbbra is ott a
+     **Bejegyzés dátuma** és a **Bekerült a SuliHubba** időbélyeg;
+   - az Üzenetek fülön a **Gyermek** választó alapból „Összes gyermek”, és csak az
+     üzenetlistát szűri (az Áttekintés/Események gyermek-választása nem hat rá);
+   - `Ctrl+F5` után a friss JS/HTML látszik.
+3. **Visszaállás:** az előző v2.7.7 tag/image.
 
 ### 7.4. Mentés és visszaállítás
 
@@ -1432,7 +1447,8 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | **v2.1.2** *(kiadásra kész)* | **2026-11-08** | **#120** az Iskolai események **szűrőpanelje alapból zárva** van, a fejlécére kattintva nyílik (a dashboard-csempéről érkezve is zárva marad; a szűrő továbbra is érvényesül). **#115** (Tailscale/WireGuard távoli elérés) és **#119** (SQLite vs MySQL/PostgreSQL) **elemzés** a jegyekben, kódváltozás nélkül. **1340 ellenőrzés / 44 csomag** (fast 39/1143, browser 5/197) |
 | **v2.1.3** *(kiadásra kész)* | **2026-11-08** | **#121** a szűrőpanel a felső menüsor **alá** került (a menüsor nem ugrál a fülek között). **#82** A4-es **riportkártya PDF** félévi/tanévi bontásban, gyermekenként mentve (`riportkartyak` tábla + data kötet), visszamenőleges lista/letöltés; a hivatalos félévi jegy hiányát jelzi. **#83** **Excel exportok**: események (Jegyek/Feljegyzések/Házi feladatok) és hiányzások (Hiányzások/Igazolások) a felület szűrőivel. **#90** üzemeltetési ellenőrzések: havi **restore-teszt** (`tools/backup_restore_check.py`, manifest-tel) + éjszakai **élő füstteszt** (`tools/live_smoke.py`, CI job, secret nélkül kimarad). **1411 ellenőrzés / 47 csomag** (fast 42/1212, browser 5/199) |
 | **v2.1.4** *(kiadásra kész)* | **2026-11-08** | **#102** kereső: ↑/↓/Enter billentyű-navigáció, utolsó 5 keresés (localStorage), a találat sorának rövid kiemelése. **#107** **FTS5 trigram index** (`esemenyek_fts`, `uzenetek_fts`) triggerekkel/rebuilddel; a találatok egyeznek a LIKE-kal, rövid query-nél LIKE fallback. **#108** kedvencek **húzásos sorrendezése** + tételenkénti megjegyzés (`app_meta`). **#122** órarend **4 hét előre** (aktuális + 3), a **múltbeli sorok megőrzése** (csak az ablakon belül cserél). **#88** szinkron-egészség: 3 egymást követő hiba → magas prioritású ntfy (6h throttle), token-lejárat külön üzenet, `health` a státuszban/fejlécben. **#89** adatminőség-riport (`tools/data_quality_report.py`, csak olvas, heti cron). **#109** teljesítmény-mérés 5 000 eseményes fixture-ön (fast csomag, 500 ms küszöb). **#91** verziózott **migrációs lánc** (`MIGRATIONS`, v4, `.bak`, idempotens). **#82** az **aktuális bizonyítvány** (a felületi kártya és a PDF fejléce is ezt a nevet viseli) **mentés/előzmény nélkül**, mindig közvetlenül generálódik (`GET /api/riportkartya/export_pdf`); a fő címe a tanévet és az időszakot mutatja („SuliHub - \<gyerek\> - 2026/2027 1. félév”), **dísz-bizonyítvány** kivitelben (arany keret, pecsét, serif címek), a tantárgyi táblában nincs Db oszlop, a jegyek jegyenként összesítve („Jeles(5) - 3 db ; Jó(4) - 2 db”), a magatartás/szorgalom értékelés benne van, a zsebpénz-egyenleg csak engedélyezett modulnál, a **Feljegyzések** szekció nincs. A félévi/év végi hivatalos jegy beépítése külön backlog (#123/#124). **#125** kódszemle-javítások: riport hiányzás-óraszám, FTS ékezet/kis-nagybetű, adatminőség-typo, csatolmány-rekurzió, órarend arányőr, silent JSON, dupla `.bak`, `/api/esemenyek` limit/offset. **#104** **Ma/Hét** nézet a Ma fülön: a heti nézet **kétoszlopos, középre igazított napkártyák** (az események szerinti színekkel, páratlan darabszámnál középre tett utolsó kártyával), a **havi nézet elhagyva**. **Új SuliHub logó mindenhol:** fejléc (embléma + név), favicon/apple-touch ikon, valamint a PDF-bizonyítvány fejléce (a teljes logó a cím fölött). **1488 ellenőrzés / 50 csomag** (fast 45/1286, browser 5/202) |
-| **v2.7.7** *(kiadásra kész)* | **2026-11-23** | **Szinkron-push csak delta:** a sikeres, új információt hozó futás pusha már **csak az adott futásban beérkezett tételeket** listázza (a `letrehozva` first-seen időbélyeg és a futás kezdete alapján), a napi digesttel azonos formában. A nap korábbi eseményei és a **„Holnap esedékes"** blokk nem ismétlődnek a pushban — azokat változatlanul az esti digest adja. Új `kreta_digest.collect_since()`; ha a DB-ből nincs megjeleníthető új sor, a darabszámos összegzés marad. A digest tartalma és ütemezése **változatlan**. Tesztek: `test_digest` 8. szakasz, `test_sync_push` (delta, nincs „Holnap esedékes", a korábbi sorok kimaradnak) |
+| **v2.7.8** *(kiadásra kész)* | **2026-11-23** | **Mobil + üzenet javítások (felhasználói visszajelzés):** az olvasatlan üzenet kék pöttye nem szorítja ki a hosszú tárgyat (`.uzenet-targy-cell` flex-sor; a tárgy a cellán belül, a végén ellipszissel). A mobil eseménysorban a `Házi feladat` / `Bejelentett számonkérés` a **határidőt** mutatja a bejegyzés kelte helyett (tooltip: „Határidő: …”), a részletekben továbbra is ott a **Bejegyzés dátuma** és a **Bekerült a SuliHubba**. Az **Üzenetek fül saját gyermek-szűrőt** kapott (`#uzenetFilterDiak`, alapból „Összes gyermek”), függetlenül az Áttekintés/Események `#filterDiak`-jától; a tömeges olvasott/olvasatlan művelet is ezt használja. Tesztek: `test_mobile_layout` új ellenőrzései (olvasatlan tárgy szélessége/cellán belül maradása, SZK-határidő + részletek, üzenet gyermek-szűrő); fast 49 + browser 6 csomag zöld |
+| **v2.7.7** *(éles 2026-11-23)* | **2026-11-23** | **Szinkron-push csak delta:** a sikeres, új információt hozó futás pusha már **csak az adott futásban beérkezett tételeket** listázza (a `letrehozva` first-seen időbélyeg és a futás kezdete alapján), a napi digesttel azonos formában. A nap korábbi eseményei és a **"Holnap esedékes"** blokk nem ismétlődnek a pushban - azokat változatlanul az esti digest adja. Új `kreta_digest.collect_since()`; ha a DB-ből nincs megjeleníthető új sor, a darabszámos összegzés marad. A digest tartalma és ütemezése **változatlan**. Tesztek: `test_digest` 8. szakasz, `test_sync_push` (delta, nincs "Holnap esedékes", a korábbi sorok kimaradnak) |
 | **v2.7.6** *(éles 2026-11-20)* | **2026-11-20** | **#158 desktop esemény-tábla:** a #153 mobil nézet markupja (`.mobile-datum`, `.mobile-jegy-hely`) desktopon is megjelent, ezért a Tantárgy cellában összefűzve látszott a rövid dátum és a jegykör; a mobil elemek most alapból `display: none`, mobilon jelennek meg. Regressziós teszt: `test_dashboard` 3. szakasz. **CI:** a kalkulátor aszinkron eredményére váró teszt (`wait_for_function`). **#157:** GitHub-repó `reitam/sulihub` (a régi URL átirányít). |
 | **v2.7.5** *(éles 2026-11-20)* | **2026-11-20** | **#154 üzenet-AI teljes eltávolítása:** `kreta_ai.py`, `POST /api/uzenet/<id>/ai`, `POST /api/naptar/ai/ics`, `event_from_ai_item`, `ics_multi`, `_csatolmany_szoveg`, az `AI` config-blokk, a teszt és a terv törölve; a naptárbejegyzés/ICS a meglévő #47/#73 úton marad. **#155 Áttekintés trend sáv:** a romló/javuló tantárgy sáv lenyitható, kinyitva teljes képernyős, görgethető lista (gyermek, tantárgy, időszak, havi átlagok, változás); `Esc`/fejre kattintás zárja, sötét módban is. DB-séma változatlan (v6) **#156 first-seen fix:** a `normalize_note` hiányzó `szam_ertek` mezője miatt a first-seen kulcs nem egyezett, ezért a feljegyzések minden futásnál új `letrehozva`-t kaptak (téves „új adatok” push); a kulcsnormalizálás javítva, a meglévő 14 feljegyzés `letrehozva` értéke a KRÉTA-dátumára állítva |
 | **v2.7.4** *(éles 2026-11-20)* | **2026-11-20** | **#137 auth fail-closed:** meglévő, de olvashatatlan/érvénytelen config → 503 a védett végpontokon, `/health` nyitott; `load_config_strict` + teszt. **#149/#150/#151 first seen:** séma v6 (a már v5-ös DB-k régi éjféli friss sorainak újrapecsételése), 2 napos ablak (env: `KRETA_FIRST_SEEN_RECENT_DAYS`), `KRETA_TODAY`, int/clamp és ALTER try/except. **#152:** dátumfüggetlen `test_first_seen` + `test_digest` hétvégi fix. **#148:** a code review pontjai lezárva |

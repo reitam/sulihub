@@ -24,7 +24,7 @@ a saját szerveren maradnak.
 > [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). A saját kód **MIT licenc**
 > alatt áll: [`LICENSE`](LICENSE).
 
-**Jelenlegi verzió:** `v2.7.6` (éles, 2026-11-20)
+**Jelenlegi verzió:** `v2.7.7` (éles, 2026-11-23)
 
 > **Átnevezés (2026-11-20):** a GitHub-repó új neve **`reitam/sulihub`**
 > (korábban `kreta_adatlekero`); a régi URL átirányít. A helyi klónban:
@@ -572,6 +572,7 @@ curl http://127.0.0.1:8085/health
 
 | Verzió | Tartalom |
 |---|---|
+| v2.7.8 | **Mobil + üzenet javítások (felhasználói visszajelzés):** az olvasatlan üzenet kék pöttye nem szorítja ki a hosszú tárgyat (a tárgy a cellán belül, a végén ellipszissel látszik); a mobil eseménysorban a **házi feladat / bejelentett számonkérés** a **határidőt** mutatja a bejegyzés kelte helyett (a részletekben továbbra is ott a bejegyzés dátuma és a first-seen időbélyeg); az **Üzenetek fül saját gyermek-szűrőt** kapott („Összes gyermek” alap), függetlenül az Áttekintés/Események gyermek-választásától. A tömeges olvasott/olvasatlan művelet is ezt használja |
 | v2.7.7 | **Szinkron-push csak delta:** a sikeres, új információt hozó futás pusha csak az adott futásban beérkezett tételeket listázza (a `letrehozva` first-seen időbélyeg és a futás kezdete alapján), a napi digesttel azonos formában; a nap korábbi eseményei és a „Holnap esedékes” nem ismétlődnek. A digest tartalma és ütemezése változatlan. Új `kreta_digest.collect_since()`; fallback darabszámos összegzés |
 | v2.7.6 | **#158 desktop esemény-tábla:** a mobilra szánt rövid dátum/jegykör nem szivárog a Tantárgy cellába (alapból `display: none`, mobilon jelenik meg); a dátum és a jegy a saját oszlopában marad. **CI:** a kalkulátor aszinkron eredményére váró teszt (flaky scheduled futás). **#157:** GitHub-repó `reitam/sulihub` (a régi URL átirányít) |
 | v2.7.5 | **#154 üzenet-AI teljes eltávolítása:** `kreta_ai.py`, a két AI-végpont, a hozzájuk tartozó segédfüggvények, az `AI` config-blokk, a teszt és a terv törölve; a naptárbejegyzés/ICS a meglévő úton marad. **#155 Áttekintés trend sáv:** a romló/javuló tantárgy sáv lenyitható, kinyitva teljes képernyős, görgethető lista (gyermek, tantárgy, időszak, havi átlagok, változás); `Esc`-cel záródik, sötét módban is **#156:** a feljegyzések first-seen (`letrehozva`) ideje megmarad a teljes cserés mentésnél; a hiányzó `szam_ertek` kulcsnormalizálás javítva, a meglévő 14 feljegyzés a KRÉTA-dátumára állítva — nincs több téves „új adatok” push |
