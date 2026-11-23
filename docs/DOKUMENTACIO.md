@@ -905,7 +905,7 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 | Környezet | Hely | Cél |
 |---|---|---|
 | **Éles** | saját szerver szerver, Docker, `http://saját szerver:8085` | napi használat |
-| **Fejlesztői** | Windows, `c:\ReiTam\AI\Gemini\Kreta`, `python app.py` | tesztelés, fejlesztés |
+| **Fejlesztői** | Windows, `c:\ReiTam\AI\Gemini\sulihub`, `python app.py` | tesztelés, fejlesztés |
 
 ### 7.2. Szerver felépítés
 
@@ -980,7 +980,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 7. 1–2 hét után a `SYNC_SHADOW` kikapcsolható; a Playwright csak fallback marad.
 
 > **Lokális (DEV) ntfy:** a repóban nincs `.env`, ezért lokálisan nincs push. Ha kell,
-> hozz létre `c:\ReiTam\AI\Gemini\Kreta\.env` fájlt az `.env.example` alapján — de
+> hozz létre `c:\ReiTam\AI\Gemini\sulihub\.env` fájlt az `.env.example` alapján — de
 > **más topic névvel**, mint az éles (`kreta-dev-…`), különben a két futás ugyanoda
 > küld, és nem tudod megkülönböztetni őket. Az env erősebb a `config.json` `NTFY`
 > blokkjánál.
@@ -1007,7 +1007,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 > A v2.5.0 önállóan is deployolható, de a **v2.6.0 tartalmazza**; a mostani
 > élesítéshez a **7.3.4.** checklistet használd.
 
-1. `cd c:\ReiTam\AI\Gemini\Kreta; .\deploy.ps1 -Release v2.5.0` — egyetlen
+1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.5.0` — egyetlen
    (API-s, böngésző nélküli) image épül; a deploy és a healthcheck változatlan.
 2. Ellenőrzés:
    - `/health` = `v2.5.0`, a konténer `healthy`;
@@ -1029,7 +1029,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.4. v2.6.0 (szünet, értesítési politika, Ma fül) élesítési ellenőrzőlista
 
-1. `cd c:\ReiTam\AI\Gemini\Kreta; .\deploy.ps1 -Release v2.6.0` — a **v2.5.0
+1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.6.0` — a **v2.5.0
    (Playwright teljes kivezetés)** is benne van, külön v2.5.0 deploy nem kell.
 2. A data köteten a `config.json`-ban legyen:
    - `SZUNET_AKTIV: true` (mesterkapcsoló),
@@ -1053,7 +1053,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.5. v2.6.1 (statisztika szűrők, logó-link) élesítési ellenőrzőlista *(éles 2026-11-19)*
 
-1. `cd c:\ReiTam\AI\Gemini\Kreta; .\deploy.ps1 -Release v2.6.1`
+1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.6.1`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.6.1`, a konténer `healthy`;
    - a **Statisztika & Zsebpénz** fülön a gyermek-szűrők betöltéskor **üresek**,
@@ -1067,7 +1067,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.6. v2.7.0 (tanév-archívum #139 + first seen #147) élesítési ellenőrzőlista
 
-1. `cd c:\ReiTam\AI\Gemini\Kreta; .\deploy.ps1 -Release v2.7.0`
+1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.7.0`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.7.0`, a konténer `healthy`;
    - kézi próba egy létező tanévre:
@@ -1085,7 +1085,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.7. v2.7.1 (Bekerült oszlop #147 + mobil első kör) — éles 2026-11-19
 
-1. `cd c:\ReiTam\AI\Gemini\Kreta; .\deploy.ps1 -Release v2.7.1`
+1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.7.1`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.7.1`, a konténer `healthy`;
    - az Események táblában a „Részletek / Leírás” után ott a **Bekerült** oszlop;
@@ -1097,7 +1097,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.8. v2.7.2 (mobil finomítás, #153) — éles 2026-11-19
 
-1. `cd c:\ReiTam\AI\Gemini\Kreta; .\deploy.ps1 -Release v2.7.2`
+1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.7.2`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.7.2`, a konténer `healthy`;
    - mobilon a diák-oszlop keskeny (44 px), a sor elején a típus rövidítése
@@ -1110,7 +1110,7 @@ szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
 
 #### 7.3.9. v2.7.3 (Műveletek oszlop + kedvencek eltávolítása) — éles 2026-11-19
 
-1. `cd c:\ReiTam\AI\Gemini\Kreta; .\deploy.ps1 -Release v2.7.3`
+1. `cd c:\ReiTam\AI\Gemini\sulihub; .\deploy.ps1 -Release v2.7.3`
 2. Ellenőrzés deploy után:
    - `/health` = `v2.7.3`, a konténer `healthy`;
    - mobilon a **Műveletek** oszlop mindig látszik (megjegyzés + részletek gomb);
