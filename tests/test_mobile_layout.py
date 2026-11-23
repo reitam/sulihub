@@ -50,7 +50,8 @@ CREATE TABLE esemenyek (
     kesz INTEGER DEFAULT 0);
 CREATE TABLE uzenetek (
     id INTEGER PRIMARY KEY AUTOINCREMENT, diak_nev TEXT, uzenet_id TEXT, felado TEXT,
-    targy TEXT, idopont TEXT, szoveg TEXT, csatolmany_nev TEXT, csatolmany_utvonal TEXT);
+    targy TEXT, idopont TEXT, szoveg TEXT, csatolmany_nev TEXT, csatolmany_utvonal TEXT,
+    olvasott INTEGER DEFAULT 1, letrehozva TEXT);
 CREATE TABLE orarend (
     id INTEGER PRIMARY KEY AUTOINCREMENT, diak_nev TEXT, kezdo_idopont TEXT,
     zaro_idopont TEXT, nap TEXT, tantargy TEXT, tanar TEXT, terem TEXT);
@@ -65,11 +66,35 @@ for i in range(12):
          f"2026. 10. {10+i:02d}.", "", tanarok[i % 3], "Írásbeli", "Dolgozat",
          "Témakör", "", "Részletes leírás szövege"),
     )
+# Határidős tétel: a mobil sorban a határidő legyen a dátum, ne a bejegyzés kelte.
+conn.execute(
+    "INSERT INTO esemenyek (diak_nev, esemeny_tipus, tantargy, ertek, szam_ertek, "
+    "bej_datum, hatarido, ertekelo, tipus, mod, tema, cim, tartalom, kesz) "
+    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
+    ("Teszt Elek", "Bejelentett számonkérés", "Fizika", "", 0,
+     "2026. 11. 02.", "2026. 11. 25.", "Kovács Anna", "Írásbeli", "Dolgozat",
+     "Témakör", "", "Részletes leírás"),
+)
 for i in range(8):
     conn.execute(
         "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg) VALUES (?,?,?,?,?,?)",
         ("Teszt Elek", str(i), "Iskola", f"Tájékoztató üzenet {i}", "2026. 10. 20.", "Szöveg"),
     )
+# Olvasatlan, hosszú tárgy: a pötty mellett is látszania kell a szövegnek.
+conn.execute(
+    "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg,"
+    " olvasott, letrehozva) VALUES (?,?,?,?,?,?,?,?)",
+    ("Teszt Elek", "99", "Iskola",
+     "Vasárnapi osztálymise (11.29.) - hosszú tárgy a tördelés ellenőrzéséhez",
+     "2026. 10. 21.", "Szöveg", 0, "2026-10-21 10:00:00"),
+)
+# Második gyermek: az üzenetek fül saját gyermek-szűrőjének tesztjéhez.
+conn.execute(
+    "INSERT INTO uzenetek (diak_nev, uzenet_id, felado, targy, idopont, szoveg,"
+    " olvasott, letrehozva) VALUES (?,?,?,?,?,?,?,?)",
+    ("Második Elek", "100", "Iskola", "Második gyermek üzenete",
+     "2026. 10. 20.", "Szöveg", 1, "2026-10-20 10:00:00"),
+)
 # A Ma fül részletek-modál tesztjéhez a /api/ma válaszát egészítjük ki
 # (a DB-fixture marad változatlan, így az Események táblázat tesztjeit nem érinti).
 MAI = date.today().isoformat()
@@ -349,7 +374,8 @@ try:
             ok(egy == "5", f"mobilon a jegy a jobb szélen, színes körben: {egy!r}")
             ok(diak_w <= 60, f"a diák-oszlop a monogramnyi szélességre szűkült ({diak_w:.0f} px)")
             one_line = await page.evaluate("""() => {
-                const line = document.querySelector('#esemenyekTable tbody .mobile-subject-line');
+                const line = [...document.querySelectorAll('#esemenyekTable tbody .mobile-subject-line')]
+                    .find(l => l.querySelector('.jegy-kor'));
                 if (!line) return null;
                 const td = line.closest('td');
                 const k = line.querySelector('.jegy-kor');
@@ -376,6 +402,36 @@ try:
             }""")
             ok(len(set(date_rights)) <= 1,
                f"a dátum minden sorban fix helyen van: {sorted(set(date_rights))[:4]}")
+            # 6c) határidős tételnél a mobil sor a határidőt mutatja (nem a bejegyzés kelte)
+            szk = await page.evaluate("""() => {
+                const line = [...document.querySelectorAll('#esemenyekTable tbody .mobile-subject-line')]
+                    .find(l => /Fizika/.test(l.innerText));
+                if (!line) return null;
+                const d = line.querySelector('.mobile-datum');
+                const tipus = line.querySelector('.mobile-tipus-rovid');
+                return {datum: d ? d.innerText.trim() : '',
+                        title: d ? (d.getAttribute('title') || '') : '',
+                        tipus: tipus ? tipus.innerText.trim() : ''};
+            }""")
+            ok(szk and szk["tipus"] == "SZK", f"a számonkérés rövidítése SZK: {szk}")
+            ok(szk and szk["datum"] == "11.25.",
+               f"mobilon a számonkérés mellett a határidő látszik: {szk and szk['datum']!r}")
+            ok(szk and "Határidő" in szk["title"] and "2026. 11. 25." in szk["title"],
+               f"a dátum tooltipje a határidőt jelzi: {szk and szk['title']!r}")
+            await page.evaluate("""() => {
+                const row = [...document.querySelectorAll('#esemenyekTable tbody tr')]
+                    .find(tr => /Fizika/.test(tr.innerText));
+                const btn = row && row.querySelector('.btn-show-details');
+                if (btn) btn.click();
+            }""")
+            await page.wait_for_selector('#detailsModal.show', timeout=5000)
+            modal_szoveg = " ".join((await page.inner_text('#detailsModalBody')).split())
+            ok("bejegyzés dátuma" in modal_szoveg.lower() and "2026. 11. 02." in modal_szoveg,
+               f"a részletekben megmarad a bejegyzés (rögzítés) dátuma: {modal_szoveg[:160]}")
+            ok("Határidő: 2026. 11. 25." in modal_szoveg,
+               "a részletekben a határidő is látszik")
+            await page.click('#detailsModal .modal-footer .btn-secondary')
+            await page.wait_for_timeout(400)
             # 7) mobil: egyetlen karcsú státuszsáv, a technikai részletek koppintásra
             compact = await page.evaluate("""() => {
                 const e = document.querySelector('#schedulerCompact');
@@ -577,7 +633,32 @@ try:
             # 10) üzenet → naptárbejegyzés gombok (Kaneo #47)
             await page.evaluate("() => bootstrap.Tab.getOrCreateInstance(document.getElementById('uzenetek-tab')).show()")
             await page.wait_for_timeout(900)
-            await page.click('#uzenetekTable .btn-read-msg')
+            # Az olvasatlan pötty ne szorítsa ki a hosszú tárgyat a cellából.
+            uzenet_cella = await page.evaluate("""() => {
+                const tr = document.querySelector('#uzenetekTable tbody tr.uzenet-olvasatlan');
+                if (!tr) return null;
+                const td = [...tr.children].find(x => x.querySelector && x.querySelector('.uzenet-targy-cell'));
+                if (!td) return null;
+                const sp = td.querySelector('.cell-truncate');
+                const tdr = td.getBoundingClientRect(), spr = sp.getBoundingClientRect();
+                return {text: sp.innerText.slice(0, 40), width: Math.round(spr.width),
+                        tdRight: Math.round(tdr.right), spRight: Math.round(spr.right),
+                        dot: !!td.querySelector('.uzenet-status-dot')};
+            }""")
+            ok(uzenet_cella is not None and uzenet_cella["dot"],
+               f"az olvasatlan üzenetsor pöttyöt kap: {uzenet_cella}")
+            ok(uzenet_cella and uzenet_cella["width"] >= 80,
+               f"a hosszú tárgy látható helyet kap az olvasatlan sorban: {uzenet_cella}")
+            ok(uzenet_cella and uzenet_cella["spRight"] <= uzenet_cella["tdRight"] - 2,
+               f"az olvasatlan tárgy nem csúszik ki a cellából: {uzenet_cella}")
+            # A hosszú tárgy miatt a Műveletek oszlop a gyermeksorba csúszhat:
+            # ott is elérhető az Olvasás gomb, ezt használjuk.
+            olvas = page.locator('#uzenetekTable .btn-read-msg:visible').first
+            if await olvas.count() == 0:
+                await page.click('#uzenetekTable tbody tr:first-child td.dtr-control')
+                await page.wait_for_timeout(400)
+                olvas = page.locator('#uzenetekTable .btn-read-msg:visible').first
+            await olvas.click()
             await page.wait_for_selector('#uzenetModal.show', timeout=5000)
             naptar_gombok = await page.evaluate("""() => {
                 const google = document.querySelector('#btnUzenetNaptarGoogle');
@@ -592,6 +673,27 @@ try:
             ok(not ai_gomb, "az üzenet ablakban nincs AI-elemzés gomb (a felületből kivette, #61)")
             await page.click('#uzenetModal .btn-secondary')
             await page.wait_for_timeout(400)
+
+            # 10b) az üzenetek fül saját gyermek-szűrője (nem az Áttekintés kiválasztása)
+            await page.select_option('#uzenetFilterDiak', 'Második Elek')
+            await page.wait_for_timeout(700)
+            szurt = await page.evaluate("""() => {
+                const dt = window.jQuery('#uzenetekTable').DataTable();
+                return {n: dt.rows().count(),
+                        names: [...new Set(dt.rows().data().toArray()
+                            .map(d => d ? d.diak_nev : '?'))]};
+            }""")
+            ok(szurt["n"] >= 1 and szurt["names"] == ["Második Elek"],
+               f"az üzenetek fül gyermek-szűrője működik: {szurt}")
+            await page.select_option('#uzenetFilterDiak', '')
+            await page.wait_for_timeout(700)
+            minden = await page.evaluate("""() => {
+                const dt = window.jQuery('#uzenetekTable').DataTable();
+                return [...new Set(dt.rows().data().toArray()
+                    .map(d => d ? d.diak_nev : '?'))];
+            }""")
+            ok(len(minden) >= 2,
+               f"visszaváltva ismét minden gyermek üzenete látszik: {minden}")
 
             # 5) a fülek tördelődnek — minden fül látszik, nem fut ki
             tabs_info = await page.evaluate("""() => {

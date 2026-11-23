@@ -138,8 +138,17 @@ $(document).ready(function() {
                         html += `<span class="mobile-tipus-rovid badge ${rovid[1]}" title="${escapeHtml(rovid[2])}">${rovid[0]}</span>`;
                     }
                     html += `<span class="mobile-subject-nev">${escapeHtml(data || '-')}</span>`;
-                    if (row.bej_datum && row.bej_datum !== '-') {
-                        html += `<span class="mobile-datum">${escapeHtml(rovidDatum(row.bej_datum))}</span>`;
+                    // A határidős tételeknél (házi, számonkérés) mobilon a határidő
+                    // a lényeges dátum; a bejegyzés kelte a részletekben marad.
+                    let mobilDatum = row.bej_datum;
+                    let mobilDatumCimke = 'Bejegyzés dátuma';
+                    if ((row.esemeny_tipus === 'Házi feladat' || row.esemeny_tipus === 'Bejelentett számonkérés')
+                        && row.hatarido && row.hatarido !== '-') {
+                        mobilDatum = row.hatarido;
+                        mobilDatumCimke = 'Határidő';
+                    }
+                    if (mobilDatum && mobilDatum !== '-') {
+                        html += `<span class="mobile-datum" title="${escapeHtml(mobilDatumCimke + ': ' + mobilDatum)}">${escapeHtml(rovidDatum(mobilDatum))}</span>`;
                     }
                     // Fix hely a jegynek: üres sorban is ott marad, így a dátum nem csúszik.
                     let jegyHtml = '';
@@ -395,8 +404,10 @@ $(document).ready(function() {
                     }
                     if (type !== 'display') return data || '';
                     let safeText = (data || '').replace(/"/g, '&quot;');
-                    let dot = row.olvasott ? '' : '<span class="uzenet-status-dot me-1" title="Olvasatlan"></span>';
-                    return `${dot}<span class="cell-truncate" title="${safeText}">${data || '-'}</span>`;
+                    let dot = row.olvasott ? '' : '<span class="uzenet-status-dot" title="Olvasatlan"></span>';
+                    // A pötty és a tárgy közös flex-sorban: a pötty ne vegye el a
+                    // helyet a hosszú tárgy elől (különben csak „…” látszott).
+                    return `<span class="uzenet-targy-cell">${dot}<span class="cell-truncate" title="${safeText}">${data || '-'}</span></span>`;
                 }
             },
             { 
@@ -2086,6 +2097,17 @@ $(document).ready(function() {
         reloadTanevFuggoNezetek();
     });
 
+    // Az üzenetek fül saját gyermek-szűrője (#uzenetFilterDiak): független az
+    // Áttekintés/Események gyermek-választásától, alapból minden gyermek látszik.
+    function loadUzenetek() {
+        let diak = $('#uzenetFilterDiak').val() || '';
+        $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(diak)}`, function(data) {
+            rawUzenetek = data;
+            updateUzenetOlvasatlanBadge();
+            uzenetekTable.clear().rows.add(data).draw();
+        });
+    }
+
     function loadData() {
         let diak = $('#filterDiak').val();
         let tipus = $('#filterTipus').val();
@@ -2106,11 +2128,7 @@ $(document).ready(function() {
             }
         });
 
-        $.getJSON(`/api/uzenetek?diak=${encodeURIComponent(diak)}`, function(data) {
-            rawUzenetek = data;
-            updateUzenetOlvasatlanBadge();
-            uzenetekTable.clear().rows.add(data).draw();
-        });
+        loadUzenetek();
 
         // A dashboard a saját, szűrő nélküli adatát kéri (Kaneo #76) — így az
         // eseménylista filtrációja nem tudja kiüríteni a csempéket/feedet.
@@ -2997,7 +3015,7 @@ $(document).ready(function() {
         if (Array.isArray(ids) && ids.length) {
             payload.ids = ids;
         } else {
-            payload.diak = $('#filterDiak').val() || '';
+            payload.diak = $('#uzenetFilterDiak').val() || '';
         }
         $.ajax({
             url: '/api/uzenetek/olvasott',
@@ -3075,6 +3093,13 @@ $(document).ready(function() {
         $(this).addClass('active');
         uzenetOlvasottMode = $(this).data('filter') || 'all';
         uzenetekTable.draw();
+    });
+
+    // Gyermek-szűrő az üzenetek fülön: csak az üzenetlistát tölti újra.
+    $('#uzenetFilterDiak').on('change', function() {
+        uzenetKijelolt.clear();
+        updateUzenetKijeloles();
+        loadUzenetek();
     });
 
     $('#uzenetekTable').on('click', '.btn-toggle-msg-read', function(e) {

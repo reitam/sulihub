@@ -830,6 +830,17 @@
             background: #0d6efd;
             vertical-align: middle;
         }
+        /* Az olvasatlan pötty és a tárgy közös flex-sorban: a pötty ne
+           szorítsa ki a hosszú tárgyat a cellából (korábban csak „…” látszott). */
+        .uzenet-targy-cell {
+            display: flex;
+            align-items: center;
+            gap: .25rem;
+            min-width: 0;
+            max-width: 100%;
+        }
+        .uzenet-targy-cell .uzenet-status-dot { flex: 0 0 auto; }
+        .uzenet-targy-cell .cell-truncate { flex: 1 1 auto; min-width: 0; }
 
         /* Hiányzások / igazolások: a hosszú szövegek több sorban, ne legyenek levágva */
         @media (min-width: 768px) {
@@ -1679,6 +1690,16 @@
         <div class="tab-pane fade" id="uzenetek-pane" role="tabpanel">
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
                 <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold text-secondary small"><i class="fa-solid fa-user-graduate me-1 text-primary"></i>Gyermek:</span>
+                        <select id="uzenetFilterDiak" class="form-select form-select-sm fw-bold border-primary" style="width: 200px; max-width: 100%;"
+                                title="Az üzenetek szűrése gyermek szerint">
+                            <option value="">-- Összes gyermek --</option>
+                            {% for d in diakok %}
+                            <option value="{{ d }}">{{ d }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     <div class="btn-group btn-group-sm" role="group" aria-label="Olvasottság szűrő" id="uzenetOlvasottFilter">
                         <button type="button" class="btn btn-outline-primary active" data-filter="all">Mind</button>
                         <button type="button" class="btn btn-outline-primary" data-filter="unread">
