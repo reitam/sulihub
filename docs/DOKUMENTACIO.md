@@ -542,7 +542,7 @@ megjelenik. Teszt: `tests/test_first_seen.py`.
 ### 3.1. Komponensek
 
 ```
-┌─────────────────────────── Docker konténer (saját szerver) ───────────────────────────┐
+┌─────────────────────────── Docker konténer (saját szerver) ──────────────────────┐
 │                                                                                   │
 │   Böngésző (LAN)  ──HTTP:8085──►  Flask alkalmazás (waitress)                     │
 │                                     ├─ Webes felület (dashboard)                  │
