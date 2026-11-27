@@ -13,13 +13,20 @@ services:
       - "8085:5000"
     volumes:
       # A data kötet: DB, config.json, csatolmányok, sync.log
+      # Publikus quick start: ./data ; a saját szerveren felülírható a DATA_DIR env-vel.
       - ${DATA_DIR:-./data}:/app/data
       # A mentési kötet: ide írja a cron mentő a pillanatfelvételeket
       - ${BACKUP_DIR:-./backup}:/app/backup
-    env_file:
-      - .env
+    # A .env NEM kötelező: a Docker Compose a projekt .env fájlját interpolációhoz
+    # automatikusan betölti; az alábbi env-ek defaultdal is működnek.
     environment:
       - TZ=Europe/Budapest
+      - APP_ENVIRONMENT=${APP_ENVIRONMENT:-PROD}
+      # ntfy push (opcionális) — a .env-ből vagy a config.json NTFY blokkjából
+      - NTFY_TOPIC=${NTFY_TOPIC:-}
+      - NTFY_URL=${NTFY_URL:-https://ntfy.sh}
+      - NTFY_NOTIFY_SUCCESS=${NTFY_NOTIFY_SUCCESS:-1}
+      - NTFY_INCLUDE_NAMES=${NTFY_INCLUDE_NAMES:-0}
       # App-szintű beállítások — KIZÁRÓLAG konténerbeli, fix értékek!
       # (A .env-be SOHA ne kerüljön DATA_DIR / BACKUP_DIR / KRETA_DATA_DIR
       #  host-útvonal: az a RabbitApp 2026-10-27-i „üres db” incidensét okozta.
@@ -42,6 +49,7 @@ services:
       retries: 3
       start_period: 30s
 
-# Az adatbázis és a config.json a HDD-n van (DATA_DIR, alapból
-# ./data), a mentések a BACKUP_DIR-ben.
+# Az adatbázis és a config.json a DATA_DIR-ben (alapból ./data), a mentések a
+# BACKUP_DIR-ben (alapból ./backup). A .env opcionális; a saját szerveren a
+# DATA_DIR/BACKUP_DIR env-ekkel lehet a köteteket máshova tenni.
 # Soha ne töröld a data/ könyvtárat!

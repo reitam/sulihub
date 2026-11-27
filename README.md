@@ -518,7 +518,7 @@ Futásonként legfeljebb egy push megy ki. Az új adat push kikapcsolható:
 python tests/run_all.py
 ```
 
-**53 csomag, 1599 ellenőrzés**, izolált temp könyvtárban (a valódi adatokat nem érinti):
+**55 csomag**, izolált temp könyvtárban (a valódi adatokat nem érinti):
 ütemező, részleges hiba/ntfy/napló, PDF-betűk, útvonalak, új események kimutatása,
 migráció, **DB-séma bootstrap** (hiányzó/üres adatbázis), hiányzások/igazolások, **API-kliens** (fake HTTP), **API-szinkron** (mind a 8
 adatkör, **csatolmány-letöltés API-ból**, **token-tár** és fallback-hiba), **szinkronmód/fallback**, **árnyék mód**,
@@ -539,18 +539,25 @@ deploy a privát `uzemeltetesi-repo` repóban van; a publikus telepítéshez nem
 | `Dockerfile` | **Egyetlen image** (`kreta-app:runtime`): Python 3.12, Chromium/playwright nélkül; nem-root futás, `fonts-liberation` a PDF-hez |
 | `docker-compose.yml` | 8085-es port, data + mentés kötetek, `KRETA_SERVER=waitress`, healthcheck |
 | `entrypoint.sh` | DB-guard: HDD-leszakadásnál nem hoz létre üres DB-t, mentésből visszaállít |
-| `.env.example` | A szerveroldali env mintája |
-| `config.json.example` | A diákok/tarifák mintája (a valódi a data köteten) |
+| `.env.example` | Opcionális env-minta (ntfy, `APP_ENVIRONMENT`); a `.env` nem kötelező |
+| `config.json.example` | A diákok/tarifák mintája (a valódi a `data/` kötetben) |
 
 ```bash
-cp .env.example .env
-# a data/config.json-t a DATA_DIR kötetre kell tenni
+git clone https://github.com/reitam/sulihub.git
+cd sulihub
+mkdir -p data backup
+cp config.json.example data/config.json
+# szerkeszd: data/config.json (STUDENTS, AUTH, NTFY...)
 docker compose up -d --build
 curl http://127.0.0.1:8085/health
 ```
 
-- A `DATA_DIR` / `BACKUP_DIR` env (vagy a compose defaultjai) adják a köteteket.
-- A `config.json`-t a deploy **nem** másolja — a data köteten kell lennie.
+- A `DATA_DIR` / `BACKUP_DIR` env-ekkel (vagy a compose defaultjaival) állíthatók a kötetek:
+  alapból **`./data`** és **`./backup`**. A `.env` csak akkor kell, ha env-ből akarsz
+  felülírni (pl. `NTFY_TOPIC`); a Compose a `.env`-et interpolációhoz automatikusan betölti.
+- Linuxon, ha a konténer nem tud írni a kötetekbe: `sudo chown -R 1000:1000 data backup`
+  (az `APP_UID`/`APP_GID` a compose build args-ban állítható).
+- A `config.json`-t a deploy **nem** másolja — a data kötetben kell lennie.
 - A v2.5.0-tól nincs böngészős fallback — a szinkron kizárólag a mobil API-ból fut (#64).
   A régi (Playwright-fallbackes) kód a **`playwright-fallback`** ágon marad meg.
 
