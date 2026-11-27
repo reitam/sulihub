@@ -33,17 +33,16 @@ KRÉTA-kliens. Kérjük, tartsd be az alábbiakat.
 
 - `config.json`, `.env`, `*.db`, `api_tokens.json`, `sync.log`, csatolmányok,
   valódi KRÉTA-adat vagy személyes adat.
-- Belső szervernevek, IP-címek, Samba/SSH útvonalak, privát üzemeltetési
-  repóra mutató hivatkozások.
+- Belső szervernevek, IP-címek, Samba/SSH útvonalak vagy üzemeltetési hivatkozások.
 - Valódi nevek/iskolák a tesztfixture-ökben vagy a dokumentációban.
 
 ## Kiadás
 
 - A verziózás SemVer (`vX.Y.Z`).
 - Minden felhasználói változáshoz készüljön release note a
-  `docs/releasenotes/vX.Y.Z.md` alá, és kerüljön be a README verziótörténetbe.
-- A kiadás tag + GitHub Release; a tagot a karbantartó deploy folyamata kezeli.
-- A `main`-re force push tilos.
+  `docs/releasenotes/vX.Y.Z.md` alá.
+- A kiadás tag + GitHub Release; a tagot a karbantartó állítja ki.
+- A `main` ágra force push tilos.
 
 ## Magatartás
 

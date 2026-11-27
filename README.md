@@ -5,7 +5,7 @@
 [![Latest release](https://img.shields.io/github/v/release/reitam/sulihub)](https://github.com/reitam/sulihub/releases)
 
 > **Teljes rendszerdokumentáció:** [`docs/DOKUMENTACIO.md`](docs/DOKUMENTACIO.md) — üzleti áttekintés,
-> architektúra, adatmodell, üzemeltetés, hibaelhárítás, verziótörténet.
+> architektúra, adatmodell, üzemeltetés, hibaelhárítás.
 
 Egy központi, **Flask** alapú webes alkalmazás, amely automatikusan lekéri és
 SQLite adatbázisba szinkronizálja **több gyermek** KRÉTA-rendszerből származó adatait
@@ -28,23 +28,7 @@ a saját szerveren maradnak.
 > [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). A saját kód **MIT licenc**
 > alatt áll: [`LICENSE`](LICENSE).
 
-**Legutóbbi kiadás:** `v2.7.8` (2026-11-23)
-
-> A dokumentációban előforduló `#N` / „Kaneo #N” hivatkozások a fejlesztés belső
-> jegyei; a nyilvános repóban csak történeti információként szerepelnek.
-
-> **Átnevezés (2026-11-20):** a GitHub-repó új neve **`reitam/sulihub`**
-> (korábban `kreta_adatlekero`); a régi URL átirányít. A helyi klónban:
-> `git remote set-url origin https://github.com/reitam/sulihub.git`
-
-A verziönkénti release notes a [`docs/releasenotes/`](docs/releasenotes/) mappában
-található (minden verzióhoz külön fájl + index).
-
-> **GitHub Releases:** ugyanezek a jegyzetek megjelennek a
-> [Releases](https://github.com/reitam/sulihub/releases) oldalon is. A **tag
-> push** után a GitHub Actions **Release** workflow hozza létre/frissíti őket a
-> release note Markdownból; a [`tools/github_release.py`](tools/github_release.py)
-> kézi pótláshoz/backfillhez való.
+**Legutóbbi kiadás:** `v2.7.8` (2026-11-23) | [Kiadások](https://github.com/reitam/sulihub/releases)
 
 ---
 
@@ -52,219 +36,219 @@ található (minden verzióhoz külön fájl + index).
 
 ### 🤖 Automatikus szinkronizáció
 - A **Kréta mobil API-val** lép be a diákfiókokba (**több gyermek, több intézmény** egyszerre),
-  böngésző nélkül — a korábbi Playwright/Chromium scraper a v2.5.0-ban kikerült (#64).
+ böngésző nélkül.
 - A munkamenetet a data köteten tárolja (`api_tokens.json`), így a futások többsége nem lép be újra.
 - Lekéri az **aktuális és következő hét** órarendjét (tanár, terem, csengetési időpontok).
 - Jegyek, feljegyzések, házik, számonkérések, **hiányzások/késések és igazolások** mentése;
-  az e-Ügyintézés üzenetei **inkrementálisan** (csak az újak) töltődnek, **a csatolmányokkal
-  együtt — API-ból, böngésző nélkül**.
+ az e-Ügyintézés üzenetei **inkrementálisan** (csak az újak) töltődnek, **a csatolmányokkal
+ együtt — API-ból, böngésző nélkül**.
 - **Részleges hiba ≠ siker:** ha egy gyermek adata nem jön le, a többi frissül, a futás
-  „részleges hiba" állapotba kerül, és a hibás gyermek neve megjelenik.
+ „részleges hiba" állapotba kerül, és a hibás gyermek neve megjelenik.
 
 ### ⏱️ Ütemező (config-vezérelt)
 - Alapból **3 óránként, 6:00–22:00 között** fut (06:00 → 09:00 → 12:00 → 15:00 → 18:00 → 21:00).
 - A kézi frissítés **nem tolja el** az automatikus időzítést.
-- **Szinkron-szünet (Kaneo #145):** a `config.json` `SYNC_SZUNET` intervallumaiban
-  (pl. őszi/téli szünet) az automatikus futás kimarad — a felület tetején bordó sáv
-  jelzi; a kézi frissítés mindig elérhető. Opcionálisan a szünet alatt is futhat
-  **napi egy** automatikus szinkron megadott időpontban. A `SZUNET_AKTIV` (alap: `true`)
-  **mesterkapcsoló**: `false` esetén a szüneteket sem a szinkron, sem a digest nem veszi
-  figyelembe. A szüneteket elég **egy helyen** (`SYNC_SZUNET`) megadni — a digest
-  automatikusan ugyanezeket használja.
+- **Szinkron-szünet:** a `config.json` `SYNC_SZUNET` intervallumaiban
+ (pl. őszi/téli szünet) az automatikus futás kimarad — a felület tetején bordó sáv
+ jelzi; a kézi frissítés mindig elérhető. Opcionálisan a szünet alatt is futhat
+ **napi egy** automatikus szinkron megadott időpontban. A `SZUNET_AKTIV` (alap: `true`)
+ **mesterkapcsoló**: `false` esetén a szüneteket sem a szinkron, sem a digest nem veszi
+ figyelembe. A szüneteket elég **egy helyen** (`SYNC_SZUNET`) megadni — a digest
+ automatikusan ugyanezeket használja.
 - Átfedés-védelem, perzisztált futástörténet, részleges hibakezelés.
 
 ### 🔔 Push értesítések (ntfy)
 - **Hiba / részleges hiba:** mindig megy, futásonként **egy** üzenet. Ismétlődő
-  hiba vagy token-lejárat esetén a szinkron-egészség riasztása **ugyanebbe az egy**
-  üzenetbe kerül.
+ hiba vagy token-lejárat esetén a szinkron-egészség riasztása **ugyanebbe az egy**
+ üzenetbe kerül.
 - **Új információ:** futásonként **egy** üzenet, a **napi összefoglalóval azonos
-  részletességgel** (jegyek súlyozással, házik, dolgozatok, feljegyzések,
-  hiányzások, igazolások, üzenetek, holnap esedékes), diákonként csoportosítva.
+ részletességgel** (jegyek súlyozással, házik, dolgozatok, feljegyzések,
+ hiányzások, igazolások, üzenetek, holnap esedékes), diákonként csoportosítva.
 - **Sikeres, változás nélküli futás:** **nincs push** — a fejléc státuszsávja és a
-  Rendszernapló mutatja, hogy lefutott.
+ Rendszernapló mutatja, hogy lefutott.
 - `NTFY.NOTIFY_NEW` (alap: `true`): az új adat push kikapcsolása; a hibariasztás
-  ettől független. A régi `NOTIFY_SUCCESS` kulcsot is elfogadja.
+ ettől független. A régi `NOTIFY_SUCCESS` kulcsot is elfogadja.
 - Az ntfy üzenettörzs max. ~4 KB; hosszabb tartalomnál a végén
-  „… (a többi részlet a felületen)” áll.
+ „… (a többi részlet a felületen)” áll.
 - Diáknevek alapból **nem** mennek ki; `NTFY.INCLUDE_NAMES` kapcsolja.
 - Elavult adat (12 óránál régebbi) esetén külön riasztás, max. 6 óránként egyszer.
 - **Esti összefoglaló (KRÉ-8):** minden nap a beállított idő után (alap **19:30**)
-  **gyermekenként egy üzenet** a nap eseményeivel — jegyek súlyozással, ma feladott
-  házik, ma bejelentett dolgozatok, feljegyzések, hiányzások, igazolások, üzenetek —,
-  valamint a **holnap esedékes** házik/dolgozatok. Órarend nincs benne; eseménytelen
-  napon is jön rövid üzenet — **kivéve hétvégén/tanítási szüneten** (Kaneo #133),
-  ahol üres napon nem megy üzenet (a `SYNC_SZUNET` intervallumai, a kiegészítő
-  `DIGEST.SZUNET_NAPOK` és az órarendi szünet-sorok alapján; valódi esemény esetén
-  igen). A küldés ideje a `config.json`
-  `DIGEST.TIME`-ban (alap
-  19:30), a felületen is állítható. A fejléc 🔔 ikonjából bármikor kérhető
-  **„Összefoglaló most”** az **utolsó automatikus óta** — ez nem írja felül az
-  automata időpontját/tartalmát (tesztelési/kérési cél). Naponta max. 1 automata
-  üzenet gyermekenként.
+ **gyermekenként egy üzenet** a nap eseményeivel — jegyek súlyozással, ma feladott
+ házik, ma bejelentett dolgozatok, feljegyzések, hiányzások, igazolások, üzenetek —,
+ valamint a **holnap esedékes** házik/dolgozatok. Órarend nincs benne; eseménytelen
+ napon is jön rövid üzenet — **kivéve hétvégén/tanítási szüneten**,
+ ahol üres napon nem megy üzenet (a `SYNC_SZUNET` intervallumai, a kiegészítő
+ `DIGEST.SZUNET_NAPOK` és az órarendi szünet-sorok alapján; valódi esemény esetén
+ igen). A küldés ideje a `config.json`
+ `DIGEST.TIME`-ban (alap
+ 19:30), a felületen is állítható. A fejléc 🔔 ikonjából bármikor kérhető
+ **„Összefoglaló most”** az **utolsó automatikus óta** — ez nem írja felül az
+ automata időpontját/tartalmát (tesztelési/kérési cél). Naponta max. 1 automata
+ üzenet gyermekenként.
 
 ### 📅 Heti/napi órarend + PDF
 - Asztali nézetben idősávos **heti** órarend, mobilon **napi naptár** ‹ › lapozással.
 - **A4 fekvő, nyomtatásra kész PDF** (ReportLab), gyermekenként külön oldal;
-  magyar **ő/ű/Ő/Ű** helyesen (Unicode betűkészlet).
+ magyar **ő/ű/Ő/Ű** helyesen (Unicode betűkészlet).
 - Tantárgy szerinti színkódolás, egész napos események külön sávban.
 - A szinkron **4 hétre előre** kéri le az órarendet (aktuális hét + 3), a **múltbeli
-  órákat megőrzi** — csak az aktuális ablak cserélődik (Kaneo #122).
+ órákat megőrzi** — csak az aktuális ablak cserélődik.
 
 ### 🧭 Áttekintés (dashboard)
 - Nyitó fül **6 kattintható csempével** (**következő házi feladatok** és **következő
-  számonkérések** a következő 10 napra, **új jegyek** / **új üzenetek** az elmúlt 10 napban,
-  **igazolatlan hiányzás** órában, **kifizetetlen zsebpénz**) — a csempére kattintva a
-  megfelelő nézet nyílik; **gyermekenkénti kártyák** (átlag + egyenleg); gyermekváltás
-  egy kattintással. **Kompakt, 3×2 elrendezés**, egységes sablon, **látható kerettel**;
-  széles kijelzőn a dashboard **középre igazított (max. 1200 px)**. A 0 érték semleges
-  (szürke/zöld), csak > 0 esetén élénk szín; a zsebpénz-csempén nincs kiegészítő felirat.
-  A gyermekkártyákon **monogramos avatar**, név, diszkrét jegyszám-badge és nagy átlag;
-  a tanév/súlyozás magyarázata a **szakasz fejlécében** van, kikapcsolt zsebpénznél
-  diszkrét ikon. A **gyermekszűrő chipek** és az **„Események listája”** gomb a **fül-sáv
-  alatt, az összes csempe felett** vannak (a szűrő a csempékre is vonatkozik); a szekció
-  neve **„Tanulmányi átlag”**.
+ számonkérések** a következő 10 napra, **új jegyek** / **új üzenetek** az elmúlt 10 napban,
+ **igazolatlan hiányzás** órában, **kifizetetlen zsebpénz**) — a csempére kattintva a
+ megfelelő nézet nyílik; **gyermekenkénti kártyák** (átlag + egyenleg); gyermekváltás
+ egy kattintással. **Kompakt, 3×2 elrendezés**, egységes sablon, **látható kerettel**;
+ széles kijelzőn a dashboard **középre igazított (max. 1200 px)**. A 0 érték semleges
+ (szürke/zöld), csak > 0 esetén élénk szín; a zsebpénz-csempén nincs kiegészítő felirat.
+ A gyermekkártyákon **monogramos avatar**, név, diszkrét jegyszám-badge és nagy átlag;
+ a tanév/súlyozás magyarázata a **szakasz fejlécében** van, kikapcsolt zsebpénznél
+ diszkrét ikon. A **gyermekszűrő chipek** és az **„Események listája”** gomb a **fül-sáv
+ alatt, az összes csempe felett** vannak (a szűrő a csempékre is vonatkozik); a szekció
+ neve **„Tanulmányi átlag”**.
 - **Alsó feed (2 hasáb):** **„Figyelmet igénylő bejegyzések”** (utolsó 10 feljegyzés,
-  típus-badge: piros figyelmeztetés, zöld dicséret, szürke felszereléshiány) és
-  **„Legutóbbi jegyek”** (utolsó 10 jegy, színes jegy-körrel).
+ típus-badge: piros figyelmeztetés, zöld dicséret, szürke felszereléshiány) és
+ **„Legutóbbi jegyek”** (utolsó 10 jegy, színes jegy-körrel).
 - **Semleges fülek:** a navigáció ikonjai/feliratai sötétszürkék, csak az aktív fület
-  emeli ki a felület (kék szöveg/ikon + alsó kék vonal) — nincs színes ikonkáosz.
+ emeli ki a felület (kék szöveg/ikon + alsó kék vonal) — nincs színes ikonkáosz.
 - **Tanév-választó a fejlécben:** alapból az aktuális tanév (szept. 1. – aug. 31.);
-  az „Összes tanév" opcióval a teljes előzmény látszik (átlag ilyenkor nincs, mert az
-  csak tanéven belül értelmezhető). Az üzenetek és az órarend tanév-független.
-  A választó csak az **iskolai adatokból** (jegy, hiányzás, igazolás, kifizetés)
-  származó tanéveket listázza — az üzenetek évei nem hoznak létre tanév-bejegyzést.
-  A dátumválasztók a kiválasztott tanév határain belül maradnak. A tanév **zárása/nyitása
-  automatikus**: minden futás után ellenőrizzük a KRÉTA `TanevUid`-t, és ha megváltozik,
-  a nyitott tanévet technikailag lezárjuk, az újat megnyitjuk (adatlekérés nélkül; a régi
-  tanév adata pótolhatatlan, ezért a szinkron soha nem törli). A fejlécben és a
-  választóban látszik a tanév állapota (nyitott/lezárt).
-- **Tanév-archívum (#139):** a tanév **lezárásakor** egyszeri ZIP készül a data
-  köteten (`data/tanev_archivum/<év>.zip`): táblánként JSON/CSV, kombinált Excel,
-  diákonkénti PDF-bizonyítvány, `manifest.json` és SHA-256 ellenőrzés. Ismételt
-  zárásnál nem duplikál; kézzel: `python tools/create_tanev_archive.py 2025/2026`.
-  Nyitott tanév kézi exportja `<év>_manual_<időbélyeg>.zip` néven készül, hogy ne
-  blokkolja a záráskori véglegest; `--final` a kanonikus névhez.
-- **Új adat jelölése (#147):** a jegyek/üzenetek/hiányzások/igazolások a saját
-  DB-be kerülésük (`letrehozva`) alapján számítanak „mainak” — a KRÉTA visszamenőleges
-  bejegyzés-dátuma nem titkolja el a frissen szinkronizált jegyet. Az első migráció a
-  legutóbbi 7 nap sorait a migráció időpontjára állítja (ezek a szülőnek ténylegesen
-  újak), a régebbieket a KRÉTA-dátumból tölti fel, így azok nem lesznek visszamenőleg újak.
-  Az Események táblában a leírás után **közvetlenül** új **Bekerült** oszlop, a
-  műveletgombok külön **Műveletek** oszlopban; a részletek modálban is látszik a
-  bekerülés időpontja (mai esetén `MA` jelzéssel).
+ az „Összes tanév" opcióval a teljes előzmény látszik (átlag ilyenkor nincs, mert az
+ csak tanéven belül értelmezhető). Az üzenetek és az órarend tanév-független.
+ A választó csak az **iskolai adatokból** (jegy, hiányzás, igazolás, kifizetés)
+ származó tanéveket listázza — az üzenetek évei nem hoznak létre tanév-bejegyzést.
+ A dátumválasztók a kiválasztott tanév határain belül maradnak. A tanév **zárása/nyitása
+ automatikus**: minden futás után ellenőrizzük a KRÉTA `TanevUid`-t, és ha megváltozik,
+ a nyitott tanévet technikailag lezárjuk, az újat megnyitjuk (adatlekérés nélkül; a régi
+ tanév adata pótolhatatlan, ezért a szinkron soha nem törli). A fejlécben és a
+ választóban látszik a tanév állapota (nyitott/lezárt).
+- **Tanév-archívum:** a tanév **lezárásakor** egyszeri ZIP készül a data
+ köteten (`data/tanev_archivum/<év>.zip`): táblánként JSON/CSV, kombinált Excel,
+ diákonkénti PDF-bizonyítvány, `manifest.json` és SHA-256 ellenőrzés. Ismételt
+ zárásnál nem duplikál; kézzel: `python tools/create_tanev_archive.py 2025/2026`.
+ Nyitott tanév kézi exportja `<év>_manual_<időbélyeg>.zip` néven készül, hogy ne
+ blokkolja a záráskori véglegest; `--final` a kanonikus névhez.
+- **Új adat jelölése:** a jegyek/üzenetek/hiányzások/igazolások a saját
+ DB-be kerülésük (`letrehozva`) alapján számítanak „mainak” — a KRÉTA visszamenőleges
+ bejegyzés-dátuma nem titkolja el a frissen szinkronizált jegyet. Az első migráció a
+ legutóbbi 7 nap sorait a migráció időpontjára állítja (ezek a szülőnek ténylegesen
+ újak), a régebbieket a KRÉTA-dátumból tölti fel, így azok nem lesznek visszamenőleg újak.
+ Az Események táblában a leírás után **közvetlenül** új **Bekerült** oszlop, a
+ műveletgombok külön **Műveletek** oszlopban; a részletek modálban is látszik a
+ bekerülés időpontja (mai esetén `MA` jelzéssel).
 
 ### ☀️ „Ma” nézet
 - Önálló fül az Áttekintés után: **mai órák** (időpont, terem, tanár), **ma és holnap
-  esedékes** házik és számonkérések pipával (kattintásra készre jelölhető); a **sorra
-  kattintva részletek modál** nyílik (téma/leírás, tanár, határidő, állapot), a heti nézet
-  határidő-sorain is. **Friss jegyek**
-  (7 nap), **olvasatlan üzenetek** (kattintásra megnyílnak). Saját gyermek-chipek; a fül
-  megnyitásakor és gyermekváltáskor automatikusan frissül; a fejléc diák-szűrőjét követi.
-  **Ma / Hét** szegmentált kapcsoló: a heti nézet **kétoszlopos, középre igazított**
-  napkártyákból áll (órák kék, határidők borostyán, vegyes lila színnel; páratlan számnál az
-  utolsó kártya középre kerül); a havi nézet nincs.
+ esedékes** házik és számonkérések pipával (kattintásra készre jelölhető); a **sorra
+ kattintva részletek modál** nyílik (téma/leírás, tanár, határidő, állapot), a heti nézet
+ határidő-sorain is. **Friss jegyek**
+ (7 nap), **olvasatlan üzenetek** (kattintásra megnyílnak). Saját gyermek-chipek; a fül
+ megnyitásakor és gyermekváltáskor automatikusan frissül; a fejléc diák-szűrőjét követi.
+ **Ma / Hét** szegmentált kapcsoló: a heti nézet **kétoszlopos, középre igazított**
+ napkártyákból áll (órák kék, határidők borostyán, vegyes lila színnel; páratlan számnál az
+ utolsó kártya középre kerül); a havi nézet nincs.
 
 ### 📊 Iskolai események
 - DataTables táblázat: szűrés gyermek, típus, tantárgy, aktív/lejárt, dátumtartomány szerint;
-  gyorsszűrők (mai, tárgyhavi, előző havi, aktív), szabad szöveges keresés. A **szűrőpanel
-  alapból zárva** van, a fejlécére kattintva nyílik ki.
+ gyorsszűrők (mai, tárgyhavi, előző havi, aktív), szabad szöveges keresés. A **szűrőpanel
+ alapból zárva** van, a fejlécére kattintva nyílik ki.
 - A mai bejegyzések kiemelése; részletek modal ablakban.
 - A jegyeknél a **súlyszázalék** is látszik (pl. `5 (Írásbeli) 100%`), a mobil API
-  `SulySzazalekErteke` mezőjéből (Playwright-módban a webes hónap-cella tooltipjének
-  `data-suly` attribútumából); tooltip: „Az értékelés 100%-os súllyal számít bele az átlagba."
+ `SulySzazalekErteke` mezőjéből (Playwright-módban a webes hónap-cella tooltipjének
+ `data-suly` attribútumából); tooltip: „Az értékelés 100%-os súllyal számít bele az átlagba."
 - **Saját megjegyzés** fűzhető bármelyik sorhoz (jegy, feljegyzés, házi, számonkérés) és
-  bármelyik üzenethez — a megjegyzés a szinkronok után is megmarad (tartalom-alapú kulcs).
+ bármelyik üzenethez — a megjegyzés a szinkronok után is megmarad (tartalom-alapú kulcs).
 - **Excel export** a jelenlegi szűrőkkel: **Jegyek / Feljegyzések / Házi feladatok**
-  munkalapok (`/api/esemenyek/export.xlsx`).
+ munkalapok (`/api/esemenyek/export.xlsx`).
 
 ### 📝 Házi feladat kezelés
 - „Elkészült" jelölés, amely **megmarad** a következő szinkronok után is (zöld kiemelés).
 
 ### 🚸 Hiányzások és késések
 - Saját „Hiányzások" fül: **havi összesítő** (igazolt óra, igazolatlan óra, késések
-  darabszáma és percei) gyermek- és hónapválasztóval, „Összes" nézettel.
+ darabszáma és percei) gyermek- és hónapválasztóval, „Összes" nézettel.
 - Részletes hiányzás-/késés-táblázat (dátum, **aznap hányadik óra**, tantárgy, téma,
-  igazolt?, igazolás típusa) és külön **igazolás-lista** (érvényesség, típus, megjegyzés).
-  Egy KRÉTA-sor **egy tanórát** jelent (az „Óra” a napon belüli órasorszám).
+ igazolt?, igazolás típusa) és külön **igazolás-lista** (érvényesség, típus, megjegyzés).
+ Egy KRÉTA-sor **egy tanórát** jelent (az „Óra” a napon belüli órasorszám).
 - Alapból a **teljes előzmény** látszik; a havi bontás a hónapválasztóval vagy az
-  „Aktuális hónap” gombbal érhető el.
+ „Aktuális hónap” gombbal érhető el.
 - A késéseket a KRÉTA „(N perc)” adatából ismeri fel; a havi összesítő külön kezeli őket.
 - **Inkrementális mentés:** a rekordot a dátum + órasorszám azonosítja, ezért az
-  újraszinkron csak a változásokat írja (a sor-ID stabil, az eltűnt sorok törlődnek).
+ újraszinkron csak a változásokat írja (a sor-ID stabil, az eltűnt sorok törlődnek).
 - **Excel export:** **Hiányzások / Igazolások** munkalapok a jelenlegi szűrőkkel
-  (`/api/hianyzasok/export.xlsx`).
+ (`/api/hianyzasok/export.xlsx`).
 
 ### 🗓️ Feladatok naptár
 - Házik és számonkérések határidő szerint (FullCalendar 6), színkódolva;
-  mobilon listanézet (Havi/Heti lista), a naptári elemből is jelölhető az elkészült.
+ mobilon listanézet (Havi/Heti lista), a naptári elemből is jelölhető az elkészült.
 
 ### 💰 Statisztika & zsebpénz
 - Testreszabható jutalom/levonás mátrix jegyekre és viselkedésre.
 - Feljegyzések automatikus kategorizálása kulcsszavak alapján.
 - Havi elszámolás, egyenleg, kifizetés rögzítése (`KIFIZETVE`).
 - **Súlyozott tanulmányi átlag** a jegyek súlyszázaléka szerint (0%-os súly kimarad;
-  súlyadat nélkül egyszerű átlag). A statisztika **kikapcsolt zsebpénz mellett is működik** —
-  ilyenkor csak a pénz-kártya rejtve, figyelmeztető sávval.
+ súlyadat nélkül egyszerű átlag). A statisztika **kikapcsolt zsebpénz mellett is működik** —
+ ilyenkor csak a pénz-kártya rejtve, figyelmeztető sávval.
 - **Tantárgyi átlagok havi bontással:** alapból zárt accordion a Statisztika fülön.
-  Asztalon mátrix (tantárgy × hónap) + „Összes" oszlop + **„Hónapok átlaga" lábléc**;
-  mobilon **kapcsoló**: „Havi bontás" (hónap → tantárgy) vagy „Tantárgy szerint"
-  (teljes időszak), mindkettő tetején a **teljes átlag**.
+ Asztalon mátrix (tantárgy × hónap) + „Összes" oszlop + **„Hónapok átlaga" lábléc**;
+ mobilon **kapcsoló**: „Havi bontás" (hónap → tantárgy) vagy „Tantárgy szerint"
+ (teljes időszak), mindkettő tetején a **teljes átlag**.
 - **Trend oszlop** (sparkline + utolsó két hónap különbsége) és **romlás-figyelmeztetés**
-  az Áttekintésen (≤ -0,5), **gyermeknévvel és az érintett időszakkal**; alatta zöld sáv a
-  **javuló** tantárgyakról (≥ +0,5). A két sáv **lenyitható**: asztalon **helyben**,
-  görgethető listává nyílik; mobilon **teljes képernyős**; `Esc`-cel vagy a fejre
-  kattintva záródik.
+ az Áttekintésen (≤ -0,5), **gyermeknévvel és az érintett időszakkal**; alatta zöld sáv a
+ **javuló** tantárgyakról (≥ +0,5). A két sáv **lenyitható**: asztalon **helyben**,
+ görgethető listává nyílik; mobilon **teljes képernyős**; `Esc`-cel vagy a fejre
+ kattintva záródik.
 - **„Milyen jegy kell?” kalkulátor:** tantárgy (alapból üres) + célátlag + **várható
-  jegyek** (súly + opcionális jegy, akár több, eltérő súllyal) → hányas/os hány ötös kell,
-  illetve mennyi a várható átlag; **félévi céljegy** esetén a küszöbhöz szükséges átlag.
-  A célátlag/félévi cél **tantárgyanként mentődik**, a kártya a tantárgy **meglévő jegyeit**
-  táblázatban listázza, és mindig a **teljes tanév** jegyállományával dolgozik.
+ jegyek** (súly + opcionális jegy, akár több, eltérő súllyal) → hányas/os hány ötös kell,
+ illetve mennyi a várható átlag; **félévi céljegy** esetén a küszöbhöz szükséges átlag.
+ A célátlag/félévi cél **tantárgyanként mentődik**, a kártya a tantárgy **meglévő jegyeit**
+ táblázatban listázza, és mindig a **teljes tanév** jegyállományával dolgozik.
 - **Aktuális bizonyítvány (PDF, félév / tanév):** A4-es, **dísz-bizonyítvány** kivitelű
-  összefoglaló (arany keret, pecsét, serif címek): átlag, jegyek, hiányzás, késés,
-  magatartás/szorgalom (ha van); a zsebpénz-egyenleg csak akkor, ha a diákra engedélyezett a
-  modul. **Mentés nélkül, közvetlenül generálva** (a böngésző nyitja meg, onnan nyomtatható);
-  a felületi kártya és a PDF fejléce is „Aktuális bizonyítvány”, a fő cím a tanévet és az
-  időszakot is mutatja. A tantárgyi táblában nincs Db oszlop, a jegyek jegyenként összesítve
-  („Jeles(5) - 3 db ; Jó(4) - 2 db”), feljegyzés-szekció nincs. A hivatalos félévi jegy a
-  KRÉTA API-ból nem érhető el — ezt a PDF jelzi, és a jegyekből számolt átlagot mutatja.
+ összefoglaló (arany keret, pecsét, serif címek): átlag, jegyek, hiányzás, késés,
+ magatartás/szorgalom (ha van); a zsebpénz-egyenleg csak akkor, ha a diákra engedélyezett a
+ modul. **Mentés nélkül, közvetlenül generálva** (a böngésző nyitja meg, onnan nyomtatható);
+ a felületi kártya és a PDF fejléce is „Aktuális bizonyítvány”, a fő cím a tanévet és az
+ időszakot is mutatja. A tantárgyi táblában nincs Db oszlop, a jegyek jegyenként összesítve
+ („Jeles(5) - 3 db; Jó(4) - 2 db”), feljegyzés-szekció nincs. A hivatalos félévi jegy a
+ KRÉTA API-ból nem érhető el — ezt a PDF jelzi, és a jegyekből számolt átlagot mutatja.
 
 ### 🔎 Keresés és UX
 - **Globális kereső (Ctrl+K):** jegyek, feljegyzések, házik, üzenetek (teljes törzs) és
-  hiányzások; a keresőmező **nyitáskor azonnal aktív**, a találatlistában **↑/↓/Enter**
-  navigáció, **Esc** zárás, az utolsó **5 keresés** mentődik; a **találat sorára kattintva
-  az adott sor részletei** nyílnak meg, a típus-címkék felirata/színe **egyezik az
-  Események füllel**, a megnyitott sor rövid kiemelést kap. Nagyobb adaton **FTS5**
-  trigram index gyorsít (LIKE fallbackkel).
+ hiányzások; a keresőmező **nyitáskor azonnal aktív**, a találatlistában **↑/↓/Enter**
+ navigáció, **Esc** zárás, az utolsó **5 keresés** mentődik; a **találat sorára kattintva
+ az adott sor részletei** nyílnak meg, a típus-címkék felirata/színe **egyezik az
+ Események füllel**, a megnyitott sor rövid kiemelést kap. Nagyobb adaton **FTS5**
+ trigram index gyorsít (LIKE fallbackkel).
 - **Sötét mód** (átfogó: kártyacímek, táblázatok, kiemelt sorok, accordion, naptár,
-  státuszsáv, modálok; a naptár-események szövegszíne a háttérhez igazodik),
-  **nyomtatásbarát heti órarend** (A4 fekvő, a fejlécben „SuliHub – Órarend – gyermek – hét”),
-  **kitűzött események** a dashboardon (húzással rendezhető, tételenkénti megjegyzéssel).
+ státuszsáv, modálok; a naptár-események szövegszíne a háttérhez igazodik),
+ **nyomtatásbarát heti órarend** (A4 fekvő, a fejlécben „SuliHub – Órarend – gyermek – hét”),
+ **kitűzött események** a dashboardon (húzással rendezhető, tételenkénti megjegyzéssel).
 - **Hiányzás-mintázat:** nap / órasorszám / tantárgy bontás a Hiányzások fülön (a táblázatok
-  alatt, alapból csukva).
+ alatt, alapból csukva).
 
 ### 📱 Mobilra optimalizált UI
 - Redmi 12/13/14 méreten (393 CSS px) ellenőrizve: nincs vízszintes túlcsordulás.
 - Összecsukható táblázatok, **monogram-avatar** a diák oszlopban, 2 sorba tördelődő
-  fülek, teljes képernyős modálok, teljes szélességű vezérlők. Az értékeléseknél mobilon is
-  **alapból látszik a jegy** (az „Érték” oszlop megelőzi a típus-badge-et).
+ fülek, teljes képernyős modálok, teljes szélességű vezérlők. Az értékeléseknél mobilon is
+ **alapból látszik a jegy** (az „Érték” oszlop megelőzi a típus-badge-et).
 - A fejlécben: ütemező állapota, időablak, következő és utolsó futás, **telepített verzió**.
 
 ### 🛠️ Üzemeltetés
 - Futásnapló a DB-ben (`sync_runs`), napló-rotáció, `waitress` produkciós szerver,
-  DB-guard indításkor, napi automatikus mentés forgatással.
+ DB-guard indításkor, napi automatikus mentés forgatással.
 - **Havi restore-teszt:** `tools/backup_restore_check.py` — a legfrissebb mentés izolált
-  visszaállítása, `integrity_check`, manifest-egyeztetés, ntfy riasztás hibánál.
+ visszaállítása, `integrity_check`, manifest-egyeztetés, ntfy riasztás hibánál.
 - **Éjszakai élő füstteszt:** `tools/live_smoke.py` (`/health`, `/api/sync/status`, az
-  utolsó futás kora); GitHub Actions job, `KRETA_URL` secret nélkül kimarad.
+ utolsó futás kora); GitHub Actions job, `KRETA_URL` secret nélkül kimarad.
 - **Szinkron-egészség:** 3 egymást követő hiba → magas prioritású ntfy (6 órás throttle),
-  token-lejáratnál „KRÉTA belépés lejárt” jelzés; a belépés a `config.json` `STUDENTS`
-  adataival **automatikus**, a kézi „Adatok frissítése” azonnal kiváltja, a státuszsáv
-  tooltipje/modalja elmagyarázza. A token-hiba csak valódi 401/403/login hiba esetén
-  jelenik meg — a napló „tárolt tokenből” info-sora nem téveszti meg.
+ token-lejáratnál „KRÉTA belépés lejárt” jelzés; a belépés a `config.json` `STUDENTS`
+ adataival **automatikus**, a kézi „Adatok frissítése” azonnal kiváltja, a státuszsáv
+ tooltipje/modalja elmagyarázza. A token-hiba csak valódi 401/403/login hiba esetén
+ jelenik meg — a napló „tárolt tokenből” info-sora nem téveszti meg.
 - **Heti adatminőség-riport:** `tools/data_quality_report.py` (csak olvas; duplikátumok,
-  hiányzó csatolmányok, üres mezők, árva megjegyzések, DB-méret, utolsó futás).
+ hiányzó csatolmányok, üres mezők, árva megjegyzések, DB-méret, utolsó futás).
 - **Teljesítmény-teszt:** 5 000 eseményes fixture a fast csomagban (`test_performance`,
-  500 ms küszöb). **DB-migrációk:** verziózott `MIGRATIONS` lánc `.bak`-kal.
+ 500 ms küszöb). **DB-migrációk:** verziózott `MIGRATIONS` lánc `.bak`-kal.
 
 ---
 
@@ -273,7 +257,7 @@ található (minden verzióhoz külön fájl + index).
 | Réteg | Eszköz |
 |---|---|
 | Backend | Python 3.12 (Docker) / 3.14 (lokális), Flask, **waitress**, ReportLab |
-| Adatforrás | **Kréta mobil API** — böngésző nélkül (a Playwright scraper a v2.5.0-ban kikerült, #64) |
+| Adatforrás | **Kréta mobil API** — böngésző nélkül |
 | Adat | SQLite |
 | Frontend | Bootstrap 5.3, jQuery, DataTables (+ Responsive), FullCalendar 6, FontAwesome 6 |
 | Konténer | Docker, Docker Compose (Debian slim) |
@@ -313,7 +297,7 @@ python app.py
 > automatikusan a projekt venv-jét, majd a `C:\Python314\python.exe`-t választja;
 > kézzel ugyanez: `C:\Python314\python.exe app.py`.
 >
-> A `config.json` helye lokálisan **`data\config.json`** (a KRÉ-14 átszervezés óta),
+> A `config.json` helye lokálisan **`data\config.json`**,
 > nem a projekt gyökere — a `KretaApp_Start.bat` is ezt ellenőrzi.
 
 Nyomd meg az **„Adatok frissítése a KRÉTA-ból"** gombot az első szinkronhoz.
@@ -329,57 +313,57 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 
 ```json
 {
-  "SCRAPE_MESSAGES": true,
-  "SYNC_MODE": "api",
-  "SZUNET_AKTIV": true,
-  "SYNC_SZUNET": [
-    {"nev": "Őszi szünet", "kezdo": "2026-10-23", "vege": "2026-11-01", "napi_sync": true, "napi_ido": "18:00"},
-    {"nev": "Téli szünet", "kezdo": "2026-12-19", "vege": "2027-01-03", "napi_sync": true, "napi_ido": "18:00"},
-    {"nev": "Tavaszi szünet", "kezdo": "2027-03-25", "vege": "2027-04-04", "napi_sync": true, "napi_ido": "18:00"},
-    {"nev": "Nyári szünet", "kezdo": "2027-06-19", "vege": "2027-08-31", "napi_sync": true, "napi_ido": "18:00"}
-  ],
-  "DIGEST": {
-    "ENABLED": true,
-    "TIME": "19:30",
-    "INCLUDE_NAMES": true,
-    "SZUNET_NAPOK": []
-  },
-  "ENABLE_REWARDS": true,
-  "SCHEDULER": {
-    "ENABLED": true,
-    "INTERVAL_MINUTES": 180,
-    "START_HOUR": 6,
-    "END_HOUR": 22,
-    "STALE_ALERT_HOURS": 12
-  },
-  "REWARDS": {
-    "jegy_5": 500,
-    "jegy_4": 300,
-    "jegy_3": 0,
-    "jegy_2": -500,
-    "jegy_1": -1000,
-    "dicseret": 1000,
-    "megrovas": -1000,
-    "lecke_hiany": -500,
-    "felszereles_hiany": -500
-  },
-  "KEYWORDS": {
-    "dicseret": ["dicséret", "dicséretben", "kiemelkedő", "dicséretet"],
-    "megrovas": ["intő", "megrovás", "figyelmeztetés", "elmarasztalás"],
-    "lecke_hiany": ["házi feladat hiány", "házi hiány", "lecke hiány", "nem készített házi"],
-    "felszereles_hiany": ["felszerelés hiány", "felszerelése hiányzott", "felszereléshiány"]
-  },
-  "STUDENTS": [
-    {
-      "diak_nev": "Minta Elemér",
-      "institute_code": "iskola_azonosito",
-      "username": "FELHASZNÁLÓNÉV",
-      "password": "JELSZÓ",
-      "active": true,
-      "scrape_messages": true,
-      "enable_rewards": true
-    }
-  ]
+ "SCRAPE_MESSAGES": true,
+ "SYNC_MODE": "api",
+ "SZUNET_AKTIV": true,
+ "SYNC_SZUNET": [
+ {"nev": "Őszi szünet", "kezdo": "2026-10-23", "vege": "2026-11-01", "napi_sync": true, "napi_ido": "18:00"},
+ {"nev": "Téli szünet", "kezdo": "2026-12-19", "vege": "2027-01-03", "napi_sync": true, "napi_ido": "18:00"},
+ {"nev": "Tavaszi szünet", "kezdo": "2027-03-25", "vege": "2027-04-04", "napi_sync": true, "napi_ido": "18:00"},
+ {"nev": "Nyári szünet", "kezdo": "2027-06-19", "vege": "2027-08-31", "napi_sync": true, "napi_ido": "18:00"}
+ ],
+ "DIGEST": {
+ "ENABLED": true,
+ "TIME": "19:30",
+ "INCLUDE_NAMES": true,
+ "SZUNET_NAPOK": []
+ },
+ "ENABLE_REWARDS": true,
+ "SCHEDULER": {
+ "ENABLED": true,
+ "INTERVAL_MINUTES": 180,
+ "START_HOUR": 6,
+ "END_HOUR": 22,
+ "STALE_ALERT_HOURS": 12
+ },
+ "REWARDS": {
+ "jegy_5": 500,
+ "jegy_4": 300,
+ "jegy_3": 0,
+ "jegy_2": -500,
+ "jegy_1": -1000,
+ "dicseret": 1000,
+ "megrovas": -1000,
+ "lecke_hiany": -500,
+ "felszereles_hiany": -500
+ },
+ "KEYWORDS": {
+ "dicseret": ["dicséret", "dicséretben", "kiemelkedő", "dicséretet"],
+ "megrovas": ["intő", "megrovás", "figyelmeztetés", "elmarasztalás"],
+ "lecke_hiany": ["házi feladat hiány", "házi hiány", "lecke hiány", "nem készített házi"],
+ "felszereles_hiany": ["felszerelés hiány", "felszerelése hiányzott", "felszereléshiány"]
+ },
+ "STUDENTS": [
+ {
+ "diak_nev": "Minta Elemér",
+ "institute_code": "iskola_azonosito",
+ "username": "FELHASZNÁLÓNÉV",
+ "password": "JELSZÓ",
+ "active": true,
+ "scrape_messages": true,
+ "enable_rewards": true
+ }
+ ]
 }
 ```
 
@@ -391,17 +375,16 @@ kerül a Docker image-be (`.gitignore` / `.dockerignore`).
 | Érték | Jelentés |
 |---|---|
 | `api` | **Alapértelmezés és az egyetlen futó mód.** Csak a mobil API (böngésző nélkül); egy adatkör hibája részleges hiba. **Az üzenet-csatolmányokat is letölti** (`files.e-kreta.hu` nonce URL), a munkamenetet a data köteten tárolja (`api_tokens.json`) — a futások többsége **nem lép be újra**. |
-| `api_first` / `playwright` | **Örökölt értékek** a böngészős korszakból: figyelmeztetés mellett automatikusan `api`-ra válnak (a Playwright scraper a v2.5.0-ban kikerült, #64). |
 
 **`NTFY`** — push értesítés (opcionális; enélkül nincs értesítés):
 
 ```jsonc
 "NTFY": {
-  "_comment": "CSA K akkor él, ha a .env-ben nincs NTFY_TOPIC (az env erősebb)",
-  "TOPIC": "kreta-3f9c1a7b5e2d4c60",   // üresen nincs értesítés; a név maga a cím
-  "URL": "https://ntfy.sh",             // saját ntfy szerver is lehet
-  "NOTIFY_NEW": true,                   // új információ esetén push (a régi NOTIFY_SUCCESS is elfogadott)
-  "INCLUDE_NAMES": false                // diáknevek a push-ban (alapból nem)
+ "_comment": "CSA K akkor él, ha a.env-ben nincs NTFY_TOPIC (az env erősebb)",
+ "TOPIC": "kreta-3f9c1a7b5e2d4c60", // üresen nincs értesítés; a név maga a cím
+ "URL": "https://ntfy.sh", // saját ntfy szerver is lehet
+ "NOTIFY_NEW": true, // új információ esetén push (a régi NOTIFY_SUCCESS is elfogadott)
+ "INCLUDE_NAMES": false // diáknevek a push-ban (alapból nem)
 }
 ```
 
@@ -490,31 +473,27 @@ Futásonként legfeljebb egy push megy ki. Az új adat push kikapcsolható:
 ## 📁 Mappa szerkezet
 
 ```text
-├── app.py                  # Flask belépő + szinkron/ütemező/ntfy/napló mag
-├── views_*.py              # HTTP-réteg blueprintekben (pages, events, orarend, messages,
-│                           #   absences, stats, rewards, search) + kreta_exports (PDF/XLSX/CSV)
-├── kreta_paths.py          # útvonalak (KRETA_* env; alap: data/)
-├── kreta_db.py             # DB-séma, migrációk, app_meta, futásnapló
-├── kreta_settings.py       # config.json, verzió, órarend-színek
-├── views_common.py         # blueprint-építő + közös request-segédek
-├── kreta_playwright.py     # szinkron futtató: séma + mentők + API-szolgáltatók
-├── kreta_archive.py        # zárt tanév ZIP-archívuma (JSON/CSV/Excel/PDF + checksum)
-├── templates/index.html    # Dashboard váza (Bootstrap + DataTables + FullCalendar)
-├── static/js/              # core.js + app-main.js (a felület JS-e)
-├── static/vendor/          # vendorolt függőségek (offline)
-├── tests/                  # automatikus tesztek + run_all.py
-├── tools/                  # api_snapshot, migrate_local_data, mobile_shot, backup_restore_check
-├── data/                   # futásidejű adatok (NEM verziózott): DB, config.json,
-│                           #   sync.log, api_tokens.json, böngészőprofil, csatolmányok
+├── app.py # Flask belépő + szinkron/ütemező/ntfy/napló mag
+├── views_*.py # HTTP-réteg blueprintekben (pages, events, orarend, messages,
+│ # absences, stats, rewards, search) + kreta_exports (PDF/XLSX/CSV)
+├── kreta_paths.py # útvonalak (KRETA_* env; alap: data/)
+├── kreta_db.py # DB-séma, migrációk, app_meta, futásnapló
+├── kreta_settings.py # config.json, verzió, órarend-színek
+├── views_common.py # blueprint-építő + közös request-segédek
+├── kreta_playwright.py # szinkron futtató: séma + mentők + API-szolgáltatók
+├── kreta_archive.py # zárt tanév ZIP-archívuma (JSON/CSV/Excel/PDF + checksum)
+├── templates/index.html # Dashboard váza (Bootstrap + DataTables + FullCalendar)
+├── static/js/ # core.js + app-main.js (a felület JS-e)
+├── static/vendor/ # vendorolt függőségek (offline)
+├── tests/ # automatikus tesztek + run_all.py
+├── tools/ # api_snapshot, migrate_local_data, mobile_shot, backup_restore_check
+├── data/ # futásidejű adatok (NEM verziózott): DB, config.json,
+│ # sync.log, api_tokens.json, csatolmányok
 ├── Dockerfile, docker-compose.yml, entrypoint.sh
 ├── docs/
-│   ├── DOKUMENTACIO.md     # teljes rendszerdokumentáció
-│   └── rendszerterv.md     # eredeti követelményjegyzék (történeti)
+│ └── DOKUMENTACIO.md # teljes rendszerdokumentáció
 └── README.md
 ```
-
-> A karbantartói deploy (`deploy.ps1`) és a szerveroldali mentő script egy
-> **privát üzemeltetési repóban** van; a publikus telepítéshez nem kell.
 
 ---
 
@@ -537,8 +516,7 @@ Részletek: [`tests/README.md`](tests/README.md).
 
 ## 🐳 Docker élesítés
 
-Az alkalmazás Docker Compose-szal futtatható. A karbantartói (szerver-specifikus,
-Samba/SSH alapú) deploy egy privát üzemeltetési repóban van; a publikus telepítéshez nem kell.
+Az alkalmazás Docker Compose-szal futtatható.
 
 | Fájl | Szerep |
 |---|---|
@@ -559,13 +537,13 @@ curl http://127.0.0.1:8085/health
 ```
 
 - A `DATA_DIR` / `BACKUP_DIR` env-ekkel (vagy a compose defaultjaival) állíthatók a kötetek:
-  alapból **`./data`** és **`./backup`**. A `.env` csak akkor kell, ha env-ből akarsz
-  felülírni (pl. `NTFY_TOPIC`); a Compose a `.env`-et interpolációhoz automatikusan betölti.
+ alapból **`./data`** és **`./backup`**. A `.env` csak akkor kell, ha env-ből akarsz
+ felülírni (pl. `NTFY_TOPIC`); a Compose a `.env`-et interpolációhoz automatikusan betölti.
 - Linuxon, ha a konténer nem tud írni a kötetekbe: `sudo chown -R 1000:1000 data backup`
-  (az `APP_UID`/`APP_GID` a compose build args-ban állítható).
+ (az `APP_UID`/`APP_GID` a compose build args-ban állítható).
 - A `config.json`-t a deploy **nem** másolja — a data kötetben kell lennie.
-- A v2.5.0-tól nincs böngészős fallback — a szinkron kizárólag a mobil API-ból fut (#64).
-  A régi (Playwright-fallbackes) kód a **`playwright-fallback`** ágon marad meg.
+- A szinkron kizárólag a mobil API-ból fut.
+
 
 ---
 
@@ -574,64 +552,27 @@ curl http://127.0.0.1:8085/health
 - Belső hálózaton fut, **nincs bejelentkezés** a felülethez (tudatos kompromisszum).
 - A `config.json` (jelszavak) és az adatbázis a data köteten, nem verziózott.
 - Az ntfy-re csak állapotinformáció megy; diáknév alapból nem. A topic neve „jelszóként"
-  működik — használj hosszú, véletlen nevet.
-- Ha a hálózat kiterjed: basic auth vagy reverse proxy javasolt. A #137 óta
-  a meglévő, de hibás/olvashatatlan config esetén a védett végpontok 503-at adnak
-  (fail-closed); hiányzó confignál az auth nincs beállítva.
+ működik — használj hosszú, véletlen nevet.
+- Ha a hálózat kiterjed: basic auth vagy reverse proxy javasolt. A óta
+ a meglévő, de hibás/olvashatatlan config esetén a védett végpontok 503-at adnak
+ (fail-closed); hiányzó confignál az auth nincs beállítva.
 
 ---
 
 ## 🤝 Hozzájárulás és biztonság
 
 - Hozzájárulás: [`CONTRIBUTING.md`](CONTRIBUTING.md) — feature branch, PR, zöld CI,
-  release note, nincs személyes adat/titok.
+ release note, nincs személyes adat/titok.
 - Biztonsági bejelentés: [`SECURITY.md`](SECURITY.md) — kérjük, **ne** nyilvános
-  issue-ban; használd a GitHub privát sebezhetőség-bejelentését.
+ issue-ban; használd a GitHub privát sebezhetőség-bejelentését.
 - Magatartás: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 
 ---
 
-## 📌 Verziótörténet (kivonat)
-
-| Verzió | Tartalom |
-|---|---|
-| v2.8.0 | **Publikus repository:** a kód nyilvánosan elérhető; a history személyes adatok, munkahelyi e-mail és belső útvonalak nélkül újraírva; a belső üzemeltetési/deploy anyagok a privát devops repóba kerültek. **Publikus docs + quick start:** `./data`/`./backup` compose alapok, opcionális `.env`; SECURITY/CONTRIBUTING/Code of Conduct/issue-PR sablonok; **OSV audit 0 ismert sebezhetőség**, `pip-audit` CI + heti Dependabot. A meglévő szerveres deploy a `.env`-ben megkapja a valós `DATA_DIR`/`BACKUP_DIR` értékeket. Alkalmazásfunkció-változás nincs a v2.7.8-hoz képest |
-| v2.7.8 | **Mobil + üzenet javítások (felhasználói visszajelzés):** az olvasatlan üzenet kék pöttye nem szorítja ki a hosszú tárgyat (a tárgy a cellán belül, a végén ellipszissel látszik); a mobil eseménysorban a **házi feladat / bejelentett számonkérés** a **határidőt** mutatja a bejegyzés kelte helyett (a részletekben továbbra is ott a bejegyzés dátuma és a first-seen időbélyeg); az **Üzenetek fül saját gyermek-szűrőt** kapott („Összes gyermek” alap), függetlenül az Áttekintés/Események gyermek-választásától. A tömeges olvasott/olvasatlan művelet is ezt használja |
-| v2.7.7 | **Szinkron-push csak delta:** a sikeres, új információt hozó futás pusha csak az adott futásban beérkezett tételeket listázza (a `letrehozva` first-seen időbélyeg és a futás kezdete alapján), a napi digesttel azonos formában; a nap korábbi eseményei és a „Holnap esedékes” nem ismétlődnek. A digest tartalma és ütemezése változatlan. Új `kreta_digest.collect_since()`; fallback darabszámos összegzés |
-| v2.7.6 | **#158 desktop esemény-tábla:** a mobilra szánt rövid dátum/jegykör nem szivárog a Tantárgy cellába (alapból `display: none`, mobilon jelenik meg); a dátum és a jegy a saját oszlopában marad. **CI:** a kalkulátor aszinkron eredményére váró teszt (flaky scheduled futás). **#157:** GitHub-repó `reitam/sulihub` (a régi URL átirányít) |
-| v2.7.5 | **#154 üzenet-AI teljes eltávolítása:** `kreta_ai.py`, a két AI-végpont, a hozzájuk tartozó segédfüggvények, az `AI` config-blokk, a teszt és a terv törölve; a naptárbejegyzés/ICS a meglévő úton marad. **#155 Áttekintés trend sáv:** a romló/javuló tantárgy sáv lenyitható, kinyitva teljes képernyős, görgethető lista (gyermek, tantárgy, időszak, havi átlagok, változás); `Esc`-cel záródik, sötét módban is **#156:** a feljegyzések first-seen (`letrehozva`) ideje megmarad a teljes cserés mentésnél; a hiányzó `szam_ertek` kulcsnormalizálás javítva, a meglévő 14 feljegyzés a KRÉTA-dátumára állítva — nincs több téves „új adatok” push |
-| v2.7.4 | **#137 auth fail-closed:** meglévő, de olvashatatlan/érvénytelen config → 503 a védett végpontokon, `/health` nyitott; `load_config_strict` + teszt. **#149/#150/#151 first seen:** séma v6, 2 napos ablak (`KRETA_FIRST_SEEN_RECENT_DAYS`), `KRETA_TODAY`, int/clamp, ALTER try/except. **#152:** dátumfüggetlen first seen teszt. **#148:** code review pontok lezárva |
-| v2.7.3 | **#153 mobil:** a **Műveletek** oszlop mindig látszik (a responsive nem rejti el), a házi feladat Elkészült/Újra aktív gombja mobilon csak ikon; a megjegyzés/részletek gomb minden sornál elérhető. **UI takarítás:** a nem használt kedvencek/csillag gomb, a Kitűzött események panel és a `/api/kedvencek` végpont eltávolítva |
-| v2.7.2 | **#153 mobil nézet finomítása:** 44 px diák-oszlop, típus-rövidítés (É/F/HF/SZK), egy sorban tantárgy + rövid dátum + jegy a jobb szélen színes körben; a jegy helye fixen foglalt, ezért a dátum nem csúszik; a külön Érték/Dátum/Típus oszlop mobilon rejtve |
-| v2.7.1 | **#147 „Bekerült” oszlop:** az Események táblában a leírás után látszik, mikor került az adat a SuliHubba (mai esetén `MA` jelzéssel), a részletek modálban is; a műveletgombok külön **Műveletek** oszlopban. **#153 mobil nézet:** a jegy és a rövid dátum a tantárgy alatt |
-| v2.7.0 | **#139 tanév-archívum:** a tanév lezárásakor egyszeri, ellenőrizhető ZIP a data köteten (`data/tanev_archivum/<év>.zip`): táblánként JSON/CSV, kombinált Excel, diákonkénti PDF-bizonyítvány, manifest + SHA-256; ismételt zárásnál nem duplikál; kézi pótlás `tools/create_tanev_archive.py`; a napi backup a `tanev_archivum/` mappát is viszi. **#147 first seen:** a `letrehozva` oszlop alapján a visszamenőleges dátumú új jegy is mai; digest, szinkron-push, Ma fül és dashboard-számlálók |
-| v2.6.1 | **#146:** a statisztika gyermek-szűrői betöltéskor üresek; üres állapotban súgó; az Áttekintés fülön a gyermek átlagkártyájáról ugrás a Statisztika fülre, a kiválasztott gyermekre, teljes tanévre, lenyitott havi tantárgyi átlagokkal. **UI:** a bal felső SuliHub logó link az Áttekintésre (újratöltés nélküli fülváltás) |
-| v2.6.x | **#128 értesítési politika:** üres sikeres futás nem küld push-t; új adat esetén futásonként egy üzenet a napi összefoglaló részletességével; hiba mindig, a health-riasztással egy üzenetben; `NOTIFY_NEW`. **#145 szinkron-szünet:** `SYNC_SZUNET` intervallumok (pl. iskolai szünetek), a szünet alatt nincs normál automatikus futás, a kézi mindig megy, opcionális napi egy szinkron; felül világos rózsaszínes, bordó kiemelésű szünet-sáv; `SZUNET_AKTIV` mesterkapcsoló. **#133:** hétvégén/szünetnapon az üres napi digest kimarad (a szüneteket elég egyszer, a `SYNC_SZUNET`-ben megadni — a digest ugyanazokat használja). **#134:** a Ma fül **Holnap** (csak órák; a határidők a meglévő „Ma és holnap esedékes” kártyán) és **Igazolandó** kártyával bővült; a felesleges API-mezők (`holnapi_taskak`, `holnapi_hataridok`) törölve. **#144:** a heti nézet a hétvégi napokat is mutatja, ha van óra/határidő. **UI:** világos rózsaszínes, bordó kiemelésű szünet-sáv (desktopon két sor, teljes szélesség, mobilon rövid); a token-hiba csak 401/403/login esetén jelenik meg, a sikertelen adatkör neve is látszik. A **v2.5.0 Playwright-kivezetés (#64) is benne van** |
-| v2.5.x | **#64 — Playwright teljes kivezetés:** a böngészös scraper, az árnyék-mód (`kreta_shadow.py`) és a `:playwright` Docker target törölve; a szinkron kizárólag a mobil API-ból fut, böngésző nélkül. Az örökölt `api_first`/`playwright` config-értékek figyelmeztetés mellett `api`-ra váltanak. A Playwright csak a **böngészős UI-tesztek** fejlesztői függősége marad. Visszaállás: a `playwright-fallback` git-ág (a v2.4.0 fallbackes kód) |
-| v2.4.x | **Playwright opcionális image (#138):** az alap `runtime` image Chromium és `playwright` csomag nélkül (278 MB), a fallback külön `:playwright` tagben; lazy import + `api` alapmód; **csatolmány-pótlás** `api` módban (max. 3 próba) |
-| v2.3.x | **KRÉ-8 esti digest** (gyermekenként egy push a nap eseményeivel + holnapi határidők, manuális „Összefoglaló most”), **KRÉ-127 tantárgy-szűrő** kis/nagybetű-függetlenül, **KRÉ-126 naptár → tagolt részletek modál**; v2.3.1 fejléc 1200 px fix |
-| v2.2.x | **Ma fül** határidő-részletei, **tagolt részletek modál** minden nézetben, szűrőpanel **határidő-dátumtartomány**, fogadóóra API-szeletelés (nincs Playwright-fallback) |
-| v2.1.x | **Globális kereső (Ctrl+K)** (azonnal aktív mező, ↑/↓/Enter, előzmény, találat-kiemelés, **FTS5**), **jegy-kalkulátor** (üres alap-választó, meglévő jegyek táblázata, **több várható jegy eltérő súllyal**, **félévi céljegy**, **mentett célátlag**, teljes tanév), **aktuális bizonyítvány PDF** (félév/tanév, dísz-bizonyítvány kivitel, mentés nélkül közvetlenül generálva), **Excel exportok** (szűrt lista, jegyek/feljegyzések/házik, hiányzások/igazolások), **sötét mód + nyomtatás + kedvencek** (húzásos sorrend, megjegyzés), **tantárgyi trend + hiányzás-mintázat**, **önálló „Ma” fül Ma/Hét nézettel** (kétoszlopos, színezett heti napkártyák), **új SuliHub logó mindenhol** (fejléc, favicon, PDF-bizonyítvány), **alapból zárt szűrőpanel** a menüsor alatt, **órarend 4 hét előre + múlt megőrzése**, **szinkron-egészség riasztás**, **adatminőség-riport**, **teljesítmény-teszt**, **verziózott DB-migrációk**; mobilon a **jegy oszlop alapból látszik** |
-| v2.0.x | **KRÉ-14 refaktor:** `app.py` és a frontend szétbontása (8 blueprint + közös rétegek, `static/js/`), **futásidejű adatok a `data/` alatt** migráló szkripttel; a viselkedés (URL-ek, válaszok, DB-séma) változatlan |
-| v1.9.x | **Saját órák** (kézi szakkör/pluszfoglalkozás tanévre/hétre/egyedi időszakra, saját színnel, **módosítható**, egy alkalom vagy sorozat törlése), **naptárba küldés** házihoz/számonkéréshez/üzenethez (előre kitöltött Google esemény), **órarend ICS export** (hét/hónap/félév/tanév), **futástörténet**, **órarend-színek**, **SuliHub arculat** (logó/név), **modern egysoros fejléc**, opcionális **basic auth**, **DB-indexek/sémaverzió**, **zsebpénz CSV**, **teljes üzenettörzs** (a lista csak előnézet volt — #74), **dashboard szűrőfüggetlen újratöltése** (#76); az AI-elemzés csak API-ként elérhető |
-| v1.8.x | **Offline-képes frontend:** minden CDN-függőség vendorolva a `static/vendor/` alá (Bootstrap, DataTables, FontAwesome, FullCalendar, jQuery), nincs külső hivatkozás; apróságok (#17: `SyntaxWarning`, érvényes `config.json.example`, halott `autoSyncAlert` törlése) |
-| v1.7.x | **Tanév-kezelés** (tanév a rekord dátumából, tanév-választó, tanév-tudatos mentés, állapotgép), **dashboard-újratervezés** (6 csempe, tanulmányi átlag kártyák, 2 hasábos feed), **mobil fejléc** (kompakt egysoros szinkron-státusz, részletek koppintásra) + GitHub Actions CI |
-| v1.6.x | **API-first szinkron** (böngésző nélküli mobil API, Playwright fallback, token-tár), **Áttekintés dashboard** kattintható csempékkel, **jegy-súlyszázalék** + **súlyozott tanulmányi átlag**, **tantárgyi átlagok havi bontással** (mobilon kapcsoló), adatvédelem a teljes cserés mentésnél, DB-séma őr |
-| v1.5.x | **Hiányzások / késések modul** (havi összesítő, igazolások, push-ban az igazolatlan órák), v1.5.1: „Összes hiányzás" órában + teljes szövegű igazolás-típus |
-| v1.4.x | **Mobilra optimalizált felület** (napi naptárnézet, összecsukható táblázatok, avatárok, tördelődő fülek) |
-| v1.3.x | Futásnapló a DB-ben (`sync_runs`), WAL opt-in, teljes `DOKUMENTACIO.md` |
-| v1.2.x | Részleges hiba, ntfy, napló-rotáció, waitress, tesztek, új események a push-ban |
-| v1.1.x | Automatikus ütemező, PDF ő/ű javítás, verzió a fejlécben |
-| v1.0.x | Docker-élesítés, mentés, alapfunkciók |
-
-A teljes lista: [`DOKUMENTACIO.md` 13. fejezet](docs/DOKUMENTACIO.md).
-
----
 
 ## 📚 Kapcsolódó dokumentumok
 
 | Fájl | Tartalom |
 |---|---|
 | [`docs/DOKUMENTACIO.md`](docs/DOKUMENTACIO.md) | Teljes rendszerdokumentáció (üzleti + technikai) |
-| [`docs/rendszerterv.md`](docs/rendszerterv.md) | Eredeti követelményjegyzék (történeti) |
 | [`tests/README.md`](tests/README.md) | A tesztek leírása |
