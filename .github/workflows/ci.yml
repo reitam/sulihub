@@ -70,14 +70,14 @@ jobs:
           python -u tests/run_all.py --browser 2>&1 | tee browser-tests.log
       - name: Browser tesztnapló hibánál
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: browser-tests-log
           path: browser-tests.log
           if-no-files-found: ignore
       - name: Képernyőképek hibánál
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kreta-screenshots
           path: |
