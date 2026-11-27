@@ -166,8 +166,7 @@ def check(backup_dir, db=None, max_age_days=2.0, ntfy_topic=""):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="KRÉTA mentés restore-ellenőrzés.")
     parser.add_argument("--backup-dir",
-                        default=os.environ.get("KRETA_BACKUP_DIR",
-                                               "./backup"))
+                        default=os.environ.get("KRETA_BACKUP_DIR", "backup"))
     parser.add_argument("--db", default=os.environ.get("KRETA_DB_FILE", ""))
     parser.add_argument("--max-age-days", type=float, default=2.0)
     parser.add_argument("--ntfy-topic", default=os.environ.get("NTFY_TOPIC", ""))

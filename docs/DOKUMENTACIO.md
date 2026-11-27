@@ -3,10 +3,13 @@
 | | |
 |---|---|
 | **Dokumentum verziója** | 1.29 (v2.7.8 mobil/üzenet javítások) |
-| **A rendszer verziója** | v2.7.8 (éles, 2026-11-23) |
+| **A rendszer verziója** | v2.7.8 (2026-11-23) |
 | **Utolsó frissítés** | 2026-11-23 |
 | **Készítette** | Reiner Tamás (fejlesztés) — OpenCode asszisztens közreműködésével |
 | **Karbantartási szabály** | **Minden újabb fejlesztés után frissíteni kell** (lásd a 15. pontot) |
+
+> A szövegben előforduló `#N` / „Kaneo #N” hivatkozások belső fejlesztési jegyek;
+> a nyilvános dokumentumban csak történeti információként szerepelnek.
 
 ---
 
@@ -195,8 +198,8 @@ szülőnek arról, **mi történt aznap** — órarend nélkül:
 > használja). Ha a `.env`-ben is van `NTFY_TOPIC`, induláskor a konzol kiírja, hogy a
 > config.json topicját nem használja.
 
-A szerveren a `NTFY_TOPIC` (stb.) a `/opt/sulihub/.env`-ben él (a compose `env_file`-ja);
-ha ott be van állítva, az **felülírja** a config.json értékét. A topic **neve maga a cím**:
+A szerveren a `NTFY_TOPIC` (stb.) a projekt `.env` fájljában él (a compose a `.env`-et
+interpolációhoz betölti); ha ott be van állítva, az **felülírja** a config.json értékét. A topic **neve maga a cím**:
 az ntfy appban (vagy a `ntfy.sh` oldalon) ugyanerre a névre kell feliratkozni — és mivel erre
 a névre bárki küldhet/olvashat, **hosszú, véletlen nevet** használj (nincs regisztráció).
 A téma a `config.json`-ban a deploy után is szerkeszthető (a deploy nem írja felül).
@@ -835,7 +838,7 @@ futás tanévét.
 | **e-Ügyintézés** (`eugyintezes.e-kreta.hu`) | Üzenetek + csatolmányok | API-ból (mobil token), `X-Uzenet-Lokalizacio` illesztő |
 | **ntfy** (`ntfy.sh`) | Push értesítések | Csak állapotinformáció; diáknév alapból nem megy ki |
 | **Docker / Docker Compose** | Futtatás a szerveren | Konténer: `kreta-app`, port **8085** |
-| **Samba + SSH** | Deploy Windowsról a szerverre | A karbantartói `deploy.ps1` a privát `uzemeltetesi-repo` repóban (staging másolás + SSH) |
+| **Privát üzemeltetés** | A karbantartó saját deployja | Nem része a publikus repónak |
 | **cron (host)** | Napi mentés 03:00-kor | `kreta_backup.sh` |
 
 ### 5.1. Mentés és üzemeltetési ellenőrzések (Kaneo #90)
@@ -900,250 +903,23 @@ adatokat tartalmaz. **Nem** kerül a git repóba és a Docker image-be.
 
 ## 7. Üzemeltetés
 
-### 7.1. Környezetek
+### 7.1. Telepítés (publikus)
 
-| Környezet | Hely | Cél |
-|---|---|---|
-| **Éles** | saját szerver szerver, Docker, `http://saját szerver:8085` | napi használat |
-| **Fejlesztői** | Windows, `C:\sulihub`, `python app.py` | tesztelés, fejlesztés |
+A nyilvános telepítés Docker Compose-szal történik; a lépések a README
+„Docker élesítés” szakaszában vannak. A `data/` és `backup/` kötetek
+alapértéke `./data`, illetve `./backup`; a `config.json` a data kötetben van.
 
-### 7.2. Szerver felépítés
+### 7.2. Frissítés
 
-| Elem | Útvonal |
-|---|---|
-| Kód | `/opt/sulihub` |
-| Adatkötet (DB, config, napló, csatolmányok, böngészőprofil) | `./data` → konténerben `/app/data` |
-| Mentések | `./backup` |
-| Szerveroldali elérés Windowsról | `\\server\share\data` (Samba) |
+1. `git pull` (vagy az új image letöltése).
+2. `docker compose up -d --build`.
+3. `curl http://127.0.0.1:8085/health` → a várt verzió.
 
-### 7.3. Élesítés (deploy)
+### 7.3. A karbantartó saját üzemeltetése
 
-A karbantartói deploy script a privát **`uzemeltetesi-repo`** repóban van
-(mert a saját szerver/Samba/SSH infrastruktúrára épül). A publikus telepítéshez a
-Docker Compose-t használd (lásd a README „Docker élesítés” szakaszát).
-
-```powershell
-cd C:\uzemeltetesi-repo
-.\deploy.ps1 -Release vX.Y.Z
-```
-
-A folyamat: **tiszta munkakönyvtár** → tag-ellenőrzés (ha létezik és más
-commitra mutat: stop; ha ugyanarra: kérdés) → szerveri mentés → staging másolás
-(Samba) → SSH: előellenőrzés → munkakönyvtár frissítése →
-`docker compose up -d --build` → **`/health` = a kiadás verziója** → **tag
-létrehozás/push** → a GitHub Actions **Release** workflow létrehozza a GitHub
-Release-t a `docs/releasenotes/<tag>.md`-ből.
-
-**Előellenőrzés a szerveren (a másolás előtt):** a script SSH-n ellenőrzi, hogy
-a Docker daemon fut, a munkakönyvtár olvasható (nincs I/O hiba), a data köteten
-megvan a `config.json`, és van legalább **1 GB szabad hely**. Ha valamelyik nem
-teljesül, a deploy **a másolás előtt leáll** érthető hibaüzenettel (90% feletti
-kihasználtságnál figyelmeztet). Így egy lemez-/mount-hiba nem a másolás közepén
-derül ki.
-
-**A deploy NEM másolja** a `config.json`-t, az adatbázist és a `sync.log`-ot (ezek a data
-köteten élnek). A `config.json`-t szükség esetén **kézzel** kell a data kötetre másolni.
-
-**Csak a futásidejű fájlok mennek fel.** A munkakönyvtárba (`/opt/sulihub`) a
-következők kerülnek: `app.py`, `kreta_*.py`, `requirements.txt`,
-`requirements-playwright.txt`, `Dockerfile`,
-`docker-compose.yml`, `.dockerignore`, `entrypoint.sh`, `templates/`, `static/`
-(a csatolmányok nélkül) és `backup/kreta_backup.sh` (a `-InstallBackup` kapcsolóhoz).
-**Soha nem kerül fel:** `config.json`, `*.db`, `api_tokens.json`, `.env`, `sync.log`,
-`browser_user_data/`, `static/csatolmanyok/`, `tests/`, `.opencode/`, `poc/`,
-`tools/`, `docs/` (a dokumentáció), `deploy.ps1`, `KretaApp_Start.bat`. A `.dockerignore`
-ugyanezt kizárja a képből is.
-A deploy a korábbi futásokból ott maradt fejlesztői fájlokat/mappákat a
-szerveroldali tisztító lépésben **törli** (a `cp -rf` nem töröl).
-
-#### 7.3.1. v1.6.0 (API-first) élesítési ellenőrzőlista
-
-1. `.\deploy.ps1 -Release v1.6.0` — a Chromium **benne marad** az image-ben
-   (`kreta_playwright.py` fallback), a DB/config érintetlen.
-   **Ha a szinkron utána azonnal `error`:** a `/api/sync/status` `logs` mezője megmondja
-   (pl. `ModuleNotFoundError: No module named 'kreta_api'` = a képből hiányzó modul,
-   javítva a v1.6.1-ben: `COPY *.py ./`; ellenőrzés: `python tests/test_deploy.py`).
-2. A data köteten a `config.json`-ba `"SYNC_MODE": "api_first"` (az első API-s futás
-   utáni ellenőrzéshez `"SYNC_SHADOW": true` is bekapcsolható). Ugyanitt érdemes az
-   `"NTFY": {"TOPIC": "…"}` blokkot is kitölteni (kényelmesebben szerkeszthető, mint a
-   szerver `.env`-je; az env érték erősebb).
-3. Kézi szinkron indítása a felületről, majd a naplóban ellenőrizni:
-   `Szinkron mód: api_first`, adatkörönként `[API OK]`, a diák végén
-   `adatforrások: API: 8, Playwright: 0`, illetve `[ÁRNYÉK]` sorok (ha be volt kapcsolva).
-4. `/health` a várt verziót adja; a fejlécben is ez látszik.
-5. **ntfy ellenőrzés:** `curl -X POST http://saját szerver:8085/api/ntfy/test` → `{"ok":true,
-   "topic":"…","url":"https://ntfy.sh","status":200}`, és a telefonon megjön a teszt-push.
-   Ha `configured:false`, a topic nem látszik a konténerben (`.env` a compose mellett van-e,
-   illetve `docker compose up -d --force-recreate` kellett-e).
-6. Fallback-próba (opcionális): ideiglenesen rossz jelszóval/API-hibával futtatni —
-   a naplóban `[API HIBA]` + Playwright-forrás, az adatok nem duplikálódnak.
-7. 1–2 hét után a `SYNC_SHADOW` kikapcsolható; a Playwright csak fallback marad.
-
-> **Lokális (DEV) ntfy:** a repóban nincs `.env`, ezért lokálisan nincs push. Ha kell,
-> hozz létre `C:\sulihub\.env` fájlt az `.env.example` alapján — de
-> **más topic névvel**, mint az éles (`kreta-dev-…`), különben a két futás ugyanoda
-> küld, és nem tudod megkülönböztetni őket. Az env erősebb a `config.json` `NTFY`
-> blokkjánál.
-
-#### 7.3.2. v1.6.3 élesítési ellenőrzőlista
-
-1. `.\deploy.ps1 -Release v1.6.3` (a v1.6.0-s checklist lépései is érvényesek: config
-   `SYNC_MODE`, `/health`, ntfy).
-2. **Áttekintés fül** (a nyitó oldal): 5 csempe (heti határidők, új jegyek, új üzenetek,
-   igazolatlan hiányzás, kifizetetlen zsebpénz) + gyermekenkénti kártyák; a csempére
-   kattintva a szűrt nézet nyílik, „Vissza az áttekintésre" gombbal.
-3. **Jegyek fül:** a jegy mellett `%`-jelvény, tooltippel („Az értékelés X%-os súllyal…").
-4. **Statisztika fül:** alapból zárt „Tantárgyi átlagok" accordion — asztalon mátrix
-   (tantárgy × hónap + „Összes") és „Hónapok átlaga" lábléc; mobilon kapcsoló
-   (Havi bontás / Tantárgy szerint), mindkettő tetején a „Teljes átlag".
-5. **Kikapcsolt zsebpénzű diáknál** (pl. a harmadik gyermek): a statisztika látszik, a pénz-kártya
-   rejtve, helyette figyelmeztető sáv.
-6. **Oszlopszélesség:** az átméretezés/húzás nem rendezi át a táblát; a Hiányzások fülön is
-   van fogantyú.
-7. **Adatvédelem:** üres (de 200-as) API-válasz nem törli a jegyeket (napló: `[FIGYELEM]`).
-
-#### 7.3.3. v2.5.0 (Playwright teljes kivezetés, #64) élesítési ellenőrzőlista
-
-> A v2.5.0 önállóan is deployolható, de a **v2.6.0 tartalmazza**; a mostani
-> élesítéshez a **7.3.4.** checklistet használd.
-
-1. `cd C:\sulihub; .\deploy.ps1 -Release v2.5.0` — egyetlen
-   (API-s, böngésző nélküli) image épül; a deploy és a healthcheck változatlan.
-2. Ellenőrzés:
-   - `/health` = `v2.5.0`, a konténer `healthy`;
-   - `docker ps` → image `kreta-app:runtime`;
-   - kézi szinkron után a `sync.log`-ban `Szinkron mód: api`, a diák végén
-     `adatforrások: API: 8, Playwright: 0`;
-   - ha a configban örökölt `api_first`/`playwright` maradt, a napló figyelmeztet,
-     és `api` módban fut tovább (nem hiba).
-3. **Takarítás (a deploy után, egyszeri):** a data köteten a `browser_user_data/`
-   törölhető; az esetlegesen ottmaradt `kreta-app:playwright` / régi Chromiumos
-   image-ek `docker image prune`-nal felszabadíthatók.
-4. **Visszaállás (vészhelyzet):** a böngészös fallback kódja a **`playwright-fallback`
-   git-ág**-on maradt (a v2.4.0 fallbackes állapot). Visszaálláshoz abból az ágból
-   deployolj (vagy `git checkout playwright-fallback -- kreta_playwright.py Dockerfile
-   docker-compose.yml requirements*.txt` és `docker compose up -d --build`).
-
-> A v2.4.0-s „#138" checklist (fallback image előépítése, `:playwright` target,
-> `.env`-váltás) a v2.5.0-tól **elavult** — fallback image már nincs.
-
-#### 7.3.4. v2.6.0 (szünet, értesítési politika, Ma fül) élesítési ellenőrzőlista
-
-1. `cd C:\sulihub; .\deploy.ps1 -Release v2.6.0` — a **v2.5.0
-   (Playwright teljes kivezetés)** is benne van, külön v2.5.0 deploy nem kell.
-2. A data köteten a `config.json`-ban legyen:
-   - `SZUNET_AKTIV: true` (mesterkapcsoló),
-   - `SYNC_SZUNET`: a 2026/2027-es szünetek (őszi/téli/tavaszi/nyári),
-   - `DIGEST`: `ENABLED`, `TIME`, `INCLUDE_NAMES`, `SZUNET_NAPOK`,
-   - `NTFY.NOTIFY_NEW: true` (a régi `NOTIFY_SUCCESS` is elfogadott).
-3. Ellenőrzés deploy után:
-   - `/health` = `v2.6.0`, a konténer `healthy`;
-   - a dashboard felett **bordó szünet-sáv** (desktopon két sor, mobilon rövid);
-   - `/api/scheduler/status` `szunet.active` a megfelelő intervallumot adja;
-   - a következő szinkron után a health `last_error_type` **nem token**, ha csak
-     az eAdmin ad 503-at; a `last_failed_datasets` a sikertelen adatkört mutatja;
-   - push: üres sikeres futás **nem** küld, új adat **egy részletes** üzenet,
-     hiba **mindig**;
-   - Ma fül: **Holnap** (csak órák) + **Igazolandó** kártya.
-4. Ha az üzenetek adatkör `HTTP 503`-at ad, az **KRÉTA-oldali eAdmin-kiesés**
-   (a `https://eugyintezes.e-kreta.hu/` gyökere is 503); nem kell újra bejelentkezni,
-   a következő sikeres futás pótolja az üzeneteket.
-5. **Visszaállás (vészhelyzet):** a böngészős fallback kódja a
-   **`playwright-fallback`** git-ágon maradt; abból az ágból deployolj.
-
-#### 7.3.5. v2.6.1 (statisztika szűrők, logó-link) élesítési ellenőrzőlista *(éles 2026-11-19)*
-
-1. `cd C:\sulihub; .\deploy.ps1 -Release v2.6.1`
-2. Ellenőrzés deploy után:
-   - `/health` = `v2.6.1`, a konténer `healthy`;
-   - a **Statisztika & Zsebpénz** fülön a gyermek-szűrők betöltéskor **üresek**,
-     üres állapotban súgó; kiválasztás után betölt a statisztika;
-   - az **Áttekintés** fülön a gyermek átlagkártyájára kattintva a Statisztika fül
-     nyílik, a gyermek kiválasztva, a **teljes tanév** időszakával, lenyitott
-     **havi tantárgyi átlagokkal**;
-   - a bal felső **SuliHub logó** az Áttekintésre visz (újratöltés nélkül);
-   - `docs/releasenotes/v2.6.1.md` létezik (a deploy figyelmeztet, ha nincs).
-3. **Visszaállás:** az előző v2.6.0 tag/image.
-
-#### 7.3.6. v2.7.0 (tanév-archívum #139 + first seen #147) élesítési ellenőrzőlista
-
-1. `cd C:\sulihub; .\deploy.ps1 -Release v2.7.0`
-2. Ellenőrzés deploy után:
-   - `/health` = `v2.7.0`, a konténer `healthy`;
-   - kézi próba egy létező tanévre:
-     `docker exec kreta-app python -m kreta_archive 2026/2027`
-     (nyitott tanévnél `2026-2027_manual_<időbélyeg>.zip`; a záráskor a kanonikus
-     `2026-2027.zip` készül; a naplóban `[Tanév-archívum]`);
-   - a ZIP a data köteten: `data/tanev_archivum/...zip` + `.sha256`;
-   - a CLI „OK” ellenőrzést ír (külső + belső SHA-256);
-   - ismételt futtatásnál nem írja felül a ZIP-et;
-   - a napi backup tarban benne van a `tanev_archivum/`;
-   - **#147:** a naplóban a szinkron/indítás után `[Migráció] séma v5 kész`, és a
-     következő szinkron után egy visszamenőleges dátumú új jegy is megjelenik a
-     Ma fülön és a push-ban.
-3. **Visszaállás:** az előző v2.6.1 tag/image.
-
-#### 7.3.7. v2.7.1 (Bekerült oszlop #147 + mobil első kör) — éles 2026-11-19
-
-1. `cd C:\sulihub; .\deploy.ps1 -Release v2.7.1`
-2. Ellenőrzés deploy után:
-   - `/health` = `v2.7.1`, a konténer `healthy`;
-   - az Események táblában a „Részletek / Leírás” után ott a **Bekerült** oszlop;
-   - a részletek modálban „Bekerült a SuliHubba” sor;
-   - mobilon a tantárgy alatt a jegy + rövid dátum (a v2.7.1 első mobil köre);
-   - `Ctrl+F5` után a böngésző a friss JS-t/HTML-t mutatja;
-   - a művelet-oszlop (részletek/megjegyzés) nem préselődik össze.
-3. **Visszaállás:** az előző v2.7.0 tag/image.
-
-#### 7.3.8. v2.7.2 (mobil finomítás, #153) — éles 2026-11-19
-
-1. `cd C:\sulihub; .\deploy.ps1 -Release v2.7.2`
-2. Ellenőrzés deploy után:
-   - `/health` = `v2.7.2`, a konténer `healthy`;
-   - mobilon a diák-oszlop keskeny (44 px), a sor elején a típus rövidítése
-     (`É`/`F`/`HF`/`SZK`);
-   - egy sorban: tantárgy + rövid dátum + jegy a jobb szélen, színes körben;
-   - a jegy nélküli sorokban is fix a dátum helye;
-   - a külön Érték/Dátum/Típus oszlop mobilon rejtve;
-   - `Ctrl+F5` után a friss JS/HTML látszik.
-3. **Visszaállás:** az előző v2.7.1 tag/image.
-
-#### 7.3.9. v2.7.3 (Műveletek oszlop + kedvencek eltávolítása) — éles 2026-11-19
-
-1. `cd C:\sulihub; .\deploy.ps1 -Release v2.7.3`
-2. Ellenőrzés deploy után:
-   - `/health` = `v2.7.3`, a konténer `healthy`;
-   - mobilon a **Műveletek** oszlop mindig látszik (megjegyzés + részletek gomb);
-   - a házi feladat Elkészült/Újra aktív gombja mobilon csak ikon;
-   - a csillag/kedvencek gomb és a „Kitűzött események” panel nem látszik;
-   - `Ctrl+F5` után a friss JS/HTML látszik.
-3. **Visszaállás:** az előző v2.7.2 tag/image.
-
-#### 7.3.10. v2.7.7 (szinkron-push delta) — éles 2026-11-23
-
-1. `cd C:\uzemeltetesi-repo; .\deploy.ps1 -Release v2.7.7`
-2. Ellenőrzés deploy után:
-   - `/health` = `v2.7.7`, a konténer `healthy`;
-   - a következő új adatot hozó szinkron pushban **csak az új tétel** szerepel,
-     „Holnap esedékes” blokk nélkül;
-   - az esti digest (20:00) tartalma változatlan: a nap eseményei + „Holnap esedékes”;
-   - a hiba/részleges hiba push és a health-riasztás változatlan (egy üzenet).
-3. **Visszaállás:** az előző v2.7.6 tag/image.
-
-#### 7.3.11. v2.7.8 (mobil üzenet/esemény + üzenet gyermek-szűrő) — éles 2026-11-23
-
-1. `cd C:\uzemeltetesi-repo; .\deploy.ps1 -Release v2.7.8`
-2. Ellenőrzés deploy után:
-   - `/health` = `v2.7.8`, a konténer `healthy`;
-   - mobilon egy olvasatlan, hosszú tárgyú üzenetnél a **tárgy látszik** (nem csak „…”),
-     a sor elején a kék pötty marad;
-   - az Események fülön a **házi feladat / bejelentett számonkérés** sorában a
-     tantárgy mellett a **határidő** látszik; a részletekben továbbra is ott a
-     **Bejegyzés dátuma** és a **Bekerült a SuliHubba** időbélyeg;
-   - az Üzenetek fülön a **Gyermek** választó alapból „Összes gyermek”, és csak az
-     üzenetlistát szűri (az Áttekintés/Események gyermek-választása nem hat rá);
-   - `Ctrl+F5` után a friss JS/HTML látszik.
-3. **Visszaállás:** az előző v2.7.7 tag/image.
+A szerver-specifikus deploy (Samba/SSH, szervernevek, saját útvonalak) a
+**privát üzemeltetési repóban** van; a publikus repó nem tartalmazza. A
+publikus telepítéshez a Docker Compose elég.
 
 ### 7.4. Mentés és visszaállítás
 
@@ -1257,7 +1033,7 @@ Kreta/
 ├── static/js/app-main.js  # a felület fő JS-e ($(document).ready blokk)
 ├── static/vendor/         # vendorolt frontend-függőségek (offline)
 ├── tests/                 # automatikus tesztek + futtató
-├── tools/                 # kaneo_ticket, api_snapshot, migrate_local_data, mobile_shot
+├── tools/                 # api_snapshot, migrate_local_data, mobile_shot, backup_restore_check
 ├── data/                  # futásidejű adatok (NEM verziózott): DB, config.json, sync.log,
 │                          #   api_tokens.json, scheduler_state.json, version.txt,
 │                          #   csatolmanyok/
@@ -1266,7 +1042,7 @@ Kreta/
 ```
 
 > A karbantartói `deploy.ps1` és a napi mentő `backup/kreta_backup.sh` a privát
-> `uzemeltetesi-repo` repóban van.
+> üzemeltetési repóban van; a publikus telepítéshez nem kell.
 
 A `data/` a v2.0.0-tól az alapértelmezett hely; a korábbi (projektgyökér) elrendezés
 egy kiadásig még működik, figyelmeztetéssel. Átköltöztetés (az app álljon le):
@@ -1319,8 +1095,8 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 
 1. Fejlesztés + `python tests/run_all.py` (minden zöld).
 2. Commit + push a `main` ágra.
-3. A karbantartói deploy (privát `uzemeltetesi-repo`):
-   `cd C:\uzemeltetesi-repo; .\deploy.ps1 -Release vX.Y.Z`
+3. A karbantartói deploy (privát üzemeltetési repó):
+   `.\deploy.ps1 -Release vX.Y.Z`
    (tiszta tree; tag csak sikeres `/health` után; a tag push indítja a Release workflow-t).
 4. Ellenőrzés: `/health` verzió, fejléc, szinkron, értesítés.
 5. **Dokumentáció frissítése** (lásd 15. pont).
@@ -1477,7 +1253,6 @@ könyvtárban futnak, a valódi adatokat nem érintik.
 | `README.md` | Rövid üzemeltetői útmutató, telepítés, konfiguráció |
 | `docs/rendszerterv.md` | Eredeti követelményjegyzék és rendszerterv (történeti) |
 | `docs/DOKUMENTACIO.md` | A rendszer teljes leírása |
-| `docs/osszefoglalo/` | Munkamenet-összefoglalók (dátumozott) — pl. a KRÉ-14 refaktoré |
 | `tests/README.md` | A tesztek leírása és futtatása |
 | `docs/DOKUMENTACIO.md` | **Ez a dokumentum** — teljes rendszerleírás |
 

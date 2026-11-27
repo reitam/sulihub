@@ -24,7 +24,10 @@ a saját szerveren maradnak.
 > [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). A saját kód **MIT licenc**
 > alatt áll: [`LICENSE`](LICENSE).
 
-**Jelenlegi verzió:** `v2.7.8` (éles, 2026-11-23)
+**Legutóbbi kiadás:** `v2.7.8` (2026-11-23)
+
+> A dokumentációban előforduló `#N` / „Kaneo #N” hivatkozások a fejlesztés belső
+> jegyei; a nyilvános repóban csak történeti információként szerepelnek.
 
 > **Átnevezés (2026-11-20):** a GitHub-repó új neve **`reitam/sulihub`**
 > (korábban `kreta_adatlekero`); a régi URL átirányít. A helyi klónban:
@@ -496,14 +499,13 @@ Futásonként legfeljebb egy push megy ki. Az új adat push kikapcsolható:
 ├── static/js/              # core.js + app-main.js (a felület JS-e)
 ├── static/vendor/          # vendorolt függőségek (offline)
 ├── tests/                  # automatikus tesztek + run_all.py
-├── tools/                  # kaneo_ticket, api_snapshot, migrate_local_data, mobile_shot
+├── tools/                  # api_snapshot, migrate_local_data, mobile_shot, backup_restore_check
 ├── data/                   # futásidejű adatok (NEM verziózott): DB, config.json,
 │                           #   sync.log, api_tokens.json, böngészőprofil, csatolmányok
 ├── Dockerfile, docker-compose.yml, entrypoint.sh
 ├── docs/
 │   ├── DOKUMENTACIO.md     # teljes rendszerdokumentáció
-│   ├── rendszerterv.md     # eredeti követelményjegyzék (történeti)
-│   └── osszefoglalo/       # munkamenet-összefoglalók
+│   └── rendszerterv.md     # eredeti követelményjegyzék (történeti)
 └── README.md
 ```
 
@@ -617,5 +619,4 @@ A teljes lista: [`DOKUMENTACIO.md` 13. fejezet](docs/DOKUMENTACIO.md).
 |---|---|
 | [`docs/DOKUMENTACIO.md`](docs/DOKUMENTACIO.md) | Teljes rendszerdokumentáció (üzleti + technikai) |
 | [`docs/rendszerterv.md`](docs/rendszerterv.md) | Eredeti követelményjegyzék (történeti) |
-| [`docs/osszefoglalo/`](docs/osszefoglalo/) | Munkamenet-összefoglalók (naptárazott) |
 | [`tests/README.md`](tests/README.md) | A tesztek leírása |

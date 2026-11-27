@@ -37,3 +37,7 @@ tools/snapshots/
 # Karbantartoi deploy (privat: uzemeltetesi-repo)
 deploy.ps1
 backup/
+
+# Belső üzemeltetési anyagok (privát devops repó)
+docs/osszefoglalo/
+tools/kaneo_ticket.py

@@ -13,7 +13,7 @@
 
 ## Élesítés
 
-A karbantartói deploy (privát `uzemeltetesi-repo`):
+A karbantartói deploy (privát üzemeltetési repó):
 
 ```powershell
 .\deploy.ps1 -Release vX.Y.Z

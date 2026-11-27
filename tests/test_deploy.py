@@ -129,7 +129,7 @@ ok({".opencode", "poc", "tools"} <= ignored,
 print("\n3b) deploy.ps1: csak a futásidejű fájlok mennek fel")
 deploy_path = ROOT / "deploy.ps1"
 if not deploy_path.exists():
-    print("  (deploy.ps1 nincs a repóban — privát uzemeltetesi-repo; az ellenőrzés kimarad)")
+    print("  (deploy.ps1 nincs a repóban — privát üzemeltetési repó; az ellenőrzés kimarad)")
 else:
     deploy_src = deploy_path.read_text(encoding="utf-8", errors="replace")
     ok('"api_tokens.json"' in deploy_src or "api_tokens.json" in deploy_src,
