@@ -89,6 +89,8 @@ BROWSER_UA = (
     "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 MOBILE_UA = "hu.ekreta.tanulo/1.0.5/Android/0/0"
+# A KRÉTA mobil API nyilvános klienskulcsa (a blazsmaster/kreta.js mintája),
+# nem felhasználói titok; a diákok tokenjei a data köteten, az api_tokens.json-ban vannak.
 API_KEY = "21ff6c25-d1da-4a68-a811-c881a6057463"
 EADMIN_BASE = "https://eugyintezes.e-kreta.hu/api/v1"
 

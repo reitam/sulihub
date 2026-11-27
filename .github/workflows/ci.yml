@@ -26,6 +26,21 @@ jobs:
       - name: Tesztek (fast)
         run: python tests/run_all.py --fast
 
+  deps:
+    name: Függőség-audit (pip-audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: pip-audit telepítése
+        run: pip install pip-audit
+      - name: Függőségek auditja
+        run: pip-audit -r requirements.txt
+
   browser:
     name: Böngészős UI tesztek (Playwright — csak a felület teszteléséhez)
     # Csak main pushra, éjszakánként vagy kézi indításra — minden pushra túl drága.
