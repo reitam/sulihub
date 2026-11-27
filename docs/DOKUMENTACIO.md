@@ -262,7 +262,7 @@ elszámolást készít. A jelenlegi tarifa (a `config.json`-ban szabadon állít
   a `TanevUid` a `tanulo_tanev_uid` táblában diákonként tárolva. A lezárás **nem tilt le
   semmit** (a régi tanévhez tartozó kifizetés/megjegyzés továbbra is rögzíthető), tisztán
   állapot/audit; a fejlécben állapotjelzés, a tanév-választóban „lezárt” jelölés látszik.
-  * **Mérés (2026-11-03, 3 diák):** a KRÉTA mobil API a **korábbi tanévekre 0 sort ad**
+  * **Mérés (2026-11-03, több diák):** a KRÉTA mobil API a **korábbi tanévekre 0 sort ad**
     (jegy/hiányzás/igazolás, teljes tanévre kérve is), csak az **aktuális tanévet**
     szolgálja ki — a dátum-szűrő közben működik (kontroll ablakok). Ezért nincs
     visszamenőleges lekérés; a régi tanévek adata **pótolhatatlan**, ezért a napi backup
