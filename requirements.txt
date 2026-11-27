@@ -13,7 +13,7 @@ requests>=2.32,<3
 # A naptár .ics időzóna-konverziójához (Windows-on nincs rendszer tz-adatbázis).
 tzdata>=2024.1
 # A tesztek PDF-szövegkinyeréséhez (test_pdf_fonts, test_riportkartya).
-pypdf>=5,<7
+pypdf>=7.1.1,<8
 # Zsebpénz valódi Excel (.xlsx) exporthoz (#11).
 openpyxl>=3.1,<4
 
