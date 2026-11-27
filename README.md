@@ -1,5 +1,9 @@
 ﻿# 🎓 SuliHub – KRÉTA Adatbázis Áttekintő & Zsebpénz Menedzser
 
+[![CI](https://github.com/reitam/sulihub/actions/workflows/ci.yml/badge.svg)](https://github.com/reitam/sulihub/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/reitam/sulihub)](https://github.com/reitam/sulihub/releases)
+
 > **Teljes rendszerdokumentáció:** [`docs/DOKUMENTACIO.md`](docs/DOKUMENTACIO.md) — üzleti áttekintés,
 > architektúra, adatmodell, üzemeltetés, hibaelhárítás, verziótörténet.
 
@@ -574,6 +578,16 @@ curl http://127.0.0.1:8085/health
 - Ha a hálózat kiterjed: basic auth vagy reverse proxy javasolt. A #137 óta
   a meglévő, de hibás/olvashatatlan config esetén a védett végpontok 503-at adnak
   (fail-closed); hiányzó confignál az auth nincs beállítva.
+
+---
+
+## 🤝 Hozzájárulás és biztonság
+
+- Hozzájárulás: [`CONTRIBUTING.md`](CONTRIBUTING.md) — feature branch, PR, zöld CI,
+  release note, nincs személyes adat/titok.
+- Biztonsági bejelentés: [`SECURITY.md`](SECURITY.md) — kérjük, **ne** nyilvános
+  issue-ban; használd a GitHub privát sebezhetőség-bejelentését.
+- Magatartás: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 
 ---
 
