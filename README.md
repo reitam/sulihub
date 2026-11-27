@@ -28,7 +28,7 @@ a saját szerveren maradnak.
 > [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). A saját kód **MIT licenc**
 > alatt áll: [`LICENSE`](LICENSE).
 
-**Legutóbbi kiadás:** `v2.7.8` (2026-11-23) | [Kiadások](https://github.com/reitam/sulihub/releases)
+**Legutóbbi kiadás:** `v2.8.0` (2026-11-27) | [Kiadások](https://github.com/reitam/sulihub/releases)
 
 ---
 
