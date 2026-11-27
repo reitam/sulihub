@@ -18,6 +18,12 @@ visszamenőleg készültek; a részletes rendszerleírás a
 > gyermeknevek és munkahelyi e-mail eltávolítása). A korábbi bejegyzésekben
 > szereplő commit SHA-k történeti értékűek, már nem az aktuális objektumokra
 > mutatnak; a kiadásokat a **tagok** azonosítják.
+>
+> **2026-11-27:** a publikus kiadás előtt a history ismét **újraírva** (a
+> szerzői e-mailek egységesen `reiner.tamas@gmail.com`, valódi nevek/iskolai
+> azonosítók és belső útvonalak eltávolítva). A release note-okban szereplő
+> commit SHA-k ettől kezdve szintén történetiek; a kiadásokat a **tagok**
+> azonosítják.
 
 | Verzió | Dátum | Státusz | Git tag |
 |---|---|---|---|
