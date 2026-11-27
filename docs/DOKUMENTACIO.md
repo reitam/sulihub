@@ -322,7 +322,7 @@ sorára kattintva **az adott sor részletei nyílnak meg** (esemény → részle
 a megfelelő szűrt nézet nyílik. A találat-típusok **felirata és színe ugyanaz, mint az
 Események fülön** (Értékelés, Feljegyzés, Házi feladat, Bejelentett számonkérés). A keresés
 a `/api/kereses` végponton fut (LIKE, escape-elt speciális karakterekkel), tipikusan <10 ms.
-**:** a találatlista **↑/↓ billentyűkkel** navigálható, **Enter** megnyitja,
+A találatlista **↑/↓ billentyűkkel** navigálható, **Enter** megnyitja,
 **Esc** bezárja; az utolsó **5 keresés** a `localStorage`-ban marad; a megnyitott találat
 sora az eseménylistában **rövid sárga kiemelést** kap. Nagyobb adatbázison a keresés
 **FTS5 trigram indexet** használ (lásd 2.17), a LIKE marad fallbacknek.
@@ -388,14 +388,14 @@ nyílik (tantárgy, téma/leírás, tanár, határidő, állapot). Ugyanez a het
 határidő-sorain is működik. **Friss jegyek** (7 nap) és **olvasatlan
 üzenetek** (kattintás → üzenet-ablak). Saját gyermek-chipek; a fül megnyitásakor és
 gyermekváltáskor automatikusan frissül (nincs külön Frissítés gomb), a fejléc
-diák-szűrőjét követi. **:** a napi nézet **Holnap** kártyát kap (csak a
+diák-szűrőjét követi. A napi nézet **Holnap** kártyát kap (csak a
 holnapi órák; a holnapi határidők a meglévő **„Ma és holnap esedékes”** kártyán vannak),
 valamint **Igazolandó**
-kártyát (a még nem igazolt hiányzások/késések, „X napja” jelvénnyel). **:** a fülön belüli **Ma / Hét** szegmentált kapcsoló
+kártyát (a még nem igazolt hiányzások/késések, „X napja” jelvénnyel). A fülön belüli **Ma / Hét** szegmentált kapcsoló
 választja a napi kártyákat vagy a **heti napkártyás nézetet**: hétfő–péntek, **kétoszlopos,
 középre igazított rácsban** (max. 780 px, nem a képernyő teljes szélessége), a napkártyák
 színe az eseményekhez igazodik (óra = kék, határidő = borostyán, vegyes = lila). Páratlan
-számú kártyánál az utolsó a két oszlophoz képest **középre** kerül. **:** ha a
+számú kártyánál az utolsó a két oszlophoz képest **középre** kerül. Ha a
 hétvégére (szombat/vasárnap) is van órarendi óra vagy határidő (pl. munkaszombat), az a
 nap is **kártyát kap**, és a fejléc ilyenkor „hétfő–vasárnap". A havi nézet a
 felhasználó döntése alapján **nincs**. Adatforrás: `/api/ma?diak=&datum=`.
@@ -756,7 +756,7 @@ Az adatok egyetlen SQLite adatbázisban (`kreta_adatok.db`) vannak, a data köte
 |---|---|---|
 | `esemenyek` | Jegyek, feljegyzések, házik, számonkérések (közös séma) | `esemeny_tipus` különböztet; a `kesz` jelző a házi „elkészült" állapota; a `suly_szazalek` a jegy súlyszázaléka (0 = nincs adat / nem API-ból jött) |
 | `orarend` | Heti órarend sorai (diák, nap, időpont, tantárgy, tanár, terem) | Az aktuális és a következő hét |
-| `uzenetek` | e-Ügyintézés üzenetek + csatolmány hivatkozás | Csak az új üzenetek kerülnek be; a `posta_id` a postalada-elem azonosítója — ezzel kérhető le a **teljes szöveg** a részletes API-válaszból; az `olvasott` (0/1) a **helyi** olvasott/olvasatlan állapot (a szinkron a már mentett üzenetet nem írja felül, a KRÉTA-ba nem írunk vissza — ). A migráció előtti () üzenetek **olvasottként** indulnak, hogy ne jelenjen meg minden régi üzenet olvasatlanként |
+| `uzenetek` | e-Ügyintézés üzenetek + csatolmány hivatkozás | Csak az új üzenetek kerülnek be; a `posta_id` a postalada-elem azonosítója — ezzel kérhető le a **teljes szöveg** a részletes API-válaszból; az `olvasott` (0/1) a **helyi** olvasott/olvasatlan állapot (a szinkron a már mentett üzenetet nem írja felül, a KRÉTA-ba nem írunk vissza). A korábbi üzenetek **olvasottként** indulnak, hogy ne jelenjen meg minden régi üzenet olvasatlanként |
 | `hianyzasok` | Hiányzások és késések (dátum, órasorszám, tantárgy, téma, típus, igazolt, igazolás típusa) | ISO dátum; a rekordot a **dátum + órasorszám** azonosítja; késést a `perc` és/vagy a típus neve jelöli |
 | `igazolasok` | Igazolások érvényességi intervalluma + típus + megjegyzés | A hónaphoz a metsző igazolások tartoznak |
 | `kifizetesek` | Zsebpénz-elszámolások havi tételei | „KIFIZETVE" állapot, összeg |
@@ -947,7 +947,7 @@ A felület a fejléc választójában **mindig explicit** értéket küld. A `/a
 - **Hitelesítés:** opcionális **basic auth** a `config.json` `AUTH` blokkjával
  (`ENABLED`, `USERNAME`, `PASSWORD_HASH`; a `/health` kivétel). Kikapcsolva a belső hálózat
  a védelmi vonal. Élesben **HTTPS/reverse proxy** javasolt, mert a basic auth önmagában
- nem titkosít. **:** ha a config **meglévő, de olvashatatlan/érvénytelen**, a védett
+ nem titkosít. Ha a config **meglévő, de olvashatatlan/érvénytelen**, a védett
  végpontok **503**-at adnak (fail-closed); hiányzó confignál az auth nincs beállítva.
 - **Személyes adatok:** gyermeknevek, jegyek, üzenetek. Ezek a saját szerveren maradnak.
 - **AI:** nincs AI-funkció; a naptárbejegyzés/ICS a meglévő úton működik.
