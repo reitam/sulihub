@@ -4,7 +4,7 @@
 #
 # Ez a *futásidejű alap* (API-s szinkron, böngésző nélkül). A Playwrightos
 # fallbackhez külön: `pip install -r requirements-playwright.txt`.
-flask>=3.1,<4
+flask>=3.1.3,<4
 reportlab>=5.1,<6
 waitress>=3.0,<4
 # A KRÉTA API kliens (kreta_api.py) HTTP-hívásaihoz (a Playwright nem hozza
